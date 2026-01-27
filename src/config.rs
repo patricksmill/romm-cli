@@ -13,7 +13,7 @@ pub struct Config {
     pub auth: Option<AuthConfig>,
 }
 
-fn is_placeholder(value: &str) st  ring {
+fn is_placeholder(value: &str) -> bool {
     value.contains("your-") || value.contains("placeholder") || value.trim().is_empty()
 }
 

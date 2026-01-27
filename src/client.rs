@@ -4,7 +4,7 @@ use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use reqwest::Client as HttpClient;
 
 use crate::config::{AuthConfig, Config};
-use crate::types::Platform;
+use crate::types::{Platform, RomList};
 
 #[derive(Clone)]
 pub struct RommClient {
@@ -88,6 +88,56 @@ impl RommClient {
 
         let platforms = resp.json::<Vec<Platform>>().await?;
         Ok(platforms)
+    }
+
+    pub async fn get_roms(
+        &self,
+        search_term: Option<&str>,
+        platform_id: Option<u64>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> Result<RomList> {
+        let url = format!("{}/api/roms", self.base_url.trim_end_matches('/'));
+        let headers = self.build_headers()?;
+
+        let mut req = self.http.get(&url).headers(headers);
+
+        if let Some(term) = search_term {
+            req = req.query(&[("search_term", term)]);
+        }
+
+        if let Some(pid) = platform_id {
+            req = req.query(&[("platform_id", pid)]);
+        }
+
+        if let Some(limit) = limit {
+            req = req.query(&[("limit", limit)]);
+        }
+
+        if let Some(offset) = offset {
+            req = req.query(&[("offset", offset)]);
+        }
+
+        // keep other params at their API defaults
+
+        let resp = req
+            .send()
+            .await
+            .map_err(|e| anyhow!("request error: {e}"))?;
+
+        let status = resp.status();
+        if !status.is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(anyhow!(
+                "ROMM API error: {} {} - {}",
+                status.as_u16(),
+                status.canonical_reason().unwrap_or(""),
+                body
+            ));
+        }
+
+        let roms = resp.json::<RomList>().await?;
+        Ok(roms)
     }
 }
 

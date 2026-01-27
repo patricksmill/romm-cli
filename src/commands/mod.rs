@@ -5,6 +5,7 @@ use crate::client::RommClient;
 use crate::config::Config;
 
 pub mod platforms;
+pub mod roms;
 
 #[derive(Parser, Debug)]
 #[command(name = "romm-cli", version, about = "Rust CLI for ROMM API")]
@@ -21,6 +22,8 @@ pub struct Cli {
 pub enum Commands {
     /// Platform-related commands
     Platforms(platforms::PlatformsCommand),
+    /// ROM-related commands
+    Roms(roms::RomsCommand),
 }
 
 pub async fn run(cli: Cli, config: Config) -> Result<()> {
@@ -28,6 +31,7 @@ pub async fn run(cli: Cli, config: Config) -> Result<()> {
 
     match cli.command {
         Commands::Platforms(cmd) => platforms::handle(cmd, &client, cli.verbose).await?,
+        Commands::Roms(cmd) => roms::handle(cmd, &client, cli.verbose).await?,
     }
 
     Ok(())

@@ -38,11 +38,17 @@ async fn list_platforms(client: &RommClient, json: bool) -> Result<()> {
     }
 
     for p in platforms {
+        let display_name = p
+            .display_name
+            .as_ref()
+            .filter(|s| !s.is_empty())
+            .unwrap_or(&p.name);
+
         println!(
             "{}\t{}\t{}\troms:{}\tfirmware:{}",
             p.id,
             p.slug,
-            p.display_name.as_deref().unwrap_or(&p.name),
+            display_name,
             p.rom_count,
             p.firmware.len()
         );
