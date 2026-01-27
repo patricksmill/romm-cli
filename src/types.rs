@@ -1,0 +1,58 @@
+use serde::Deserialize;
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Firmware {
+    pub id: u64,
+    pub file_name: String,
+    pub file_name_no_tags: String,
+    pub file_name_no_ext: String,
+    pub file_extension: String,
+    pub file_path: String,
+    pub file_size_bytes: u64,
+    pub full_path: String,
+    pub is_verified: bool,
+    pub crc_hash: String,
+    pub md5_hash: String,
+    pub sha1_hash: String,
+    pub missing_from_fs: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Platform {
+    pub id: u64,
+    pub slug: String,
+    pub fs_slug: String,
+    pub rom_count: u64,
+    pub name: String,
+    pub igdb_slug: String,
+    pub moby_slug: String,
+    pub hltb_slug: String,
+    pub custom_name: String,
+    pub igdb_id: u64,
+    pub sgdb_id: u64,
+    pub moby_id: u64,
+    pub launchbox_id: u64,
+    pub ss_id: u64,
+    pub ra_id: u64,
+    pub hasheous_id: u64,
+    pub tgdb_id: u64,
+    pub flashpoint_id: u64,
+    pub category: String,
+    pub generation: u64,
+    pub family_name: String,
+    pub family_slug: String,
+    pub url: String,
+    pub url_logo: String,
+    pub firmware: Vec<Firmware>,
+    pub aspect_ratio: String,
+    pub created_at: String,
+    pub updated_at: String,
+    pub fs_size_bytes: u64,
+    pub is_unidentified: bool,
+    pub is_identified: bool,
+    pub missing_from_fs: bool,
+    pub display_name: String,
+}
+
