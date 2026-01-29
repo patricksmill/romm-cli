@@ -1,0 +1,47 @@
+use crate::types::RomList;
+
+use super::Endpoint;
+
+/// Retrieve ROMs with optional filters.
+#[derive(Debug, Default, Clone)]
+pub struct GetRoms {
+    pub search_term: Option<String>,
+    pub platform_id: Option<u64>,
+    pub limit: Option<u32>,
+    pub offset: Option<u32>,
+}
+
+impl Endpoint for GetRoms {
+    type Output = RomList;
+
+    fn method(&self) -> &'static str {
+        "GET"
+    }
+
+    fn path(&self) -> String {
+        "/api/roms".into()
+    }
+
+    fn query(&self) -> Vec<(String, String)> {
+        let mut q = Vec::new();
+
+        if let Some(term) = &self.search_term {
+            q.push(("search_term".into(), term.clone()));
+        }
+
+        if let Some(pid) = self.platform_id {
+            q.push(("platform_id".into(), pid.to_string()));
+        }
+
+        if let Some(limit) = self.limit {
+            q.push(("limit".into(), limit.to_string()));
+        }
+
+        if let Some(offset) = self.offset {
+            q.push(("offset".into(), offset.to_string()));
+        }
+
+        q
+    }
+}
+

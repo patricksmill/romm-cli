@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::Args;
 
 use crate::client::RommClient;
+use crate::endpoints::roms::GetRoms;
 
 #[derive(Args, Debug)]
 pub struct RomsCommand {
@@ -26,14 +27,14 @@ pub struct RomsCommand {
 }
 
 pub async fn handle(cmd: RomsCommand, client: &RommClient, json: bool) -> Result<()> {
-    let results = client
-        .get_roms(
-            cmd.search_term.as_deref(),
-            cmd.platform_id,
-            cmd.limit,
-            cmd.offset,
-        )
-        .await?;
+    let ep = GetRoms {
+        search_term: cmd.search_term.clone(),
+        platform_id: cmd.platform_id,
+        limit: cmd.limit,
+        offset: cmd.offset,
+    };
+
+    let results = client.call(&ep).await?;
 
     if cmd.json || json {
         println!("{}", serde_json::to_string_pretty(&results)?);

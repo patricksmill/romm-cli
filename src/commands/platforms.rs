@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::{Args, Subcommand};
 
 use crate::client::RommClient;
+use crate::endpoints::platforms::ListPlatforms;
 
 #[derive(Args, Debug)]
 pub struct PlatformsCommand {
@@ -30,7 +31,7 @@ pub async fn handle(cmd: PlatformsCommand, client: &RommClient, json: bool) -> R
 }
 
 async fn list_platforms(client: &RommClient, json: bool) -> Result<()> {
-    let platforms = client.get_platforms().await?;
+    let platforms = client.call(&ListPlatforms::default()).await?;
 
     if json {
         println!("{}", serde_json::to_string_pretty(&platforms)?);

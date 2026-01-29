@@ -2,6 +2,8 @@ mod config;
 mod types;
 mod client;
 mod commands;
+mod endpoints;
+mod tui;
 
 use anyhow::Result;
 use clap::Parser;

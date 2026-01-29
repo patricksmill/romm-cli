@@ -1,10 +1,11 @@
 use anyhow::{anyhow, Result};
 use base64::{engine::general_purpose, Engine as _};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
-use reqwest::Client as HttpClient;
+use reqwest::{Client as HttpClient, Method};
+use serde_json::Value;
 
 use crate::config::{AuthConfig, Config};
-use crate::types::{Platform, RomList};
+use crate::endpoints::Endpoint;
 
 #[derive(Clone)]
 pub struct RommClient {
@@ -63,62 +64,56 @@ impl RommClient {
         Ok(headers)
     }
 
-    pub async fn get_platforms(&self) -> Result<Vec<Platform>> {
-        let url = format!("{}/api/platforms", self.base_url.trim_end_matches('/'));
-        let headers = self.build_headers()?;
+    /// Call a typed endpoint using the low-level `request_json` primitive.
+    pub async fn call<E>(&self, ep: &E) -> anyhow::Result<E::Output>
+    where
+        E: Endpoint,
+        E::Output: serde::de::DeserializeOwned,
+    {
+        let method = ep.method();
+        let path = ep.path();
+        let query = ep.query();
+        let body = ep.body();
 
-        let resp = self
-            .http
-            .get(&url)
-            .headers(headers)
-            .send()
-            .await
-            .map_err(|e| anyhow!("request error: {e}"))?;
+        let value = self.request_json(method, &path, &query, body).await?;
+        let output = serde_json::from_value(value).map_err(|e| {
+            anyhow!(
+                "failed to decode response for {} {}: {}",
+                method,
+                path,
+                e
+            )
+        })?;
 
-        let status = resp.status();
-        if !status.is_success() {
-            let body = resp.text().await.unwrap_or_default();
-            return Err(anyhow!(
-                "ROMM API error: {} {} - {}",
-                status.as_u16(),
-                status.canonical_reason().unwrap_or(""),
-                body
-            ));
-        }
-
-        let platforms = resp.json::<Vec<Platform>>().await?;
-        Ok(platforms)
+        Ok(output)
     }
 
-    pub async fn get_roms(
+    pub async fn request_json(
         &self,
-        search_term: Option<&str>,
-        platform_id: Option<u64>,
-        limit: Option<u32>,
-        offset: Option<u32>,
-    ) -> Result<RomList> {
-        let url = format!("{}/api/roms", self.base_url.trim_end_matches('/'));
+        method: &str,
+        path: &str,
+        query: &[(String, String)],
+        body: Option<Value>,
+    ) -> Result<Value> {
+        let url = format!(
+            "{}/{}",
+            self.base_url.trim_end_matches('/'),
+            path.trim_start_matches('/')
+        );
         let headers = self.build_headers()?;
 
-        let mut req = self.http.get(&url).headers(headers);
+        let method = Method::from_bytes(method.as_bytes())
+            .map_err(|_| anyhow!("invalid HTTP method: {method}"))?;
 
-        if let Some(term) = search_term {
-            req = req.query(&[("search_term", term)]);
+        let mut req = self
+            .http
+            .request(method, &url)
+            .headers(headers)
+            .query(&query);
+
+        if let Some(body) = body {
+            req = req.json(&body);
         }
-
-        if let Some(pid) = platform_id {
-            req = req.query(&[("platform_id", pid)]);
-        }
-
-        if let Some(limit) = limit {
-            req = req.query(&[("limit", limit)]);
-        }
-
-        if let Some(offset) = offset {
-            req = req.query(&[("offset", offset)]);
-        }
-
-        // keep other params at their API defaults
 
         let resp = req
             .send()
@@ -136,8 +131,8 @@ impl RommClient {
             ));
         }
 
-        let roms = resp.json::<RomList>().await?;
-        Ok(roms)
+        let value = resp.json::<Value>().await?;
+        Ok(value)
     }
 }
 
