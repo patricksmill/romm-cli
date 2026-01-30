@@ -24,8 +24,24 @@ pub struct ResultScreen {
     pub message: Option<String>,
 }
 
+/// Detail view for a single ROM/item when pressing Enter on the table.
+pub struct ResultDetailScreen {
+    pub parent: ResultScreen,
+    pub item: serde_json::Value,
+    pub table_rows: Vec<(String, String)>, // (field_name, field_value)
+    pub scroll: usize,
+    pub scrollbar_state: ScrollbarState,
+    pub message: Option<String>,
+}
+
 impl ResultScreen {
-    pub fn new(result: serde_json::Value) -> Self {
+    /// Create a result screen. If `endpoint_method` is "GET" and `endpoint_path` is "/api/roms"
+    /// and the response has list items, table view is used as default.
+    pub fn new(
+        result: serde_json::Value,
+        endpoint_method: Option<&str>,
+        endpoint_path: Option<&str>,
+    ) -> Self {
         let result_text = serde_json::to_string_pretty(&result)
             .unwrap_or_else(|_| format!("{:?}", result));
         let highlighted_lines = Self::highlight_json_lines(&result_text);
@@ -34,13 +50,21 @@ impl ResultScreen {
 
         let (table_row_count, _) = Self::items_from_value(&result);
 
+        let prefer_table = endpoint_method.map_or(false, |m| m.eq_ignore_ascii_case("GET"))
+            && endpoint_path.map_or(false, |p| p.trim_end_matches('/') == "/api/roms")
+            && table_row_count > 0;
+
         Self {
             raw: result,
             result_text: result_text.clone(),
             highlighted_lines,
             scroll: 0,
             scrollbar_state,
-            view_mode: ResultViewMode::Json,
+            view_mode: if prefer_table {
+                ResultViewMode::Table
+            } else {
+                ResultViewMode::Json
+            },
             table_selected: 0,
             table_row_count,
             message: None,
@@ -199,6 +223,17 @@ impl ResultScreen {
         }
     }
 
+    /// Returns the selected row value when in table view (for opening detail screen).
+    pub fn get_selected_item_value(&self) -> Option<serde_json::Value> {
+        if self.view_mode != ResultViewMode::Table {
+            return None;
+        }
+        let (_, items_opt) = Self::items_from_value(&self.raw);
+        let items = items_opt?;
+        let row = items.get(self.table_selected.min(items.len().saturating_sub(1)))?;
+        Some(row.clone())
+    }
+
     pub fn scroll_down(&mut self, amount: usize) {
         let max_scroll = self.highlighted_lines.len().saturating_sub(1);
         self.scroll = (self.scroll + amount).min(max_scroll);
@@ -284,8 +319,8 @@ impl ResultScreen {
         }
 
         let help = match self.view_mode {
-            ResultViewMode::Json => "j: JSON | t: Table | o: Open image | ↑↓: Scroll | Esc: Back",
-            ResultViewMode::Table => "j: JSON | t: Table | o: Open image | ↑↓: Row | Esc: Back",
+            ResultViewMode::Json => "t: Toggle view | ↑↓: Scroll | Esc: Back",
+            ResultViewMode::Table => "t: Toggle view | Enter: Detail | ↑↓: Row | Esc: Back",
         };
         let msg = self
             .message
@@ -411,5 +446,127 @@ impl ResultScreen {
             .block(Block::default().title(title).borders(Borders::ALL));
 
         f.render_widget(table, area);
+    }
+}
+
+impl ResultDetailScreen {
+    pub fn new(parent: ResultScreen, item: serde_json::Value) -> Self {
+        let table_rows = Self::value_to_table_rows(&item);
+        let row_count = table_rows.len().max(1);
+        let scrollbar_state = ScrollbarState::new(row_count.saturating_sub(1));
+
+        Self {
+            parent,
+            item,
+            table_rows,
+            scroll: 0,
+            scrollbar_state,
+            message: None,
+        }
+    }
+
+    fn value_to_table_rows(value: &serde_json::Value) -> Vec<(String, String)> {
+        let mut rows = Vec::new();
+        if let Some(obj) = value.as_object() {
+            for (key, val) in obj {
+                let value_str = match val {
+                    serde_json::Value::Null => "null".to_string(),
+                    serde_json::Value::Bool(b) => b.to_string(),
+                    serde_json::Value::Number(n) => n.to_string(),
+                    serde_json::Value::String(s) => s.clone(),
+                    serde_json::Value::Array(_) => format!("[{} items]", val.as_array().map(|a| a.len()).unwrap_or(0)),
+                    serde_json::Value::Object(_) => format!("{{{} fields}}", val.as_object().map(|o| o.len()).unwrap_or(0)),
+                };
+                rows.push((key.clone(), value_str));
+            }
+        }
+        rows.sort_by(|a, b| a.0.cmp(&b.0)); // Sort by field name
+        rows
+    }
+
+    pub fn scroll_down(&mut self, amount: usize) {
+        let max_scroll = self.table_rows.len().saturating_sub(1);
+        self.scroll = (self.scroll + amount).min(max_scroll);
+        self.scrollbar_state = self.scrollbar_state.position(self.scroll);
+    }
+
+    pub fn scroll_up(&mut self, amount: usize) {
+        self.scroll = self.scroll.saturating_sub(amount);
+        self.scrollbar_state = self.scrollbar_state.position(self.scroll);
+    }
+
+    pub fn open_image_url(&mut self) {
+        self.message = None;
+        let urls = ResultScreen::collect_image_urls(&self.item);
+        let url = match urls.first() {
+            Some(u) => u.clone(),
+            None => {
+                self.message = Some("No image URL".to_string());
+                return;
+            }
+        };
+        match utils::open_in_browser(&url) {
+            Ok(_) => self.message = Some("Opened in browser".to_string()),
+            Err(e) => self.message = Some(format!("Failed to open: {}", e)),
+        }
+    }
+
+    pub fn clear_message(&mut self) {
+        self.message = None;
+    }
+
+    pub fn render(&self, f: &mut Frame, area: Rect) {
+        let chunks = Layout::default()
+            .constraints([Constraint::Min(3), Constraint::Length(3)])
+            .direction(ratatui::layout::Direction::Vertical)
+            .split(area);
+
+        let content_area = chunks[0];
+        
+        // Table block: 1 top border + 1 header + N data rows + 1 bottom border
+        let visible_row_count = (content_area.height as usize).saturating_sub(3).max(1);
+        let max_scroll = self.table_rows.len().saturating_sub(visible_row_count);
+        let scroll_start = self.scroll.min(max_scroll);
+        let scroll_end = (scroll_start + visible_row_count).min(self.table_rows.len());
+        let visible_rows = &self.table_rows[scroll_start..scroll_end];
+
+        let header_cells = ["Field", "Value"]
+            .iter()
+            .map(|h| Cell::from(*h).style(Style::default().fg(Color::Cyan)));
+        let header = Row::new(header_cells).height(1);
+
+        let rows: Vec<Row> = visible_rows
+            .iter()
+            .map(|(key, value)| {
+                Row::new(vec![
+                    Cell::from(key.clone()).style(Style::default().fg(Color::Yellow)),
+                    Cell::from(value.clone()),
+                ])
+                .height(1)
+            })
+            .collect();
+
+        let widths = [
+            Constraint::Percentage(30),
+            Constraint::Percentage(70),
+        ];
+        let title = format!("ROM detail - {} fields", self.table_rows.len());
+        let table = Table::new(rows, widths)
+            .header(header)
+            .block(Block::default().title(title).borders(Borders::ALL));
+
+        f.render_widget(table, content_area);
+
+        let mut state = self.scrollbar_state.clone();
+        let scrollbar = Scrollbar::default()
+            .orientation(ratatui::widgets::ScrollbarOrientation::VerticalRight)
+            .begin_symbol(Some("↑"))
+            .end_symbol(Some("↓"));
+        f.render_stateful_widget(scrollbar, content_area, &mut state);
+
+        let help = "o: Open image | ↑↓: Scroll | Esc: Back";
+        let msg = self.message.as_deref().unwrap_or(help);
+        let footer = Paragraph::new(msg).block(Block::default().borders(Borders::ALL));
+        f.render_widget(footer, chunks[1]);
     }
 }

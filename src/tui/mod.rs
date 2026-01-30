@@ -11,13 +11,14 @@ use ratatui::Terminal;
 
 use crate::client::RommClient;
 
-use self::screens::{BrowseScreen, ExecuteScreen, MainMenuScreen, ResultScreen};
+use self::screens::{BrowseScreen, ExecuteScreen, MainMenuScreen, ResultDetailScreen, ResultScreen};
 
 pub enum AppScreen {
     MainMenu(MainMenuScreen),
     Browse(BrowseScreen),
     Execute(ExecuteScreen),
     Result(ResultScreen),
+    ResultDetail(ResultDetailScreen),
 }
 
 pub struct App {
@@ -145,13 +146,21 @@ impl App {
                             .await
                         {
                             Ok(result) => {
-                                self.screen = AppScreen::Result(ResultScreen::new(result));
+                                self.screen = AppScreen::Result(ResultScreen::new(
+                                    result,
+                                    Some(&endpoint.method),
+                                    Some(&endpoint.path),
+                                ));
                             }
                             Err(e) => {
                                 let error_json = serde_json::json!({
                                     "error": format!("{}", e)
                                 });
-                                self.screen = AppScreen::Result(ResultScreen::new(error_json));
+                                self.screen = AppScreen::Result(ResultScreen::new(
+                                    error_json,
+                                    None,
+                                    None,
+                                ));
                             }
                         }
                     }
@@ -178,9 +187,7 @@ impl App {
                         }
                     }
                     KeyCode::Char('j') => {
-                        if result.view_mode == screens::result::ResultViewMode::Table {
-                            result.switch_view_mode();
-                        } else {
+                        if result.view_mode == screens::result::ResultViewMode::Json {
                             result.scroll_down(1);
                         }
                     }
@@ -199,14 +206,51 @@ impl App {
                         }
                     }
                     KeyCode::Char('t') => {
-                        if result.view_mode == screens::result::ResultViewMode::Json && result.table_row_count > 0 {
+                        if result.table_row_count > 0 {
                             result.switch_view_mode();
                         }
                     }
-                    KeyCode::Char('o') => result.open_selected_url(),
+                    KeyCode::Enter => {
+                        if result.view_mode == screens::result::ResultViewMode::Table
+                            && result.table_row_count > 0
+                        {
+                            if let Some(item) = result.get_selected_item_value() {
+                                let result_screen = std::mem::replace(
+                                    &mut self.screen,
+                                    AppScreen::MainMenu(MainMenuScreen::new()),
+                                );
+                                if let AppScreen::Result(rs) = result_screen {
+                                    self.screen = AppScreen::ResultDetail(
+                                        ResultDetailScreen::new(rs, item),
+                                    );
+                                }
+                            }
+                        }
+                    }
                     KeyCode::Esc => {
                         result.clear_message();
                         self.screen = AppScreen::Browse(BrowseScreen::new(self.registry.clone()));
+                    }
+                    KeyCode::Char('q') => return Ok(true),
+                    _ => {}
+                }
+            }
+            AppScreen::ResultDetail(detail) => {
+                match key {
+                    KeyCode::Up | KeyCode::Char('k') => detail.scroll_up(1),
+                    KeyCode::Down | KeyCode::Char('j') => detail.scroll_down(1),
+                    KeyCode::PageUp => detail.scroll_up(10),
+                    KeyCode::PageDown => detail.scroll_down(10),
+                    KeyCode::Char('o') => detail.open_image_url(),
+                    KeyCode::Esc => {
+                        detail.clear_message();
+                        let detail_screen = std::mem::replace(
+                            &mut self.screen,
+                            AppScreen::MainMenu(MainMenuScreen::new()),
+                        );
+                        if let AppScreen::ResultDetail(d) = detail_screen {
+                            self.screen = AppScreen::Result(d.parent);
+                        }
                     }
                     KeyCode::Char('q') => return Ok(true),
                     _ => {}
@@ -229,6 +273,7 @@ impl App {
                 }
             }
             AppScreen::Result(result) => result.render(f, area),
+            AppScreen::ResultDetail(detail) => detail.render(f, area),
         }
     }
 

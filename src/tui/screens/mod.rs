@@ -6,4 +6,4 @@ pub mod result;
 pub use browse::BrowseScreen;
 pub use execute::ExecuteScreen;
 pub use main_menu::MainMenuScreen;
-pub use result::ResultScreen;
+pub use result::{ResultDetailScreen, ResultScreen};
