@@ -61,21 +61,6 @@ impl GameDetailScreen {
         self.message = None;
     }
 
-    fn format_size(&self, bytes: u64) -> String {
-        const KB: u64 = 1024;
-        const MB: u64 = KB * 1024;
-        const GB: u64 = MB * 1024;
-        if bytes >= GB {
-            format!("{:.2} GB", bytes as f64 / GB as f64)
-        } else if bytes >= MB {
-            format!("{:.2} MB", bytes as f64 / MB as f64)
-        } else if bytes >= KB {
-            format!("{:.2} KB", bytes as f64 / KB as f64)
-        } else {
-            format!("{} B", bytes)
-        }
-    }
-
     pub fn render(&self, f: &mut Frame, area: Rect) {
         let chunks = Layout::default()
             .constraints([Constraint::Min(10), Constraint::Length(3)])
@@ -91,7 +76,7 @@ impl GameDetailScreen {
             .unwrap_or("—");
         let summary = self.rom.summary.as_deref().unwrap_or("").trim();
         let path = self.rom.fs_path.as_str();
-        let size = self.format_size(self.rom.fs_size_bytes);
+        let size = utils::format_size(self.rom.fs_size_bytes);
         let cover_text = if self.rom.url_cover.is_some() {
             "[Cover] (o: open in browser)"
         } else {

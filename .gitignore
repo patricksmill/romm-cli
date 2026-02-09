@@ -1,2 +1,5 @@
 /target
 .env
+/.cursor
+romm-cache.json
+/downloads

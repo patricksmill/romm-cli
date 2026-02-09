@@ -5,6 +5,7 @@ use ratatui::Frame;
 use std::sync::{Arc, Mutex};
 
 use crate::tui::download::{DownloadJob, DownloadStatus};
+use crate::tui::utils;
 
 pub struct DownloadScreen {
     pub downloads: Arc<Mutex<Vec<DownloadJob>>>,
@@ -27,8 +28,10 @@ impl DownloadScreen {
             .borders(Borders::ALL);
 
         if jobs.is_empty() {
-            let p = Paragraph::new("No downloads. Press Enter on a game detail to start a download.")
-                .block(block);
+            let p = Paragraph::new(
+                "No downloads. Press Enter on a game detail to start a download.",
+            )
+            .block(block);
             f.render_widget(p, chunks[0]);
         } else {
             let inner = block.inner(chunks[0]);
@@ -36,9 +39,7 @@ impl DownloadScreen {
             let visible: Vec<_> = jobs.iter().take(max_rows).collect();
             let n = visible.len().max(1);
             let rows = Layout::default()
-                .constraints(
-                    (0..n).map(|_| Constraint::Length(1)).collect::<Vec<_>>(),
-                )
+                .constraints((0..n).map(|_| Constraint::Length(1)).collect::<Vec<_>>())
                 .direction(ratatui::layout::Direction::Vertical)
                 .split(inner);
 
@@ -51,9 +52,11 @@ impl DownloadScreen {
                         DownloadStatus::Downloading => {
                             (format!("{}%", percent), Style::default().fg(Color::Cyan))
                         }
-                        DownloadStatus::Done => ("Done".into(), Style::default().fg(Color::Green)),
+                        DownloadStatus::Done => {
+                            ("Done".into(), Style::default().fg(Color::Green))
+                        }
                         DownloadStatus::Error(msg) => (
-                            format!("Error: {}", truncate(msg, 50)),
+                            format!("Error: {}", utils::truncate(msg, 50)),
                             Style::default().fg(Color::Red),
                         ),
                     };
@@ -64,8 +67,8 @@ impl DownloadScreen {
 
                     let line = format!(
                         "{} | {} | ",
-                        truncate(&job.name, 30),
-                        truncate(&job.platform, 15)
+                        utils::truncate(&job.name, 30),
+                        utils::truncate(&job.platform, 15)
                     );
                     let line_len = line.chars().count().min(row_area.width as usize) as u16;
                     let line_area = Rect {
@@ -92,14 +95,5 @@ impl DownloadScreen {
         let help = "d or Esc: Back to previous screen";
         let footer = Paragraph::new(help).block(Block::default().borders(Borders::ALL));
         f.render_widget(footer, chunks[1]);
-    }
-}
-
-fn truncate(s: &str, max: usize) -> String {
-    let s = s.trim();
-    if s.chars().count() <= max {
-        s.to_string()
-    } else {
-        format!("{}…", s.chars().take(max.saturating_sub(1)).collect::<String>())
     }
 }

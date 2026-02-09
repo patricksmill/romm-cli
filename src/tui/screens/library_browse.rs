@@ -33,6 +33,8 @@ pub struct LibraryBrowseScreen {
     pub rom_groups: Option<Vec<RomGroup>>,
     pub rom_selected: usize,
     pub scroll_offset: usize,
+    /// Visible data rows in the ROM pane (updated at render time).
+    visible_rows: usize,
 }
 
 impl LibraryBrowseScreen {
@@ -47,6 +49,7 @@ impl LibraryBrowseScreen {
             rom_groups: None,
             rom_selected: 0,
             scroll_offset: 0,
+            visible_rows: 20, // reasonable default until first render
         }
     }
 
@@ -79,7 +82,7 @@ impl LibraryBrowseScreen {
         if let Some(ref groups) = self.rom_groups {
             if !groups.is_empty() {
                 self.rom_selected = (self.rom_selected + 1) % groups.len();
-                self.update_rom_scroll();
+                self.update_rom_scroll(self.visible_rows);
             }
         }
     }
@@ -92,14 +95,16 @@ impl LibraryBrowseScreen {
                 } else {
                     self.rom_selected - 1
                 };
-                self.update_rom_scroll();
+                self.update_rom_scroll(self.visible_rows);
             }
         }
     }
 
-    fn update_rom_scroll(&mut self) {
+    /// Keep `rom_selected` within the visible window.
+    /// `visible` is the number of data rows that fit on screen (set at render time).
+    fn update_rom_scroll(&mut self, visible: usize) {
         if let Some(ref groups) = self.rom_groups {
-            let visible = 15;
+            let visible = visible.max(1);
             let max_scroll = groups.len().saturating_sub(visible);
             if self.rom_selected >= self.scroll_offset + visible {
                 self.scroll_offset = (self.rom_selected + 1).saturating_sub(visible);
@@ -184,6 +189,23 @@ impl LibraryBrowseScreen {
             .or_else(|| self.selected_collection_id().map(RomCacheKey::Collection))
     }
 
+    /// Expected ROM count from the live platform/collection metadata.
+    /// Used to validate whether the disk cache is still fresh.
+    pub fn expected_rom_count(&self) -> u64 {
+        match self.subsection {
+            LibrarySubsection::ByConsole => self
+                .platforms
+                .get(self.list_index)
+                .map(|p| p.rom_count)
+                .unwrap_or(0),
+            LibrarySubsection::ByCollection => self
+                .collections
+                .get(self.list_index)
+                .and_then(|c| c.rom_count)
+                .unwrap_or(0),
+        }
+    }
+
     pub fn get_roms_request_platform(&self) -> Option<GetRoms> {
         self.get_roms_request_platform_with_limit(100)
     }
@@ -208,7 +230,7 @@ impl LibraryBrowseScreen {
         })
     }
 
-    pub fn render(&self, f: &mut Frame, area: Rect) {
+    pub fn render(&mut self, f: &mut Frame, area: Rect) {
         let chunks = Layout::default()
             .constraints([Constraint::Percentage(30), Constraint::Percentage(70)])
             .direction(ratatui::layout::Direction::Horizontal)
@@ -274,19 +296,21 @@ impl LibraryBrowseScreen {
         f.render_stateful_widget(list, area, &mut state);
     }
 
-    fn render_roms(&self, f: &mut Frame, area: Rect) {
-        let groups = match &self.rom_groups {
-            Some(g) => g,
-            None => {
-                let msg = "Select a console or collection and press Enter to load ROMs";
-                let p = ratatui::widgets::Paragraph::new(msg)
-                    .block(Block::default().title("ROMs").borders(Borders::ALL));
-                f.render_widget(p, area);
-                return;
-            }
-        };
+    fn render_roms(&mut self, f: &mut Frame, area: Rect) {
+        if self.rom_groups.is_none() {
+            let msg = "Select a console or collection and press Enter to load ROMs";
+            let p = ratatui::widgets::Paragraph::new(msg)
+                .block(Block::default().title("ROMs").borders(Borders::ALL));
+            f.render_widget(p, area);
+            return;
+        }
 
+        // Sync scroll offset with the real terminal height.
         let visible = (area.height as usize).saturating_sub(3).max(1);
+        self.visible_rows = visible;
+        self.update_rom_scroll(visible);
+
+        let groups = self.rom_groups.as_ref().unwrap();
         let start = self.scroll_offset.min(groups.len().saturating_sub(visible));
         let end = (start + visible).min(groups.len());
         let visible_groups = &groups[start..end];
