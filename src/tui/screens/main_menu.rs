@@ -11,22 +11,24 @@ impl MainMenuScreen {
     }
 
     pub fn next(&mut self) {
-        self.selected = (self.selected + 1) % 3;
+        self.selected = (self.selected + 1) % 5;
     }
 
     pub fn previous(&mut self) {
-        self.selected = if self.selected == 0 { 2 } else { self.selected - 1 };
+        self.selected = if self.selected == 0 { 4 } else { self.selected - 1 };
     }
 
     pub fn render(&self, f: &mut Frame, area: ratatui::layout::Rect) {
         let items = vec![
-            ListItem::new("Browse Endpoints"),
-            ListItem::new("Search Endpoint"),
+            ListItem::new("Browse Games"),
+            ListItem::new("Search"),
+            ListItem::new("Settings"),
+            ListItem::new("API (Expert)"),
             ListItem::new("Exit"),
         ];
 
         let list = List::new(items)
-            .block(Block::default().title("ROMM API Explorer").borders(Borders::ALL))
+            .block(Block::default().title("Game Library").borders(Borders::ALL))
             .highlight_symbol(">> ");
 
         let mut state = ListState::default();

@@ -35,7 +35,7 @@ pub async fn run(cli: Cli, config: Config) -> Result<()> {
     let client = RommClient::new(&config)?;
 
     match cli.command {
-        Commands::Tui => crate::tui::run(client).await?,
+        Commands::Tui => crate::tui::run(client, config).await?,
         Commands::Api(cmd) => api::handle(cmd, &client).await?,
         Commands::Platforms(cmd) => platforms::handle(cmd, &client, cli.verbose).await?,
         Commands::Roms(cmd) => roms::handle(cmd, &client, cli.verbose).await?,

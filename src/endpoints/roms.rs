@@ -7,6 +7,7 @@ use super::Endpoint;
 pub struct GetRoms {
     pub search_term: Option<String>,
     pub platform_id: Option<u64>,
+    pub collection_id: Option<u64>,
     pub limit: Option<u32>,
     pub offset: Option<u32>,
 }
@@ -31,6 +32,10 @@ impl Endpoint for GetRoms {
 
         if let Some(pid) = self.platform_id {
             q.push(("platform_id".into(), pid.to_string()));
+        }
+
+        if let Some(cid) = self.collection_id {
+            q.push(("collection_id".into(), cid.to_string()));
         }
 
         if let Some(limit) = self.limit {

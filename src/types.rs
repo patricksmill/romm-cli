@@ -89,3 +89,13 @@ pub struct RomList {
     pub offset: u64,
 }
 
+/// Collection (smart or virtual) from GET /api/collections.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Collection {
+    pub id: u64,
+    pub name: String,
+    #[serde(rename = "type")]
+    pub collection_type: Option<String>,
+    pub rom_count: Option<u64>,
+}
+

@@ -30,6 +30,7 @@ pub async fn handle(cmd: RomsCommand, client: &RommClient, json: bool) -> Result
     let ep = GetRoms {
         search_term: cmd.search_term.clone(),
         platform_id: cmd.platform_id,
+        collection_id: None,
         limit: cmd.limit,
         offset: cmd.offset,
     };

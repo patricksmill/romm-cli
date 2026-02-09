@@ -3,6 +3,7 @@ use base64::{engine::general_purpose, Engine as _};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use reqwest::{Client as HttpClient, Method};
 use serde_json::Value;
+use std::path::Path;
 
 use crate::config::{AuthConfig, Config};
 use crate::endpoints::Endpoint;
@@ -133,6 +134,60 @@ impl RommClient {
 
         let value = resp.json::<Value>().await?;
         Ok(value)
+    }
+
+    /// Download ROM(s) as a zip file to `save_path`, calling `on_progress(received, total)`.
+    /// Uses GET /api/roms/download?rom_ids={id}&filename=... per RomM OpenAPI.
+    pub async fn download_rom<F>(
+        &self,
+        rom_id: u64,
+        save_path: &Path,
+        mut on_progress: F,
+    ) -> Result<()>
+    where
+        F: FnMut(u64, u64) + Send,
+    {
+        let path = "/api/roms/download";
+        let url = format!(
+            "{}/{}",
+            self.base_url.trim_end_matches('/'),
+            path.trim_start_matches('/')
+        );
+        let headers = self.build_headers()?;
+
+        let filename = save_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("download.zip");
+        let resp = self
+            .http
+            .get(&url)
+            .headers(headers)
+            .query(&[("rom_ids", rom_id.to_string()), ("filename", filename.to_string())])
+            .send()
+            .await
+            .map_err(|e| anyhow!("download request error: {e}"))?;
+
+        let status = resp.status();
+        if !status.is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(anyhow!(
+                "ROMM API error: {} {} - {}",
+                status.as_u16(),
+                status.canonical_reason().unwrap_or(""),
+                body
+            ));
+        }
+
+        let total = resp.content_length().unwrap_or(0);
+        let bytes = resp
+            .bytes()
+            .await
+            .map_err(|e| anyhow!("read body: {e}"))?;
+        let received = bytes.len() as u64;
+        on_progress(received, total);
+        std::fs::write(save_path, &bytes).map_err(|e| anyhow!("write file {:?}: {e}", save_path))?;
+        Ok(())
     }
 }
 

@@ -1,5 +1,6 @@
 use serde_json::Value;
 
+pub mod collections;
 pub mod platforms;
 pub mod roms;
 
