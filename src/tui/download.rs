@@ -109,6 +109,7 @@ impl DownloadManager {
                 } else {
                     0.0
                 };
+
                 if let Ok(mut list) = jobs.lock() {
                     if let Some(j) = list.iter_mut().find(|j| j.id == job_id) {
                         j.progress = p;

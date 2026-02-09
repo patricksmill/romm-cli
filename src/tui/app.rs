@@ -2,6 +2,7 @@
 
 use anyhow::Result;
 use crossterm::event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind};
+use std::time::Duration;
 use crossterm::execute;
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
 use ratatui::backend::CrosstermBackend;
@@ -86,9 +87,12 @@ impl App {
         loop {
             terminal.draw(|f| self.render(f))?;
 
-            if let Event::Key(key) = event::read()? {
-                if key.kind == KeyEventKind::Press && self.handle_key(key.code).await? {
-                    break;
+            // Poll with a short timeout so the UI refreshes during downloads.
+            if event::poll(Duration::from_millis(100))? {
+                if let Event::Key(key) = event::read()? {
+                    if key.kind == KeyEventKind::Press && self.handle_key(key.code).await? {
+                        break;
+                    }
                 }
             }
 
@@ -234,9 +238,13 @@ impl App {
                     self.screen = AppScreen::LibraryBrowse(lib);
                 }
                 1 => self.screen = AppScreen::Search(SearchScreen::new()),
-                2 => self.screen = AppScreen::Settings(SettingsScreen::new(&self.config)),
-                3 => self.screen = AppScreen::Browse(BrowseScreen::new(self.registry.clone())),
-                4 => return Ok(true),
+                2 => {
+                    self.screen_before_download = Some(AppScreen::MainMenu(MainMenuScreen::new()));
+                    self.screen = AppScreen::Download(DownloadScreen::new(self.downloads.shared()));
+                }
+                3 => self.screen = AppScreen::Settings(SettingsScreen::new(&self.config)),
+                4 => self.screen = AppScreen::Browse(BrowseScreen::new(self.registry.clone())),
+                5 => return Ok(true),
                 _ => {}
             },
             KeyCode::Esc | KeyCode::Char('q') => return Ok(true),
@@ -309,6 +317,7 @@ impl App {
                             primary,
                             others,
                             GameDetailPrevious::Library(l),
+                            self.downloads.shared(),
                         ));
                     }
                 }
@@ -354,6 +363,7 @@ impl App {
                                 primary,
                                 others,
                                 GameDetailPrevious::Search(s),
+                                self.downloads.shared(),
                             ));
                         }
                     }
@@ -589,7 +599,6 @@ impl App {
         match key {
             KeyCode::Enter => {
                 self.downloads.start_download(&detail.rom, self.client.clone());
-                detail.message = Some("Download started".to_string());
             }
             KeyCode::Char('o') => detail.open_cover(),
             KeyCode::Char('m') => detail.toggle_technical(),

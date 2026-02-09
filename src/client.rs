@@ -3,6 +3,7 @@ use base64::{engine::general_purpose, Engine as _};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use reqwest::{Client as HttpClient, Method};
 use serde_json::Value;
+use std::io::Write as _;
 use std::path::Path;
 
 use crate::config::{AuthConfig, Config};
@@ -159,7 +160,7 @@ impl RommClient {
             .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("download.zip");
-        let resp = self
+        let mut resp = self
             .http
             .get(&url)
             .headers(headers)
@@ -180,13 +181,18 @@ impl RommClient {
         }
 
         let total = resp.content_length().unwrap_or(0);
-        let bytes = resp
-            .bytes()
-            .await
-            .map_err(|e| anyhow!("read body: {e}"))?;
-        let received = bytes.len() as u64;
-        on_progress(received, total);
-        std::fs::write(save_path, &bytes).map_err(|e| anyhow!("write file {:?}: {e}", save_path))?;
+
+        let mut file = std::fs::File::create(save_path)
+            .map_err(|e| anyhow!("create file {:?}: {e}", save_path))?;
+        let mut received: u64 = 0;
+
+        while let Some(chunk) = resp.chunk().await.map_err(|e| anyhow!("read chunk: {e}"))? {
+            file.write_all(&chunk)
+                .map_err(|e| anyhow!("write chunk {:?}: {e}", save_path))?;
+            received += chunk.len() as u64;
+            on_progress(received, total);
+        }
+
         Ok(())
     }
 }

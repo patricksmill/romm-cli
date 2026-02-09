@@ -11,17 +11,18 @@ impl MainMenuScreen {
     }
 
     pub fn next(&mut self) {
-        self.selected = (self.selected + 1) % 5;
+        self.selected = (self.selected + 1) % 6;
     }
 
     pub fn previous(&mut self) {
-        self.selected = if self.selected == 0 { 4 } else { self.selected - 1 };
+        self.selected = if self.selected == 0 { 5 } else { self.selected - 1 };
     }
 
     pub fn render(&self, f: &mut Frame, area: ratatui::layout::Rect) {
         let items = vec![
             ListItem::new("Browse Games"),
             ListItem::new("Search"),
+            ListItem::new("Downloads"),
             ListItem::new("Settings"),
             ListItem::new("API (Expert)"),
             ListItem::new("Exit"),

@@ -1,9 +1,11 @@
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::widgets::{Block, Borders, Gauge, Paragraph};
 use ratatui::Frame;
+use std::sync::{Arc, Mutex};
 
+use crate::tui::download::{DownloadJob, DownloadStatus};
 use crate::tui::utils;
 use crate::types::Rom;
 
@@ -22,16 +24,24 @@ pub struct GameDetailScreen {
     pub previous: GameDetailPrevious,
     pub show_technical: bool,
     pub message: Option<String>,
+    /// Shared download list — used to show inline progress for this ROM.
+    pub downloads: Arc<Mutex<Vec<DownloadJob>>>,
 }
 
 impl GameDetailScreen {
-    pub fn new(rom: Rom, other_files: Vec<Rom>, previous: GameDetailPrevious) -> Self {
+    pub fn new(
+        rom: Rom,
+        other_files: Vec<Rom>,
+        previous: GameDetailPrevious,
+        downloads: Arc<Mutex<Vec<DownloadJob>>>,
+    ) -> Self {
         Self {
             rom,
             other_files,
             previous,
             show_technical: false,
             message: None,
+            downloads,
         }
     }
 
@@ -59,6 +69,19 @@ impl GameDetailScreen {
 
     pub fn clear_message(&mut self) {
         self.message = None;
+    }
+
+    /// Find the most recent download job for this ROM (if any).
+    fn active_download(&self) -> Option<DownloadJob> {
+        self.downloads
+            .lock()
+            .ok()
+            .and_then(|list| {
+                list.iter()
+                    .rev()
+                    .find(|j| j.rom_id == self.rom.id)
+                    .cloned()
+            })
     }
 
     pub fn render(&self, f: &mut Frame, area: Rect) {
@@ -159,13 +182,38 @@ impl GameDetailScreen {
             .wrap(ratatui::widgets::Wrap { trim: true });
         f.render_widget(p, chunks[0]);
 
-        let help = if self.show_technical {
-            "Enter: Download | o: Open cover | m: Hide technical | Esc: Back"
+        // Footer: show progress bar if downloading, otherwise help text.
+        let footer_area = chunks[1];
+        if let Some(job) = self.active_download() {
+            let (label, style) = match &job.status {
+                DownloadStatus::Downloading => (
+                    format!("Downloading… {}%", job.percent()),
+                    Style::default().fg(Color::Cyan),
+                ),
+                DownloadStatus::Done => (
+                    "Download complete".to_string(),
+                    Style::default().fg(Color::Green),
+                ),
+                DownloadStatus::Error(msg) => (
+                    format!("Error: {}", utils::truncate(msg, 50)),
+                    Style::default().fg(Color::Red),
+                ),
+            };
+            let gauge = Gauge::default()
+                .block(Block::default().borders(Borders::ALL))
+                .gauge_style(style)
+                .percent(job.percent())
+                .label(label);
+            f.render_widget(gauge, footer_area);
         } else {
-            "Enter: Download | o: Open cover | m: More technical details | Esc: Back"
-        };
-        let msg = self.message.as_deref().unwrap_or(help);
-        let footer = Paragraph::new(msg).block(Block::default().borders(Borders::ALL));
-        f.render_widget(footer, chunks[1]);
+            let help = if self.show_technical {
+                "Enter: Download | o: Open cover | m: Hide technical | Esc: Back"
+            } else {
+                "Enter: Download | o: Open cover | m: More technical details | Esc: Back"
+            };
+            let msg = self.message.as_deref().unwrap_or(help);
+            let footer = Paragraph::new(msg).block(Block::default().borders(Borders::ALL));
+            f.render_widget(footer, footer_area);
+        }
     }
 }
