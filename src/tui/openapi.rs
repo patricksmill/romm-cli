@@ -7,6 +7,7 @@ pub struct ApiParameter {
     pub param_type: String,
     pub required: bool,
     pub default: Option<String>,
+    #[allow(dead_code)]
     pub description: Option<String>,
 }
 
@@ -15,8 +16,10 @@ pub struct ApiEndpoint {
     pub method: String,
     pub path: String,
     pub summary: Option<String>,
+    #[allow(dead_code)]
     pub description: Option<String>,
     pub query_params: Vec<ApiParameter>,
+    #[allow(dead_code)]
     pub path_params: Vec<ApiParameter>,
     pub has_body: bool,
     pub tags: Vec<String>,
@@ -152,7 +155,8 @@ impl EndpointRegistry {
             .map_err(|e| anyhow!("Failed to read OpenAPI file {}: {}", path, e))?;
         Self::from_openapi_json(&content)
     }
-
+    
+    #[allow(dead_code)]
     pub fn get_by_tag(&self, tag: &str) -> Vec<&ApiEndpoint> {
         self.endpoints
             .iter()
@@ -160,6 +164,7 @@ impl EndpointRegistry {
             .collect()
     }
 
+    #[allow(dead_code)]
     pub fn get_by_path_prefix(&self, prefix: &str) -> Vec<&ApiEndpoint> {
         self.endpoints
             .iter()
@@ -167,6 +172,7 @@ impl EndpointRegistry {
             .collect()
     }
 
+    #[allow(dead_code)]
     pub fn search(&self, query: &str) -> Vec<&ApiEndpoint> {
         let query_lower = query.to_lowercase();
         self.endpoints

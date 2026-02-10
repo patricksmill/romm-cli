@@ -14,7 +14,6 @@ pub enum ResultViewMode {
 
 pub struct ResultScreen {
     pub raw: serde_json::Value,
-    pub result_text: String,
     pub highlighted_lines: Vec<Line<'static>>,
     pub scroll: usize,
     pub scrollbar_state: ScrollbarState,
@@ -56,7 +55,6 @@ impl ResultScreen {
 
         Self {
             raw: result,
-            result_text: result_text.clone(),
             highlighted_lines,
             scroll: 0,
             scrollbar_state,
@@ -204,25 +202,6 @@ impl ResultScreen {
         urls
     }
 
-    pub fn get_selected_image_url(&self) -> Option<String> {
-        match self.view_mode {
-            ResultViewMode::Json => Self::collect_image_urls(&self.raw).into_iter().next(),
-            ResultViewMode::Table => {
-                let (_, items_opt) = Self::items_from_value(&self.raw);
-                let items = match items_opt {
-                    Some(arr) => arr,
-                    None => return None,
-                };
-                let row = items.get(self.table_selected.min(items.len().saturating_sub(1)))?;
-                let obj = row.as_object()?;
-                obj.get("url_cover")
-                    .or_else(|| obj.get("url_logo"))
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string())
-            }
-        }
-    }
-
     /// Returns the selected row value when in table view (for opening detail screen).
     pub fn get_selected_item_value(&self) -> Option<serde_json::Value> {
         if self.view_mode != ResultViewMode::Table {
@@ -285,21 +264,6 @@ impl ResultScreen {
             ResultViewMode::Table => ResultViewMode::Json,
         };
         self.table_selected = 0;
-    }
-
-    pub fn open_selected_url(&mut self) {
-        self.message = None;
-        let url = match self.get_selected_image_url() {
-            Some(u) => u,
-            None => {
-                self.message = Some("No image URL in result".to_string());
-                return;
-            }
-        };
-        match utils::open_in_browser(&url) {
-            Ok(_) => self.message = Some("Opened in browser".to_string()),
-            Err(e) => self.message = Some(format!("Failed to open: {}", e)),
-        }
     }
 
     pub fn clear_message(&mut self) {

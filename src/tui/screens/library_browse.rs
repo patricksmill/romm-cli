@@ -146,14 +146,6 @@ impl LibraryBrowseScreen {
         self.scroll_offset = 0;
     }
 
-    /// Primary ROM for the selected game (one row per game name).
-    pub fn get_selected_rom(&self) -> Option<&Rom> {
-        self.rom_groups
-            .as_ref()
-            .and_then(|g| g.get(self.rom_selected))
-            .map(|g| &g.primary)
-    }
-
     /// Primary ROM and other files (updates/DLC) for the selected game.
     pub fn get_selected_group(&self) -> Option<(Rom, Vec<Rom>)> {
         self.rom_groups.as_ref().and_then(|g| g.get(self.rom_selected)).map(|g| {
@@ -204,14 +196,6 @@ impl LibraryBrowseScreen {
                 .and_then(|c| c.rom_count)
                 .unwrap_or(0),
         }
-    }
-
-    pub fn get_roms_request_platform(&self) -> Option<GetRoms> {
-        self.get_roms_request_platform_with_limit(100)
-    }
-
-    pub fn get_roms_request_collection(&self) -> Option<GetRoms> {
-        self.get_roms_request_collection_with_limit(100)
     }
 
     pub fn get_roms_request_platform_with_limit(&self, limit: u32) -> Option<GetRoms> {

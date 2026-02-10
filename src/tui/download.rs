@@ -70,11 +70,6 @@ impl DownloadManager {
         }
     }
 
-    /// Snapshot of current jobs (for rendering).
-    pub fn jobs(&self) -> Vec<DownloadJob> {
-        self.jobs.lock().unwrap().clone()
-    }
-
     /// Shared handle for the download screen.
     pub fn shared(&self) -> Arc<Mutex<Vec<DownloadJob>>> {
         self.jobs.clone()

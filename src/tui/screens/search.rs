@@ -100,13 +100,6 @@ impl SearchScreen {
         }
     }
 
-    pub fn get_selected_rom(&self) -> Option<&Rom> {
-        self.result_groups
-            .as_ref()
-            .and_then(|g| g.get(self.selected))
-            .map(|g| &g.primary)
-    }
-
     /// Primary ROM and other files (updates/DLC) for the selected game.
     pub fn get_selected_group(&self) -> Option<(Rom, Vec<Rom>)> {
         self.result_groups

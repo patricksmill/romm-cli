@@ -40,12 +40,6 @@ impl ExecuteScreen {
         }
     }
 
-    pub fn update_query_param(&mut self, value: String) {
-        if let Some((_, ref mut v)) = self.query_params.get_mut(self.param_input_idx) {
-            *v = value;
-        }
-    }
-
     pub fn get_query_params(&self) -> Vec<(String, String)> {
         self.query_params
             .iter()

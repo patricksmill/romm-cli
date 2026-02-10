@@ -126,10 +126,6 @@ impl BrowseScreen {
             .and_then(|&idx| self.registry.endpoints.get(idx))
     }
 
-    pub fn get_current_section(&self) -> Option<&Section> {
-        self.sections.get(self.selected_section)
-    }
-
     pub fn render(&self, f: &mut Frame, area: ratatui::layout::Rect) {
         let chunks = Layout::default()
             .constraints([Constraint::Percentage(30), Constraint::Percentage(70)])
