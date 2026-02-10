@@ -41,4 +41,3 @@ pub async fn handle(cmd: ApiCommand, client: &RommClient) -> Result<()> {
     println!("{}", serde_json::to_string_pretty(&value)?);
     Ok(())
 }
-

@@ -56,7 +56,6 @@ pub struct Platform {
     pub display_name: Option<String>,
 }
 
-
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Rom {
     pub id: u64,
@@ -98,4 +97,3 @@ pub struct Collection {
     pub collection_type: Option<String>,
     pub rom_count: Option<u64>,
 }
-

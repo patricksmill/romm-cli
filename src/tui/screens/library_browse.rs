@@ -8,12 +8,14 @@ use crate::tui::cache::RomCacheKey;
 use crate::tui::utils::{self, RomGroup};
 use crate::types::{Collection, Platform, Rom, RomList};
 
+/// Which high-level grouping is currently shown in the left pane.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LibrarySubsection {
     ByConsole,
     ByCollection,
 }
 
+/// Which side of the library view currently has focus.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LibraryViewMode {
     /// Left panel: list of consoles or collections
@@ -22,6 +24,7 @@ pub enum LibraryViewMode {
     Roms,
 }
 
+/// Main library browser: consoles/collections on the left, games on the right.
 pub struct LibraryBrowseScreen {
     pub platforms: Vec<Platform>,
     pub collections: Vec<Collection>,
@@ -101,7 +104,10 @@ impl LibraryBrowseScreen {
     }
 
     /// Keep `rom_selected` within the visible window.
-    /// `visible` is the number of data rows that fit on screen (set at render time).
+    ///
+    /// `visible` is the number of data rows that fit on screen (set at
+    /// render time). This manual bookkeeping gives us fine-grained control
+    /// over scrolling behavior without storing a separate viewport object.
     fn update_rom_scroll(&mut self, visible: usize) {
         if let Some(ref groups) = self.rom_groups {
             let visible = visible.max(1);
@@ -148,9 +154,10 @@ impl LibraryBrowseScreen {
 
     /// Primary ROM and other files (updates/DLC) for the selected game.
     pub fn get_selected_group(&self) -> Option<(Rom, Vec<Rom>)> {
-        self.rom_groups.as_ref().and_then(|g| g.get(self.rom_selected)).map(|g| {
-            (g.primary.clone(), g.others.clone())
-        })
+        self.rom_groups
+            .as_ref()
+            .and_then(|g| g.get(self.rom_selected))
+            .map(|g| (g.primary.clone(), g.others.clone()))
     }
 
     fn list_title(&self) -> &str {
@@ -240,11 +247,12 @@ impl LibraryBrowseScreen {
                 .map(|(idx, p)| {
                     let name = p.display_name.as_deref().unwrap_or(&p.name);
                     let count = p.rom_count;
-                    let prefix = if idx == self.list_index && self.view_mode == LibraryViewMode::List {
-                        "▶ "
-                    } else {
-                        "  "
-                    };
+                    let prefix =
+                        if idx == self.list_index && self.view_mode == LibraryViewMode::List {
+                            "▶ "
+                        } else {
+                            "  "
+                        };
                     ListItem::new(format!("{}{} ({} roms)", prefix, name, count))
                 })
                 .collect(),
@@ -254,18 +262,23 @@ impl LibraryBrowseScreen {
                 .enumerate()
                 .map(|(idx, c)| {
                     let count = c.rom_count.unwrap_or(0);
-                    let prefix = if idx == self.list_index && self.view_mode == LibraryViewMode::List {
-                        "▶ "
-                    } else {
-                        "  "
-                    };
+                    let prefix =
+                        if idx == self.list_index && self.view_mode == LibraryViewMode::List {
+                            "▶ "
+                        } else {
+                            "  "
+                        };
                     ListItem::new(format!("{}{} ({} roms)", prefix, c.name, count))
                 })
                 .collect(),
         };
 
         let list = List::new(items)
-            .block(Block::default().title(self.list_title()).borders(Borders::ALL))
+            .block(
+                Block::default()
+                    .title(self.list_title())
+                    .borders(Borders::ALL),
+            )
             .highlight_symbol(if self.view_mode == LibraryViewMode::List {
                 ">> "
             } else {
@@ -299,7 +312,9 @@ impl LibraryBrowseScreen {
         let end = (start + visible).min(groups.len());
         let visible_groups = &groups[start..end];
 
-        let header = Row::new(vec![Cell::from("Name").style(Style::default().fg(Color::Cyan))]);
+        let header = Row::new(vec![
+            Cell::from("Name").style(Style::default().fg(Color::Cyan))
+        ]);
         let rows: Vec<Row> = visible_groups
             .iter()
             .enumerate()
@@ -310,8 +325,7 @@ impl LibraryBrowseScreen {
                 } else {
                     Style::default()
                 };
-                Row::new(vec![Cell::from(g.name.as_str()).style(style)])
-                    .height(1)
+                Row::new(vec![Cell::from(g.name.as_str()).style(style)]).height(1)
             })
             .collect();
 
@@ -340,8 +354,8 @@ impl LibraryBrowseScreen {
             LibraryViewMode::List => "t: Switch Console/Collection | ↑↓: Select (games load) | Enter: Focus games | Esc: Back",
             LibraryViewMode::Roms => "←: Back to list | ↑↓: Navigate | Enter: Game detail | Esc: Back",
         };
-        let p = ratatui::widgets::Paragraph::new(help)
-            .block(Block::default().borders(Borders::ALL));
+        let p =
+            ratatui::widgets::Paragraph::new(help).block(Block::default().borders(Borders::ALL));
         f.render_widget(p, area);
     }
 }

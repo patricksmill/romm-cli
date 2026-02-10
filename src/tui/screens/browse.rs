@@ -5,12 +5,14 @@ use ratatui::Frame;
 use crate::tui::openapi::{ApiEndpoint, EndpointRegistry};
 use std::collections::HashMap;
 
+/// Logical grouping of API endpoints (by tag or path prefix).
 #[derive(Debug, Clone)]
 pub struct Section {
     pub name: String,
     pub endpoint_indices: Vec<usize>,
 }
 
+/// API browser screen for exploring ROMM endpoints.
 pub struct BrowseScreen {
     pub registry: EndpointRegistry,
     pub sections: Vec<Section>,
@@ -33,7 +35,8 @@ impl BrowseScreen {
             let section_name = if !endpoint.tags.is_empty() {
                 endpoint.tags[0].clone()
             } else {
-                let path_parts: Vec<&str> = endpoint.path.split('/').filter(|s| !s.is_empty()).collect();
+                let path_parts: Vec<&str> =
+                    endpoint.path.split('/').filter(|s| !s.is_empty()).collect();
                 if path_parts.len() >= 2 {
                     format!("{}", path_parts[1])
                 } else {
@@ -133,12 +136,12 @@ impl BrowseScreen {
             .split(area);
 
         self.render_sections(f, chunks[0]);
-        
+
         let endpoint_chunks = Layout::default()
             .constraints([Constraint::Min(5), Constraint::Length(3)])
             .direction(ratatui::layout::Direction::Vertical)
             .split(chunks[1]);
-        
+
         self.render_endpoints(f, endpoint_chunks[0]);
         self.render_help(f, endpoint_chunks[1]);
     }
@@ -146,7 +149,9 @@ impl BrowseScreen {
     fn render_help(&self, f: &mut Frame, area: Rect) {
         let help_text = match self.view_mode {
             ViewMode::Sections => "Tab/→: View endpoints | ↑↓: Navigate sections | Esc: Back",
-            ViewMode::Endpoints => "Tab/←: View sections | ↑↓: Navigate | Enter: Execute | Esc: Back",
+            ViewMode::Endpoints => {
+                "Tab/←: View sections | ↑↓: Navigate | Enter: Execute | Esc: Back"
+            }
         };
         let help = ratatui::widgets::Paragraph::new(help_text)
             .block(ratatui::widgets::Block::default().borders(ratatui::widgets::Borders::ALL));
@@ -186,36 +191,37 @@ impl BrowseScreen {
     }
 
     fn render_endpoints(&self, f: &mut Frame, area: Rect) {
-        let (items, count): (Vec<ListItem>, usize) = if let Some(section) = self.sections.get(self.selected_section) {
-            let items: Vec<ListItem> = section
-                .endpoint_indices
-                .iter()
-                .enumerate()
-                .map(|(_idx, &endpoint_idx)| {
-                    let ep = &self.registry.endpoints[endpoint_idx];
-                    let method_color = match ep.method.as_str() {
-                        "GET" => ratatui::style::Color::Green,
-                        "POST" => ratatui::style::Color::Blue,
-                        "PUT" => ratatui::style::Color::Yellow,
-                        "DELETE" => ratatui::style::Color::Red,
-                        _ => ratatui::style::Color::White,
-                    };
+        let (items, count): (Vec<ListItem>, usize) =
+            if let Some(section) = self.sections.get(self.selected_section) {
+                let items: Vec<ListItem> = section
+                    .endpoint_indices
+                    .iter()
+                    .enumerate()
+                    .map(|(_idx, &endpoint_idx)| {
+                        let ep = &self.registry.endpoints[endpoint_idx];
+                        let method_color = match ep.method.as_str() {
+                            "GET" => ratatui::style::Color::Green,
+                            "POST" => ratatui::style::Color::Blue,
+                            "PUT" => ratatui::style::Color::Yellow,
+                            "DELETE" => ratatui::style::Color::Red,
+                            _ => ratatui::style::Color::White,
+                        };
 
-                    let summary = ep
-                        .summary
-                        .as_ref()
-                        .map(|s| format!(" - {}", s))
-                        .unwrap_or_default();
+                        let summary = ep
+                            .summary
+                            .as_ref()
+                            .map(|s| format!(" - {}", s))
+                            .unwrap_or_default();
 
-                    ListItem::new(format!("{} {}{}", ep.method, ep.path, summary))
-                        .style(ratatui::style::Style::default().fg(method_color))
-                })
-                .collect();
-            let count = items.len();
-            (items, count)
-        } else {
-            (vec![], 0)
-        };
+                        ListItem::new(format!("{} {}{}", ep.method, ep.path, summary))
+                            .style(ratatui::style::Style::default().fg(method_color))
+                    })
+                    .collect();
+                let count = items.len();
+                (items, count)
+            } else {
+                (vec![], 0)
+            };
 
         let section_name = self
             .sections

@@ -57,4 +57,3 @@ async fn list_platforms(client: &RommClient, json: bool) -> Result<()> {
 
     Ok(())
 }
-

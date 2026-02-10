@@ -1,3 +1,9 @@
+//! Configuration and authentication for the ROMM client.
+//!
+//! This module is deliberately independent of any particular frontend:
+//! both the TUI and the command-line subcommands share the same `Config`
+//! and `AuthConfig` types.
+
 use anyhow::{anyhow, Result};
 
 #[derive(Debug, Clone)]
@@ -23,7 +29,9 @@ pub fn load_config() -> Result<Config> {
 
     let username = std::env::var("API_USERNAME").ok();
     let password = std::env::var("API_PASSWORD").ok();
-    let token = std::env::var("API_TOKEN").ok().or_else(|| std::env::var("API_KEY").ok());
+    let token = std::env::var("API_TOKEN")
+        .ok()
+        .or_else(|| std::env::var("API_KEY").ok());
     let api_key = std::env::var("API_KEY").ok();
     let api_key_header = std::env::var("API_KEY_HEADER").ok();
 
@@ -43,10 +51,7 @@ pub fn load_config() -> Result<Config> {
     } else if let (Some(key), Some(header)) = (api_key, api_key_header) {
         // Priority 3: API key in custom header
         if !is_placeholder(&key) {
-            Some(AuthConfig::ApiKey {
-                header,
-                key,
-            })
+            Some(AuthConfig::ApiKey { header, key })
         } else {
             None
         }
@@ -56,4 +61,3 @@ pub fn load_config() -> Result<Config> {
 
     Ok(Config { base_url, auth })
 }
-

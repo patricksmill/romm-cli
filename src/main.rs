@@ -1,14 +1,24 @@
-mod config;
-mod types;
+//! Binary entrypoint for `romm-cli`.
+//!
+//! This crate is intentionally very small: it wires together
+//! - configuration loading,
+//! - the HTTP client (`RommClient`),
+//! - the top-level CLI command parser, and
+//! - the currently selected frontend (TUI or plain CLI).
+//!
+//! All interesting behavior lives in the library modules under `src/`.
+
 mod client;
 mod commands;
+mod config;
 mod endpoints;
 mod tui;
+mod types;
 
 use anyhow::Result;
 use clap::Parser;
-use config::load_config;
 use commands::Cli;
+use config::load_config;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -20,4 +30,3 @@ async fn main() -> Result<()> {
 
     commands::run(cli, config).await
 }
-

@@ -1,6 +1,7 @@
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState};
 use ratatui::Frame;
 
+/// Simple main menu screen for choosing the high-level mode.
 pub struct MainMenuScreen {
     pub selected: usize,
 }
@@ -15,7 +16,11 @@ impl MainMenuScreen {
     }
 
     pub fn previous(&mut self) {
-        self.selected = if self.selected == 0 { 5 } else { self.selected - 1 };
+        self.selected = if self.selected == 0 {
+            5
+        } else {
+            self.selected - 1
+        };
     }
 
     pub fn render(&self, f: &mut Frame, area: ratatui::layout::Rect) {

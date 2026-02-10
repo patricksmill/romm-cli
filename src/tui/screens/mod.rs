@@ -1,3 +1,10 @@
+//! Collection of individual TUI screens.
+//!
+//! Each screen is a small, focused module responsible for rendering a
+//! specific view (main menu, library browser, downloads list, etc.) and
+//! holding just enough state for that view. The central `App` in
+//! `tui::app` chooses which screen is active.
+
 pub mod browse;
 pub mod download;
 pub mod execute;

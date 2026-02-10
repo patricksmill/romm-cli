@@ -4,6 +4,7 @@ use ratatui::Frame;
 
 use crate::tui::openapi::ApiEndpoint;
 
+/// Screen for editing query/body parameters and executing a single endpoint.
 pub struct ExecuteScreen {
     pub endpoint: ApiEndpoint,
     pub query_params: Vec<(String, String)>,
@@ -23,12 +24,7 @@ impl ExecuteScreen {
         let query_params: Vec<(String, String)> = endpoint
             .query_params
             .iter()
-            .map(|p| {
-                (
-                    p.name.clone(),
-                    p.default.clone().unwrap_or_default(),
-                )
-            })
+            .map(|p| (p.name.clone(), p.default.clone().unwrap_or_default()))
             .collect();
 
         Self {
@@ -140,7 +136,9 @@ impl ExecuteScreen {
             return None;
         }
 
-        let idx = self.param_input_idx.min(self.query_params.len().saturating_sub(1));
+        let idx = self
+            .param_input_idx
+            .min(self.query_params.len().saturating_sub(1));
         let y = area.y + 1 + idx as u16;
         if y >= area.y + area.height - 1 {
             return None;
@@ -196,11 +194,7 @@ impl ExecuteScreen {
             ])
             .split(area);
 
-        let info_text = format!(
-            "{} {}",
-            self.endpoint.method,
-            self.endpoint.path
-        );
+        let info_text = format!("{} {}", self.endpoint.method, self.endpoint.path);
         let info = Paragraph::new(info_text)
             .block(Block::default().title("Endpoint").borders(Borders::ALL));
         f.render_widget(info, chunks[0]);
@@ -220,8 +214,7 @@ impl ExecuteScreen {
         };
 
         let help_text = "Tab: Next field | Backspace: Delete | Enter: Execute | Esc: Back";
-        let help = Paragraph::new(help_text)
-            .block(Block::default().borders(Borders::ALL));
+        let help = Paragraph::new(help_text).block(Block::default().borders(Borders::ALL));
         f.render_widget(help, chunks[2]);
     }
 
@@ -242,11 +235,15 @@ impl ExecuteScreen {
             .collect();
 
         let text = items.join("\n");
-        let mut paragraph = Paragraph::new(text)
-            .block(Block::default().title("Query Parameters").borders(Borders::ALL));
+        let mut paragraph = Paragraph::new(text).block(
+            Block::default()
+                .title("Query Parameters")
+                .borders(Borders::ALL),
+        );
 
         if self.focused_field == FocusedField::QueryParams {
-            paragraph = paragraph.style(ratatui::style::Style::default().fg(ratatui::style::Color::Yellow));
+            paragraph =
+                paragraph.style(ratatui::style::Style::default().fg(ratatui::style::Color::Yellow));
         }
 
         f.render_widget(paragraph, area);
@@ -254,11 +251,16 @@ impl ExecuteScreen {
 
     fn render_body(&self, f: &mut Frame, area: Rect) {
         let mut paragraph = Paragraph::new(self.body_text.as_str())
-            .block(Block::default().title("Request Body (JSON)").borders(Borders::ALL))
+            .block(
+                Block::default()
+                    .title("Request Body (JSON)")
+                    .borders(Borders::ALL),
+            )
             .wrap(ratatui::widgets::Wrap { trim: true });
 
         if self.focused_field == FocusedField::Body {
-            paragraph = paragraph.style(ratatui::style::Style::default().fg(ratatui::style::Color::Yellow));
+            paragraph =
+                paragraph.style(ratatui::style::Style::default().fg(ratatui::style::Color::Yellow));
         }
 
         f.render_widget(paragraph, area);

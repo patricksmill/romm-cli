@@ -48,6 +48,11 @@ struct CacheEntry {
 // RomCache
 // ---------------------------------------------------------------------------
 
+/// In-memory view of the persisted ROM cache.
+///
+/// Internally this is just a `HashMap` keyed by [`RomCacheKey`], plus the
+/// path of the JSON file on disk. All callers go through [`RomCache::load`]
+/// so they never touch the filesystem directly.
 pub struct RomCache {
     entries: HashMap<RomCacheKey, (u64, RomList)>, // (expected_count, data)
     path: PathBuf,
@@ -117,5 +122,4 @@ impl RomCache {
         self.entries.insert(key, (expected_count, data));
         self.save();
     }
-
 }

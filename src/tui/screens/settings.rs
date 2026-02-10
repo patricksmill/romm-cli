@@ -4,6 +4,7 @@ use ratatui::Frame;
 
 use crate::config::Config;
 
+/// Read-only settings screen summarising current config and keybindings.
 pub struct SettingsScreen {
     pub base_url: String,
     pub auth_status: String,
@@ -42,8 +43,8 @@ impl SettingsScreen {
             "API_TOKEN, or API_KEY + API_KEY_HEADER. Restart the app after changes.".to_string(),
         ];
         let text = lines.join("\n");
-        let p = Paragraph::new(text)
-            .block(Block::default().title("Settings").borders(Borders::ALL));
+        let p =
+            Paragraph::new(text).block(Block::default().title("Settings").borders(Borders::ALL));
         f.render_widget(p, chunks[0]);
 
         let help = "Esc: Back to menu";

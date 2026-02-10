@@ -53,8 +53,14 @@ impl EndpointRegistry {
                     .as_object()
                     .ok_or_else(|| anyhow!("Invalid operation for {} {}", method, path))?;
 
-                let summary = operation.get("summary").and_then(|v| v.as_str()).map(|s| s.to_string());
-                let description = operation.get("description").and_then(|v| v.as_str()).map(|s| s.to_string());
+                let summary = operation
+                    .get("summary")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                let description = operation
+                    .get("description")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
 
                 let tags = operation
                     .get("tags")
@@ -96,15 +102,13 @@ impl EndpointRegistry {
                                 .map(|s| s.to_string())
                                 .unwrap_or_else(|| "string".to_string());
 
-                            let default = schema
-                                .and_then(|s| s.get("default"))
-                                .and_then(|v| {
-                                    if v.is_string() {
-                                        v.as_str().map(|s| s.to_string())
-                                    } else {
-                                        Some(v.to_string())
-                                    }
-                                });
+                            let default = schema.and_then(|s| s.get("default")).and_then(|v| {
+                                if v.is_string() {
+                                    v.as_str().map(|s| s.to_string())
+                                } else {
+                                    Some(v.to_string())
+                                }
+                            });
 
                             let description = param_obj
                                 .get("description")
@@ -143,9 +147,7 @@ impl EndpointRegistry {
             }
         }
 
-        endpoints.sort_by(|a, b| {
-            a.path.cmp(&b.path).then_with(|| a.method.cmp(&b.method))
-        });
+        endpoints.sort_by(|a, b| a.path.cmp(&b.path).then_with(|| a.method.cmp(&b.method)));
 
         Ok(EndpointRegistry { endpoints })
     }
@@ -155,7 +157,7 @@ impl EndpointRegistry {
             .map_err(|e| anyhow!("Failed to read OpenAPI file {}: {}", path, e))?;
         Self::from_openapi_json(&content)
     }
-    
+
     #[allow(dead_code)]
     pub fn get_by_tag(&self, tag: &str) -> Vec<&ApiEndpoint> {
         self.endpoints
@@ -180,8 +182,16 @@ impl EndpointRegistry {
             .filter(|ep| {
                 ep.path.to_lowercase().contains(&query_lower)
                     || ep.method.to_lowercase().contains(&query_lower)
-                    || ep.summary.as_ref().map(|s| s.to_lowercase().contains(&query_lower)).unwrap_or(false)
-                    || ep.description.as_ref().map(|s| s.to_lowercase().contains(&query_lower)).unwrap_or(false)
+                    || ep
+                        .summary
+                        .as_ref()
+                        .map(|s| s.to_lowercase().contains(&query_lower))
+                        .unwrap_or(false)
+                    || ep
+                        .description
+                        .as_ref()
+                        .map(|s| s.to_lowercase().contains(&query_lower))
+                        .unwrap_or(false)
             })
             .collect()
     }

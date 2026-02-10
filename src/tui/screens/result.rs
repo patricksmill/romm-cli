@@ -41,8 +41,8 @@ impl ResultScreen {
         endpoint_method: Option<&str>,
         endpoint_path: Option<&str>,
     ) -> Self {
-        let result_text = serde_json::to_string_pretty(&result)
-            .unwrap_or_else(|_| format!("{:?}", result));
+        let result_text =
+            serde_json::to_string_pretty(&result).unwrap_or_else(|_| format!("{:?}", result));
         let highlighted_lines = Self::highlight_json_lines(&result_text);
         let line_count = highlighted_lines.len().max(1);
         let scrollbar_state = ScrollbarState::new(line_count.saturating_sub(1));
@@ -106,14 +106,19 @@ impl ResultScreen {
                     end += 1;
                 }
                 let s = std::str::from_utf8(&bytes[i..end]).unwrap_or("");
-                let rest_trimmed = bytes.get(end..).map(|s| {
-                    let mut j = 0;
-                    while j < s.len() && (s[j] == b' ' || s[j] == b'\t') {
-                        j += 1;
-                    }
-                    s.get(j..)
-                }).flatten();
-                let is_key = rest_trimmed.map(|r| r.first() == Some(&b':')).unwrap_or(false);
+                let rest_trimmed = bytes
+                    .get(end..)
+                    .map(|s| {
+                        let mut j = 0;
+                        while j < s.len() && (s[j] == b' ' || s[j] == b'\t') {
+                            j += 1;
+                        }
+                        s.get(j..)
+                    })
+                    .flatten();
+                let is_key = rest_trimmed
+                    .map(|r| r.first() == Some(&b':'))
+                    .unwrap_or(false);
                 if is_key {
                     spans.push(Span::styled(s.to_string(), key_style));
                 } else {
@@ -122,12 +127,21 @@ impl ResultScreen {
                 i = end;
                 continue;
             }
-            if bytes[i].is_ascii_digit() || (bytes[i] == b'-' && i + 1 < bytes.len() && bytes[i + 1].is_ascii_digit()) {
+            if bytes[i].is_ascii_digit()
+                || (bytes[i] == b'-' && i + 1 < bytes.len() && bytes[i + 1].is_ascii_digit())
+            {
                 let mut end = i;
                 if bytes[end] == b'-' {
                     end += 1;
                 }
-                while end < bytes.len() && (bytes[end].is_ascii_digit() || bytes[end] == b'.' || bytes[end] == b'e' || bytes[end] == b'E' || bytes[end] == b'+' || bytes[end] == b'-') {
+                while end < bytes.len()
+                    && (bytes[end].is_ascii_digit()
+                        || bytes[end] == b'.'
+                        || bytes[end] == b'e'
+                        || bytes[end] == b'E'
+                        || bytes[end] == b'+'
+                        || bytes[end] == b'-')
+                {
                     end += 1;
                 }
                 let s = std::str::from_utf8(&bytes[i..end]).unwrap_or("");
@@ -135,17 +149,21 @@ impl ResultScreen {
                 i = end;
                 continue;
             }
-            if i + 4 <= bytes.len() && std::str::from_utf8(&bytes[i..i + 4]).unwrap_or("") == "true" {
+            if i + 4 <= bytes.len() && std::str::from_utf8(&bytes[i..i + 4]).unwrap_or("") == "true"
+            {
                 spans.push(Span::styled("true".to_string(), bool_null_style));
                 i += 4;
                 continue;
             }
-            if i + 5 <= bytes.len() && std::str::from_utf8(&bytes[i..i + 5]).unwrap_or("") == "false" {
+            if i + 5 <= bytes.len()
+                && std::str::from_utf8(&bytes[i..i + 5]).unwrap_or("") == "false"
+            {
                 spans.push(Span::styled("false".to_string(), bool_null_style));
                 i += 5;
                 continue;
             }
-            if i + 4 <= bytes.len() && std::str::from_utf8(&bytes[i..i + 4]).unwrap_or("") == "null" {
+            if i + 4 <= bytes.len() && std::str::from_utf8(&bytes[i..i + 4]).unwrap_or("") == "null"
+            {
                 spans.push(Span::styled("null".to_string(), bool_null_style));
                 i += 4;
                 continue;
@@ -170,7 +188,10 @@ impl ResultScreen {
             Some(arr) => arr,
             None => return (0, None),
         };
-        let total = obj.get("total").and_then(|t| t.as_u64()).unwrap_or(items.len() as u64) as usize;
+        let total = obj
+            .get("total")
+            .and_then(|t| t.as_u64())
+            .unwrap_or(items.len() as u64) as usize;
         (total.min(items.len()), Some(items))
     }
 
@@ -180,7 +201,8 @@ impl ResultScreen {
             match v {
                 serde_json::Value::Object(m) => {
                     for (k, val) in m {
-                        if k == "url_cover" || k == "url_logo"
+                        if k == "url_cover"
+                            || k == "url_logo"
                             || k.starts_with("url_") && k.contains("cover")
                         {
                             if let Some(s) = val.as_str().filter(|s| !s.is_empty()) {
@@ -286,12 +308,8 @@ impl ResultScreen {
             ResultViewMode::Json => "t: Toggle view | ↑↓: Scroll | Esc: Back",
             ResultViewMode::Table => "t: Toggle view | Enter: Detail | ↑↓: Row | Esc: Back",
         };
-        let msg = self
-            .message
-            .as_deref()
-            .unwrap_or(help);
-        let footer = Paragraph::new(msg)
-            .block(Block::default().borders(Borders::ALL));
+        let msg = self.message.as_deref().unwrap_or(help);
+        let footer = Paragraph::new(msg).block(Block::default().borders(Borders::ALL));
         f.render_widget(footer, chunks[1]);
     }
 
@@ -305,7 +323,11 @@ impl ResultScreen {
             .collect();
 
         let paragraph = Paragraph::new(visible)
-            .block(Block::default().title("Response (JSON)").borders(Borders::ALL))
+            .block(
+                Block::default()
+                    .title("Response (JSON)")
+                    .borders(Borders::ALL),
+            )
             .wrap(ratatui::widgets::Wrap { trim: true });
 
         f.render_widget(paragraph, area);
@@ -323,8 +345,11 @@ impl ResultScreen {
         let items = match items_opt {
             Some(arr) if !arr.is_empty() => arr,
             _ => {
-                let p = Paragraph::new("No items array or empty")
-                    .block(Block::default().title("Response (Table)").borders(Borders::ALL));
+                let p = Paragraph::new("No items array or empty").block(
+                    Block::default()
+                        .title("Response (Table)")
+                        .borders(Borders::ALL),
+                );
                 f.render_widget(p, area);
                 return;
             }
@@ -438,8 +463,13 @@ impl ResultDetailScreen {
                     serde_json::Value::Bool(b) => b.to_string(),
                     serde_json::Value::Number(n) => n.to_string(),
                     serde_json::Value::String(s) => s.clone(),
-                    serde_json::Value::Array(_) => format!("[{} items]", val.as_array().map(|a| a.len()).unwrap_or(0)),
-                    serde_json::Value::Object(_) => format!("{{{} fields}}", val.as_object().map(|o| o.len()).unwrap_or(0)),
+                    serde_json::Value::Array(_) => {
+                        format!("[{} items]", val.as_array().map(|a| a.len()).unwrap_or(0))
+                    }
+                    serde_json::Value::Object(_) => format!(
+                        "{{{} fields}}",
+                        val.as_object().map(|o| o.len()).unwrap_or(0)
+                    ),
                 };
                 rows.push((key.clone(), value_str));
             }
@@ -486,7 +516,7 @@ impl ResultDetailScreen {
             .split(area);
 
         let content_area = chunks[0];
-        
+
         // Table block: 1 top border + 1 header + N data rows + 1 bottom border
         let visible_row_count = (content_area.height as usize).saturating_sub(3).max(1);
         let max_scroll = self.table_rows.len().saturating_sub(visible_row_count);
@@ -510,10 +540,7 @@ impl ResultDetailScreen {
             })
             .collect();
 
-        let widths = [
-            Constraint::Percentage(30),
-            Constraint::Percentage(70),
-        ];
+        let widths = [Constraint::Percentage(30), Constraint::Percentage(70)];
         let title = format!("ROM detail - {} fields", self.table_rows.len());
         let table = Table::new(rows, widths)
             .header(header)

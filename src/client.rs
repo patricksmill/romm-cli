@@ -1,3 +1,9 @@
+//! HTTP client wrapper around the ROMM API.
+//!
+//! `RommClient` owns a configured `reqwest::Client` plus base URL and
+//! authentication settings. Frontends (CLI, TUI, or a future GUI) depend
+//! on this type instead of talking to `reqwest` directly.
+
 use anyhow::{anyhow, Result};
 use base64::{engine::general_purpose, Engine as _};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
@@ -9,6 +15,10 @@ use std::path::Path;
 use crate::config::{AuthConfig, Config};
 use crate::endpoints::Endpoint;
 
+/// High-level HTTP client for the ROMM API.
+///
+/// This type hides the details of `reqwest` and authentication headers
+/// behind a small, easy-to-mock interface that all frontends can share.
 #[derive(Clone)]
 pub struct RommClient {
     http: HttpClient,
@@ -17,6 +27,11 @@ pub struct RommClient {
 }
 
 impl RommClient {
+    /// Construct a new client from the high-level [`Config`].
+    ///
+    /// This is typically done once in `main` and the resulting
+    /// `RommClient` is shared (by reference or cloning) with the
+    /// chosen frontend.
     pub fn new(config: &Config) -> Result<Self> {
         let http = HttpClient::builder().build()?;
         Ok(Self {
@@ -26,6 +41,10 @@ impl RommClient {
         })
     }
 
+    /// Build the HTTP headers for the current authentication mode.
+    ///
+    /// This helper centralises all auth logic so that the rest of the
+    /// code never needs to worry about `Basic` vs `Bearer` vs API key.
     fn build_headers(&self) -> Result<HeaderMap> {
         let mut headers = HeaderMap::new();
 
@@ -50,10 +69,9 @@ impl RommClient {
                     );
                 }
                 AuthConfig::ApiKey { header, key } => {
-                    let name =
-                        reqwest::header::HeaderName::from_bytes(header.as_bytes()).map_err(|_| {
-                            anyhow!("invalid API_KEY_HEADER, must be a valid HTTP header name")
-                        })?;
+                    let name = reqwest::header::HeaderName::from_bytes(header.as_bytes()).map_err(
+                        |_| anyhow!("invalid API_KEY_HEADER, must be a valid HTTP header name"),
+                    )?;
                     headers.insert(
                         name,
                         HeaderValue::from_str(key)
@@ -78,18 +96,16 @@ impl RommClient {
         let body = ep.body();
 
         let value = self.request_json(method, &path, &query, body).await?;
-        let output = serde_json::from_value(value).map_err(|e| {
-            anyhow!(
-                "failed to decode response for {} {}: {}",
-                method,
-                path,
-                e
-            )
-        })?;
+        let output = serde_json::from_value(value)
+            .map_err(|e| anyhow!("failed to decode response for {} {}: {}", method, path, e))?;
 
         Ok(output)
     }
 
+    /// Low-level helper that issues an HTTP request and returns raw JSON.
+    ///
+    /// Higher-level helpers (such as typed `Endpoint` implementations)
+    /// should prefer [`RommClient::call`] instead of using this directly.
     pub async fn request_json(
         &self,
         method: &str,
@@ -164,7 +180,10 @@ impl RommClient {
             .http
             .get(&url)
             .headers(headers)
-            .query(&[("rom_ids", rom_id.to_string()), ("filename", filename.to_string())])
+            .query(&[
+                ("rom_ids", rom_id.to_string()),
+                ("filename", filename.to_string()),
+            ])
             .send()
             .await
             .map_err(|e| anyhow!("download request error: {e}"))?;
@@ -196,4 +215,3 @@ impl RommClient {
         Ok(())
     }
 }
-

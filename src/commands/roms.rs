@@ -47,4 +47,3 @@ pub async fn handle(cmd: RomsCommand, client: &RommClient, json: bool) -> Result
 
     Ok(())
 }
-

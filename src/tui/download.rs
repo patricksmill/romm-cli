@@ -15,6 +15,7 @@ use crate::types::Rom;
 // Job status / data
 // ---------------------------------------------------------------------------
 
+/// High-level status of a single download.
 #[derive(Debug, Clone)]
 pub enum DownloadStatus {
     Downloading,
@@ -22,6 +23,7 @@ pub enum DownloadStatus {
     Error(String),
 }
 
+/// A single background download job (for one ROM).
 #[derive(Debug, Clone)]
 pub struct DownloadJob {
     pub id: usize,
@@ -36,6 +38,7 @@ pub struct DownloadJob {
 static NEXT_JOB_ID: AtomicUsize = AtomicUsize::new(0);
 
 impl DownloadJob {
+    /// Construct a new job in the `Downloading` state.
     pub fn new(rom_id: u64, name: String, platform: String) -> Self {
         Self {
             id: NEXT_JOB_ID.fetch_add(1, Ordering::Relaxed),
@@ -58,6 +61,9 @@ impl DownloadJob {
 // ---------------------------------------------------------------------------
 
 /// Owns the shared download list and spawns background download tasks.
+///
+/// The TUI only ever sees an `Arc<Mutex<Vec<DownloadJob>>>`, so a GUI or
+/// tests can reuse this manager without depending on ratatui.
 #[derive(Clone)]
 pub struct DownloadManager {
     jobs: Arc<Mutex<Vec<DownloadJob>>>,
@@ -70,12 +76,15 @@ impl DownloadManager {
         }
     }
 
-    /// Shared handle for the download screen.
+    /// Shared handle for observers (TUI, GUI, tests) to inspect jobs.
     pub fn shared(&self) -> Arc<Mutex<Vec<DownloadJob>>> {
         self.jobs.clone()
     }
 
     /// Start downloading `rom` in the background; returns immediately.
+    ///
+    /// Progress updates are pushed into the shared `jobs` list so that
+    /// any frontend can render them.
     pub fn start_download(&self, rom: &Rom, client: RommClient) {
         let platform = rom
             .platform_display_name
@@ -91,6 +100,8 @@ impl DownloadManager {
         self.jobs.lock().unwrap().push(job);
 
         let jobs = self.jobs.clone();
+        // Spawn a background task so the TUI stays responsive while bytes
+        // are being downloaded. Progress is fed back through `jobs`.
         tokio::spawn(async move {
             let save_dir = Path::new("./downloads");
             let _ = std::fs::create_dir_all(save_dir);

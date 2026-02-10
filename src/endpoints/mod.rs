@@ -24,4 +24,3 @@ pub trait Endpoint {
         None
     }
 }
-

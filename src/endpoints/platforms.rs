@@ -17,4 +17,3 @@ impl Endpoint for ListPlatforms {
         "/api/platforms".into()
     }
 }
-

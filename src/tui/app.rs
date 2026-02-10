@@ -1,12 +1,26 @@
-//! Application state and event loop.
+//! Application state and TUI event loop.
+//!
+//! The `App` struct owns long-lived state (config, HTTP client, cache,
+//! downloads, and the currently active `AppScreen`). It drives a simple
+//! state machine:
+//! - render the current screen,
+//! - wait for input,
+//! - dispatch the key to a small handler per screen.
+//!
+//! This is intentionally separated from the drawing code in `screens/`
+//! so that alternative frontends can reuse the same \"backend\" services.
 
 use anyhow::Result;
-use crossterm::event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind};
-use std::time::Duration;
+use crossterm::event::{
+    self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind,
+};
 use crossterm::execute;
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
+use crossterm::terminal::{
+    disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
+};
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
+use std::time::Duration;
 
 use crate::client::RommClient;
 use crate::config::Config;
@@ -29,6 +43,10 @@ const LIBRARY_FETCH_LIMIT: u32 = 500;
 // Screen enum
 // ---------------------------------------------------------------------------
 
+/// All possible high-level screens in the TUI.
+///
+/// `App` holds exactly one of these at a time and delegates both
+/// rendering and key handling based on the current variant.
 pub enum AppScreen {
     MainMenu(MainMenuScreen),
     LibraryBrowse(LibraryBrowseScreen),
@@ -46,6 +64,10 @@ pub enum AppScreen {
 // App
 // ---------------------------------------------------------------------------
 
+/// Root application object for the TUI.
+///
+/// Owns shared services (`RommClient`, `RomCache`, `DownloadManager`)
+/// as well as the currently active [`AppScreen`].
 pub struct App {
     screen: AppScreen,
     client: RommClient,
@@ -60,6 +82,7 @@ pub struct App {
 }
 
 impl App {
+    /// Construct a new `App` with fresh cache and empty download list.
     pub fn new(client: RommClient, config: Config, registry: EndpointRegistry) -> Self {
         Self {
             screen: AppScreen::MainMenu(MainMenuScreen::new()),
@@ -77,6 +100,11 @@ impl App {
     // Event loop
     // -----------------------------------------------------------------------
 
+    /// Main TUI event loop.
+    ///
+    /// This method owns the terminal for the lifetime of the app,
+    /// repeatedly drawing the current screen and dispatching key
+    /// events until the user chooses to quit.
     pub async fn run(&mut self) -> Result<()> {
         enable_raw_mode()?;
         let mut stdout = std::io::stdout();
@@ -85,9 +113,12 @@ impl App {
         let mut terminal = Terminal::new(backend)?;
 
         loop {
+            // Draw the current screen. `App::render` delegates to the
+            // appropriate screen type based on `self.screen`.
             terminal.draw(|f| self.render(f))?;
 
-            // Poll with a short timeout so the UI refreshes during downloads.
+            // Poll with a short timeout so the UI refreshes during downloads
+            // even when the user is not pressing any keys.
             if event::poll(Duration::from_millis(100))? {
                 if let Event::Key(key) = event::read()? {
                     if key.kind == KeyEventKind::Press && self.handle_key(key.code).await? {
@@ -97,6 +128,9 @@ impl App {
             }
 
             // Process deferred ROM fetch (set during LibraryBrowse ↑/↓).
+            // This avoids borrowing `self` mutably in two places at once:
+            // the screen handler only *records* the intent to load ROMs,
+            // and the actual HTTP call happens here after rendering.
             if let Some((key, req, expected)) = self.deferred_load_roms.take() {
                 if let Ok(Some(roms)) = self.load_roms_cached(key, req, expected).await {
                     if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
@@ -173,10 +207,8 @@ impl App {
     // -- Download overlay ---------------------------------------------------
 
     fn toggle_download_screen(&mut self) {
-        let current = std::mem::replace(
-            &mut self.screen,
-            AppScreen::MainMenu(MainMenuScreen::new()),
-        );
+        let current =
+            std::mem::replace(&mut self.screen, AppScreen::MainMenu(MainMenuScreen::new()));
         match current {
             AppScreen::Download(_) => {
                 self.screen = self
@@ -186,8 +218,7 @@ impl App {
             }
             other => {
                 self.screen_before_download = Some(other);
-                self.screen =
-                    AppScreen::Download(DownloadScreen::new(self.downloads.shared()));
+                self.screen = AppScreen::Download(DownloadScreen::new(self.downloads.shared()));
             }
         }
     }
@@ -229,9 +260,7 @@ impl App {
                             .or_else(|| {
                                 lib.get_roms_request_collection_with_limit(LIBRARY_FETCH_LIMIT)
                             });
-                        if let Ok(Some(roms)) =
-                            self.load_roms_cached(key, req, expected).await
-                        {
+                        if let Ok(Some(roms)) = self.load_roms_cached(key, req, expected).await {
                             lib.set_roms(roms);
                         }
                     }
@@ -575,10 +604,8 @@ impl App {
             KeyCode::Char('o') => detail.open_image_url(),
             KeyCode::Esc => {
                 detail.clear_message();
-                let prev = std::mem::replace(
-                    &mut self.screen,
-                    AppScreen::MainMenu(MainMenuScreen::new()),
-                );
+                let prev =
+                    std::mem::replace(&mut self.screen, AppScreen::MainMenu(MainMenuScreen::new()));
                 if let AppScreen::ResultDetail(d) = prev {
                     self.screen = AppScreen::Result(d.parent);
                 }
@@ -598,16 +625,15 @@ impl App {
         };
         match key {
             KeyCode::Enter => {
-                self.downloads.start_download(&detail.rom, self.client.clone());
+                self.downloads
+                    .start_download(&detail.rom, self.client.clone());
             }
             KeyCode::Char('o') => detail.open_cover(),
             KeyCode::Char('m') => detail.toggle_technical(),
             KeyCode::Esc => {
                 detail.clear_message();
-                let prev = std::mem::replace(
-                    &mut self.screen,
-                    AppScreen::MainMenu(MainMenuScreen::new()),
-                );
+                let prev =
+                    std::mem::replace(&mut self.screen, AppScreen::MainMenu(MainMenuScreen::new()));
                 if let AppScreen::GameDetail(g) = prev {
                     self.screen = match g.previous {
                         GameDetailPrevious::Library(l) => AppScreen::LibraryBrowse(l),

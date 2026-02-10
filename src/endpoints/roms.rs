@@ -49,4 +49,3 @@ impl Endpoint for GetRoms {
         q
     }
 }
-

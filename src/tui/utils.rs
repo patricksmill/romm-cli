@@ -14,7 +14,8 @@ pub struct RomGroup {
     pub others: Vec<Rom>,
 }
 
-/// Group ROMs by game name; primary is the "base" file (prefer over [Update]/[DLC] in fs_name).
+/// Group ROMs by game name; primary is the "base" file (prefer over
+/// `"[Update]"` / `"[DLC]"` tags in `fs_name` when present).
 pub fn group_roms_by_name(items: &[Rom]) -> Vec<RomGroup> {
     use std::collections::HashMap;
     let mut by_name: HashMap<String, Vec<Rom>> = HashMap::new();

@@ -17,6 +17,7 @@ pub enum GameDetailPrevious {
     Search(SearchScreen),
 }
 
+/// Detailed view for a single ROM (and its related files).
 pub struct GameDetailScreen {
     pub rom: Rom,
     /// Other files for the same game (updates, DLC).
@@ -51,18 +52,12 @@ impl GameDetailScreen {
 
     pub fn open_cover(&mut self) {
         self.message = None;
-        let url = self
-            .rom
-            .url_cover
-            .as_deref()
-            .filter(|s| !s.is_empty());
+        let url = self.rom.url_cover.as_deref().filter(|s| !s.is_empty());
         match url {
-            Some(u) => {
-                match utils::open_in_browser(u) {
-                    Ok(_) => self.message = Some("Opened in browser".to_string()),
-                    Err(e) => self.message = Some(format!("Failed: {}", e)),
-                }
-            }
+            Some(u) => match utils::open_in_browser(u) {
+                Ok(_) => self.message = Some("Opened in browser".to_string()),
+                Err(e) => self.message = Some(format!("Failed: {}", e)),
+            },
             None => self.message = Some("No cover URL".to_string()),
         }
     }
@@ -76,12 +71,7 @@ impl GameDetailScreen {
         self.downloads
             .lock()
             .ok()
-            .and_then(|list| {
-                list.iter()
-                    .rev()
-                    .find(|j| j.rom_id == self.rom.id)
-                    .cloned()
-            })
+            .and_then(|list| list.iter().rev().find(|j| j.rom_id == self.rom.id).cloned())
     }
 
     pub fn render(&self, f: &mut Frame, area: Rect) {
@@ -121,9 +111,10 @@ impl GameDetailScreen {
                 Span::raw(cover_text),
             ]),
             Line::from(""),
-            Line::from(vec![
-                Span::styled("Summary: ", Style::default().fg(Color::Cyan)),
-            ]),
+            Line::from(vec![Span::styled(
+                "Summary: ",
+                Style::default().fg(Color::Cyan),
+            )]),
             Line::from(if summary.is_empty() { "—" } else { summary }),
             Line::from(""),
             Line::from(vec![
@@ -164,7 +155,10 @@ impl GameDetailScreen {
                 Style::default().fg(Color::Yellow),
             )));
             lines.push(Line::from(format!("  ID: {}", self.rom.id)));
-            lines.push(Line::from(format!("  Platform ID: {}", self.rom.platform_id)));
+            lines.push(Line::from(format!(
+                "  Platform ID: {}",
+                self.rom.platform_id
+            )));
             if let Some(s) = &self.rom.slug {
                 lines.push(Line::from(format!("  Slug: {}", s)));
             }
@@ -174,9 +168,7 @@ impl GameDetailScreen {
             )));
         }
 
-        let block = Block::default()
-            .title("Game detail")
-            .borders(Borders::ALL);
+        let block = Block::default().title("Game detail").borders(Borders::ALL);
         let p = Paragraph::new(lines)
             .block(block)
             .wrap(ratatui::widgets::Wrap { trim: true });

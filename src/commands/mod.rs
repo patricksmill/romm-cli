@@ -1,3 +1,9 @@
+//! Top-level CLI command handling.
+//!
+//! The `Cli` type (derived from `clap`) describes the public command-line
+//! interface. Each subcommand lives in its own module and is free to use
+//! `RommClient` directly. The TUI is just another subcommand.
+
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
@@ -43,4 +49,3 @@ pub async fn run(cli: Cli, config: Config) -> Result<()> {
 
     Ok(())
 }
-

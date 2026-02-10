@@ -7,6 +7,10 @@ use std::sync::{Arc, Mutex};
 use crate::tui::download::{DownloadJob, DownloadStatus};
 use crate::tui::utils;
 
+/// Overlay screen listing active and completed downloads.
+///
+/// This screen is read-only; it observes `DownloadJob`s produced by
+/// [`DownloadManager`](crate::tui::download::DownloadManager).
 pub struct DownloadScreen {
     pub downloads: Arc<Mutex<Vec<DownloadJob>>>,
 }
@@ -28,10 +32,9 @@ impl DownloadScreen {
             .borders(Borders::ALL);
 
         if jobs.is_empty() {
-            let p = Paragraph::new(
-                "No downloads. Press Enter on a game detail to start a download.",
-            )
-            .block(block);
+            let p =
+                Paragraph::new("No downloads. Press Enter on a game detail to start a download.")
+                    .block(block);
             f.render_widget(p, chunks[0]);
         } else {
             let inner = block.inner(chunks[0]);
@@ -52,9 +55,7 @@ impl DownloadScreen {
                         DownloadStatus::Downloading => {
                             (format!("{}%", percent), Style::default().fg(Color::Cyan))
                         }
-                        DownloadStatus::Done => {
-                            ("Done".into(), Style::default().fg(Color::Green))
-                        }
+                        DownloadStatus::Done => ("Done".into(), Style::default().fg(Color::Green)),
                         DownloadStatus::Error(msg) => (
                             format!("Error: {}", utils::truncate(msg, 50)),
                             Style::default().fg(Color::Red),

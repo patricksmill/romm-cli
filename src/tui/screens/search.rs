@@ -6,6 +6,7 @@ use ratatui::Frame;
 use crate::tui::utils::{self, RomGroup};
 use crate::types::{Rom, RomList};
 
+/// Full-text search screen over ROMs, with grouped results.
 pub struct SearchScreen {
     pub query: String,
     pub cursor_pos: usize,
@@ -89,6 +90,8 @@ impl SearchScreen {
 
     fn update_scroll(&mut self) {
         if let Some(ref g) = self.result_groups {
+            // Fixed-size viewport is good enough here; the TUI uses a
+            // more precise approach in `LibraryBrowseScreen`.
             let visible = 15;
             let max_scroll = g.len().saturating_sub(visible);
             if self.selected >= self.scroll_offset + visible {
@@ -110,7 +113,11 @@ impl SearchScreen {
 
     pub fn render(&self, f: &mut Frame, area: Rect) {
         let chunks = Layout::default()
-            .constraints([Constraint::Length(3), Constraint::Min(5), Constraint::Length(3)])
+            .constraints([
+                Constraint::Length(3),
+                Constraint::Min(5),
+                Constraint::Length(3),
+            ])
             .direction(ratatui::layout::Direction::Vertical)
             .split(area);
 
@@ -155,18 +162,20 @@ impl SearchScreen {
 
             let total_files = self.results.as_ref().map(|r| r.items.len()).unwrap_or(0);
             let widths = [Constraint::Percentage(60), Constraint::Percentage(40)];
-            let table = Table::new(rows, widths)
-                .header(header)
-                .block(
-                    Block::default()
-                        .title(format!("Results ({}) — {} files", groups.len(), total_files))
-                        .borders(Borders::ALL),
-                );
+            let table = Table::new(rows, widths).header(header).block(
+                Block::default()
+                    .title(format!(
+                        "Results ({}) — {} files",
+                        groups.len(),
+                        total_files
+                    ))
+                    .borders(Borders::ALL),
+            );
             f.render_widget(table, chunks[1]);
         } else {
             let msg = "Type a search term and press Enter to search";
-            let p = Paragraph::new(msg)
-                .block(Block::default().title("Results").borders(Borders::ALL));
+            let p =
+                Paragraph::new(msg).block(Block::default().title("Results").borders(Borders::ALL));
             f.render_widget(p, chunks[1]);
         }
 
@@ -177,7 +186,11 @@ impl SearchScreen {
 
     pub fn cursor_position(&self, area: Rect) -> Option<(u16, u16)> {
         let chunks = Layout::default()
-            .constraints([Constraint::Length(3), Constraint::Min(5), Constraint::Length(3)])
+            .constraints([
+                Constraint::Length(3),
+                Constraint::Min(5),
+                Constraint::Length(3),
+            ])
             .direction(ratatui::layout::Direction::Vertical)
             .split(area);
         let offset = 9 + self.cursor_pos.min(self.query.len()) as u16;
