@@ -12,6 +12,7 @@ mod client;
 mod commands;
 mod config;
 mod endpoints;
+mod services;
 mod tui;
 mod types;
 

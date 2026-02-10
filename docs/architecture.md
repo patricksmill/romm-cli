@@ -27,6 +27,16 @@ From bottom to top:
   - **TUI** (`tui/*`) – an event loop and a set of screens that
     present and manipulate the underlying data.
 
+The CLI layer itself is split into:
+
+- `commands::mod` – top-level `Cli` and `Commands` enum plus
+  `OutputFormat`.
+- `commands::platforms` / `commands::roms` / `commands::api` – small
+  modules that parse arguments, call into services, and print results.
+- `commands::print` – helpers for tabular text output.
+- `services` – `PlatformService` and `RomService` plus traits
+  `PlatformApi` / `RomApi` for testability.
+
 There are no TUI/CLI dependencies inside the core services, which makes
 it straightforward to add more frontends later.
 

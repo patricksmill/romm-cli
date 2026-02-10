@@ -2,8 +2,12 @@ use anyhow::Result;
 use clap::Args;
 
 use crate::client::RommClient;
+use crate::commands::print::print_roms_table;
+use crate::commands::OutputFormat;
 use crate::endpoints::roms::GetRoms;
+use crate::services::RomService;
 
+/// CLI entrypoint for listing/searching ROMs via `/api/roms`.
 #[derive(Args, Debug)]
 pub struct RomsCommand {
     /// Search term to filter roms
@@ -21,12 +25,17 @@ pub struct RomsCommand {
     /// Page offset
     #[arg(long)]
     pub offset: Option<u32>,
-    /// Output as JSON
+
+    /// Output as JSON (overrides global --json when set).
     #[arg(long)]
     pub json: bool,
 }
 
-pub async fn handle(cmd: RomsCommand, client: &RommClient, json: bool) -> Result<()> {
+pub async fn handle(
+    cmd: RomsCommand,
+    client: &RommClient,
+    format: OutputFormat,
+) -> Result<()> {
     let ep = GetRoms {
         search_term: cmd.search_term.clone(),
         platform_id: cmd.platform_id,
@@ -35,13 +44,15 @@ pub async fn handle(cmd: RomsCommand, client: &RommClient, json: bool) -> Result
         offset: cmd.offset,
     };
 
-    let results = client.call(&ep).await?;
+    let service = RomService::new(client);
+    let results = service.search_roms(&ep).await?;
 
-    if cmd.json || json {
-        println!("{}", serde_json::to_string_pretty(&results)?);
-    } else {
-        for r in results.items {
-            println!("{}\t{}\t{}", r.id, r.platform_id, r.name);
+    match format {
+        OutputFormat::Json => {
+            println!("{}", serde_json::to_string_pretty(&results)?);
+        }
+        OutputFormat::Text => {
+            print_roms_table(&results);
         }
     }
 

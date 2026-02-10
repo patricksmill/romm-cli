@@ -98,13 +98,15 @@ This starts the interactive terminal UI:
 List platforms:
 
 ```bash
-cargo run -- platforms
+cargo run -- platforms              # text table
+cargo run -- --json platforms       # JSON (global flag)
+cargo run -- platforms --json       # JSON (per-command flag)
 ```
 
 Output as JSON:
 
 ```bash
-cargo run -- platforms --json
+cargo run -- roms --search-term "zelda" --json
 ```
 
 Get help:

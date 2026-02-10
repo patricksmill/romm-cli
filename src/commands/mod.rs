@@ -11,20 +11,55 @@ use crate::client::RommClient;
 use crate::config::Config;
 
 pub mod api;
+pub mod print;
 pub mod platforms;
 pub mod roms;
 
+/// How a command should format its output.
+#[derive(Clone, Copy, Debug)]
+pub enum OutputFormat {
+    /// Human-readable text (tables, aligned columns, etc.).
+    Text,
+    /// Machine-friendly JSON (pretty-printed by default).
+    Json,
+}
+
+impl OutputFormat {
+    /// Resolve the effective output format from global and per-command flags.
+    pub fn from_flags(global_json: bool, local_json: bool) -> Self {
+        if global_json || local_json {
+            OutputFormat::Json
+        } else {
+            OutputFormat::Text
+        }
+    }
+}
+
+/// Top-level CLI entrypoint for `romm-cli`.
+///
+/// This binary can be used both as:
+/// - a **TUI launcher** (`romm-cli tui`), and
+/// - a **scripting-friendly CLI** for platforms/ROMs/API calls.
 #[derive(Parser, Debug)]
-#[command(name = "romm-cli", version, about = "Rust CLI for ROMM API")]
+#[command(
+    name = "romm-cli",
+    version,
+    about = "Rust CLI and TUI for the ROMM API"
+)]
 pub struct Cli {
     /// Increase output verbosity
     #[arg(short, long, global = true)]
     pub verbose: bool,
 
+    /// Output JSON instead of human-readable text where supported.
+    #[arg(long, global = true)]
+    pub json: bool,
+
     #[command(subcommand)]
     pub command: Commands,
 }
 
+/// All top-level commands supported by the CLI.
 #[derive(Subcommand, Debug)]
 pub enum Commands {
     /// Launch interactive TUI for exploring API endpoints
@@ -42,9 +77,18 @@ pub async fn run(cli: Cli, config: Config) -> Result<()> {
 
     match cli.command {
         Commands::Tui => crate::tui::run(client, config).await?,
-        Commands::Api(cmd) => api::handle(cmd, &client).await?,
-        Commands::Platforms(cmd) => platforms::handle(cmd, &client, cli.verbose).await?,
-        Commands::Roms(cmd) => roms::handle(cmd, &client, cli.verbose).await?,
+        Commands::Api(cmd) => {
+            let format = OutputFormat::from_flags(cli.json, false);
+            api::handle(cmd, &client, format).await?
+        }
+        Commands::Platforms(cmd) => {
+            let format = OutputFormat::from_flags(cli.json, cmd.json);
+            platforms::handle(cmd, &client, format).await?
+        }
+        Commands::Roms(cmd) => {
+            let format = OutputFormat::from_flags(cli.json, cmd.json);
+            roms::handle(cmd, &client, format).await?
+        }
     }
 
     Ok(())
