@@ -3,7 +3,7 @@ use ratatui::style::{Color, Style};
 use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Table};
 use ratatui::Frame;
 
-use crate::tui::utils::{self, RomGroup};
+use crate::core::utils::{self, RomGroup};
 use crate::types::{Rom, RomList};
 
 /// Full-text search screen over ROMs, with grouped results.

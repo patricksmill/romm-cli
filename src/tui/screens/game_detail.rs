@@ -5,8 +5,9 @@ use ratatui::widgets::{Block, Borders, Gauge, Paragraph};
 use ratatui::Frame;
 use std::sync::{Arc, Mutex};
 
-use crate::tui::download::{DownloadJob, DownloadStatus};
-use crate::tui::utils;
+use crate::core::download::{DownloadJob, DownloadStatus};
+use crate::core::utils::format_size;
+use crate::tui::utils::{open_in_browser, truncate};
 use crate::types::Rom;
 
 use super::{LibraryBrowseScreen, SearchScreen};
@@ -54,7 +55,7 @@ impl GameDetailScreen {
         self.message = None;
         let url = self.rom.url_cover.as_deref().filter(|s| !s.is_empty());
         match url {
-            Some(u) => match utils::open_in_browser(u) {
+            Some(u) => match open_in_browser(u) {
                 Ok(_) => self.message = Some("Opened in browser".to_string()),
                 Err(e) => self.message = Some(format!("Failed: {}", e)),
             },
@@ -89,7 +90,7 @@ impl GameDetailScreen {
             .unwrap_or("—");
         let summary = self.rom.summary.as_deref().unwrap_or("").trim();
         let path = self.rom.fs_path.as_str();
-        let size = utils::format_size(self.rom.fs_size_bytes);
+        let size = format_size(self.rom.fs_size_bytes);
         let cover_text = if self.rom.url_cover.is_some() {
             "[Cover] (o: open in browser)"
         } else {
@@ -187,7 +188,7 @@ impl GameDetailScreen {
                     Style::default().fg(Color::Green),
                 ),
                 DownloadStatus::Error(msg) => (
-                    format!("Error: {}", utils::truncate(msg, 50)),
+                    format!("Error: {}", truncate(msg, 50)),
                     Style::default().fg(Color::Red),
                 ),
             };

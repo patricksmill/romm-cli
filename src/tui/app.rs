@@ -24,11 +24,11 @@ use std::time::Duration;
 
 use crate::client::RommClient;
 use crate::config::Config;
+use crate::core::cache::{RomCache, RomCacheKey};
+use crate::core::download::DownloadManager;
 use crate::endpoints::{collections::ListCollections, platforms::ListPlatforms, roms::GetRoms};
 use crate::types::RomList;
 
-use super::cache::{RomCache, RomCacheKey};
-use super::download::DownloadManager;
 use super::openapi::EndpointRegistry;
 use super::screens::{
     BrowseScreen, DownloadScreen, ExecuteScreen, GameDetailPrevious, GameDetailScreen,

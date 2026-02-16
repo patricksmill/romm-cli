@@ -21,11 +21,11 @@ At a high level:
   - `RommClient` – HTTP client for the ROMM API
   - `types` – strongly-typed models for platforms, ROMs, etc.
   - `endpoints` – small `Endpoint` trait impls for each API endpoint
-  - `RomCache` – persistent cache of ROM lists on disk
-  - `DownloadManager` – background ROM downloads with progress
+  - `core/*` – shared cache/download/util modules reused by all frontends
 - The **frontends** are:
-  - The **CLI** (`commands/*`) – subcommands for platforms/ROMs/API
-  - The **TUI** (`tui/*`) – interactive browser and game library UI
+  - The **CLI** (`commands/*` + `frontend/cli.rs`) – subcommands for platforms/ROMs/API
+  - The **TUI** (`tui/*` + `frontend/tui.rs`) – interactive browser and game library UI
+  - A future **Slint GUI** frontend (planned in Phase 2, no webview)
 
 Because the core is UI-agnostic, you could add another frontend (for
 example a GUI) by reusing `RommClient`, `RomCache`, and `DownloadManager`.
@@ -126,11 +126,9 @@ At a high level the control flow looks like this:
 main.rs
   └── commands::run
         ├── RommClient::new(Config)
-        ├── subcommand: Platforms/Roms/Api  (plain CLI)
-        └── subcommand: Tui
-              └── tui::run(client, config)
-                    └── App::new(...).run()
-                          └── screens::<*>.render(...)
+        └── frontend router
+              ├── frontend::cli::run(...)  -> commands::{api,platforms,roms}
+              └── frontend::tui::run(...)  -> tui::run -> App::new(...).run()
 ```
 
 ### Modules
@@ -150,21 +148,24 @@ main.rs
 - `src/endpoints/*`
   - Implements a small `Endpoint` trait per HTTP endpoint, describing
     method, path, query, and body.
+- `src/core/*`
+  - Frontend-agnostic shared modules:
+    - `core/cache.rs` for persistent ROM cache
+    - `core/download.rs` for background download job management
+    - `core/utils.rs` for reusable grouping/formatting helpers
 - `src/commands/*`
   - The `Cli` struct and subcommands, built with `clap`.
   - Each subcommand uses `RommClient` and the endpoint types to talk to
     the API.
+- `src/frontend/*`
+  - Runtime frontend routing layer.
+  - `frontend/cli.rs` runs non-interactive CLI commands.
+  - `frontend/tui.rs` runs the interactive TUI frontend.
 - `src/tui/mod.rs` and `src/tui/app.rs`
   - The TUI \"frontend\". `App` owns shared services and the active
     `AppScreen`, and runs the event loop.
 - `src/tui/screens/*`
   - Individual screens (main menu, library browser, downloads, etc.).
-- `src/tui/cache.rs`
-  - `RomCache` persists `RomList`s to disk and invalidates entries when
-    the platform/collection `rom_count` changes.
-- `src/tui/download.rs`
-  - `DownloadManager` owns an `Arc<Mutex<Vec<DownloadJob>>>` and spawns
-    background download tasks using `tokio::spawn`.
 
 For a deeper dive, see the Markdown guides under `docs/` (if present).
 
@@ -258,5 +259,5 @@ Here are some ideas for extending the project as exercises:
 
 Because the core services (`RommClient`, `RomCache`, `DownloadManager`)
 are frontend-agnostic, the same patterns apply if you later decide to
-add a GUI or web frontend around the same API client.
+add a native Slint GUI frontend around the same API client.
 

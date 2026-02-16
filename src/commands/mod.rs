@@ -76,19 +76,8 @@ pub async fn run(cli: Cli, config: Config) -> Result<()> {
     let client = RommClient::new(&config)?;
 
     match cli.command {
-        Commands::Tui => crate::tui::run(client, config).await?,
-        Commands::Api(cmd) => {
-            let format = OutputFormat::from_flags(cli.json, false);
-            api::handle(cmd, &client, format).await?
-        }
-        Commands::Platforms(cmd) => {
-            let format = OutputFormat::from_flags(cli.json, cmd.json);
-            platforms::handle(cmd, &client, format).await?
-        }
-        Commands::Roms(cmd) => {
-            let format = OutputFormat::from_flags(cli.json, cmd.json);
-            roms::handle(cmd, &client, format).await?
-        }
+        Commands::Tui => crate::frontend::tui::run(client, config).await?,
+        command => crate::frontend::cli::run(command, &client, cli.json).await?,
     }
 
     Ok(())

@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use crate::client::RommClient;
-use crate::tui::utils;
+use crate::core::utils;
 use crate::types::Rom;
 
 // ---------------------------------------------------------------------------
@@ -62,8 +62,7 @@ impl DownloadJob {
 
 /// Owns the shared download list and spawns background download tasks.
 ///
-/// The TUI only ever sees an `Arc<Mutex<Vec<DownloadJob>>>`, so a GUI or
-/// tests can reuse this manager without depending on ratatui.
+/// Frontends only need an `Arc<Mutex<Vec<DownloadJob>>>` to inspect jobs.
 #[derive(Clone)]
 pub struct DownloadManager {
     jobs: Arc<Mutex<Vec<DownloadJob>>>,
@@ -100,8 +99,6 @@ impl DownloadManager {
         self.jobs.lock().unwrap().push(job);
 
         let jobs = self.jobs.clone();
-        // Spawn a background task so the TUI stays responsive while bytes
-        // are being downloaded. Progress is fed back through `jobs`.
         tokio::spawn(async move {
             let save_dir = Path::new("./downloads");
             let _ = std::fs::create_dir_all(save_dir);

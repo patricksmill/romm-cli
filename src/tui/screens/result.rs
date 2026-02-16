@@ -4,7 +4,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Scrollbar, ScrollbarState, Table};
 use ratatui::Frame;
 
-use crate::tui::utils;
+use crate::tui::utils::open_in_browser;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ResultViewMode {
@@ -499,7 +499,7 @@ impl ResultDetailScreen {
                 return;
             }
         };
-        match utils::open_in_browser(&url) {
+        match open_in_browser(&url) {
             Ok(_) => self.message = Some("Opened in browser".to_string()),
             Err(e) => self.message = Some(format!("Failed to open: {}", e)),
         }

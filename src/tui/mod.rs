@@ -4,15 +4,13 @@
 //! purely for presentation and interaction. It talks to the rest of the
 //! application through:
 //! - `RommClient` (HTTP / data access),
-//! - `RomCache` (disk-backed ROM cache), and
-//! - `DownloadManager` (background ROM downloads).
+//! - `core::cache::RomCache` (disk-backed ROM cache), and
+//! - `core::download::DownloadManager` (background ROM downloads).
 //!
 //! Keeping those \"service\" types UI-agnostic makes it easy to add other
 //! frontends (e.g. a GUI) reusing the same core logic.
 
 pub mod app;
-pub mod cache;
-pub mod download;
 pub mod openapi;
 pub mod screens;
 pub mod utils;

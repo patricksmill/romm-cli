@@ -4,13 +4,13 @@ use ratatui::widgets::{Block, Borders, Gauge, Paragraph};
 use ratatui::Frame;
 use std::sync::{Arc, Mutex};
 
-use crate::tui::download::{DownloadJob, DownloadStatus};
-use crate::tui::utils;
+use crate::core::download::{DownloadJob, DownloadStatus};
+use crate::tui::utils::truncate;
 
 /// Overlay screen listing active and completed downloads.
 ///
 /// This screen is read-only; it observes `DownloadJob`s produced by
-/// [`DownloadManager`](crate::tui::download::DownloadManager).
+/// [`DownloadManager`](crate::core::download::DownloadManager).
 pub struct DownloadScreen {
     pub downloads: Arc<Mutex<Vec<DownloadJob>>>,
 }
@@ -57,7 +57,7 @@ impl DownloadScreen {
                         }
                         DownloadStatus::Done => ("Done".into(), Style::default().fg(Color::Green)),
                         DownloadStatus::Error(msg) => (
-                            format!("Error: {}", utils::truncate(msg, 50)),
+                            format!("Error: {}", truncate(msg, 50)),
                             Style::default().fg(Color::Red),
                         ),
                     };
@@ -68,8 +68,8 @@ impl DownloadScreen {
 
                     let line = format!(
                         "{} | {} | ",
-                        utils::truncate(&job.name, 30),
-                        utils::truncate(&job.platform, 15)
+                        truncate(&job.name, 30),
+                        truncate(&job.platform, 15)
                     );
                     let line_len = line.chars().count().min(row_area.width as usize) as u16;
                     let line_area = Rect {

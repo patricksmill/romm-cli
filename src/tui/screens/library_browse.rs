@@ -3,9 +3,9 @@ use ratatui::style::{Color, Style};
 use ratatui::widgets::{Block, Borders, Cell, List, ListItem, ListState, Row, Table};
 use ratatui::Frame;
 
+use crate::core::cache::RomCacheKey;
+use crate::core::utils::{self, RomGroup};
 use crate::endpoints::roms::GetRoms;
-use crate::tui::cache::RomCacheKey;
-use crate::tui::utils::{self, RomGroup};
 use crate::types::{Collection, Platform, Rom, RomList};
 
 /// Which high-level grouping is currently shown in the left pane.
