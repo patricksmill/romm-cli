@@ -41,17 +41,17 @@ pub fn load_config() -> Result<Config> {
             username: user,
             password: pass,
         })
-    } else if let Some(tok) = token {
-        // Priority 2: Bearer token (skip placeholders)
-        if !is_placeholder(&tok) {
-            Some(AuthConfig::Bearer { token: tok })
+    } else if let (Some(key), Some(header)) = (api_key, api_key_header) {
+        // Priority 2: API key in custom header (when both set, prefer over bearer)
+        if !is_placeholder(&key) {
+            Some(AuthConfig::ApiKey { header, key })
         } else {
             None
         }
-    } else if let (Some(key), Some(header)) = (api_key, api_key_header) {
-        // Priority 3: API key in custom header
-        if !is_placeholder(&key) {
-            Some(AuthConfig::ApiKey { header, key })
+    } else if let Some(tok) = token {
+        // Priority 3: Bearer token (skip placeholders)
+        if !is_placeholder(&tok) {
+            Some(AuthConfig::Bearer { token: tok })
         } else {
             None
         }
