@@ -42,19 +42,19 @@ async fn platforms_list_text_output() {
         "display_name": "NES"
     }]"#;
 
-    let _m = server.mock_async(|when, then| {
-        when.method(GET).path("/api/platforms");
-        then.status(200)
-            .header("content-type", "application/json")
-            .body(platforms_body);
-    }).await;
+    let _m = server
+        .mock_async(|when, then| {
+            when.method(GET).path("/api/platforms");
+            then.status(200)
+                .header("content-type", "application/json")
+                .body(platforms_body);
+        })
+        .await;
 
     let mut cmd = Command::cargo_bin("romm-cli").unwrap();
-    cmd.env("API_BASE_URL", server.base_url())
-        .arg("platforms");
+    cmd.env("API_BASE_URL", server.base_url()).arg("platforms");
 
     cmd.assert()
         .success()
         .stdout(predicates::str::contains("NES"));
 }
-

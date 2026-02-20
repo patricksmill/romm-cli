@@ -11,8 +11,8 @@ use crate::client::RommClient;
 use crate::config::Config;
 
 pub mod api;
-pub mod print;
 pub mod platforms;
+pub mod print;
 pub mod roms;
 
 /// How a command should format its output.

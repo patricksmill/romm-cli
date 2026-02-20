@@ -15,6 +15,7 @@ pub struct SearchScreen {
     pub result_groups: Option<Vec<RomGroup>>,
     pub selected: usize,
     pub scroll_offset: usize,
+    visible_rows: usize,
 }
 
 impl SearchScreen {
@@ -26,6 +27,7 @@ impl SearchScreen {
             result_groups: None,
             selected: 0,
             scroll_offset: 0,
+            visible_rows: 15,
         }
     }
 
@@ -70,7 +72,7 @@ impl SearchScreen {
         if let Some(ref g) = self.result_groups {
             if !g.is_empty() {
                 self.selected = (self.selected + 1) % g.len();
-                self.update_scroll();
+                self.update_scroll(self.visible_rows);
             }
         }
     }
@@ -83,16 +85,14 @@ impl SearchScreen {
                 } else {
                     self.selected - 1
                 };
-                self.update_scroll();
+                self.update_scroll(self.visible_rows);
             }
         }
     }
 
-    fn update_scroll(&mut self) {
+    fn update_scroll(&mut self, visible: usize) {
         if let Some(ref g) = self.result_groups {
-            // Fixed-size viewport is good enough here; the TUI uses a
-            // more precise approach in `LibraryBrowseScreen`.
-            let visible = 15;
+            let visible = visible.max(1);
             let max_scroll = g.len().saturating_sub(visible);
             if self.selected >= self.scroll_offset + visible {
                 self.scroll_offset = (self.selected + 1).saturating_sub(visible);
@@ -111,7 +111,7 @@ impl SearchScreen {
             .map(|g| (g.primary.clone(), g.others.clone()))
     }
 
-    pub fn render(&self, f: &mut Frame, area: Rect) {
+    pub fn render(&mut self, f: &mut Frame, area: Rect) {
         let chunks = Layout::default()
             .constraints([
                 Constraint::Length(3),
@@ -126,8 +126,14 @@ impl SearchScreen {
             .block(Block::default().title("Search games").borders(Borders::ALL));
         f.render_widget(input, chunks[0]);
 
-        if let Some(ref groups) = self.result_groups {
+        if self.result_groups.is_some() {
             let visible = (chunks[1].height as usize).saturating_sub(3).max(1);
+            // Keep selection and viewport aligned with the current terminal size.
+            self.visible_rows = visible;
+            self.update_scroll(visible);
+            let Some(groups) = self.result_groups.as_ref() else {
+                return;
+            };
             let start = self.scroll_offset.min(groups.len().saturating_sub(visible));
             let end = (start + visible).min(groups.len());
             let visible_groups = &groups[start..end];

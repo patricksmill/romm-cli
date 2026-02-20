@@ -26,7 +26,13 @@ impl DownloadScreen {
             .direction(ratatui::layout::Direction::Vertical)
             .split(area);
 
-        let jobs = self.downloads.lock().unwrap().clone();
+        let jobs = match self.downloads.lock() {
+            Ok(guard) => guard.clone(),
+            Err(err) => {
+                eprintln!("warning: download list lock poisoned: {}", err);
+                Vec::new()
+            }
+        };
         let block = Block::default()
             .title("Downloads (d: close)")
             .borders(Borders::ALL);

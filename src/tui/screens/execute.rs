@@ -227,7 +227,7 @@ impl ExecuteScreen {
                 let param = self.endpoint.query_params.get(idx);
                 let required = param.map(|p| p.required).unwrap_or(false);
                 let param_type = param
-                    .and_then(|p| Some(p.param_type.clone()))
+                    .map(|p| p.param_type.clone())
                     .unwrap_or_else(|| "string".to_string());
                 let marker = if required { "*" } else { " " };
                 format!("{} {} ({}) = {}", marker, name, param_type, value)

@@ -71,3 +71,64 @@ pub fn sanitize_filename(name: &str) -> String {
         })
         .collect()
 }
+
+/// Truncate a string to `max` chars, appending "…" if trimmed.
+pub fn truncate(s: &str, max: usize) -> String {
+    let s = s.trim();
+    if s.chars().count() <= max {
+        s.to_string()
+    } else {
+        format!(
+            "{}…",
+            s.chars().take(max.saturating_sub(1)).collect::<String>()
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::Rom;
+
+    fn rom(id: u64, name: &str, fs_name: &str) -> Rom {
+        Rom {
+            id,
+            platform_id: 1,
+            platform_slug: None,
+            platform_fs_slug: None,
+            platform_custom_name: Some("NES".to_string()),
+            platform_display_name: Some("NES".to_string()),
+            fs_name: fs_name.to_string(),
+            fs_name_no_tags: name.to_string(),
+            fs_name_no_ext: name.to_string(),
+            fs_extension: "zip".to_string(),
+            fs_path: format!("/roms/{}.zip", id),
+            fs_size_bytes: 1,
+            name: name.to_string(),
+            slug: None,
+            summary: None,
+            path_cover_small: None,
+            path_cover_large: None,
+            url_cover: None,
+            is_unidentified: false,
+            is_identified: true,
+        }
+    }
+
+    #[test]
+    fn group_roms_prefers_base_file_as_primary() {
+        let input = vec![
+            rom(1, "Game A", "Game A [Update].zip"),
+            rom(2, "Game A", "Game A [DLC].zip"),
+            rom(3, "Game A", "Game A.zip"),
+            rom(4, "Game B", "Game B.zip"),
+        ];
+
+        let groups = group_roms_by_name(&input);
+        assert_eq!(groups.len(), 2);
+
+        let game_a = groups.iter().find(|g| g.name == "Game A").expect("group");
+        assert_eq!(game_a.primary.fs_name, "Game A.zip");
+        assert_eq!(game_a.others.len(), 2);
+    }
+}

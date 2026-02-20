@@ -31,11 +31,7 @@ pub struct RomsCommand {
     pub json: bool,
 }
 
-pub async fn handle(
-    cmd: RomsCommand,
-    client: &RommClient,
-    format: OutputFormat,
-) -> Result<()> {
+pub async fn handle(cmd: RomsCommand, client: &RommClient, format: OutputFormat) -> Result<()> {
     let ep = GetRoms {
         search_term: cmd.search_term.clone(),
         platform_id: cmd.platform_id,

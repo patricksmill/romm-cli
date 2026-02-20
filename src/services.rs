@@ -5,18 +5,10 @@
 //! platforms, search ROMs, etc.).
 
 use anyhow::Result;
-use async_trait::async_trait;
 
 use crate::client::RommClient;
 use crate::endpoints::{platforms::ListPlatforms, roms::GetRoms};
 use crate::types::{Platform, RomList};
-
-/// Async API for platform-related operations.
-#[cfg_attr(test, mockall::automock)]
-#[async_trait]
-pub trait PlatformApi {
-    async fn list_platforms(&self) -> Result<Vec<Platform>>;
-}
 
 /// Service encapsulating platform-related operations.
 pub struct PlatformService<'a> {
@@ -35,20 +27,6 @@ impl<'a> PlatformService<'a> {
     }
 }
 
-#[async_trait]
-impl<'a> PlatformApi for PlatformService<'a> {
-    async fn list_platforms(&self) -> Result<Vec<Platform>> {
-        self.list_platforms().await
-    }
-}
-
-/// Async API for ROM-related operations.
-#[cfg_attr(test, mockall::automock)]
-#[async_trait]
-pub trait RomApi {
-    async fn search_roms(&self, ep: &GetRoms) -> Result<RomList>;
-}
-
 /// Service encapsulating ROM-related operations.
 pub struct RomService<'a> {
     client: &'a RommClient,
@@ -65,12 +43,3 @@ impl<'a> RomService<'a> {
         Ok(results)
     }
 }
-
-#[async_trait]
-impl<'a> RomApi for RomService<'a> {
-    async fn search_roms(&self, ep: &GetRoms) -> Result<RomList> {
-        self.search_roms(ep).await
-    }
-}
-
-

@@ -96,12 +96,23 @@ impl DownloadManager {
         let job_id = job.id;
         let rom_id = rom.id;
         let fs_name = rom.fs_name.clone();
-        self.jobs.lock().unwrap().push(job);
+        match self.jobs.lock() {
+            Ok(mut jobs) => jobs.push(job),
+            Err(err) => {
+                eprintln!("warning: download job list lock poisoned: {}", err);
+                return;
+            }
+        }
 
         let jobs = self.jobs.clone();
         tokio::spawn(async move {
             let save_dir = Path::new("./downloads");
-            let _ = std::fs::create_dir_all(save_dir);
+            if let Err(err) = tokio::fs::create_dir_all(save_dir).await {
+                eprintln!(
+                    "warning: failed to create download directory {:?}: {}",
+                    save_dir, err
+                );
+            }
             let base = utils::sanitize_filename(&fs_name);
             let stem = base.rsplit_once('.').map(|(s, _)| s).unwrap_or(&base);
             let save_path = save_dir.join(format!("{}.zip", stem));
@@ -138,5 +149,61 @@ impl DownloadManager {
                 }
             }
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+
+    fn sample_rom() -> Rom {
+        Rom {
+            id: 99,
+            platform_id: 1,
+            platform_slug: None,
+            platform_fs_slug: None,
+            platform_custom_name: Some("NES".to_string()),
+            platform_display_name: Some("NES".to_string()),
+            fs_name: "Test Game.zip".to_string(),
+            fs_name_no_tags: "Test Game".to_string(),
+            fs_name_no_ext: "Test Game".to_string(),
+            fs_extension: "zip".to_string(),
+            fs_path: "/roms/test.zip".to_string(),
+            fs_size_bytes: 1,
+            name: "Test Game".to_string(),
+            slug: None,
+            summary: None,
+            path_cover_small: None,
+            path_cover_large: None,
+            url_cover: None,
+            is_unidentified: false,
+            is_identified: true,
+        }
+    }
+
+    #[test]
+    fn start_download_does_not_panic_when_jobs_lock_is_poisoned() {
+        let manager = DownloadManager::new();
+        let shared = manager.shared();
+
+        let poison_target = shared.clone();
+        let _ = std::thread::spawn(move || {
+            let _guard = poison_target.lock().expect("lock");
+            panic!("poison lock");
+        })
+        .join();
+
+        let client = RommClient::new(&Config {
+            base_url: "http://example.test".to_string(),
+            auth: None,
+        })
+        .expect("client");
+        let rom = sample_rom();
+
+        let result = std::panic::catch_unwind(|| {
+            manager.start_download(&rom, client);
+        });
+        assert!(result.is_ok(), "start_download should not panic");
     }
 }

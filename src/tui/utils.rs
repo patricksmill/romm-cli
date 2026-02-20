@@ -2,15 +2,7 @@ use std::process::Command;
 
 /// Truncate a string to `max` chars, appending "…" if trimmed.
 pub fn truncate(s: &str, max: usize) -> String {
-    let s = s.trim();
-    if s.chars().count() <= max {
-        s.to_string()
-    } else {
-        format!(
-            "{}…",
-            s.chars().take(max.saturating_sub(1)).collect::<String>()
-        )
-    }
+    crate::core::utils::truncate(s, max)
 }
 
 // ---------------------------------------------------------------------------

@@ -34,8 +34,8 @@ The CLI layer itself is split into:
 - `commands::platforms` / `commands::roms` / `commands::api` – small
   modules that parse arguments, call into services, and print results.
 - `commands::print` – helpers for tabular text output.
-- `services` – `PlatformService` and `RomService` plus traits
-  `PlatformApi` / `RomApi` for testability.
+- `services` – `PlatformService` and `RomService` wrappers around
+  endpoint calls.
 
 There are no TUI/CLI dependencies inside the core services, which makes
 it straightforward to add more frontends later.

@@ -307,7 +307,13 @@ impl LibraryBrowseScreen {
         self.visible_rows = visible;
         self.update_rom_scroll(visible);
 
-        let groups = self.rom_groups.as_ref().unwrap();
+        let Some(groups) = self.rom_groups.as_ref() else {
+            let msg = "No ROM groups loaded";
+            let p = ratatui::widgets::Paragraph::new(msg)
+                .block(Block::default().title("ROMs").borders(Borders::ALL));
+            f.render_widget(p, area);
+            return;
+        };
         let start = self.scroll_offset.min(groups.len().saturating_sub(visible));
         let end = (start + visible).min(groups.len());
         let visible_groups = &groups[start..end];

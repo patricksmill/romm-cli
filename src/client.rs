@@ -9,8 +9,8 @@ use base64::{engine::general_purpose, Engine as _};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use reqwest::{Client as HttpClient, Method};
 use serde_json::Value;
-use std::io::Write as _;
 use std::path::Path;
+use tokio::io::AsyncWriteExt as _;
 
 use crate::config::{AuthConfig, Config};
 use crate::endpoints::Endpoint;
@@ -201,12 +201,14 @@ impl RommClient {
 
         let total = resp.content_length().unwrap_or(0);
 
-        let mut file = std::fs::File::create(save_path)
+        let mut file = tokio::fs::File::create(save_path)
+            .await
             .map_err(|e| anyhow!("create file {:?}: {e}", save_path))?;
         let mut received: u64 = 0;
 
         while let Some(chunk) = resp.chunk().await.map_err(|e| anyhow!("read chunk: {e}"))? {
             file.write_all(&chunk)
+                .await
                 .map_err(|e| anyhow!("write chunk {:?}: {e}", save_path))?;
             received += chunk.len() as u64;
             on_progress(received, total);

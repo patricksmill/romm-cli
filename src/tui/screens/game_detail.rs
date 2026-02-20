@@ -28,6 +28,10 @@ pub struct GameDetailScreen {
     pub message: Option<String>,
     /// Shared download list — used to show inline progress for this ROM.
     pub downloads: Arc<Mutex<Vec<DownloadJob>>>,
+    /// Whether a download has been started from this detail view.
+    pub has_started_download: bool,
+    /// Whether the user has acknowledged the download completion message.
+    pub download_completion_acknowledged: bool,
 }
 
 impl GameDetailScreen {
@@ -44,6 +48,8 @@ impl GameDetailScreen {
             show_technical: false,
             message: None,
             downloads,
+            has_started_download: false,
+            download_completion_acknowledged: false,
         }
     }
 
@@ -68,11 +74,22 @@ impl GameDetailScreen {
     }
 
     /// Find the most recent download job for this ROM (if any).
+    /// Returns downloading jobs always, or completed/errored jobs if not yet acknowledged.
     fn active_download(&self) -> Option<DownloadJob> {
         self.downloads
             .lock()
             .ok()
-            .and_then(|list| list.iter().rev().find(|j| j.rom_id == self.rom.id).cloned())
+            .and_then(|list| {
+                list.iter()
+                    .rev()
+                    .find(|j| {
+                        j.rom_id == self.rom.id
+                            && (matches!(j.status, DownloadStatus::Downloading)
+                                || (!self.download_completion_acknowledged
+                                    && matches!(j.status, DownloadStatus::Done | DownloadStatus::Error(_))))
+                    })
+                    .cloned()
+            })
     }
 
     pub fn render(&self, f: &mut Frame, area: Rect) {

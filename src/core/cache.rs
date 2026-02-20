@@ -100,8 +100,21 @@ impl RomCache {
                 })
                 .collect(),
         };
-        if let Ok(json) = serde_json::to_string(&file) {
-            let _ = std::fs::write(&self.path, json);
+        match serde_json::to_string(&file) {
+            Ok(json) => {
+                if let Err(err) = std::fs::write(&self.path, json) {
+                    eprintln!(
+                        "warning: failed to write ROM cache file {:?}: {}",
+                        self.path, err
+                    );
+                }
+            }
+            Err(err) => {
+                eprintln!(
+                    "warning: failed to serialize ROM cache file {:?}: {}",
+                    self.path, err
+                );
+            }
         }
     }
 
@@ -121,5 +134,80 @@ impl RomCache {
     pub fn insert(&mut self, key: RomCacheKey, data: RomList, expected_count: u64) {
         self.entries.insert(key, (expected_count, data));
         self.save();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::Rom;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn sample_rom_list() -> RomList {
+        RomList {
+            items: vec![Rom {
+                id: 1,
+                platform_id: 10,
+                platform_slug: None,
+                platform_fs_slug: None,
+                platform_custom_name: Some("NES".to_string()),
+                platform_display_name: Some("NES".to_string()),
+                fs_name: "Mario (USA).zip".to_string(),
+                fs_name_no_tags: "Mario".to_string(),
+                fs_name_no_ext: "Mario".to_string(),
+                fs_extension: "zip".to_string(),
+                fs_path: "/roms/mario.zip".to_string(),
+                fs_size_bytes: 1234,
+                name: "Mario".to_string(),
+                slug: Some("mario".to_string()),
+                summary: Some("A platform game".to_string()),
+                path_cover_small: None,
+                path_cover_large: None,
+                url_cover: None,
+                is_unidentified: false,
+                is_identified: true,
+            }],
+            total: 1,
+            limit: 50,
+            offset: 0,
+        }
+    }
+
+    fn temp_cache_path() -> PathBuf {
+        let ts = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("time")
+            .as_nanos();
+        std::env::temp_dir().join(format!("romm-cache-test-{}.json", ts))
+    }
+
+    #[test]
+    fn returns_cache_only_for_matching_expected_count() {
+        let path = temp_cache_path();
+        let mut cache = RomCache::load_from(path.clone());
+        let key = RomCacheKey::Platform(42);
+        let list = sample_rom_list();
+        cache.insert(key, list.clone(), 7);
+
+        assert!(cache.get_valid(&key, 7).is_some());
+        assert!(cache.get_valid(&key, 8).is_none());
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn persists_and_reloads_entries_from_disk() {
+        let path = temp_cache_path();
+        let mut cache = RomCache::load_from(path.clone());
+        let key = RomCacheKey::Collection(9);
+        let list = sample_rom_list();
+        cache.insert(key, list.clone(), 3);
+
+        let loaded = RomCache::load_from(path.clone());
+        let cached = loaded.get_valid(&key, 3).expect("cached value");
+        assert_eq!(cached.items.len(), 1);
+        assert_eq!(cached.items[0].name, "Mario");
+
+        let _ = std::fs::remove_file(path);
     }
 }

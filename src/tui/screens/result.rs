@@ -106,16 +106,13 @@ impl ResultScreen {
                     end += 1;
                 }
                 let s = std::str::from_utf8(&bytes[i..end]).unwrap_or("");
-                let rest_trimmed = bytes
-                    .get(end..)
-                    .map(|s| {
-                        let mut j = 0;
-                        while j < s.len() && (s[j] == b' ' || s[j] == b'\t') {
-                            j += 1;
-                        }
-                        s.get(j..)
-                    })
-                    .flatten();
+                let rest_trimmed = bytes.get(end..).and_then(|s| {
+                    let mut j = 0;
+                    while j < s.len() && (s[j] == b' ' || s[j] == b'\t') {
+                        j += 1;
+                    }
+                    s.get(j..)
+                });
                 let is_key = rest_trimmed
                     .map(|r| r.first() == Some(&b':'))
                     .unwrap_or(false);
@@ -201,9 +198,9 @@ impl ResultScreen {
             match v {
                 serde_json::Value::Object(m) => {
                     for (k, val) in m {
-                        if k == "url_cover"
-                            || k == "url_logo"
-                            || k.starts_with("url_") && k.contains("cover")
+                        if (k == "url_cover")
+                            || (k == "url_logo")
+                            || (k.starts_with("url_") && k.contains("cover"))
                         {
                             if let Some(s) = val.as_str().filter(|s| !s.is_empty()) {
                                 out.push(s.to_string());

@@ -623,10 +623,39 @@ impl App {
             AppScreen::GameDetail(d) => d,
             _ => return Ok(false),
         };
+        
+        // Acknowledge download completion on any key press
+        // (check if there's a completed/errored download for this ROM)
+        if !detail.download_completion_acknowledged {
+            if let Ok(list) = detail.downloads.lock() {
+                let has_completed = list.iter().any(|j| {
+                    j.rom_id == detail.rom.id
+                        && matches!(
+                            j.status,
+                            crate::core::download::DownloadStatus::Done
+                                | crate::core::download::DownloadStatus::Error(_)
+                        )
+                });
+                let is_still_downloading = list.iter().any(|j| {
+                    j.rom_id == detail.rom.id
+                        && matches!(j.status, crate::core::download::DownloadStatus::Downloading)
+                });
+                // Only acknowledge if there's a completion and no active download
+                if has_completed && !is_still_downloading {
+                    detail.download_completion_acknowledged = true;
+                }
+            }
+        }
+        
         match key {
             KeyCode::Enter => {
-                self.downloads
-                    .start_download(&detail.rom, self.client.clone());
+                // Only start a download once per detail view and avoid
+                // stacking multiple concurrent downloads for the same ROM.
+                if !detail.has_started_download {
+                    detail.has_started_download = true;
+                    self.downloads
+                        .start_download(&detail.rom, self.client.clone());
+                }
             }
             KeyCode::Char('o') => detail.open_cover(),
             KeyCode::Char('m') => detail.toggle_technical(),

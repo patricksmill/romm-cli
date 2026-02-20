@@ -38,7 +38,7 @@ impl BrowseScreen {
                 let path_parts: Vec<&str> =
                     endpoint.path.split('/').filter(|s| !s.is_empty()).collect();
                 if path_parts.len() >= 2 {
-                    format!("{}", path_parts[1])
+                    path_parts[1].to_string()
                 } else {
                     "Other".to_string()
                 }

@@ -1,6 +1,6 @@
 # romm-cli (Rust)
 
-Rust-based CLI + terminal UI client for the ROMM API, written to be a
+Rust-based CLI + TUI client for the ROMM API, written to be a
 **teaching-quality Rust project**.
 
 It is a good fit if you want to learn how to:
@@ -25,10 +25,9 @@ At a high level:
 - The **frontends** are:
   - The **CLI** (`commands/*` + `frontend/cli.rs`) – subcommands for platforms/ROMs/API
   - The **TUI** (`tui/*` + `frontend/tui.rs`) – interactive browser and game library UI
-  - A future **Slint GUI** frontend (planned in Phase 2, no webview)
 
-Because the core is UI-agnostic, you could add another frontend (for
-example a GUI) by reusing `RommClient`, `RomCache`, and `DownloadManager`.
+Because the core is UI-agnostic, you can add another frontend later by
+reusing `RommClient`, `RomCache`, and `DownloadManager`.
 
 ---
 
@@ -84,7 +83,7 @@ The compiled binary will be at:
 ### Launch the TUI
 
 ```bash
-cargo run -- tui
+cargo run --bin romm-cli -- tui
 ```
 
 This starts the interactive terminal UI:
@@ -98,22 +97,22 @@ This starts the interactive terminal UI:
 List platforms:
 
 ```bash
-cargo run -- platforms              # text table
-cargo run -- --json platforms       # JSON (global flag)
-cargo run -- platforms --json       # JSON (per-command flag)
+cargo run --bin romm-cli -- platforms              # text table
+cargo run --bin romm-cli -- --json platforms       # JSON (global flag)
+cargo run --bin romm-cli -- platforms --json       # JSON (per-command flag)
 ```
 
 Output as JSON:
 
 ```bash
-cargo run -- roms --search-term "zelda" --json
+cargo run --bin romm-cli -- roms --search-term "zelda" --json
 ```
 
 Get help:
 
 ```bash
-cargo run -- --help
-cargo run -- platforms --help
+cargo run --bin romm-cli -- --help
+cargo run --bin romm-cli -- platforms --help
 ```
 
 ---
@@ -256,8 +255,3 @@ Here are some ideas for extending the project as exercises:
 - **Add a new CLI subcommand**
   - Extend the `Commands` enum in `src/commands/mod.rs`.
   - Create a corresponding `handle` function in a new module.
-
-Because the core services (`RommClient`, `RomCache`, `DownloadManager`)
-are frontend-agnostic, the same patterns apply if you later decide to
-add a native Slint GUI frontend around the same API client.
-

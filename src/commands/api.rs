@@ -26,15 +26,16 @@ pub struct ApiCommand {
     pub data: Option<String>,
 }
 
-pub async fn handle(
-    cmd: ApiCommand,
-    client: &RommClient,
-    format: OutputFormat,
-) -> Result<()> {
+pub async fn handle(cmd: ApiCommand, client: &RommClient, format: OutputFormat) -> Result<()> {
     let mut query_pairs = Vec::new();
     for q in &cmd.query {
         if let Some((k, v)) = q.split_once('=') {
             query_pairs.push((k.to_string(), v.to_string()));
+        } else {
+            eprintln!(
+                "warning: ignoring malformed --query value {:?}; expected key=value",
+                q
+            );
         }
     }
 

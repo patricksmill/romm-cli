@@ -1,3 +1,4 @@
+use crate::core::utils::truncate;
 use crate::types::{Platform, RomList};
 
 /// Print a simple table of platforms with aligned columns.
@@ -119,22 +120,3 @@ pub fn print_roms_table(results: &RomList) {
         );
     }
 }
-
-fn truncate(s: &str, max: usize) -> String {
-    if s.len() <= max {
-        return s.to_string();
-    }
-    if max <= 1 {
-        return "…".to_string();
-    }
-    let mut out = String::with_capacity(max);
-    for (i, ch) in s.chars().enumerate() {
-        if i + 1 >= max {
-            out.push('…');
-            break;
-        }
-        out.push(ch);
-    }
-    out
-}
-
