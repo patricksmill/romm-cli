@@ -49,8 +49,8 @@ impl ResultScreen {
 
         let (table_row_count, _) = Self::items_from_value(&result);
 
-        let prefer_table = endpoint_method.map_or(false, |m| m.eq_ignore_ascii_case("GET"))
-            && endpoint_path.map_or(false, |p| p.trim_end_matches('/') == "/api/roms")
+        let prefer_table = endpoint_method.is_some_and(|m| m.eq_ignore_ascii_case("GET"))
+            && endpoint_path.is_some_and(|p| p.trim_end_matches('/') == "/api/roms")
             && table_row_count > 0;
 
         Self {
@@ -329,7 +329,7 @@ impl ResultScreen {
 
         f.render_widget(paragraph, area);
 
-        let mut state = self.scrollbar_state.clone();
+        let mut state = self.scrollbar_state;
         let scrollbar = Scrollbar::default()
             .orientation(ratatui::widgets::ScrollbarOrientation::VerticalRight)
             .begin_symbol(Some("↑"))
@@ -545,7 +545,7 @@ impl ResultDetailScreen {
 
         f.render_widget(table, content_area);
 
-        let mut state = self.scrollbar_state.clone();
+        let mut state = self.scrollbar_state;
         let scrollbar = Scrollbar::default()
             .orientation(ratatui::widgets::ScrollbarOrientation::VerticalRight)
             .begin_symbol(Some("↑"))

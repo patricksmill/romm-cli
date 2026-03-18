@@ -22,7 +22,7 @@ impl<'a> PlatformService<'a> {
 
     /// List all platforms from the ROMM API.
     pub async fn list_platforms(&self) -> Result<Vec<Platform>> {
-        let platforms = self.client.call(&ListPlatforms::default()).await?;
+        let platforms = self.client.call(&ListPlatforms).await?;
         Ok(platforms)
     }
 }

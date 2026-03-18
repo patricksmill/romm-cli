@@ -44,10 +44,7 @@ impl BrowseScreen {
                 }
             };
 
-            sections_map
-                .entry(section_name)
-                .or_insert_with(Vec::new)
-                .push(idx);
+            sections_map.entry(section_name).or_default().push(idx);
         }
 
         let mut sections: Vec<Section> = sections_map
@@ -196,8 +193,7 @@ impl BrowseScreen {
                 let items: Vec<ListItem> = section
                     .endpoint_indices
                     .iter()
-                    .enumerate()
-                    .map(|(_idx, &endpoint_idx)| {
+                    .map(|&endpoint_idx| {
                         let ep = &self.registry.endpoints[endpoint_idx];
                         let method_color = match ep.method.as_str() {
                             "GET" => ratatui::style::Color::Green,

@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 use assert_cmd::Command;
 use httpmock::Method::GET;
 use httpmock::MockServer;

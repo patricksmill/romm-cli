@@ -1,6 +1,8 @@
 //! Integration tests for `romm-cli roms` command.
 //! Verifies that platform_ids (RomM API param name) is sent so the API filters by console.
 
+#![allow(deprecated)]
+
 use assert_cmd::Command;
 use httpmock::Method::GET;
 use httpmock::MockServer;

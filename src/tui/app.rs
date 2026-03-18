@@ -56,7 +56,7 @@ pub enum AppScreen {
     Execute(ExecuteScreen),
     Result(ResultScreen),
     ResultDetail(ResultDetailScreen),
-    GameDetail(GameDetailScreen),
+    GameDetail(Box<GameDetailScreen>),
     Download(DownloadScreen),
 }
 
@@ -245,12 +245,8 @@ impl App {
             KeyCode::Down | KeyCode::Char('j') => menu.next(),
             KeyCode::Enter => match menu.selected {
                 0 => {
-                    let platforms = self.client.call(&ListPlatforms::default()).await?;
-                    let collections = self
-                        .client
-                        .call(&ListCollections::default())
-                        .await
-                        .unwrap_or_default();
+                    let platforms = self.client.call(&ListPlatforms).await?;
+                    let collections = self.client.call(&ListCollections).await.unwrap_or_default();
                     let mut lib = LibraryBrowseScreen::new(platforms, collections);
                     if lib.list_len() > 0 {
                         let key = lib.cache_key();
@@ -344,12 +340,12 @@ impl App {
                         AppScreen::MainMenu(MainMenuScreen::new()),
                     );
                     if let AppScreen::LibraryBrowse(l) = lib_screen {
-                        self.screen = AppScreen::GameDetail(GameDetailScreen::new(
+                        self.screen = AppScreen::GameDetail(Box::new(GameDetailScreen::new(
                             primary,
                             others,
                             GameDetailPrevious::Library(l),
                             self.downloads.shared(),
-                        ));
+                        )));
                     }
                 }
             }
@@ -390,12 +386,12 @@ impl App {
                             AppScreen::MainMenu(MainMenuScreen::new()),
                         );
                         if let AppScreen::Search(s) = prev {
-                            self.screen = AppScreen::GameDetail(GameDetailScreen::new(
+                            self.screen = AppScreen::GameDetail(Box::new(GameDetailScreen::new(
                                 primary,
                                 others,
                                 GameDetailPrevious::Search(s),
                                 self.downloads.shared(),
-                            ));
+                            )));
                         }
                     }
                 } else if !search.query.is_empty() {
@@ -625,7 +621,7 @@ impl App {
             AppScreen::GameDetail(d) => d,
             _ => return Ok(false),
         };
-        
+
         // Acknowledge download completion on any key press
         // (check if there's a completed/errored download for this ROM)
         if !detail.download_completion_acknowledged {
@@ -648,7 +644,7 @@ impl App {
                 }
             }
         }
-        
+
         match key {
             KeyCode::Enter => {
                 // Only start a download once per detail view and avoid

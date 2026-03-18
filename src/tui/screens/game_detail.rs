@@ -76,20 +76,20 @@ impl GameDetailScreen {
     /// Find the most recent download job for this ROM (if any).
     /// Returns downloading jobs always, or completed/errored jobs if not yet acknowledged.
     fn active_download(&self) -> Option<DownloadJob> {
-        self.downloads
-            .lock()
-            .ok()
-            .and_then(|list| {
-                list.iter()
-                    .rev()
-                    .find(|j| {
-                        j.rom_id == self.rom.id
-                            && (matches!(j.status, DownloadStatus::Downloading)
-                                || (!self.download_completion_acknowledged
-                                    && matches!(j.status, DownloadStatus::Done | DownloadStatus::Error(_))))
-                    })
-                    .cloned()
-            })
+        self.downloads.lock().ok().and_then(|list| {
+            list.iter()
+                .rev()
+                .find(|j| {
+                    j.rom_id == self.rom.id
+                        && (matches!(j.status, DownloadStatus::Downloading)
+                            || (!self.download_completion_acknowledged
+                                && matches!(
+                                    j.status,
+                                    DownloadStatus::Done | DownloadStatus::Error(_)
+                                )))
+                })
+                .cloned()
+        })
     }
 
     pub fn render(&self, f: &mut Frame, area: Rect) {

@@ -31,8 +31,7 @@ pub fn print_platforms_table(platforms: &[Platform]) {
         })
         .max()
         .unwrap_or(4)
-        .max(4)
-        .min(40); // keep names from getting too wide
+        .clamp(4, 40); // keep names from getting too wide
 
     println!(
         "{:>id_w$}  {:<slug_w$}  {:<name_w$}  {:>6}  {:>8}",
@@ -94,8 +93,7 @@ pub fn print_roms_table(results: &RomList) {
         .map(|r| r.name.len())
         .max()
         .unwrap_or(4)
-        .max(4)
-        .min(60);
+        .clamp(4, 60);
 
     println!(
         "{:>id_w$}  {:>pid_w$}  {:<name_w$}",

@@ -35,7 +35,7 @@ impl SettingsScreen {
             .direction(ratatui::layout::Direction::Vertical)
             .split(area);
 
-        let lines = vec![
+        let lines = [
             format!("Base URL: {}", self.base_url),
             format!("Auth: {}", self.auth_status),
             String::new(),
