@@ -30,8 +30,9 @@ impl Endpoint for GetRoms {
             q.push(("search_term".into(), term.clone()));
         }
 
+        // RomM API expects "platform_ids" (plural); repeat param for multiple values.
         if let Some(pid) = self.platform_id {
-            q.push(("platform_id".into(), pid.to_string()));
+            q.push(("platform_ids".into(), pid.to_string()));
         }
 
         if let Some(cid) = self.collection_id {

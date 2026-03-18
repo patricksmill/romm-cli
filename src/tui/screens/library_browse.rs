@@ -145,6 +145,13 @@ impl LibraryBrowseScreen {
         self.roms = None;
     }
 
+    /// Clear the ROM list (and groups) so the right panel does not show
+    /// another console/collection's games while loading the new selection.
+    pub fn clear_roms(&mut self) {
+        self.roms = None;
+        self.rom_groups = None;
+    }
+
     pub fn set_roms(&mut self, roms: RomList) {
         self.roms = Some(roms.clone());
         self.rom_groups = Some(utils::group_roms_by_name(&roms.items));

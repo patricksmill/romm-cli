@@ -123,11 +123,18 @@ impl RommClient {
         let method = Method::from_bytes(method.as_bytes())
             .map_err(|_| anyhow!("invalid HTTP method: {method}"))?;
 
+        // Ensure query params serialize as key=value pairs (reqwest/serde_urlencoded
+        // expect sequences of (key, value); using &[(&str, &str)] guarantees correct encoding).
+        let query_refs: Vec<(&str, &str)> = query
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect();
+
         let mut req = self
             .http
             .request(method, &url)
             .headers(headers)
-            .query(&query);
+            .query(&query_refs);
 
         if let Some(body) = body {
             req = req.json(&body);

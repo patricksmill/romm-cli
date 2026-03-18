@@ -297,6 +297,7 @@ impl App {
                 if lib.view_mode == LibraryViewMode::List {
                     lib.list_previous();
                     if lib.list_len() > 0 {
+                        lib.clear_roms(); // avoid showing previous console's games
                         let key = lib.cache_key();
                         let expected = lib.expected_rom_count();
                         let req = lib
@@ -314,6 +315,7 @@ impl App {
                 if lib.view_mode == LibraryViewMode::List {
                     lib.list_next();
                     if lib.list_len() > 0 {
+                        lib.clear_roms(); // avoid showing previous console's games
                         let key = lib.cache_key();
                         let expected = lib.expected_rom_count();
                         let req = lib
