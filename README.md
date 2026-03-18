@@ -33,7 +33,35 @@ reusing `RommClient`, `RomCache`, and `DownloadManager`.
 
 ## Getting started
 
-### Prerequisites
+### Install from release (recommended for end users)
+
+Prebuilt binaries are available on [GitHub Releases](https://github.com/YOUR_USERNAME/romm-cli/releases). Download the archive for your platform:
+
+| Platform        | File |
+|-----------------|------|
+| Windows x86_64  | `romm-cli-windows-x86_64.zip` |
+| Linux x86_64    | `romm-cli-linux-x86_64.tar.gz` |
+| Linux aarch64   | `romm-cli-linux-aarch64.tar.gz` |
+| macOS x86_64    | `romm-cli-macos-x86_64.tar.gz` |
+| macOS arm64     | `romm-cli-macos-aarch64.tar.gz` |
+
+**Windows:** Extract the zip, then run `romm-cli.exe` from a terminal.
+
+**Linux / macOS:** Extract the archive, make the binary executable, and run it:
+
+```bash
+tar -xzf romm-cli-linux-x86_64.tar.gz   # or macos variant
+chmod +x romm-cli
+./romm-cli --help
+```
+
+Optional: move `romm-cli` to a directory in your `PATH` (e.g. `~/.local/bin`).
+
+SHA256 checksums for all assets are included as `checksums.txt` in each release.
+
+### Build from source
+
+**Prerequisites:**
 
 - Rust toolchain (stable) via `rustup`
 - A running ROMM server, with a reachable API base URL

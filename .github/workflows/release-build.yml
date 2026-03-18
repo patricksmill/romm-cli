@@ -1,0 +1,129 @@
+name: Release build
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: romm-cli-linux-x86_64
+            archive: tar.gz
+            binary: romm-cli
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            artifact_name: romm-cli-linux-aarch64
+            archive: tar.gz
+            binary: romm-cli
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: romm-cli-windows-x86_64
+            archive: zip
+            binary: romm-cli.exe
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact_name: romm-cli-macos-x86_64
+            archive: tar.gz
+            binary: romm-cli
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact_name: romm-cli-macos-aarch64
+            archive: tar.gz
+            binary: romm-cli
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo registry and target
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}
+
+      - name: Build (native)
+        if: ${{ matrix.target != 'aarch64-unknown-linux-gnu' }}
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Install cross
+        if: ${{ matrix.target == 'aarch64-unknown-linux-gnu' }}
+        run: cargo install cross
+
+      - name: Build (cross aarch64)
+        if: ${{ matrix.target == 'aarch64-unknown-linux-gnu' }}
+        run: cross build --release --target ${{ matrix.target }}
+
+      - name: Prepare artifact directory
+        run: |
+          mkdir -p artifact
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            cp target/${{ matrix.target }}/release/${{ matrix.binary }} artifact/
+          else
+            cp target/${{ matrix.target }}/release/${{ matrix.binary }} artifact/
+          fi
+        shell: bash
+
+      - name: Fix permissions (Unix)
+        if: ${{ matrix.os != 'windows-latest' }}
+        run: chmod +x artifact/${{ matrix.binary }}
+
+      - name: Create archive (Unix)
+        if: ${{ matrix.os != 'windows-latest' }}
+        run: |
+          cd artifact && tar czvf ../${{ matrix.artifact_name }}.${{ matrix.archive }} * && cd ..
+        shell: bash
+
+      - name: Create archive (Windows)
+        if: ${{ matrix.os == 'windows-latest' }}
+        run: Compress-Archive -Path artifact\* -DestinationPath ${{ matrix.artifact_name }}.${{ matrix.archive }}
+        shell: pwsh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_name }}.${{ matrix.archive }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: false
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release-assets
+          cp artifacts/*/* release-assets/
+
+      - name: Generate checksums
+        run: |
+          cd release-assets
+          sha256sum * > checksums.txt
+          cat checksums.txt
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: release-assets/*
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
