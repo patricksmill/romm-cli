@@ -8,7 +8,9 @@ Rustdoc (`cargo doc --open`).
 
 The crate exposes a library root (`src/lib.rs`, `romm_cli`) alongside the
 `romm-cli` binary so integration tests and helper binaries can reuse the same
-modules.
+modules. A second binary, `romm-tui`, only launches the TUI. Configuration is
+loaded from the process environment, then a cwd `.env`, then the user config
+file written by `romm-cli init` (see README).
 
 From bottom to top:
 

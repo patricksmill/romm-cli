@@ -35,7 +35,7 @@ reusing `RommClient`, `RomCache`, and `DownloadManager`.
 
 ### Install from release (recommended for end users)
 
-Prebuilt binaries are available on [GitHub Releases](https://github.com/patricksmill/romm-cli/releases). Download the archive for your platform:
+Prebuilt binaries are available on [GitHub Releases](https://github.com/patricksmill/romm-cli/releases). Download the archive for your platform. Each archive contains **`romm-cli`** (full CLI) and **`romm-tui`** (starts the TUI directly, no subcommand).
 
 | Platform        | File |
 |-----------------|------|
@@ -45,17 +45,18 @@ Prebuilt binaries are available on [GitHub Releases](https://github.com/patricks
 | macOS x86_64    | `romm-cli-macos-x86_64.tar.gz` |
 | macOS arm64     | `romm-cli-macos-aarch64.tar.gz` |
 
-**Windows:** Extract the zip, then run `romm-cli.exe` from a terminal.
+**Windows:** Extract the zip, then run `romm-tui.exe` for the UI or `romm-cli.exe` from a terminal.
 
-**Linux / macOS:** Extract the archive, make the binary executable, and run it:
+**Linux / macOS:** Extract the archive, make both binaries executable, and run:
 
 ```bash
 tar -xzf romm-cli-linux-x86_64.tar.gz   # or macos variant
-chmod +x romm-cli
+chmod +x romm-cli romm-tui
 ./romm-cli --help
+# or: ./romm-tui
 ```
 
-Optional: move `romm-cli` to a directory in your `PATH` (e.g. `~/.local/bin`).
+Optional: move `romm-cli` and `romm-tui` to a directory in your `PATH` (e.g. `~/.local/bin`).
 
 SHA256 checksums for all assets are included as `checksums.txt` in each release.
 
@@ -67,12 +68,35 @@ SHA256 checksums for all assets are included as `checksums.txt` in each release.
 - A running ROMM server, with a reachable API base URL
   (for example `http://mill-server:1738`)
 
+### First-time setup (`init`)
+
+Run the interactive wizard once to create a user config file (no manual env editing):
+
+```bash
+romm-cli init
+# or: romm-cli setup
+```
+
+This writes `API_BASE_URL` and optional auth to:
+
+- **Linux / macOS:** `~/.config/romm-cli/.env` (XDG config dir)
+- **Windows:** `%APPDATA%\romm-cli\.env`
+
+Show the path without writing: `romm-cli init --print-path`. Overwrite without prompting: `romm-cli init --force`.
+
 ### Environment variables
 
-Configuration is read from the environment (optionally via a `.env` file
-in the repo root, using `dotenvy` in development):
+**Precedence** (each step only sets variables that are not already set):
 
-- `API_BASE_URL` (required) – e.g. `http://mill-server:1738`
+1. Process environment (e.g. exported in the shell)
+2. `.env` in the **current working directory** (typical for development)
+3. **User config** file from `init` (paths above)
+
+So a project-level `.env` wins over the same keys in the user file.
+
+Required:
+
+- `API_BASE_URL` – e.g. `http://mill-server:1738`
 - **Authentication (first match wins):**
   1. **Basic auth** – if both `API_USERNAME` and `API_PASSWORD` are set, they are used (other auth env vars are ignored for the request).
   2. **Custom header** – if both `API_KEY` and `API_KEY_HEADER` are set and the key is not treated as a placeholder, the key is sent in that header.
@@ -88,9 +112,10 @@ in the repo root, using `dotenvy` in development):
 - `ROMM_CACHE_PATH` – path to the on-disk ROM list cache file (default `romm-cache.json`).
 - `ROMM_DOWNLOAD_DIR` – directory for TUI background downloads (default `./downloads`). If a file name already exists, the client uses `name__2.zip`, `name__3.zip`, etc.
 
-**CLI:**
+**CLI / launcher:**
 
 - `-v` / `--verbose` – log each HTTP request’s method, path, query **parameter names** (not values), status code, and duration on stderr (no secrets).
+- **`romm-tui`** – same config as `romm-cli`; set `ROMM_VERBOSE=1` for request logging without passing flags.
 
 Example `.env`:
 
@@ -108,9 +133,10 @@ From the `romm-cli` directory:
 cargo build --release
 ```
 
-The compiled binary will be at:
+The compiled binaries will be at:
 
 - `target/release/romm-cli`
+- `target/release/romm-tui` (Windows: `.exe`)
 
 ---
 
@@ -120,6 +146,8 @@ The compiled binary will be at:
 
 ```bash
 cargo run --bin romm-cli -- tui
+# or (same behavior after config is set):
+cargo run --bin romm-tui
 ```
 
 This starts the interactive terminal UI:

@@ -11,6 +11,7 @@ use crate::client::RommClient;
 use crate::config::Config;
 
 pub mod api;
+pub mod init;
 pub mod platforms;
 pub mod print;
 pub mod roms;
@@ -62,6 +63,9 @@ pub struct Cli {
 /// All top-level commands supported by the CLI.
 #[derive(Subcommand, Debug)]
 pub enum Commands {
+    /// Create or update user config (~/.config/romm-cli/.env or %APPDATA%\\romm-cli\\.env)
+    #[command(visible_alias = "setup")]
+    Init(init::InitCommand),
     /// Launch interactive TUI for exploring API endpoints
     Tui,
     /// Low-level access to any ROMM API endpoint
@@ -76,6 +80,9 @@ pub async fn run(cli: Cli, config: Config) -> Result<()> {
     let client = RommClient::new(&config, cli.verbose)?;
 
     match cli.command {
+        Commands::Init(_) => {
+            anyhow::bail!("internal error: init must be handled before load_config");
+        }
         Commands::Tui => crate::frontend::tui::run(client, config).await?,
         command => crate::frontend::cli::run(command, &client, cli.json).await?,
     }

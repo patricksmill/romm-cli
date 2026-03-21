@@ -2,15 +2,33 @@
 
 use anyhow::Result;
 use clap::Parser;
-use romm_cli::commands::{run, Cli};
-use romm_cli::config::load_config;
+use romm_cli::commands::init;
+use romm_cli::commands::{run, Cli, Commands};
+use romm_cli::config::{load_config, load_layered_env};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let _ = dotenvy::dotenv();
+    load_layered_env();
 
-    let cli = Cli::parse();
-    let config = load_config()?;
+    let Cli {
+        verbose,
+        json,
+        command,
+    } = Cli::parse();
 
-    run(cli, config).await
+    match command {
+        Commands::Init(cmd) => init::handle(cmd),
+        command => {
+            let config = load_config()?;
+            run(
+                Cli {
+                    verbose,
+                    json,
+                    command,
+                },
+                config,
+            )
+            .await
+        }
+    }
 }

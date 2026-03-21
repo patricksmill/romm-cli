@@ -3,6 +3,16 @@
 //! This module is deliberately independent of any particular frontend:
 //! both the TUI and the command-line subcommands share the same `Config`
 //! and `AuthConfig` types.
+//!
+//! ## Environment file precedence
+//!
+//! Call [`load_layered_env`] before reading config:
+//!
+//! 1. Variables already set in the process environment (highest priority).
+//! 2. Project `.env` in the current working directory (via `dotenvy`).
+//! 3. User config: `{config_dir}/romm-cli/.env` — fills keys not already set (so a repo `.env` wins over user defaults).
+
+use std::path::PathBuf;
 
 use anyhow::{anyhow, Result};
 
@@ -23,9 +33,37 @@ fn is_placeholder(value: &str) -> bool {
     value.contains("your-") || value.contains("placeholder") || value.trim().is_empty()
 }
 
+/// Directory for user-level config (`romm-cli` under the OS config dir).
+pub fn user_config_dir() -> Option<PathBuf> {
+    #[cfg(test)]
+    if let Ok(dir) = std::env::var("ROMM_TEST_CONFIG_DIR") {
+        return Some(PathBuf::from(dir));
+    }
+    dirs::config_dir().map(|d| d.join("romm-cli"))
+}
+
+/// Path to the user-level `.env` file (`.../romm-cli/.env`).
+pub fn user_config_env_path() -> Option<PathBuf> {
+    user_config_dir().map(|d| d.join(".env"))
+}
+
+/// Load env vars from `./.env` in cwd, then from the user config file.
+/// Later files only set variables not already set (env or earlier file), so a project `.env` overrides the same keys in the user file.
+pub fn load_layered_env() {
+    let _ = dotenvy::dotenv();
+    if let Some(path) = user_config_env_path() {
+        if path.is_file() {
+            let _ = dotenvy::from_path(path);
+        }
+    }
+}
+
 pub fn load_config() -> Result<Config> {
-    let base_url = std::env::var("API_BASE_URL")
-        .map_err(|_| anyhow!("API_BASE_URL is not set in the environment"))?;
+    let base_url = std::env::var("API_BASE_URL").map_err(|_| {
+        anyhow!(
+            "API_BASE_URL is not set. Set it in the environment, a .env file, or run: romm-cli init"
+        )
+    })?;
 
     let username = std::env::var("API_USERNAME").ok();
     let password = std::env::var("API_PASSWORD").ok();
@@ -133,5 +171,39 @@ mod tests {
 
         let cfg = load_config().expect("config should load");
         assert!(cfg.auth.is_none(), "placeholder token should be ignored");
+    }
+
+    #[test]
+    fn layered_env_applies_user_file_for_unset_keys() {
+        let _guard = env_lock().lock().expect("env lock");
+        clear_auth_env();
+        std::env::remove_var("API_BASE_URL");
+
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let base = std::env::temp_dir().join(format!("romm-layered-{ts}"));
+        std::fs::create_dir_all(&base).unwrap();
+        let work = base.join("work");
+        std::fs::create_dir_all(&work).unwrap();
+        std::fs::write(
+            base.join(".env"),
+            "API_BASE_URL=http://from-user-file.test\n",
+        )
+        .unwrap();
+
+        std::env::set_var("ROMM_TEST_CONFIG_DIR", base.as_os_str());
+        let old_cwd = std::env::current_dir().unwrap();
+        std::env::set_current_dir(&work).unwrap();
+
+        load_layered_env();
+        let cfg = load_config().expect("load from user .env");
+        assert_eq!(cfg.base_url, "http://from-user-file.test");
+
+        std::env::set_current_dir(old_cwd).unwrap();
+        std::env::remove_var("ROMM_TEST_CONFIG_DIR");
+        std::env::remove_var("API_BASE_URL");
+        let _ = std::fs::remove_dir_all(&base);
     }
 }

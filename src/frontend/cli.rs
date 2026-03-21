@@ -18,6 +18,9 @@ pub async fn run(command: Commands, client: &RommClient, global_json: bool) -> R
             let format = OutputFormat::from_flags(global_json, cmd.json);
             roms::handle(cmd, client, format).await
         }
+        Commands::Init(_) => Err(anyhow!(
+            "internal routing error: init command in CLI frontend"
+        )),
         Commands::Tui => Err(anyhow!(
             "internal routing error: TUI command in CLI frontend"
         )),
