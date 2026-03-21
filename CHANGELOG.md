@@ -7,8 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.0] - (current)
+## [0.1.0] - 2026-03-20
 
 ### Added
 
 - Initial release of romm-cli: Rust CLI + TUI client for the ROMM API
+
+[Unreleased]: https://github.com/patricksmill/romm-cli/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/patricksmill/romm-cli/releases/tag/v0.1.0
