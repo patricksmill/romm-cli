@@ -35,7 +35,7 @@ reusing `RommClient`, `RomCache`, and `DownloadManager`.
 
 ### Install from release (recommended for end users)
 
-Prebuilt binaries are available on [GitHub Releases](https://github.com/YOUR_USERNAME/romm-cli/releases). Download the archive for your platform:
+Prebuilt binaries are available on [GitHub Releases](https://github.com/patricksmill/romm-cli/releases). Download the archive for your platform:
 
 | Platform        | File |
 |-----------------|------|
@@ -73,16 +73,24 @@ Configuration is read from the environment (optionally via a `.env` file
 in the repo root, using `dotenvy` in development):
 
 - `API_BASE_URL` (required) – e.g. `http://mill-server:1738`
-- **Authentication (pick one):**
-  - Basic auth:
-    - `API_USERNAME`
-    - `API_PASSWORD`
-  - Bearer token:
-    - `API_TOKEN` (or `API_KEY`), must not be a placeholder like
-      `your-bearer-token-here`
-  - API key in a custom header:
-    - `API_KEY`
-    - `API_KEY_HEADER` (e.g. `X-API-Key`)
+- **Authentication (first match wins):**
+  1. **Basic auth** – if both `API_USERNAME` and `API_PASSWORD` are set, they are used (other auth env vars are ignored for the request).
+  2. **Custom header** – if both `API_KEY` and `API_KEY_HEADER` are set and the key is not treated as a placeholder, the key is sent in that header.
+  3. **Bearer** – otherwise, if `API_TOKEN` or `API_KEY` is set and not a placeholder (`your-…`, `placeholder`, empty), it is sent as `Authorization: Bearer …`.
+
+  Placeholder-like bearer/API key values are skipped so a template `.env` does not accidentally authenticate.
+
+  Note: `API_KEY` alone is ambiguous: with `API_KEY_HEADER` it is the header secret; without it, the same value is used as a Bearer token.
+
+**Optional (TUI / cache / downloads):**
+
+- `ROMM_OPENAPI_PATH` – path to OpenAPI JSON for the expert API browser (default `openapi.json` in the working directory).
+- `ROMM_CACHE_PATH` – path to the on-disk ROM list cache file (default `romm-cache.json`).
+- `ROMM_DOWNLOAD_DIR` – directory for TUI background downloads (default `./downloads`). If a file name already exists, the client uses `name__2.zip`, `name__3.zip`, etc.
+
+**CLI:**
+
+- `-v` / `--verbose` – log each HTTP request’s method, path, query **parameter names** (not values), status code, and duration on stderr (no secrets).
 
 Example `.env`:
 
@@ -152,7 +160,7 @@ At a high level the control flow looks like this:
 ```text
 main.rs
   └── commands::run
-        ├── RommClient::new(Config)
+        ├── RommClient::new(Config, verbose)
         └── frontend router
               ├── frontend::cli::run(...)  -> commands::{api,platforms,roms}
               └── frontend::tui::run(...)  -> tui::run -> App::new(...).run()
@@ -160,6 +168,8 @@ main.rs
 
 ### Modules
 
+- `src/lib.rs`
+  - Library crate root (`romm_cli`); same modules as below for use by tests and `romm_openapi_gen`.
 - `src/main.rs`
   - Minimal binary entrypoint. Loads config, parses CLI, and calls
     `commands::run`.

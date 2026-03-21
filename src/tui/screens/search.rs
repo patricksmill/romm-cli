@@ -18,6 +18,12 @@ pub struct SearchScreen {
     visible_rows: usize,
 }
 
+impl Default for SearchScreen {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SearchScreen {
     pub fn new() -> Self {
         Self {

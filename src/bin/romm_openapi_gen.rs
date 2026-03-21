@@ -3,6 +3,7 @@ use std::fs;
 use std::path::Path;
 
 use anyhow::{anyhow, Result};
+use romm_cli::tui::openapi::is_openapi_operation_method;
 use serde_json::Value;
 
 /// Very small sketch of an OpenAPI-driven generator.
@@ -32,7 +33,9 @@ fn main() -> Result<()> {
     for (p, methods) in paths {
         if let Some(methods_obj) = methods.as_object() {
             for (method, _meta) in methods_obj {
-                println!("  {} {}", method.to_uppercase(), p);
+                if is_openapi_operation_method(method) {
+                    println!("  {} {}", method.to_uppercase(), p);
+                }
             }
         }
     }

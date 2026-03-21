@@ -10,10 +10,26 @@ use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use reqwest::{Client as HttpClient, Method};
 use serde_json::Value;
 use std::path::Path;
+use std::time::Instant;
 use tokio::io::AsyncWriteExt as _;
 
 use crate::config::{AuthConfig, Config};
 use crate::endpoints::Endpoint;
+
+/// Map a successful HTTP response body to JSON [`Value`].
+///
+/// Empty or whitespace-only bodies become [`Value::Null`] (e.g. HTTP 204).
+/// Non-JSON UTF-8 bodies are wrapped as `{"_non_json_body": "..."}`.
+fn decode_json_response_body(bytes: &[u8]) -> Value {
+    if bytes.is_empty() || bytes.iter().all(|b| b.is_ascii_whitespace()) {
+        return Value::Null;
+    }
+    serde_json::from_slice(bytes).unwrap_or_else(|_| {
+        serde_json::json!({
+            "_non_json_body": String::from_utf8_lossy(bytes).to_string()
+        })
+    })
+}
 
 /// High-level HTTP client for the ROMM API.
 ///
@@ -24,20 +40,22 @@ pub struct RommClient {
     http: HttpClient,
     base_url: String,
     auth: Option<AuthConfig>,
+    verbose: bool,
 }
 
 impl RommClient {
     /// Construct a new client from the high-level [`Config`].
     ///
-    /// This is typically done once in `main` and the resulting
-    /// `RommClient` is shared (by reference or cloning) with the
-    /// chosen frontend.
-    pub fn new(config: &Config) -> Result<Self> {
+    /// `verbose` enables stderr request logging (method, path, query key names, status, timing).
+    /// This is typically done once in `main` and the resulting `RommClient` is shared
+    /// (by reference or cloning) with the chosen frontend.
+    pub fn new(config: &Config, verbose: bool) -> Result<Self> {
         let http = HttpClient::builder().build()?;
         Ok(Self {
             http,
             base_url: config.base_url.clone(),
             auth: config.auth.clone(),
+            verbose,
         })
     }
 
@@ -120,7 +138,7 @@ impl RommClient {
         );
         let headers = self.build_headers()?;
 
-        let method = Method::from_bytes(method.as_bytes())
+        let http_method = Method::from_bytes(method.as_bytes())
             .map_err(|_| anyhow!("invalid HTTP method: {method}"))?;
 
         // Ensure query params serialize as key=value pairs (reqwest/serde_urlencoded
@@ -132,7 +150,7 @@ impl RommClient {
 
         let mut req = self
             .http
-            .request(method, &url)
+            .request(http_method, &url)
             .headers(headers)
             .query(&query_refs);
 
@@ -140,12 +158,24 @@ impl RommClient {
             req = req.json(&body);
         }
 
+        let t0 = Instant::now();
         let resp = req
             .send()
             .await
             .map_err(|e| anyhow!("request error: {e}"))?;
 
         let status = resp.status();
+        if self.verbose {
+            let keys: Vec<&str> = query.iter().map(|(k, _)| k.as_str()).collect();
+            eprintln!(
+                "[romm-cli] {} {} query_keys={:?} -> {} ({}ms)",
+                method,
+                path,
+                keys,
+                status.as_u16(),
+                t0.elapsed().as_millis()
+            );
+        }
         if !status.is_success() {
             let body = resp.text().await.unwrap_or_default();
             return Err(anyhow!(
@@ -156,8 +186,12 @@ impl RommClient {
             ));
         }
 
-        let value = resp.json::<Value>().await?;
-        Ok(value)
+        let bytes = resp
+            .bytes()
+            .await
+            .map_err(|e| anyhow!("read response body: {e}"))?;
+
+        Ok(decode_json_response_body(&bytes))
     }
 
     /// Download ROM(s) as a zip file to `save_path`, calling `on_progress(received, total)`.
@@ -183,6 +217,7 @@ impl RommClient {
             .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("download.zip");
+        let t0 = Instant::now();
         let mut resp = self
             .http
             .get(&url)
@@ -196,6 +231,15 @@ impl RommClient {
             .map_err(|e| anyhow!("download request error: {e}"))?;
 
         let status = resp.status();
+        if self.verbose {
+            eprintln!(
+                "[romm-cli] GET /api/roms/download rom_id={} filename={:?} -> {} ({}ms)",
+                rom_id,
+                filename,
+                status.as_u16(),
+                t0.elapsed().as_millis()
+            );
+        }
         if !status.is_success() {
             let body = resp.text().await.unwrap_or_default();
             return Err(anyhow!(
@@ -222,5 +266,28 @@ impl RommClient {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn decode_json_empty_and_whitespace_to_null() {
+        assert_eq!(decode_json_response_body(b""), Value::Null);
+        assert_eq!(decode_json_response_body(b"  \n\t "), Value::Null);
+    }
+
+    #[test]
+    fn decode_json_object_roundtrip() {
+        let v = decode_json_response_body(br#"{"a":1}"#);
+        assert_eq!(v["a"], 1);
+    }
+
+    #[test]
+    fn decode_non_json_wrapped() {
+        let v = decode_json_response_body(b"plain text");
+        assert_eq!(v["_non_json_body"], "plain text");
     }
 }

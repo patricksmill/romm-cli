@@ -3,13 +3,37 @@
 //! `DownloadJob` holds per-download progress/status.
 //! `DownloadManager` owns the shared job list and spawns background tasks.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use crate::client::RommClient;
 use crate::core::utils;
 use crate::types::Rom;
+
+/// Directory for ROM zip downloads (`ROMM_DOWNLOAD_DIR` or `./downloads`).
+pub fn download_directory() -> PathBuf {
+    std::env::var("ROMM_DOWNLOAD_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from("./downloads"))
+}
+
+/// Pick `stem.zip`, then `stem__2.zip`, `stem__3.zip`, … until the path does not exist.
+pub fn unique_zip_path(dir: &Path, stem: &str) -> PathBuf {
+    let mut n = 1u32;
+    loop {
+        let name = if n == 1 {
+            format!("{}.zip", stem)
+        } else {
+            format!("{}__{}.zip", stem, n)
+        };
+        let p = dir.join(name);
+        if !p.exists() {
+            return p;
+        }
+        n = n.saturating_add(1);
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Job status / data
@@ -68,6 +92,12 @@ pub struct DownloadManager {
     jobs: Arc<Mutex<Vec<DownloadJob>>>,
 }
 
+impl Default for DownloadManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DownloadManager {
     pub fn new() -> Self {
         Self {
@@ -106,8 +136,8 @@ impl DownloadManager {
 
         let jobs = self.jobs.clone();
         tokio::spawn(async move {
-            let save_dir = Path::new("./downloads");
-            if let Err(err) = tokio::fs::create_dir_all(save_dir).await {
+            let save_dir = download_directory();
+            if let Err(err) = tokio::fs::create_dir_all(&save_dir).await {
                 eprintln!(
                     "warning: failed to create download directory {:?}: {}",
                     save_dir, err
@@ -115,7 +145,7 @@ impl DownloadManager {
             }
             let base = utils::sanitize_filename(&fs_name);
             let stem = base.rsplit_once('.').map(|(s, _)| s).unwrap_or(&base);
-            let save_path = save_dir.join(format!("{}.zip", stem));
+            let save_path = unique_zip_path(&save_dir, stem);
 
             let on_progress = |received: u64, total: u64| {
                 let p = if total > 0 {
@@ -131,7 +161,11 @@ impl DownloadManager {
                 }
             };
 
-            match client.download_rom(rom_id, &save_path, on_progress).await {
+            let download_result = client.download_rom(rom_id, &save_path, on_progress).await;
+            if download_result.is_err() {
+                let _ = tokio::fs::remove_file(&save_path).await;
+            }
+            match download_result {
                 Ok(()) => {
                     if let Ok(mut list) = jobs.lock() {
                         if let Some(j) = list.iter_mut().find(|j| j.id == job_id) {
@@ -149,5 +183,28 @@ impl DownloadManager {
                 }
             }
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn unique_zip_path_skips_existing_files() {
+        let ts = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("romm-dl-test-{ts}"));
+        std::fs::create_dir_all(&dir).unwrap();
+        let p1 = dir.join("game.zip");
+        std::fs::File::create(&p1).unwrap().write_all(b"x").unwrap();
+        let p2 = unique_zip_path(&dir, "game");
+        assert_eq!(p2.file_name().unwrap(), "game__2.zip");
+        let _ = std::fs::remove_file(&p1);
+        let _ = std::fs::remove_dir(&dir);
     }
 }

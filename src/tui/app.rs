@@ -29,7 +29,7 @@ use crate::core::download::DownloadManager;
 use crate::endpoints::{collections::ListCollections, platforms::ListPlatforms, roms::GetRoms};
 use crate::types::RomList;
 
-use super::openapi::EndpointRegistry;
+use super::openapi::{resolve_path_template, EndpointRegistry};
 use super::screens::{
     BrowseScreen, DownloadScreen, ExecuteScreen, GameDetailPrevious, GameDetailScreen,
     LibraryBrowseScreen, MainMenuScreen, ResultDetailScreen, ResultScreen, SearchScreen,
@@ -486,16 +486,28 @@ impl App {
                 } else {
                     None
                 };
+                let resolved_path =
+                    match resolve_path_template(&endpoint.path, &execute.get_path_params()) {
+                        Ok(p) => p,
+                        Err(e) => {
+                            self.screen = AppScreen::Result(ResultScreen::new(
+                                serde_json::json!({ "error": format!("{e}") }),
+                                None,
+                                None,
+                            ));
+                            return Ok(false);
+                        }
+                    };
                 match self
                     .client
-                    .request_json(&endpoint.method, &endpoint.path, &query, body)
+                    .request_json(&endpoint.method, &resolved_path, &query, body)
                     .await
                 {
                     Ok(result) => {
                         self.screen = AppScreen::Result(ResultScreen::new(
                             result,
                             Some(&endpoint.method),
-                            Some(&endpoint.path),
+                            Some(resolved_path.as_str()),
                         ));
                     }
                     Err(e) => {

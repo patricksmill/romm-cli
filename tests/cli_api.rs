@@ -33,3 +33,25 @@ async fn api_warns_on_malformed_query_pairs() {
         "warning: ignoring malformed --query value",
     ));
 }
+
+#[tokio::test]
+async fn api_empty_204_body_prints_null_json() {
+    let server = MockServer::start_async().await;
+
+    let _mock = server
+        .mock_async(|when, then| {
+            when.method(GET).path("/api/ping");
+            then.status(204);
+        })
+        .await;
+
+    let mut cmd = Command::cargo_bin("romm-cli").expect("binary");
+    cmd.env("API_BASE_URL", server.base_url())
+        .arg("api")
+        .arg("GET")
+        .arg("/api/ping");
+
+    cmd.assert()
+        .success()
+        .stdout(predicates::str::contains("null"));
+}

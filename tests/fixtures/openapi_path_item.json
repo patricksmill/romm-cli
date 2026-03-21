@@ -1,0 +1,21 @@
+{
+  "openapi": "3.0.0",
+  "info": { "title": "Fixture", "version": "1.0.0" },
+  "paths": {
+    "/items/{id}": {
+      "summary": "collection",
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "integer" }
+        }
+      ],
+      "get": {
+        "summary": "get item",
+        "responses": { "200": { "description": "ok" } }
+      }
+    }
+  }
+}

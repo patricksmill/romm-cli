@@ -15,6 +15,7 @@ base64 = "0.22"
 ratatui = "0.26"
 crossterm = "0.27"
 sha2 = "0.10"
+percent-encoding = "2.3"
 
 [dev-dependencies]
 mockall = "0.13"

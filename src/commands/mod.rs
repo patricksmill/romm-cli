@@ -73,7 +73,7 @@ pub enum Commands {
 }
 
 pub async fn run(cli: Cli, config: Config) -> Result<()> {
-    let client = RommClient::new(&config)?;
+    let client = RommClient::new(&config, cli.verbose)?;
 
     match cli.command {
         Commands::Tui => crate::frontend::tui::run(client, config).await?,

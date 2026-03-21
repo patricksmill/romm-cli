@@ -1984,6 +1984,7 @@ dependencies = [
  "dotenvy",
  "httpmock",
  "mockall",
+ "percent-encoding",
  "predicates",
  "ratatui",
  "reqwest",

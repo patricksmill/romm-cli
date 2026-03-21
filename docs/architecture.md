@@ -6,6 +6,10 @@ Rustdoc (`cargo doc --open`).
 
 ## High-level layers
 
+The crate exposes a library root (`src/lib.rs`, `romm_cli`) alongside the
+`romm-cli` binary so integration tests and helper binaries can reuse the same
+modules.
+
 From bottom to top:
 
 - **Types & endpoints**

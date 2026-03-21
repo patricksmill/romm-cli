@@ -6,6 +6,12 @@ pub struct MainMenuScreen {
     pub selected: usize,
 }
 
+impl Default for MainMenuScreen {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MainMenuScreen {
     pub fn new() -> Self {
         Self { selected: 0 }
