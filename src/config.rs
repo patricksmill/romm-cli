@@ -11,10 +11,15 @@
 //! 1. Variables already set in the process environment (highest priority).
 //! 2. Project `.env` in the current working directory (via `dotenvy`).
 //! 3. User config: `{config_dir}/romm-cli/.env` — fills keys not already set (so a repo `.env` wins over user defaults).
+//! 4. OS keyring — secrets stored by `romm-cli init` (lowest priority fallback).
 
 use std::path::PathBuf;
 
 use anyhow::{anyhow, Result};
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone)]
 pub enum AuthConfig {
@@ -33,6 +38,31 @@ fn is_placeholder(value: &str) -> bool {
     value.contains("your-") || value.contains("placeholder") || value.trim().is_empty()
 }
 
+// ---------------------------------------------------------------------------
+// Keyring helpers
+// ---------------------------------------------------------------------------
+
+const KEYRING_SERVICE: &str = "romm-cli";
+
+/// Store a secret in the OS keyring under the `romm-cli` service name.
+pub fn keyring_store(key: &str, value: &str) -> Result<()> {
+    let entry = keyring::Entry::new(KEYRING_SERVICE, key)
+        .map_err(|e| anyhow!("keyring entry error: {e}"))?;
+    entry
+        .set_password(value)
+        .map_err(|e| anyhow!("keyring set error: {e}"))
+}
+
+/// Retrieve a secret from the OS keyring, returning `None` if not found.
+fn keyring_get(key: &str) -> Option<String> {
+    let entry = keyring::Entry::new(KEYRING_SERVICE, key).ok()?;
+    entry.get_password().ok()
+}
+
+// ---------------------------------------------------------------------------
+// Paths
+// ---------------------------------------------------------------------------
+
 /// Directory for user-level config (`romm-cli` under the OS config dir).
 pub fn user_config_dir() -> Option<PathBuf> {
     #[cfg(test)]
@@ -47,6 +77,10 @@ pub fn user_config_env_path() -> Option<PathBuf> {
     user_config_dir().map(|d| d.join(".env"))
 }
 
+// ---------------------------------------------------------------------------
+// Loading
+// ---------------------------------------------------------------------------
+
 /// Load env vars from `./.env` in cwd, then from the user config file.
 /// Later files only set variables not already set (env or earlier file), so a project `.env` overrides the same keys in the user file.
 pub fn load_layered_env() {
@@ -58,6 +92,11 @@ pub fn load_layered_env() {
     }
 }
 
+/// Read an env var, falling back to the OS keyring if not set.
+fn env_or_keyring(key: &str) -> Option<String> {
+    std::env::var(key).ok().or_else(|| keyring_get(key))
+}
+
 pub fn load_config() -> Result<Config> {
     let base_url = std::env::var("API_BASE_URL").map_err(|_| {
         anyhow!(
@@ -66,11 +105,9 @@ pub fn load_config() -> Result<Config> {
     })?;
 
     let username = std::env::var("API_USERNAME").ok();
-    let password = std::env::var("API_PASSWORD").ok();
-    let token = std::env::var("API_TOKEN")
-        .ok()
-        .or_else(|| std::env::var("API_KEY").ok());
-    let api_key = std::env::var("API_KEY").ok();
+    let password = env_or_keyring("API_PASSWORD");
+    let token = env_or_keyring("API_TOKEN").or_else(|| env_or_keyring("API_KEY"));
+    let api_key = env_or_keyring("API_KEY");
     let api_key_header = std::env::var("API_KEY_HEADER").ok();
 
     let auth = if let (Some(user), Some(pass)) = (username, password) {

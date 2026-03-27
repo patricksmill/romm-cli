@@ -31,7 +31,10 @@ async fn run_app() -> Result<()> {
     };
 
     if !matches!(command, Commands::Tui) {
-        fmt().with_env_filter(filter).with_writer(std::io::stderr).init();
+        fmt()
+            .with_env_filter(filter)
+            .with_writer(std::io::stderr)
+            .init();
     }
 
     match command {
