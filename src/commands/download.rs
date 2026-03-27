@@ -66,7 +66,7 @@ async fn download_one(
     save_path: &std::path::Path,
     pb: ProgressBar,
 ) -> Result<()> {
-    pb.set_message(format!("{name}"));
+    pb.set_message(name.to_string());
 
     client
         .download_rom(rom_id, save_path, {
