@@ -11,6 +11,7 @@ use crate::client::RommClient;
 use crate::config::Config;
 
 pub mod api;
+pub mod download;
 pub mod init;
 pub mod platforms;
 pub mod print;
@@ -74,6 +75,8 @@ pub enum Commands {
     Platforms(platforms::PlatformsCommand),
     /// ROM-related commands
     Roms(roms::RomsCommand),
+    /// Download a ROM
+    Download(download::DownloadCommand),
 }
 
 pub async fn run(cli: Cli, config: Config) -> Result<()> {

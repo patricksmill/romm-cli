@@ -5,9 +5,17 @@ use clap::Parser;
 use romm_cli::commands::init;
 use romm_cli::commands::{run, Cli, Commands};
 use romm_cli::config::{load_config, load_layered_env};
+use tracing_subscriber::{fmt, EnvFilter};
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() {
+    if let Err(e) = run_app().await {
+        eprintln!("Error: {:#}", e);
+        std::process::exit(1);
+    }
+}
+
+async fn run_app() -> Result<()> {
     load_layered_env();
 
     let Cli {
@@ -15,6 +23,16 @@ async fn main() -> Result<()> {
         json,
         command,
     } = Cli::parse();
+
+    let filter = if verbose {
+        EnvFilter::new("romm_cli=debug")
+    } else {
+        EnvFilter::new("romm_cli=info")
+    };
+
+    if !matches!(command, Commands::Tui) {
+        fmt().with_env_filter(filter).with_writer(std::io::stderr).init();
+    }
 
     match command {
         Commands::Init(cmd) => init::handle(cmd),

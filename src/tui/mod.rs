@@ -37,6 +37,18 @@ pub async fn run(client: RommClient, config: Config) -> Result<()> {
         ));
     };
 
+    // Ensure terminal is cleaned up if a panic occurs.
+    let original_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |panic| {
+        let _ = crossterm::terminal::disable_raw_mode();
+        let _ = crossterm::execute!(
+            std::io::stdout(),
+            crossterm::terminal::LeaveAlternateScreen,
+            crossterm::event::DisableMouseCapture
+        );
+        original_hook(panic);
+    }));
+
     let mut app = App::new(client, config, registry);
     app.run().await
 }

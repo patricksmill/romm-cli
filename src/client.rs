@@ -167,7 +167,7 @@ impl RommClient {
         let status = resp.status();
         if self.verbose {
             let keys: Vec<&str> = query.iter().map(|(k, _)| k.as_str()).collect();
-            eprintln!(
+            tracing::info!(
                 "[romm-cli] {} {} query_keys={:?} -> {} ({}ms)",
                 method,
                 path,
@@ -232,7 +232,7 @@ impl RommClient {
 
         let status = resp.status();
         if self.verbose {
-            eprintln!(
+            tracing::info!(
                 "[romm-cli] GET /api/roms/download rom_id={} filename={:?} -> {} ({}ms)",
                 rom_id,
                 filename,
