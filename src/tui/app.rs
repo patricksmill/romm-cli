@@ -167,7 +167,23 @@ impl App {
         }
         // Cache miss or stale — fetch fresh data from the API.
         if let Some(r) = req {
-            let roms = self.client.call(&r).await?;
+            let mut roms = self.client.call(&r).await?;
+            let total = roms.total;
+            let ceiling = 20000;
+
+            // The RomM API has a default limit (often 500) even if we request more.
+            // Loop until the items list is complete or we hit the ceiling.
+            while (roms.items.len() as u64) < total && (roms.items.len() as u64) < ceiling {
+                let mut next_req = r.clone();
+                next_req.offset = Some(roms.items.len() as u32);
+
+                let next_batch = self.client.call(&next_req).await?;
+                if next_batch.items.is_empty() {
+                    break;
+                }
+                roms.items.extend(next_batch.items);
+            }
+
             if let Some(k) = key {
                 self.rom_cache.insert(k, roms.clone(), expected_count); // also persists to disk
             }

@@ -242,7 +242,10 @@ impl LibraryBrowseScreen {
 
         for i in 0..groups.len() {
             let idx = (start_idx + i) % groups.len();
-            if self.normalize(&groups[idx].name).contains(&self.normalized_query) {
+            if self
+                .normalize(&groups[idx].name)
+                .contains(&self.normalized_query)
+            {
                 self.rom_selected = idx;
                 self.update_rom_scroll(self.visible_rows);
                 return;
@@ -262,7 +265,8 @@ impl LibraryBrowseScreen {
         let Some(ref groups) = self.rom_groups else {
             return Vec::new();
         };
-        if self.search_mode == Some(LibrarySearchMode::Filter) && !self.normalized_query.is_empty() {
+        if self.search_mode == Some(LibrarySearchMode::Filter) && !self.normalized_query.is_empty()
+        {
             groups
                 .iter()
                 .filter(|g| self.normalize(&g.name).contains(&self.normalized_query))
