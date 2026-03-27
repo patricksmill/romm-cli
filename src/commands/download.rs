@@ -1,45 +1,75 @@
-use anyhow::Result;
+//! CLI `download` subcommand.
+//!
+//! Supports downloading a single ROM by ID, or batch-downloading all ROMs
+//! matching a platform/search filter using concurrent connections.
+
+use anyhow::{anyhow, Result};
 use clap::Args;
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use std::path::PathBuf;
+use std::sync::Arc;
+use tokio::sync::Semaphore;
 
 use crate::client::RommClient;
+use crate::core::download::download_directory;
+use crate::core::utils;
+use crate::endpoints::roms::GetRoms;
+use crate::services::RomService;
+
+/// Maximum number of concurrent download connections.
+const DEFAULT_CONCURRENCY: usize = 4;
 
 /// Download a ROM to the local filesystem with a progress bar.
 #[derive(Args, Debug)]
 pub struct DownloadCommand {
-    /// ID of the ROM to download
-    pub rom_id: u64,
+    /// ID of the ROM to download (omit when using --batch)
+    pub rom_id: Option<u64>,
 
-    /// Directory or full file path to save the ROM zip to
+    /// Directory to save the ROM zip(s) to
     #[arg(short, long)]
     pub output: Option<PathBuf>,
+
+    /// Download all ROMs matching the given filters concurrently
+    #[arg(long)]
+    pub batch: bool,
+
+    /// Filter by platform ID (used with --batch)
+    #[arg(long)]
+    pub platform_id: Option<u64>,
+
+    /// Filter by search term (used with --batch)
+    #[arg(long)]
+    pub search_term: Option<String>,
+
+    /// Maximum concurrent downloads (default: 4)
+    #[arg(long, default_value_t = DEFAULT_CONCURRENCY)]
+    pub jobs: usize,
+
+    /// Resume interrupted downloads instead of re-downloading
+    #[arg(long, default_value_t = true)]
+    pub resume: bool,
 }
 
-pub async fn handle(cmd: DownloadCommand, client: &RommClient) -> Result<()> {
-    let output_path = if let Some(out) = cmd.output {
-        if out.is_dir() {
-            out.join(format!("rom_{}.zip", cmd.rom_id)) // fallback, actual name usually from header
-        } else {
-            out
-        }
-    } else {
-        std::env::current_dir()?.join(format!("rom_{}.zip", cmd.rom_id))
-    };
+fn make_progress_style() -> ProgressStyle {
+    ProgressStyle::with_template(
+        "[{elapsed_precise}] {bar:40.cyan/blue} {bytes}/{total_bytes} ({eta}) {msg}",
+    )
+    .unwrap()
+    .progress_chars("#>-")
+}
 
-    let pb = ProgressBar::new(0);
-    pb.set_style(
-        ProgressStyle::with_template(
-            "[{elapsed_precise}] {bar:40.cyan/blue} {bytes}/{total_bytes} ({eta}) {msg}",
-        )
-        .unwrap()
-        .progress_chars("#>-"),
-    );
-
-    pb.set_message("Downloading...");
+/// Download a single ROM with a progress bar attached to a `MultiProgress`.
+async fn download_one(
+    client: &RommClient,
+    rom_id: u64,
+    name: &str,
+    save_path: &std::path::Path,
+    pb: ProgressBar,
+) -> Result<()> {
+    pb.set_message(format!("{name}"));
 
     client
-        .download_rom(cmd.rom_id, &output_path, {
+        .download_rom(rom_id, save_path, {
             let pb = pb.clone();
             move |received, total| {
                 if pb.length() != Some(total) {
@@ -50,8 +80,101 @@ pub async fn handle(cmd: DownloadCommand, client: &RommClient) -> Result<()> {
         })
         .await?;
 
-    pb.finish_with_message("Done!");
-    tracing::info!("Saved ROM to {:?}", output_path);
+    pb.finish_with_message(format!("✓ {name}"));
+    Ok(())
+}
+
+pub async fn handle(cmd: DownloadCommand, client: &RommClient) -> Result<()> {
+    let output_dir = cmd.output.unwrap_or_else(download_directory);
+
+    // Ensure output directory exists.
+    tokio::fs::create_dir_all(&output_dir)
+        .await
+        .map_err(|e| anyhow!("create download dir {:?}: {e}", output_dir))?;
+
+    if cmd.batch {
+        // ── Batch mode ─────────────────────────────────────────────────
+        if cmd.platform_id.is_none() && cmd.search_term.is_none() {
+            return Err(anyhow!(
+                "--batch requires at least --platform-id or --search-term to scope the download"
+            ));
+        }
+
+        let ep = GetRoms {
+            search_term: cmd.search_term.clone(),
+            platform_id: cmd.platform_id,
+            collection_id: None,
+            limit: Some(9999),
+            offset: None,
+        };
+
+        let service = RomService::new(client);
+        let results = service.search_roms(&ep).await?;
+
+        if results.items.is_empty() {
+            println!("No ROMs found matching the given filters.");
+            return Ok(());
+        }
+
+        println!(
+            "Found {} ROM(s). Starting download with {} concurrent connections...",
+            results.items.len(),
+            cmd.jobs
+        );
+
+        let mp = MultiProgress::new();
+        let semaphore = Arc::new(Semaphore::new(cmd.jobs));
+        let mut handles = Vec::new();
+
+        for rom in results.items {
+            let permit = semaphore.clone().acquire_owned().await.unwrap();
+            let client = client.clone();
+            let dir = output_dir.clone();
+            let pb = mp.add(ProgressBar::new(0));
+            pb.set_style(make_progress_style());
+
+            let name = rom.name.clone();
+            let rom_id = rom.id;
+            let base = utils::sanitize_filename(&rom.fs_name);
+            let stem = base.rsplit_once('.').map(|(s, _)| s).unwrap_or(&base);
+            let save_path = dir.join(format!("{stem}.zip"));
+
+            handles.push(tokio::spawn(async move {
+                let result = download_one(&client, rom_id, &name, &save_path, pb).await;
+                drop(permit);
+                if let Err(e) = &result {
+                    eprintln!("error downloading {name} (id={rom_id}): {e}");
+                }
+                result
+            }));
+        }
+
+        let mut successes = 0u32;
+        let mut failures = 0u32;
+        for handle in handles {
+            match handle.await {
+                Ok(Ok(())) => successes += 1,
+                _ => failures += 1,
+            }
+        }
+
+        println!("\nBatch complete: {successes} succeeded, {failures} failed.");
+    } else {
+        // ── Single ROM mode ────────────────────────────────────────────
+        let rom_id = cmd
+            .rom_id
+            .ok_or_else(|| anyhow!("ROM ID is required (or use --batch for bulk downloads)"))?;
+
+        let save_path = output_dir.join(format!("rom_{rom_id}.zip"));
+
+        let mp = MultiProgress::new();
+        let pb = mp.add(ProgressBar::new(0));
+        pb.set_style(make_progress_style());
+
+        download_one(client, rom_id, &format!("ROM {rom_id}"), &save_path, pb).await?;
+
+        println!("Saved to {:?}", save_path);
+    }
 
     Ok(())
 }

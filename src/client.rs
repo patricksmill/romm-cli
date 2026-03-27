@@ -196,6 +196,12 @@ impl RommClient {
 
     /// Download ROM(s) as a zip file to `save_path`, calling `on_progress(received, total)`.
     /// Uses GET /api/roms/download?rom_ids={id}&filename=... per RomM OpenAPI.
+    ///
+    /// If `save_path` already exists on disk (e.g. from a previous interrupted
+    /// download), the client sends an HTTP `Range` header to resume from the
+    /// existing byte offset. The server may reply with `206 Partial Content`
+    /// (resume works) or `200 OK` (server doesn't support ranges — restart
+    /// from scratch).
     pub async fn download_rom<F>(
         &self,
         rom_id: u64,
@@ -211,12 +217,26 @@ impl RommClient {
             self.base_url.trim_end_matches('/'),
             path.trim_start_matches('/')
         );
-        let headers = self.build_headers()?;
+        let mut headers = self.build_headers()?;
 
         let filename = save_path
             .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("download.zip");
+
+        // Check for an existing partial file to resume from.
+        let existing_len = tokio::fs::metadata(save_path)
+            .await
+            .map(|m| m.len())
+            .unwrap_or(0);
+
+        if existing_len > 0 {
+            let range = format!("bytes={existing_len}-");
+            if let Ok(v) = reqwest::header::HeaderValue::from_str(&range) {
+                headers.insert(reqwest::header::RANGE, v);
+            }
+        }
+
         let t0 = Instant::now();
         let mut resp = self
             .http
@@ -250,12 +270,25 @@ impl RommClient {
             ));
         }
 
-        let total = resp.content_length().unwrap_or(0);
-
-        let mut file = tokio::fs::File::create(save_path)
-            .await
-            .map_err(|e| anyhow!("create file {:?}: {e}", save_path))?;
-        let mut received: u64 = 0;
+        // Determine whether the server honoured our Range header.
+        let (mut received, total, mut file) = if status == reqwest::StatusCode::PARTIAL_CONTENT {
+            // 206 — resume: content_length is the *remaining* bytes.
+            let remaining = resp.content_length().unwrap_or(0);
+            let total = existing_len + remaining;
+            let file = tokio::fs::OpenOptions::new()
+                .append(true)
+                .open(save_path)
+                .await
+                .map_err(|e| anyhow!("open file for append {:?}: {e}", save_path))?;
+            (existing_len, total, file)
+        } else {
+            // 200 — server doesn't support ranges; start from scratch.
+            let total = resp.content_length().unwrap_or(0);
+            let file = tokio::fs::File::create(save_path)
+                .await
+                .map_err(|e| anyhow!("create file {:?}: {e}", save_path))?;
+            (0u64, total, file)
+        };
 
         while let Some(chunk) = resp.chunk().await.map_err(|e| anyhow!("read chunk: {e}"))? {
             file.write_all(&chunk)
