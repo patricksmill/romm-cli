@@ -36,9 +36,6 @@ use super::screens::{
     SettingsScreen,
 };
 
-/// Max ROMs to fetch per console/collection.
-const LIBRARY_FETCH_LIMIT: u32 = 500;
-
 // ---------------------------------------------------------------------------
 // Screen enum
 // ---------------------------------------------------------------------------
@@ -252,10 +249,8 @@ impl App {
                         let key = lib.cache_key();
                         let expected = lib.expected_rom_count();
                         let req = lib
-                            .get_roms_request_platform_with_limit(LIBRARY_FETCH_LIMIT)
-                            .or_else(|| {
-                                lib.get_roms_request_collection_with_limit(LIBRARY_FETCH_LIMIT)
-                            });
+                            .get_roms_request_platform()
+                            .or_else(|| lib.get_roms_request_collection());
                         if let Ok(Some(roms)) = self.load_roms_cached(key, req, expected).await {
                             lib.set_roms(roms);
                         }
@@ -281,12 +276,25 @@ impl App {
     // -- Library browse -----------------------------------------------------
 
     async fn handle_library_browse(&mut self, key: KeyCode) -> Result<bool> {
-        use super::screens::library_browse::LibraryViewMode;
+        use super::screens::library_browse::{LibrarySearchMode, LibraryViewMode};
 
         let lib = match &mut self.screen {
             AppScreen::LibraryBrowse(l) => l,
             _ => return Ok(false),
         };
+
+        // If in search mode, intercept typing keys.
+        if let Some(mode) = lib.search_mode {
+            match key {
+                KeyCode::Esc => lib.clear_search(),
+                KeyCode::Backspace => lib.delete_search_char(),
+                KeyCode::Char(c) => lib.add_search_char(c),
+                KeyCode::Tab if mode == LibrarySearchMode::Jump => lib.jump_to_match(true),
+                KeyCode::Enter => lib.search_mode = None, // Commit search (keep filtered/position)
+                _ => {}
+            }
+            return Ok(false);
+        }
 
         match key {
             KeyCode::Up | KeyCode::Char('k') => {
@@ -297,10 +305,8 @@ impl App {
                         let key = lib.cache_key();
                         let expected = lib.expected_rom_count();
                         let req = lib
-                            .get_roms_request_platform_with_limit(LIBRARY_FETCH_LIMIT)
-                            .or_else(|| {
-                                lib.get_roms_request_collection_with_limit(LIBRARY_FETCH_LIMIT)
-                            });
+                            .get_roms_request_platform()
+                            .or_else(|| lib.get_roms_request_collection());
                         self.deferred_load_roms = Some((key, req, expected));
                     }
                 } else {
@@ -315,10 +321,8 @@ impl App {
                         let key = lib.cache_key();
                         let expected = lib.expected_rom_count();
                         let req = lib
-                            .get_roms_request_platform_with_limit(LIBRARY_FETCH_LIMIT)
-                            .or_else(|| {
-                                lib.get_roms_request_collection_with_limit(LIBRARY_FETCH_LIMIT)
-                            });
+                            .get_roms_request_platform()
+                            .or_else(|| lib.get_roms_request_collection());
                         self.deferred_load_roms = Some((key, req, expected));
                     }
                 } else {
@@ -330,7 +334,20 @@ impl App {
                     lib.back_to_list();
                 }
             }
-            KeyCode::Right | KeyCode::Char('l') | KeyCode::Tab => lib.switch_view(),
+            KeyCode::Right | KeyCode::Char('l') => lib.switch_view(),
+            KeyCode::Tab => {
+                if lib.view_mode == LibraryViewMode::List {
+                    lib.switch_view();
+                } else {
+                    lib.switch_view(); // Normal tab also switches panels
+                }
+            }
+            KeyCode::Char('/') if lib.view_mode == LibraryViewMode::Roms => {
+                lib.enter_search(LibrarySearchMode::Filter);
+            }
+            KeyCode::Char('f') if lib.view_mode == LibraryViewMode::Roms => {
+                lib.enter_search(LibrarySearchMode::Jump);
+            }
             KeyCode::Enter => {
                 if lib.view_mode == LibraryViewMode::List {
                     lib.switch_view();
@@ -374,9 +391,8 @@ impl App {
             KeyCode::Backspace => search.delete_char(),
             KeyCode::Left => search.cursor_left(),
             KeyCode::Right => search.cursor_right(),
-            KeyCode::Up | KeyCode::Char('k') => search.previous(),
-            KeyCode::Down | KeyCode::Char('j') => search.next(),
-            KeyCode::Char('q') => return Ok(true),
+            KeyCode::Up => search.previous(),
+            KeyCode::Down => search.next(),
             KeyCode::Char(c) => search.add_char(c),
             KeyCode::Enter => {
                 if search.result_groups.is_some() {

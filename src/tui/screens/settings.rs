@@ -8,6 +8,8 @@ use crate::config::Config;
 pub struct SettingsScreen {
     pub base_url: String,
     pub auth_status: String,
+    pub version: String,
+    pub github_url: String,
 }
 
 impl SettingsScreen {
@@ -26,6 +28,8 @@ impl SettingsScreen {
         Self {
             base_url: config.base_url.clone(),
             auth_status,
+            version: env!("CARGO_PKG_VERSION").to_string(),
+            github_url: "https://github.com/patricksmill/romm-cli".to_string(),
         }
     }
 
@@ -36,11 +40,13 @@ impl SettingsScreen {
             .split(area);
 
         let lines = [
-            format!("Base URL: {}", self.base_url),
-            format!("Auth: {}", self.auth_status),
+            format!("Version:  v{}", self.version),
+            format!("GitHub:   {}", self.github_url),
             String::new(),
-            "Change via environment: API_BASE_URL, API_USERNAME/API_PASSWORD,".to_string(),
-            "API_TOKEN, or API_KEY + API_KEY_HEADER. Restart the app after changes.".to_string(),
+            format!("Base URL: {}", self.base_url),
+            format!("Auth:     {}", self.auth_status),
+            String::new(),
+            "Change via environment variables. Restart the app after changes.".to_string(),
         ];
         let text = lines.join("\n");
         let p =

@@ -23,6 +23,8 @@ tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 indicatif = "0.18.4"
 keyring = "3.6.3"
+self_update = { version = "0.43.1", features = ["archive-tar", "archive-zip", "compression-flate2", "compression-zip-bzip2"] }
+unicode-normalization = "0.1.23"
 
 [dev-dependencies]
 mockall = "0.13"

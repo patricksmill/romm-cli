@@ -16,6 +16,7 @@ pub mod init;
 pub mod platforms;
 pub mod print;
 pub mod roms;
+pub mod update;
 
 /// How a command should format its output.
 #[derive(Clone, Copy, Debug)]
@@ -77,6 +78,8 @@ pub enum Commands {
     Roms(roms::RomsCommand),
     /// Download a ROM
     Download(download::DownloadCommand),
+    /// Check for and install updates for romm-cli
+    Update,
 }
 
 pub async fn run(cli: Cli, config: Config) -> Result<()> {

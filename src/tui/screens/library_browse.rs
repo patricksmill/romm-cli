@@ -15,6 +15,15 @@ pub enum LibrarySubsection {
     ByCollection,
 }
 
+/// Active search mode in the Games list.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum LibrarySearchMode {
+    /// Filter results to only show matches.
+    Filter,
+    /// Jump to the next match in the full list.
+    Jump,
+}
+
 /// Which side of the library view currently has focus.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LibraryViewMode {
@@ -38,6 +47,11 @@ pub struct LibraryBrowseScreen {
     pub scroll_offset: usize,
     /// Visible data rows in the ROM pane (updated at render time).
     visible_rows: usize,
+    // Search state
+    pub search_query: String,
+    pub search_mode: Option<LibrarySearchMode>,
+    /// Normalized search query (de-accented, lowercase).
+    normalized_query: String,
 }
 
 impl LibraryBrowseScreen {
@@ -53,6 +67,9 @@ impl LibraryBrowseScreen {
             rom_selected: 0,
             scroll_offset: 0,
             visible_rows: 20, // reasonable default until first render
+            search_query: String::new(),
+            search_mode: None,
+            normalized_query: String::new(),
         }
     }
 
@@ -110,15 +127,19 @@ impl LibraryBrowseScreen {
     /// over scrolling behavior without storing a separate viewport object.
     fn update_rom_scroll(&mut self, visible: usize) {
         if let Some(ref groups) = self.rom_groups {
-            let visible = visible.max(1);
-            let max_scroll = groups.len().saturating_sub(visible);
-            if self.rom_selected >= self.scroll_offset + visible {
-                self.scroll_offset = (self.rom_selected + 1).saturating_sub(visible);
-            } else if self.rom_selected < self.scroll_offset {
-                self.scroll_offset = self.rom_selected;
-            }
-            self.scroll_offset = self.scroll_offset.min(max_scroll);
+            self.update_rom_scroll_with_len(groups.len(), visible);
         }
+    }
+
+    fn update_rom_scroll_with_len(&mut self, list_len: usize, visible: usize) {
+        let visible = visible.max(1);
+        let max_scroll = list_len.saturating_sub(visible);
+        if self.rom_selected >= self.scroll_offset + visible {
+            self.scroll_offset = (self.rom_selected + 1).saturating_sub(visible);
+        } else if self.rom_selected < self.scroll_offset {
+            self.scroll_offset = self.rom_selected;
+        }
+        self.scroll_offset = self.scroll_offset.min(max_scroll);
     }
 
     pub fn switch_subsection(&mut self) {
@@ -152,19 +173,104 @@ impl LibraryBrowseScreen {
         self.rom_groups = None;
     }
 
+    /// Select a console or collection and load its ROMs.
     pub fn set_roms(&mut self, roms: RomList) {
         self.roms = Some(roms.clone());
         self.rom_groups = Some(utils::group_roms_by_name(&roms.items));
         self.rom_selected = 0;
         self.scroll_offset = 0;
+        self.clear_search(); // reset search when changing consoles
+    }
+
+    // -- Search logic -------------------------------------------------------
+
+    pub fn enter_search(&mut self, mode: LibrarySearchMode) {
+        self.search_mode = Some(mode);
+        self.search_query.clear();
+        self.normalized_query.clear();
+        self.rom_selected = 0;
+        self.scroll_offset = 0;
+    }
+
+    pub fn clear_search(&mut self) {
+        self.search_mode = None;
+        self.search_query.clear();
+        self.normalized_query.clear();
+    }
+
+    pub fn add_search_char(&mut self, c: char) {
+        self.search_query.push(c);
+        self.normalized_query = self.normalize(&self.search_query);
+        if self.search_mode == Some(LibrarySearchMode::Filter) {
+            self.rom_selected = 0;
+            self.scroll_offset = 0;
+        } else if self.search_mode == Some(LibrarySearchMode::Jump) {
+            self.jump_to_match(false);
+        }
+    }
+
+    pub fn delete_search_char(&mut self) {
+        self.search_query.pop();
+        self.normalized_query = self.normalize(&self.search_query);
+        if self.search_mode == Some(LibrarySearchMode::Filter) {
+            self.rom_selected = 0;
+            self.scroll_offset = 0;
+        }
+    }
+
+    /// Helper to strip diacritics and convert to lowercase for searching.
+    fn normalize(&self, s: &str) -> String {
+        use unicode_normalization::UnicodeNormalization;
+        s.nfd()
+            .filter(|c| !unicode_normalization::char::is_combining_mark(*c))
+            .collect::<String>()
+            .to_lowercase()
+    }
+
+    pub fn jump_to_match(&mut self, next: bool) {
+        if self.normalized_query.is_empty() {
+            return;
+        }
+        let Some(ref groups) = self.rom_groups else {
+            return;
+        };
+        let start_idx = if next {
+            (self.rom_selected + 1) % groups.len()
+        } else {
+            self.rom_selected
+        };
+
+        for i in 0..groups.len() {
+            let idx = (start_idx + i) % groups.len();
+            if self.normalize(&groups[idx].name).contains(&self.normalized_query) {
+                self.rom_selected = idx;
+                self.update_rom_scroll(self.visible_rows);
+                return;
+            }
+        }
     }
 
     /// Primary ROM and other files (updates/DLC) for the selected game.
     pub fn get_selected_group(&self) -> Option<(Rom, Vec<Rom>)> {
-        self.rom_groups
-            .as_ref()
-            .and_then(|g| g.get(self.rom_selected))
+        self.visible_rom_groups()
+            .get(self.rom_selected)
             .map(|g| (g.primary.clone(), g.others.clone()))
+    }
+
+    /// Actual list shown in the right pane (optionally filtered).
+    fn visible_rom_groups(&self) -> Vec<RomGroup> {
+        let Some(ref groups) = self.rom_groups else {
+            return Vec::new();
+        };
+        if self.search_mode == Some(LibrarySearchMode::Filter) && !self.normalized_query.is_empty() {
+            groups
+                .iter()
+                .filter(|g| self.normalize(&g.name).contains(&self.normalized_query))
+                .cloned()
+                .collect()
+        } else {
+            groups.clone()
+        }
     }
 
     fn list_title(&self) -> &str {
@@ -212,18 +318,20 @@ impl LibraryBrowseScreen {
         }
     }
 
-    pub fn get_roms_request_platform_with_limit(&self, limit: u32) -> Option<GetRoms> {
+    pub fn get_roms_request_platform(&self) -> Option<GetRoms> {
+        let count = self.expected_rom_count().min(20000);
         self.selected_platform_id().map(|id| GetRoms {
             platform_id: Some(id),
-            limit: Some(limit),
+            limit: Some(count as u32),
             ..Default::default()
         })
     }
 
-    pub fn get_roms_request_collection_with_limit(&self, limit: u32) -> Option<GetRoms> {
+    pub fn get_roms_request_collection(&self) -> Option<GetRoms> {
+        let count = self.expected_rom_count().min(20000);
         self.selected_collection_id().map(|id| GetRoms {
             collection_id: Some(id),
-            limit: Some(limit),
+            limit: Some(count as u32),
             ..Default::default()
         })
     }
@@ -236,13 +344,36 @@ impl LibraryBrowseScreen {
 
         self.render_list(f, chunks[0]);
 
-        let right_chunks = Layout::default()
-            .constraints([Constraint::Min(5), Constraint::Length(3)])
-            .direction(ratatui::layout::Direction::Vertical)
-            .split(chunks[1]);
+        let right_chunks = if self.search_mode.is_some() {
+            Layout::default()
+                .constraints([
+                    Constraint::Length(3),
+                    Constraint::Min(5),
+                    Constraint::Length(3),
+                ])
+                .direction(ratatui::layout::Direction::Vertical)
+                .split(chunks[1])
+        } else {
+            Layout::default()
+                .constraints([Constraint::Min(5), Constraint::Length(3)])
+                .direction(ratatui::layout::Direction::Vertical)
+                .split(chunks[1])
+        };
 
-        self.render_roms(f, right_chunks[0]);
-        self.render_help(f, right_chunks[1]);
+        if let Some(mode) = self.search_mode {
+            let title = match mode {
+                LibrarySearchMode::Filter => "Filter Search",
+                LibrarySearchMode::Jump => "Jump Search (Tab to next)",
+            };
+            let p = ratatui::widgets::Paragraph::new(format!("Search: {}", self.search_query))
+                .block(Block::default().title(title).borders(Borders::ALL));
+            f.render_widget(p, right_chunks[0]);
+            self.render_roms(f, right_chunks[1]);
+            self.render_help(f, right_chunks[2]);
+        } else {
+            self.render_roms(f, right_chunks[0]);
+            self.render_help(f, right_chunks[1]);
+        }
     }
 
     fn render_list(&self, f: &mut Frame, area: Rect) {
@@ -301,26 +432,32 @@ impl LibraryBrowseScreen {
     }
 
     fn render_roms(&mut self, f: &mut Frame, area: Rect) {
-        if self.rom_groups.is_none() {
-            let msg = "Select a console or collection and press Enter to load ROMs";
+        let visible = (area.height as usize).saturating_sub(3).max(1);
+        self.visible_rows = visible;
+
+        let groups = self.visible_rom_groups();
+        if groups.is_empty() {
+            let msg = if self.search_mode.is_some() {
+                "No games match your search".to_string()
+            } else if self.roms.is_none() && self.expected_rom_count() > 0 {
+                format!("Loading {} games... please wait", self.expected_rom_count())
+            } else {
+                "Select a console or collection and press Enter to load ROMs".to_string()
+            };
             let p = ratatui::widgets::Paragraph::new(msg)
-                .block(Block::default().title("ROMs").borders(Borders::ALL));
+                .block(Block::default().title("Games").borders(Borders::ALL));
             f.render_widget(p, area);
             return;
         }
 
-        // Sync scroll offset with the real terminal height.
-        let visible = (area.height as usize).saturating_sub(3).max(1);
-        self.visible_rows = visible;
-        self.update_rom_scroll(visible);
+        // Keep selection in bounds if filtering just reduced the count.
+        if self.rom_selected >= groups.len() {
+            self.rom_selected = 0;
+            self.scroll_offset = 0;
+        }
 
-        let Some(groups) = self.rom_groups.as_ref() else {
-            let msg = "No ROM groups loaded";
-            let p = ratatui::widgets::Paragraph::new(msg)
-                .block(Block::default().title("ROMs").borders(Borders::ALL));
-            f.render_widget(p, area);
-            return;
-        };
+        self.update_rom_scroll_with_len(groups.len(), visible);
+
         let start = self.scroll_offset.min(groups.len().saturating_sub(visible));
         let end = (start + visible).min(groups.len());
         let visible_groups = &groups[start..end];

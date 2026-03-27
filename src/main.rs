@@ -39,6 +39,7 @@ async fn run_app() -> Result<()> {
 
     match command {
         Commands::Init(cmd) => init::handle(cmd),
+        Commands::Update => romm_cli::commands::update::handle(),
         command => {
             let config = load_config()?;
             run(
