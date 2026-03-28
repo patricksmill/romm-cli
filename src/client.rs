@@ -62,9 +62,25 @@ fn alternate_http_scheme_root(root: &str) -> Option<String> {
         })
 }
 
+/// Origin used to fetch `/openapi.json`, normally derived from [`api_root_url`] (`API_BASE_URL`).
+///
+/// Set `ROMM_OPENAPI_BASE_URL` when the API base and the web UI (where OpenAPI is served) use
+/// different hosts or schemes, e.g. `https://romm.example.com` or `https://romm.example.com/api`.
+pub fn resolve_openapi_root(api_base_url: &str) -> String {
+    if let Ok(s) = std::env::var("ROMM_OPENAPI_BASE_URL") {
+        let t = s.trim();
+        if !t.is_empty() {
+            return api_root_url(t);
+        }
+    }
+    api_root_url(api_base_url)
+}
+
 /// URLs to try for the OpenAPI JSON document (scheme fallback and alternate paths).
-pub fn openapi_spec_urls(base_url: &str) -> Vec<String> {
-    let root = api_root_url(base_url);
+///
+/// `api_root` is an origin such as `https://example.com` (see [`resolve_openapi_root`]).
+pub fn openapi_spec_urls(api_root: &str) -> Vec<String> {
+    let root = api_root.trim_end_matches('/').to_string();
     let mut roots = vec![root.clone()];
     if let Some(alt) = alternate_http_scheme_root(&root) {
         if alt != root {
@@ -233,9 +249,10 @@ impl RommClient {
     }
 
     /// GET the OpenAPI spec from the server. Tries [`openapi_spec_urls`] in order (HTTP/HTTPS and
-    /// `/openapi.json` vs `/api/openapi.json`).
+    /// `/openapi.json` vs `/api/openapi.json`). Uses [`resolve_openapi_root`] for the origin.
     pub async fn fetch_openapi_json(&self) -> Result<String> {
-        let urls = openapi_spec_urls(&self.base_url);
+        let root = resolve_openapi_root(&self.base_url);
+        let urls = openapi_spec_urls(&root);
         let mut failures = Vec::new();
         for url in &urls {
             match self.fetch_openapi_json_once(url).await {
@@ -434,7 +451,7 @@ mod tests {
 
     #[test]
     fn openapi_spec_urls_try_primary_scheme_then_alt() {
-        let urls = super::openapi_spec_urls("http://example.test/api");
+        let urls = super::openapi_spec_urls("http://example.test");
         assert_eq!(urls[0], "http://example.test/openapi.json");
         assert_eq!(urls[1], "http://example.test/api/openapi.json");
         assert!(

@@ -58,6 +58,8 @@ Set these in your shell or a local `.env` for advanced use:
 | `API_BASE_URL` | ROMM server URL (e.g. `http://my-server:1738`) |
 | `API_USERNAME` / `API_PASSWORD` | Basic Auth credentials |
 | `API_TOKEN` / `API_KEY` | Bearer token or API key |
+| `ROMM_OPENAPI_BASE_URL` | Optional. Web origin for `/openapi.json` if it differs from `API_BASE_URL` (same host/scheme as the RomM UI). |
+| `ROMM_OPENAPI_PATH` | Optional. Path to a local `openapi.json` instead of the default cache file. |
 | `ROMM_VERBOSE` | Set to `1` to log HTTP requests |
 
 ---

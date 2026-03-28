@@ -73,8 +73,8 @@ pub async fn sync_openapi_registry(
                 let cached = std::fs::read_to_string(cache_path).map_err(|_| {
                     anyhow!(
                         "Could not load OpenAPI: {:#}. \
-                         Fix `API_BASE_URL` (try https if the UI uses TLS), ensure the server exposes /openapi.json, \
-                         place an openapi.json in the current directory, or set ROMM_OPENAPI_PATH to a local file. \
+                         Fix `API_BASE_URL` (correct hostname and scheme), or set `ROMM_OPENAPI_BASE_URL` to the web origin that serves `/openapi.json` (e.g. `https://romm.example.com`). \
+                         You can also place `openapi.json` in the current directory or set `ROMM_OPENAPI_PATH`. \
                          No cache at {}.",
                         e,
                         cache_path.display()
