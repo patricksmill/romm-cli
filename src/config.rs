@@ -38,6 +38,18 @@ fn is_placeholder(value: &str) -> bool {
     value.contains("your-") || value.contains("placeholder") || value.trim().is_empty()
 }
 
+/// RomM site URL: the same origin you use in the browser (scheme, host, optional port).
+///
+/// Trims whitespace and trailing `/`, and removes a trailing `/api` segment if present. HTTP
+/// calls use paths such as `/api/platforms`; they must not double up with `.../api/api/...`.
+pub fn normalize_romm_origin(url: &str) -> String {
+    let mut s = url.trim().trim_end_matches('/').to_string();
+    if s.ends_with("/api") {
+        s.truncate(s.len() - 4);
+    }
+    s.trim_end_matches('/').to_string()
+}
+
 // ---------------------------------------------------------------------------
 // Keyring helpers
 // ---------------------------------------------------------------------------
@@ -111,11 +123,12 @@ fn env_or_keyring(key: &str) -> Option<String> {
 }
 
 pub fn load_config() -> Result<Config> {
-    let base_url = std::env::var("API_BASE_URL").map_err(|_| {
+    let base_raw = std::env::var("API_BASE_URL").map_err(|_| {
         anyhow!(
             "API_BASE_URL is not set. Set it in the environment, a .env file, or run: romm-cli init"
         )
     })?;
+    let base_url = normalize_romm_origin(&base_raw);
 
     let username = std::env::var("API_USERNAME").ok();
     let password = env_or_keyring("API_PASSWORD");
@@ -210,6 +223,27 @@ mod tests {
             }
             _ => panic!("expected api key auth"),
         }
+    }
+
+    #[test]
+    fn normalizes_api_base_url_strips_trailing_api() {
+        let _guard = env_lock().lock().expect("env lock");
+        clear_auth_env();
+        std::env::set_var("API_BASE_URL", "https://romm.example/api/");
+        let cfg = load_config().expect("config");
+        assert_eq!(cfg.base_url, "https://romm.example");
+    }
+
+    #[test]
+    fn normalize_romm_origin_trims_and_strips_api_suffix() {
+        assert_eq!(
+            normalize_romm_origin("http://localhost:8080/api/"),
+            "http://localhost:8080"
+        );
+        assert_eq!(
+            normalize_romm_origin("https://x.example"),
+            "https://x.example"
+        );
     }
 
     #[test]

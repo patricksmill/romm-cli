@@ -13,7 +13,7 @@ use std::path::Path;
 use std::time::Instant;
 use tokio::io::AsyncWriteExt as _;
 
-use crate::config::{AuthConfig, Config};
+use crate::config::{normalize_romm_origin, AuthConfig, Config};
 use crate::endpoints::Endpoint;
 
 /// Map a successful HTTP response body to JSON [`Value`].
@@ -43,14 +43,9 @@ pub struct RommClient {
     verbose: bool,
 }
 
-/// Strip a trailing `/api` from the configured API base URL so paths like `/openapi.json`
-/// resolve to the RomM web root (same host as the UI), not under `/api`.
+/// Same as [`crate::config::normalize_romm_origin`]: browser-style origin for RomM (no `/api` suffix).
 pub fn api_root_url(base_url: &str) -> String {
-    let mut s = base_url.trim_end_matches('/').to_string();
-    if s.ends_with("/api") {
-        s.truncate(s.len() - 4);
-    }
-    s.trim_end_matches('/').to_string()
+    normalize_romm_origin(base_url)
 }
 
 fn alternate_http_scheme_root(root: &str) -> Option<String> {
@@ -62,18 +57,19 @@ fn alternate_http_scheme_root(root: &str) -> Option<String> {
         })
 }
 
-/// Origin used to fetch `/openapi.json`, normally derived from [`api_root_url`] (`API_BASE_URL`).
+/// Origin used to fetch `/openapi.json` (same as the RomM website). Normally equals
+/// [`normalize_romm_origin`] applied to `API_BASE_URL`.
 ///
-/// Set `ROMM_OPENAPI_BASE_URL` when the API base and the web UI (where OpenAPI is served) use
-/// different hosts or schemes, e.g. `https://romm.example.com` or `https://romm.example.com/api`.
+/// Set `ROMM_OPENAPI_BASE_URL` only when that origin differs (wrong host in `API_BASE_URL`, split
+/// DNS, etc.).
 pub fn resolve_openapi_root(api_base_url: &str) -> String {
     if let Ok(s) = std::env::var("ROMM_OPENAPI_BASE_URL") {
         let t = s.trim();
         if !t.is_empty() {
-            return api_root_url(t);
+            return normalize_romm_origin(t);
         }
     }
-    api_root_url(api_base_url)
+    normalize_romm_origin(api_base_url)
 }
 
 /// URLs to try for the OpenAPI JSON document (scheme fallback and alternate paths).

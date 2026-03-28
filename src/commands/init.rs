@@ -9,7 +9,7 @@ use dialoguer::{theme::ColorfulTheme, Confirm, Input, Password, Select};
 use std::fs;
 use std::io::Write;
 
-use crate::config::{keyring_store, user_config_env_path};
+use crate::config::{keyring_store, normalize_romm_origin, user_config_env_path};
 
 #[derive(Args, Debug, Clone)]
 pub struct InitCommand {
@@ -58,14 +58,22 @@ pub fn handle(cmd: InitCommand) -> Result<()> {
 
     fs::create_dir_all(dir).with_context(|| format!("create {}", dir.display()))?;
 
-    let base_url: String = Input::with_theme(&ColorfulTheme::default())
-        .with_prompt("ROMM API base URL")
+    let base_input: String = Input::with_theme(&ColorfulTheme::default())
+        .with_prompt("RomM web URL (same as in your browser; do not add /api)")
         .with_initial_text("http://")
         .interact_text()?;
 
-    let base_url = base_url.trim().to_string();
-    if base_url.is_empty() {
+    let base_input = base_input.trim();
+    if base_input.is_empty() {
         return Err(anyhow!("Base URL cannot be empty"));
+    }
+
+    let had_api_path = base_input.trim_end_matches('/').ends_with("/api");
+    let base_url = normalize_romm_origin(base_input);
+    if had_api_path {
+        println!(
+            "Using `{base_url}` — `/api` was removed. Requests use `/api/...` under that origin automatically."
+        );
     }
 
     // ── Download directory ──────────────────────────────────────────────

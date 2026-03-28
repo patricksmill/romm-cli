@@ -19,7 +19,7 @@ These types live under `src/endpoints/*`.
 `RommClient` is a thin wrapper around `reqwest::Client`:
 
 - stores:
-  - base URL
+  - base URL (RomM **site** origin — same as in the browser; no `/api`. Paths already include `"/api/..."`.)
   - authentication config
 - exposes:
   - `call<E: Endpoint>(&self, ep: &E)` – typed request/response

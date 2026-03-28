@@ -49,16 +49,18 @@ romm-cli init
 
 This sets `API_BASE_URL` and authentication. Configuration lives in your OS config directory (for example `~/.config/romm-cli/.env` on Unix).
 
+`API_BASE_URL` should match the RomM **website** address from your browser (scheme, host, port only), for example `https://romm.example.com` or `http://my-server:1738`. Do **not** append `/api`; the client adds `/api/...` on every request. A trailing `/api` in `.env` is stripped automatically.
+
 ### Environment variables
 
 Set these in your shell or a local `.env` for advanced use:
 
 | Variable | Description |
 |----------|-------------|
-| `API_BASE_URL` | ROMM server URL (e.g. `http://my-server:1738`) |
+| `API_BASE_URL` | RomM site URL (browser address, no `/api`; e.g. `https://romm.example.com`) |
 | `API_USERNAME` / `API_PASSWORD` | Basic Auth credentials |
 | `API_TOKEN` / `API_KEY` | Bearer token or API key |
-| `ROMM_OPENAPI_BASE_URL` | Optional. Web origin for `/openapi.json` if it differs from `API_BASE_URL` (same host/scheme as the RomM UI). |
+| `ROMM_OPENAPI_BASE_URL` | Optional. Only if OpenAPI must be fetched from a different origin than `API_BASE_URL`. |
 | `ROMM_OPENAPI_PATH` | Optional. Path to a local `openapi.json` instead of the default cache file. |
 | `ROMM_VERBOSE` | Set to `1` to log HTTP requests |
 
