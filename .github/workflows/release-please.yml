@@ -80,16 +80,16 @@ jobs:
           TGT="target/${{ matrix.target }}/release"
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
             cp "$TGT/romm-cli.exe" artifact/
-            cp "$TGT/romm_tui.exe" artifact/
+            cp "$TGT/romm-tui.exe" artifact/
           else
             cp "$TGT/romm-cli" artifact/
-            cp "$TGT/romm_tui" artifact/
+            cp "$TGT/romm-tui" artifact/
           fi
         shell: bash
 
       - name: Fix permissions (Unix)
         if: ${{ matrix.os != 'windows-latest' }}
-        run: chmod +x artifact/romm-cli artifact/romm_tui
+        run: chmod +x artifact/romm-cli artifact/romm-tui
 
       - name: Create archive (Unix)
         if: ${{ matrix.os != 'windows-latest' }}
