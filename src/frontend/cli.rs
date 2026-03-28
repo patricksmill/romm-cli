@@ -25,8 +25,6 @@ pub async fn run(command: Commands, client: &RommClient, global_json: bool) -> R
         Commands::Tui => Err(anyhow!(
             "internal routing error: TUI command in CLI frontend"
         )),
-        Commands::Update => Err(anyhow!(
-            "internal routing error: update command in CLI frontend"
-        )),
+        Commands::Update => crate::commands::update::handle(),
     }
 }

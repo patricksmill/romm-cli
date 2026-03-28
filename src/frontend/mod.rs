@@ -4,4 +4,5 @@
 //! (CLI and TUI) separate from core business logic.
 
 pub mod cli;
+#[cfg(feature = "tui")]
 pub mod tui;

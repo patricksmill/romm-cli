@@ -2,6 +2,12 @@
 name = "romm-cli"
 version = "0.6.0"
 edition = "2021"
+description = "Fast, Rust-based CLI and TUI for the ROMM API"
+repository = "https://github.com/patricksmill/romm-cli"
+license = "MIT"
+keywords = ["romm", "terminal", "tui", "emulator", "games"]
+categories = ["command-line-utilities", "emulators"]
+readme = "README.md"
 
 [dependencies]
 # default-features = false avoids native-tls/openssl-sys (breaks aarch64-linux cross-builds in CI).
@@ -13,24 +19,40 @@ dotenvy = "0.15"
 anyhow = "1.0"
 tokio = { version = "1.37", features = ["macros", "rt-multi-thread", "fs", "io-util"] }
 base64 = "0.22"
-ratatui = "0.26"
-crossterm = "0.27"
 sha2 = "0.10"
 percent-encoding = "2.3"
 dirs = "6.0"
-unicode-normalization = "0.1"
 dialoguer = { version = "0.11", default-features = false, features = ["password"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 indicatif = "0.18.4"
 keyring = "3.6.3"
 self_update = { version = "0.43.1", default-features = false, features = [
-    "reqwest", 
+    "reqwest",
     "rustls", 
     "archive-zip", 
     "archive-tar", 
     "compression-flate2"
 ] }
+
+# TUI Optional Dependencies
+ratatui = { version = "0.26", optional = true }
+crossterm = { version = "0.27", optional = true }
+unicode-normalization = { version = "0.1", optional = true }
+
+[features]
+default = ["tui"]
+tui = ["dep:ratatui", "dep:crossterm", "dep:unicode-normalization"]
+
+[[bin]]
+name = "romm-cli"
+path = "src/main.rs"
+
+[[bin]]
+name = "romm-tui"
+path = "src/bin/romm_tui.rs"
+required-features = ["tui"]
+
 [dev-dependencies]
 mockall = "0.13"
 assert_cmd = "2.0"

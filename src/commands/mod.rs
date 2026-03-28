@@ -69,6 +69,10 @@ pub enum Commands {
     #[command(visible_alias = "setup")]
     Init(init::InitCommand),
     /// Launch interactive TUI for exploring API endpoints
+    #[cfg(feature = "tui")]
+    Tui,
+    /// Launch interactive TUI (stub for disabled feature)
+    #[cfg(not(feature = "tui"))]
     Tui,
     /// Low-level access to any ROMM API endpoint
     Api(api::ApiCommand),
@@ -89,7 +93,10 @@ pub async fn run(cli: Cli, config: Config) -> Result<()> {
         Commands::Init(_) => {
             anyhow::bail!("internal error: init must be handled before load_config");
         }
+        #[cfg(feature = "tui")]
         Commands::Tui => crate::frontend::tui::run(client, config).await?,
+        #[cfg(not(feature = "tui"))]
+        Commands::Tui => anyhow::bail!("this feature requires the tui"),
         command => crate::frontend::cli::run(command, &client, cli.json).await?,
     }
 
