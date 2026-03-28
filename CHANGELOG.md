@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0](https://github.com/patricksmill/romm-cli/compare/v0.10.1...v0.11.0) (2026-03-28)
+
+
+### Features
+
+* **main:** fetch openapi.json from Romm server when not present; update automatically on version check. Add server version in settings ([a598295](https://github.com/patricksmill/romm-cli/commit/a5982950eec31c63025483e5241e2194ed1c9a3f))
+
+
+### Bug Fixes
+
+* **main:** formatting ([0b76924](https://github.com/patricksmill/romm-cli/commit/0b769249de1a0ccab2cb36f39031d77c38045f1b))
+* **main:** Update cargo files ([7f6467a](https://github.com/patricksmill/romm-cli/commit/7f6467ab51a7bec52fa796fd1232e43c417e62f4))
+* **main:** update readme ([26d7b0a](https://github.com/patricksmill/romm-cli/commit/26d7b0ab273fb19dff172ee4efec15bdd0719c3a))
+
 ## [0.10.1](https://github.com/patricksmill/romm-cli/compare/v0.10.0...v0.10.1) (2026-03-28)
 
 
