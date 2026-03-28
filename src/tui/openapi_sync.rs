@@ -13,10 +13,7 @@ pub fn parse_openapi_info_version(json: &str) -> Option<String> {
 }
 
 fn heartbeat_rom_version(v: &Value) -> Option<String> {
-    v.get("SYSTEM")?
-        .get("VERSION")?
-        .as_str()
-        .map(String::from)
+    v.get("SYSTEM")?.get("VERSION")?.as_str().map(String::from)
 }
 
 /// Fetch OpenAPI from the server, update the on-disk cache when `info.version` differs from the
@@ -37,17 +34,16 @@ pub async fn sync_openapi_registry(
                 .as_deref()
                 .and_then(parse_openapi_info_version);
 
-            let needs_write = !cache_path.is_file()
-                || local_ver.as_deref() != remote_ver.as_deref();
+            let needs_write =
+                !cache_path.is_file() || local_ver.as_deref() != remote_ver.as_deref();
 
             if needs_write {
                 if let Some(parent) = cache_path.parent() {
                     std::fs::create_dir_all(parent)
                         .map_err(|e| anyhow!("create OpenAPI cache dir: {e}"))?;
                 }
-                std::fs::write(cache_path, &body).map_err(|e| {
-                    anyhow!("write OpenAPI cache {}: {e}", cache_path.display())
-                })?;
+                std::fs::write(cache_path, &body)
+                    .map_err(|e| anyhow!("write OpenAPI cache {}: {e}", cache_path.display()))?;
                 tracing::info!(
                     "OpenAPI cache {} (version {:?})",
                     cache_path.display(),

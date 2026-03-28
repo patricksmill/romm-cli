@@ -85,9 +85,7 @@ pub fn openapi_cache_path() -> Result<PathBuf> {
         return Ok(PathBuf::from(p));
     }
     let dir = user_config_dir().ok_or_else(|| {
-        anyhow!(
-            "Could not resolve config directory. Set ROMM_OPENAPI_PATH to store openapi.json."
-        )
+        anyhow!("Could not resolve config directory. Set ROMM_OPENAPI_PATH to store openapi.json.")
     })?;
     Ok(dir.join("openapi.json"))
 }

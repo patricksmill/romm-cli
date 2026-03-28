@@ -286,10 +286,12 @@ impl App {
                     self.screen_before_download = Some(AppScreen::MainMenu(MainMenuScreen::new()));
                     self.screen = AppScreen::Download(DownloadScreen::new(self.downloads.shared()));
                 }
-                3 => self.screen = AppScreen::Settings(SettingsScreen::new(
-                    &self.config,
-                    self.server_version.as_deref(),
-                )),
+                3 => {
+                    self.screen = AppScreen::Settings(SettingsScreen::new(
+                        &self.config,
+                        self.server_version.as_deref(),
+                    ))
+                }
                 4 => self.screen = AppScreen::Browse(BrowseScreen::new(self.registry.clone())),
                 5 => return Ok(true),
                 _ => {}
