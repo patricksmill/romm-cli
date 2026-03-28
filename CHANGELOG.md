@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0](https://github.com/patricksmill/romm-cli/compare/v0.12.0...v0.13.0) (2026-03-28)
+
+
+### Features
+
+* **docs:** update README and client code to support optional OpenAPI base URL and local path configuration ([b74d3af](https://github.com/patricksmill/romm-cli/commit/b74d3af1d63e88c1c41d1eb674673113f876765d))
+
 ## [0.12.0](https://github.com/patricksmill/romm-cli/compare/v0.11.1...v0.12.0) (2026-03-28)
 
 
