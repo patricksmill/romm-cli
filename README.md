@@ -1,105 +1,106 @@
-# 🎮 romm-cli
+# romm-cli
 
 [![Crates.io](https://img.shields.io/crates/v/romm-cli.svg)](https://crates.io/crates/romm-cli)
 [![Docs.rs](https://docs.rs/romm-cli/badge.svg)](https://docs.rs/romm-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![CI](https://github.com/patricksmill/romm-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/patricksmill/romm-cli/actions/workflows/ci.yml)
 
-**A powerful, blazing-fast Rust CLI and TUI for managing your game library via the [ROMM API](https://github.com/romm-retro/romm).**
-
-Whether you're a terminal power user who likes to script their downloads or an enthusiast who wants a beautiful, lightweight interface to browse their collection, `romm-cli` has you covered.
+Rust CLI and TUI for managing a game library through the [ROMM API](https://github.com/romm-retro/romm). Use the CLI for scripting and automation, or the TUI for interactive browsing.
 
 ---
 
-## ✨ Features
+## Features
 
-- 🚀 **Dual Frontends**: A full-featured CLI for scripting and a rich, interactive TUI for browsing.
-- 📂 **Library Browser**: Search, filter, and view detailed metadata for your games.
-- 📥 **Background Downloads**: Start downloads in the TUI and keep browsing while they finish.
-- 🔐 **Secure Auth**: Support for Basic Auth, Bearer tokens, and Bearer-only API keys.
-- 💾 **Disk Caching**: Efficient caching of your game list for near-instant loading.
-- 🛠️ **Expert API Browser**: Explore your ROMM server's OpenAPI spec and execute any endpoint directly from the terminal.
-- 🥧 **Cross-Platform**: Built for Windows, Linux, and macOS (including ARM).
+- **CLI and TUI**: Command-line interface for scripts plus an interactive terminal UI.
+- **Library browsing**: Search, filter, and inspect game metadata.
+- **Background downloads**: Start downloads in the TUI and keep browsing while they run.
+- **Authentication**: Basic Auth, Bearer tokens, and Bearer-only API keys.
+- **Caching**: Game list caching for faster repeat loads.
+- **API browser**: Inspect the ROMM server OpenAPI spec and call endpoints from the terminal.
+- **Cross-platform**: Windows, Linux, and macOS (including ARM).
 
 ---
 
-## 🚀 Getting Started
+## Getting started
 
-### Quick Install (Rust Users)
-If you have Rust installed, the easiest way to get started is via `cargo`:
+### Install with Cargo
+
+If you have Rust installed:
 
 ```bash
 cargo install romm-cli
 ```
 
-*Note: The TUI feature is enabled by default. For a CLI-only build, use `--no-default-features`.*
+The TUI is enabled by default. For a CLI-only build, use `--no-default-features`.
 
-### Binary Downloads
-Prebuilt binaries for Windows, Linux, and macOS are available on the [Releases page](https://github.com/patricksmill/romm-cli/releases).
+### Binary releases
+
+Prebuilt binaries for Windows, Linux, and macOS are on the [Releases page](https://github.com/patricksmill/romm-cli/releases).
 
 ---
 
-## 🛠️ Configuration
+## Configuration
 
-Run the interactive setup wizard to get connected:
+Run the setup wizard:
 
 ```bash
 romm-cli init
 ```
 
-This will guide you through setting your `API_BASE_URL` and authentication. Config is stored in your OS-standard config directory (e.g., `~/.config/romm-cli/.env`).
+This sets `API_BASE_URL` and authentication. Configuration lives in your OS config directory (for example `~/.config/romm-cli/.env` on Unix).
 
-### Environment Variables
-For advanced usage or development, you can set these in your shell or a local `.env`:
+### Environment variables
+
+Set these in your shell or a local `.env` for advanced use:
 
 | Variable | Description |
 |----------|-------------|
-| `API_BASE_URL` | Your ROMM server URL (e.g., `http://my-server:1738`) |
+| `API_BASE_URL` | ROMM server URL (e.g. `http://my-server:1738`) |
 | `API_USERNAME` / `API_PASSWORD` | Basic Auth credentials |
-| `API_TOKEN` / `API_KEY` | Bearer token or API Key |
-| `ROMM_VERBOSE` | Set to `1` to enable request logging |
+| `API_TOKEN` / `API_KEY` | Bearer token or API key |
+| `ROMM_VERBOSE` | Set to `1` to log HTTP requests |
 
 ---
 
-## 📖 Usage
+## Usage
 
-### Launch the TUI
+### TUI
+
 ```bash
 romm-cli tui
-# OR just:
+# or:
 romm-tui
 ```
 
-### CLI Commands
-The CLI is designed to be pipe-friendly and supports JSON output:
+### CLI
+
+The CLI supports JSON output where applicable:
 
 ```bash
-# List all platforms
+# List platforms
 romm-cli platforms
 
-# Search for a game and output as JSON
+# Search and print JSON
 romm-cli roms --search-term "zelda" --json
 
-# Trigger a self-update
+# Self-update
 romm-cli update
 ```
 
 ---
 
-## 🏗️ Project Architecture
+## Project layout
 
-Built with a focus on modularity and "teaching-quality" Rust patterns:
-
-- **client**: Generic, trait-based HTTP client for API interaction.
-- **tui**: Interactive layer built using `ratatui` and `crossterm`.
-- **frontend**: Routing layer that separates presentation from core logic.
-- **core**: Shared services for caching and download management.
+- **client**: HTTP client for the API.
+- **tui**: Terminal UI (`ratatui`, `crossterm`).
+- **frontend**: Routing between CLI and shared logic.
+- **core**: Caching and download handling.
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
-Contributions are welcome! Please feel free to open issues or submit pull requests. If you're building from source:
+Issues and pull requests are welcome. To build from source:
 
 ```bash
 git clone https://github.com/patricksmill/romm-cli
@@ -109,6 +110,10 @@ cargo build --release
 
 ---
 
-## 📜 License
+## License
 
 This project is licensed under the [MIT License](LICENSE).
+
+---
+
+*Creation assisted with AI; content reviewed by the maintainers.*
