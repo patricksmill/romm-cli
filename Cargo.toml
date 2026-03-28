@@ -2,7 +2,7 @@
 name = "romm-cli"
 version = "0.10.1"
 edition = "2021"
-description = "Fast, Rust-based CLI and TUI for the ROMM API"
+description = "Rust-based CLI and TUI for the ROMM API"
 repository = "https://github.com/patricksmill/romm-cli"
 license = "MIT"
 keywords = ["romm", "terminal", "tui", "emulator", "games"]
