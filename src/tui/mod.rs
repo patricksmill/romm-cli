@@ -12,30 +12,22 @@
 
 pub mod app;
 pub mod openapi;
+pub mod openapi_sync;
 pub mod screens;
 pub mod utils;
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 
 use crate::client::RommClient;
-use crate::config::Config;
+use crate::config::{openapi_cache_path, Config};
 
 use self::app::App;
-use self::openapi::EndpointRegistry;
+use self::openapi_sync::sync_openapi_registry;
 
 /// Launch the interactive TUI.
 pub async fn run(client: RommClient, config: Config) -> Result<()> {
-    let openapi_path =
-        std::env::var("ROMM_OPENAPI_PATH").unwrap_or_else(|_| "openapi.json".to_string());
-
-    let registry = if std::path::Path::new(&openapi_path).exists() {
-        EndpointRegistry::from_file(&openapi_path)?
-    } else {
-        return Err(anyhow!(
-            "OpenAPI file not found at {}. Set ROMM_OPENAPI_PATH or provide openapi.json.",
-            openapi_path
-        ));
-    };
+    let cache_path = openapi_cache_path()?;
+    let (registry, server_version) = sync_openapi_registry(&client, &cache_path).await?;
 
     // Ensure terminal is cleaned up if a panic occurs.
     let original_hook = std::panic::take_hook();
@@ -49,6 +41,6 @@ pub async fn run(client: RommClient, config: Config) -> Result<()> {
         original_hook(panic);
     }));
 
-    let mut app = App::new(client, config, registry);
+    let mut app = App::new(client, config, registry, server_version);
     app.run().await
 }

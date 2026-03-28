@@ -43,6 +43,16 @@ pub struct RommClient {
     verbose: bool,
 }
 
+/// Strip a trailing `/api` from the configured API base URL so paths like `/openapi.json`
+/// resolve to the RomM web root (same host as the UI), not under `/api`.
+pub fn api_root_url(base_url: &str) -> String {
+    let mut s = base_url.trim_end_matches('/').to_string();
+    if s.ends_with("/api") {
+        s.truncate(s.len() - 4);
+    }
+    s.trim_end_matches('/').to_string()
+}
+
 impl RommClient {
     /// Construct a new client from the high-level [`Config`].
     ///
@@ -194,6 +204,45 @@ impl RommClient {
         Ok(decode_json_response_body(&bytes))
     }
 
+    /// GET `{api_root}/openapi.json` (RomM FastAPI serves the spec at the app root).
+    pub async fn fetch_openapi_json(&self) -> Result<String> {
+        let root = api_root_url(&self.base_url);
+        let url = format!("{}/openapi.json", root);
+        let headers = self.build_headers()?;
+
+        let t0 = Instant::now();
+        let resp = self
+            .http
+            .get(&url)
+            .headers(headers)
+            .send()
+            .await
+            .map_err(|e| anyhow!("OpenAPI request error: {e}"))?;
+
+        let status = resp.status();
+        if self.verbose {
+            tracing::info!(
+                "[romm-cli] GET {} -> {} ({}ms)",
+                url,
+                status.as_u16(),
+                t0.elapsed().as_millis()
+            );
+        }
+        if !status.is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(anyhow!(
+                "OpenAPI fetch failed: {} {} - {}",
+                status.as_u16(),
+                status.canonical_reason().unwrap_or(""),
+                body.chars().take(500).collect::<String>()
+            ));
+        }
+
+        resp.text()
+            .await
+            .map_err(|e| anyhow!("read OpenAPI body: {e}"))
+    }
+
     /// Download ROM(s) as a zip file to `save_path`, calling `on_progress(received, total)`.
     /// Uses GET /api/roms/download?rom_ids={id}&filename=... per RomM OpenAPI.
     ///
@@ -322,5 +371,21 @@ mod tests {
     fn decode_non_json_wrapped() {
         let v = decode_json_response_body(b"plain text");
         assert_eq!(v["_non_json_body"], "plain text");
+    }
+
+    #[test]
+    fn api_root_url_strips_trailing_api() {
+        assert_eq!(
+            super::api_root_url("http://localhost:8080/api"),
+            "http://localhost:8080"
+        );
+        assert_eq!(
+            super::api_root_url("http://localhost:8080/api/"),
+            "http://localhost:8080"
+        );
+        assert_eq!(
+            super::api_root_url("http://localhost:8080"),
+            "http://localhost:8080"
+        );
     }
 }

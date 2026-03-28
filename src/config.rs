@@ -77,6 +77,21 @@ pub fn user_config_env_path() -> Option<PathBuf> {
     user_config_dir().map(|d| d.join(".env"))
 }
 
+/// Where the OpenAPI spec is cached (`.../romm-cli/openapi.json`).
+///
+/// Override with `ROMM_OPENAPI_PATH` (absolute or relative path).
+pub fn openapi_cache_path() -> Result<PathBuf> {
+    if let Ok(p) = std::env::var("ROMM_OPENAPI_PATH") {
+        return Ok(PathBuf::from(p));
+    }
+    let dir = user_config_dir().ok_or_else(|| {
+        anyhow!(
+            "Could not resolve config directory. Set ROMM_OPENAPI_PATH to store openapi.json."
+        )
+    })?;
+    Ok(dir.join("openapi.json"))
+}
+
 // ---------------------------------------------------------------------------
 // Loading
 // ---------------------------------------------------------------------------

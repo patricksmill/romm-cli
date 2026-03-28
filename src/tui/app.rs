@@ -70,6 +70,8 @@ pub struct App {
     client: RommClient,
     config: Config,
     registry: EndpointRegistry,
+    /// RomM server version from `GET /api/heartbeat` (`SYSTEM.VERSION`), if available.
+    server_version: Option<String>,
     rom_cache: RomCache,
     downloads: DownloadManager,
     /// Screen to restore when closing the Download overlay.
@@ -80,12 +82,18 @@ pub struct App {
 
 impl App {
     /// Construct a new `App` with fresh cache and empty download list.
-    pub fn new(client: RommClient, config: Config, registry: EndpointRegistry) -> Self {
+    pub fn new(
+        client: RommClient,
+        config: Config,
+        registry: EndpointRegistry,
+        server_version: Option<String>,
+    ) -> Self {
         Self {
             screen: AppScreen::MainMenu(MainMenuScreen::new()),
             client,
             config,
             registry,
+            server_version,
             rom_cache: RomCache::load(),
             downloads: DownloadManager::new(),
             screen_before_download: None,
@@ -278,7 +286,10 @@ impl App {
                     self.screen_before_download = Some(AppScreen::MainMenu(MainMenuScreen::new()));
                     self.screen = AppScreen::Download(DownloadScreen::new(self.downloads.shared()));
                 }
-                3 => self.screen = AppScreen::Settings(SettingsScreen::new(&self.config)),
+                3 => self.screen = AppScreen::Settings(SettingsScreen::new(
+                    &self.config,
+                    self.server_version.as_deref(),
+                )),
                 4 => self.screen = AppScreen::Browse(BrowseScreen::new(self.registry.clone())),
                 5 => return Ok(true),
                 _ => {}
