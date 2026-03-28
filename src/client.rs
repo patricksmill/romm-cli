@@ -54,13 +54,12 @@ pub fn api_root_url(base_url: &str) -> String {
 }
 
 fn alternate_http_scheme_root(root: &str) -> Option<String> {
-    if let Some(rest) = root.strip_prefix("http://") {
-        Some(format!("https://{}", rest))
-    } else if let Some(rest) = root.strip_prefix("https://") {
-        Some(format!("http://{}", rest))
-    } else {
-        None
-    }
+    root.strip_prefix("http://")
+        .map(|rest| format!("https://{}", rest))
+        .or_else(|| {
+            root.strip_prefix("https://")
+                .map(|rest| format!("http://{}", rest))
+        })
 }
 
 /// URLs to try for the OpenAPI JSON document (scheme fallback and alternate paths).
@@ -436,16 +435,11 @@ mod tests {
     #[test]
     fn openapi_spec_urls_try_primary_scheme_then_alt() {
         let urls = super::openapi_spec_urls("http://example.test/api");
-        assert_eq!(
-            urls[0],
-            "http://example.test/openapi.json"
-        );
-        assert_eq!(
-            urls[1],
-            "http://example.test/api/openapi.json"
-        );
+        assert_eq!(urls[0], "http://example.test/openapi.json");
+        assert_eq!(urls[1], "http://example.test/api/openapi.json");
         assert!(
-            urls.iter().any(|u| u == "https://example.test/openapi.json"),
+            urls.iter()
+                .any(|u| u == "https://example.test/openapi.json"),
             "{urls:?}"
         );
     }
