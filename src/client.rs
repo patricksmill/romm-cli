@@ -436,16 +436,11 @@ mod tests {
     #[test]
     fn openapi_spec_urls_try_primary_scheme_then_alt() {
         let urls = super::openapi_spec_urls("http://example.test/api");
-        assert_eq!(
-            urls[0],
-            "http://example.test/openapi.json"
-        );
-        assert_eq!(
-            urls[1],
-            "http://example.test/api/openapi.json"
-        );
+        assert_eq!(urls[0], "http://example.test/openapi.json");
+        assert_eq!(urls[1], "http://example.test/api/openapi.json");
         assert!(
-            urls.iter().any(|u| u == "https://example.test/openapi.json"),
+            urls.iter()
+                .any(|u| u == "https://example.test/openapi.json"),
             "{urls:?}"
         );
     }
