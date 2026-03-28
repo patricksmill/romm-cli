@@ -7,6 +7,16 @@ use std::path::Path;
 use crate::client::RommClient;
 use crate::tui::openapi::EndpointRegistry;
 
+fn openapi_from_cwd() -> Option<String> {
+    let dir = std::env::current_dir().ok()?;
+    let p = dir.join("openapi.json");
+    if p.is_file() {
+        std::fs::read_to_string(p).ok()
+    } else {
+        None
+    }
+}
+
 pub fn parse_openapi_info_version(json: &str) -> Option<String> {
     let v: Value = serde_json::from_str(json).ok()?;
     v.get("info")?.get("version")?.as_str().map(String::from)
@@ -53,19 +63,30 @@ pub async fn sync_openapi_registry(
             body
         }
         Err(e) => {
-            let cached = std::fs::read_to_string(cache_path).map_err(|_| {
-                anyhow!(
-                    "Failed to download OpenAPI ({:#}). No usable cache at {}.",
-                    e,
-                    cache_path.display()
-                )
-            })?;
-            tracing::warn!(
-                "Using cached OpenAPI at {} (server unreachable: {})",
-                cache_path.display(),
-                e
-            );
-            cached
+            if let Some(body) = openapi_from_cwd() {
+                tracing::warn!(
+                    "Using ./openapi.json from the current directory (could not fetch from server: {:#})",
+                    e
+                );
+                body
+            } else {
+                let cached = std::fs::read_to_string(cache_path).map_err(|_| {
+                    anyhow!(
+                        "Could not load OpenAPI: {:#}. \
+                         Fix `API_BASE_URL` (try https if the UI uses TLS), ensure the server exposes /openapi.json, \
+                         place an openapi.json in the current directory, or set ROMM_OPENAPI_PATH to a local file. \
+                         No cache at {}.",
+                        e,
+                        cache_path.display()
+                    )
+                })?;
+                tracing::warn!(
+                    "Using cached OpenAPI at {} (server unreachable: {})",
+                    cache_path.display(),
+                    e
+                );
+                cached
+            }
         }
     };
 

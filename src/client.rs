@@ -53,6 +53,35 @@ pub fn api_root_url(base_url: &str) -> String {
     s.trim_end_matches('/').to_string()
 }
 
+fn alternate_http_scheme_root(root: &str) -> Option<String> {
+    if let Some(rest) = root.strip_prefix("http://") {
+        Some(format!("https://{}", rest))
+    } else if let Some(rest) = root.strip_prefix("https://") {
+        Some(format!("http://{}", rest))
+    } else {
+        None
+    }
+}
+
+/// URLs to try for the OpenAPI JSON document (scheme fallback and alternate paths).
+pub fn openapi_spec_urls(base_url: &str) -> Vec<String> {
+    let root = api_root_url(base_url);
+    let mut roots = vec![root.clone()];
+    if let Some(alt) = alternate_http_scheme_root(&root) {
+        if alt != root {
+            roots.push(alt);
+        }
+    }
+
+    let mut urls = Vec::new();
+    for r in roots {
+        let b = r.trim_end_matches('/');
+        urls.push(format!("{b}/openapi.json"));
+        urls.push(format!("{b}/api/openapi.json"));
+    }
+    urls
+}
+
 impl RommClient {
     /// Construct a new client from the high-level [`Config`].
     ///
@@ -204,20 +233,35 @@ impl RommClient {
         Ok(decode_json_response_body(&bytes))
     }
 
-    /// GET `{api_root}/openapi.json` (RomM FastAPI serves the spec at the app root).
+    /// GET the OpenAPI spec from the server. Tries [`openapi_spec_urls`] in order (HTTP/HTTPS and
+    /// `/openapi.json` vs `/api/openapi.json`).
     pub async fn fetch_openapi_json(&self) -> Result<String> {
-        let root = api_root_url(&self.base_url);
-        let url = format!("{}/openapi.json", root);
+        let urls = openapi_spec_urls(&self.base_url);
+        let mut failures = Vec::new();
+        for url in &urls {
+            match self.fetch_openapi_json_once(url).await {
+                Ok(body) => return Ok(body),
+                Err(e) => failures.push(format!("{url}: {e:#}")),
+            }
+        }
+        Err(anyhow!(
+            "could not download OpenAPI ({} attempt(s)): {}",
+            failures.len(),
+            failures.join(" | ")
+        ))
+    }
+
+    async fn fetch_openapi_json_once(&self, url: &str) -> Result<String> {
         let headers = self.build_headers()?;
 
         let t0 = Instant::now();
         let resp = self
             .http
-            .get(&url)
+            .get(url)
             .headers(headers)
             .send()
             .await
-            .map_err(|e| anyhow!("OpenAPI request error: {e}"))?;
+            .map_err(|e| anyhow!("request failed: {e}"))?;
 
         let status = resp.status();
         if self.verbose {
@@ -231,7 +275,7 @@ impl RommClient {
         if !status.is_success() {
             let body = resp.text().await.unwrap_or_default();
             return Err(anyhow!(
-                "OpenAPI fetch failed: {} {} - {}",
+                "HTTP {} {} - {}",
                 status.as_u16(),
                 status.canonical_reason().unwrap_or(""),
                 body.chars().take(500).collect::<String>()
@@ -386,6 +430,23 @@ mod tests {
         assert_eq!(
             super::api_root_url("http://localhost:8080"),
             "http://localhost:8080"
+        );
+    }
+
+    #[test]
+    fn openapi_spec_urls_try_primary_scheme_then_alt() {
+        let urls = super::openapi_spec_urls("http://example.test/api");
+        assert_eq!(
+            urls[0],
+            "http://example.test/openapi.json"
+        );
+        assert_eq!(
+            urls[1],
+            "http://example.test/api/openapi.json"
+        );
+        assert!(
+            urls.iter().any(|u| u == "https://example.test/openapi.json"),
+            "{urls:?}"
         );
     }
 }
