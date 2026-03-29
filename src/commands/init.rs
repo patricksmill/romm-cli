@@ -60,7 +60,7 @@ pub fn handle(cmd: InitCommand) -> Result<()> {
 
     let base_input: String = Input::with_theme(&ColorfulTheme::default())
         .with_prompt("RomM web URL (same as in your browser; do not add /api)")
-        .with_initial_text("http://")
+        .with_initial_text("https://")
         .interact_text()?;
 
     let base_input = base_input.trim();

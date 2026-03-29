@@ -1,4 +1,5 @@
-//! Download and cache the RomM OpenAPI spec next to user config; refresh when `info.version` changes.
+//! Load the RomM OpenAPI spec for the API browser: prefer the live server, fall back to cache,
+//! then a bundled copy shipped in the binary so the TUI always starts without manual `openapi.json`.
 
 use anyhow::{anyhow, Result};
 use serde_json::Value;
@@ -6,6 +7,10 @@ use std::path::Path;
 
 use crate::client::RommClient;
 use crate::tui::openapi::EndpointRegistry;
+
+/// OpenAPI document baked into the binary (same as `openapi.json` in the crate root at build time).
+const EMBEDDED_OPENAPI_JSON: &str =
+    include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/openapi.json"));
 
 fn openapi_from_cwd() -> Option<String> {
     let dir = std::env::current_dir().ok()?;
@@ -26,8 +31,8 @@ fn heartbeat_rom_version(v: &Value) -> Option<String> {
     v.get("SYSTEM")?.get("VERSION")?.as_str().map(String::from)
 }
 
-/// Fetch OpenAPI from the server, update the on-disk cache when `info.version` differs from the
-/// cached file, and build [`EndpointRegistry`]. If the fetch fails, uses an existing cache file.
+/// Resolve OpenAPI JSON: try the server first (updates disk cache when the spec changes), then
+/// `./openapi.json`, then the user cache file, then the embedded bundle.
 ///
 /// Also calls `GET /api/heartbeat` for the RomM server version shown in Settings.
 pub async fn sync_openapi_registry(
@@ -65,27 +70,24 @@ pub async fn sync_openapi_registry(
         Err(e) => {
             if let Some(body) = openapi_from_cwd() {
                 tracing::warn!(
-                    "Using ./openapi.json from the current directory (could not fetch from server: {:#})",
+                    "Using ./openapi.json (could not fetch from server: {:#})",
                     e
                 );
                 body
-            } else {
-                let cached = std::fs::read_to_string(cache_path).map_err(|_| {
-                    anyhow!(
-                        "Could not load OpenAPI: {:#}. \
-                         Set `API_BASE_URL` to the same URL you use for the RomM web UI (no `/api`). \
-                         Or set `ROMM_OPENAPI_PATH`, or put `openapi.json` in the current directory. \
-                         No cache at {}.",
-                        e,
-                        cache_path.display()
-                    )
-                })?;
+            } else if let Ok(cached) = std::fs::read_to_string(cache_path) {
                 tracing::warn!(
                     "Using cached OpenAPI at {} (server unreachable: {})",
                     cache_path.display(),
                     e
                 );
                 cached
+            } else {
+                tracing::warn!(
+                    "Using bundled OpenAPI spec (server unreachable: {:#}). \
+                     API browser paths match the build-time snapshot; connect to refresh from your server.",
+                    e
+                );
+                EMBEDDED_OPENAPI_JSON.to_string()
             }
         }
     };
@@ -111,5 +113,11 @@ mod tests {
     fn parses_info_version() {
         let j = r#"{"openapi":"3.0.0","info":{"version":"1.2.3"},"paths":{}}"#;
         assert_eq!(parse_openapi_info_version(j), Some("1.2.3".to_string()));
+    }
+
+    #[test]
+    fn embedded_openapi_json_parses() {
+        super::EndpointRegistry::from_openapi_json(EMBEDDED_OPENAPI_JSON)
+            .expect("bundled openapi.json");
     }
 }

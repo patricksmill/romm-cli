@@ -16,7 +16,7 @@ Rust CLI and TUI for managing a game library through the [ROMM API](https://gith
 - **Background downloads**: Start downloads in the TUI and keep browsing while they run.
 - **Authentication**: Basic Auth, Bearer tokens, and Bearer-only API keys.
 - **Caching**: Game list caching for faster repeat loads.
-- **API browser**: Inspect the ROMM server OpenAPI spec and call endpoints from the terminal.
+- **API browser**: Inspect the ROMM API and call endpoints from the terminal (ships with a bundled OpenAPI snapshot; refreshes from the server when online).
 - **Cross-platform**: Windows, Linux, and macOS (including ARM).
 
 ---
@@ -61,7 +61,7 @@ Set these in your shell or a local `.env` for advanced use:
 | `API_USERNAME` / `API_PASSWORD` | Basic Auth credentials |
 | `API_TOKEN` / `API_KEY` | Bearer token or API key |
 | `ROMM_OPENAPI_BASE_URL` | Optional. Only if OpenAPI must be fetched from a different origin than `API_BASE_URL`. |
-| `ROMM_OPENAPI_PATH` | Optional. Path to a local `openapi.json` instead of the default cache file. |
+| `ROMM_OPENAPI_PATH` | Optional. Override path for the downloaded OpenAPI cache (default: under the OS config dir). |
 | `ROMM_VERBOSE` | Set to `1` to log HTTP requests |
 
 ---
