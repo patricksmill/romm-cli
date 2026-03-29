@@ -30,6 +30,7 @@ use crate::endpoints::{collections::ListCollections, platforms::ListPlatforms, r
 use crate::types::RomList;
 
 use super::openapi::{resolve_path_template, EndpointRegistry};
+use super::screens::connected_splash::{self, StartupSplash};
 use super::screens::{
     BrowseScreen, DownloadScreen, ExecuteScreen, GameDetailPrevious, GameDetailScreen,
     LibraryBrowseScreen, MainMenuScreen, ResultDetailScreen, ResultScreen, SearchScreen,
@@ -78,6 +79,8 @@ pub struct App {
     screen_before_download: Option<AppScreen>,
     /// Deferred ROM load: (cache_key, api_request, expected_rom_count).
     deferred_load_roms: Option<(Option<RomCacheKey>, Option<GetRoms>, u64)>,
+    /// Brief “connected” banner after setup or when the server responds to heartbeat.
+    startup_splash: Option<StartupSplash>,
 }
 
 impl App {
@@ -87,6 +90,7 @@ impl App {
         config: Config,
         registry: EndpointRegistry,
         server_version: Option<String>,
+        startup_splash: Option<StartupSplash>,
     ) -> Self {
         Self {
             screen: AppScreen::MainMenu(MainMenuScreen::new()),
@@ -98,6 +102,7 @@ impl App {
             downloads: DownloadManager::new(),
             screen_before_download: None,
             deferred_load_roms: None,
+            startup_splash,
         }
     }
 
@@ -118,6 +123,13 @@ impl App {
         let mut terminal = Terminal::new(backend)?;
 
         loop {
+            if self
+                .startup_splash
+                .as_ref()
+                .is_some_and(|s| s.should_auto_dismiss())
+            {
+                self.startup_splash = None;
+            }
             // Draw the current screen. `App::render` delegates to the
             // appropriate screen type based on `self.screen`.
             terminal.draw(|f| self.render(f))?;
@@ -205,6 +217,11 @@ impl App {
     // -----------------------------------------------------------------------
 
     async fn handle_key(&mut self, key: KeyCode) -> Result<bool> {
+        if self.startup_splash.is_some() {
+            self.startup_splash = None;
+            return Ok(false);
+        }
+
         // Global shortcut: 'd' toggles Download overlay (except on Search).
         if key == KeyCode::Char('d') && !matches!(&self.screen, AppScreen::Search(_)) {
             self.toggle_download_screen();
@@ -737,6 +754,10 @@ impl App {
 
     fn render(&mut self, f: &mut ratatui::Frame) {
         let area = f.size();
+        if let Some(ref splash) = self.startup_splash {
+            connected_splash::render(f, area, splash);
+            return;
+        }
         match &mut self.screen {
             AppScreen::MainMenu(menu) => menu.render(f, area),
             AppScreen::LibraryBrowse(lib) => lib.render(f, area),

@@ -62,6 +62,7 @@ Set these in your shell or a local `.env` for advanced use:
 | `API_TOKEN` / `API_KEY` | Bearer token or API key |
 | `ROMM_OPENAPI_BASE_URL` | Optional. Only if OpenAPI must be fetched from a different origin than `API_BASE_URL`. |
 | `ROMM_OPENAPI_PATH` | Optional. Override path for the downloaded OpenAPI cache (default: under the OS config dir). |
+| `ROMM_USER_AGENT` | Optional. Override the HTTP `User-Agent` (some proxies block non-browser defaults). |
 | `ROMM_VERBOSE` | Set to `1` to log HTTP requests |
 
 ---
@@ -99,6 +100,26 @@ romm-cli update
 - **tui**: Terminal UI (`ratatui`, `crossterm`).
 - **frontend**: Routing between CLI and shared logic.
 - **core**: Caching and download handling.
+
+---
+
+## Troubleshooting connectivity
+
+If the RomM UI works in a browser but `curl` or `romm-cli` fail over HTTPS, run from a clone of this repo:
+
+```bash
+chmod +x scripts/check-romm-connectivity.sh
+./scripts/check-romm-connectivity.sh https://romm.example.com
+```
+
+Or with `API_BASE_URL` already set:
+
+```bash
+chmod +x scripts/check-romm-connectivity.sh
+API_BASE_URL=https://romm.example.com ./scripts/check-romm-connectivity.sh
+```
+
+The script compares DNS, **TCP HTTPS** (what romm-cli uses), IPv6, and **HTTP/3** when a suitable `curl` is installed (`brew install curl` on macOS; Apple’s `/usr/bin/curl` usually has no HTTP/3).
 
 ---
 

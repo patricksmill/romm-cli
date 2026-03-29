@@ -7,9 +7,8 @@ use anyhow::{anyhow, Context, Result};
 use clap::Args;
 use dialoguer::{theme::ColorfulTheme, Confirm, Input, Password, Select};
 use std::fs;
-use std::io::Write;
 
-use crate::config::{keyring_store, normalize_romm_origin, user_config_env_path};
+use crate::config::{normalize_romm_origin, persist_user_config, user_config_env_path, AuthConfig};
 
 #[derive(Args, Debug, Clone)]
 pub struct InitCommand {
@@ -109,24 +108,8 @@ pub fn handle(cmd: InitCommand) -> Result<()> {
         _ => AuthChoice::None,
     };
 
-    // ── Build .env lines (secrets go to keyring, not here) ─────────────
-    let mut lines: Vec<String> = vec![
-        "# romm-cli user configuration".to_string(),
-        "# Secrets are stored in the OS keyring when available.".to_string(),
-        "# Applied after project .env: only fills variables not already set.".to_string(),
-        String::new(),
-        format!("API_BASE_URL={}", escape_env_value(&base_url)),
-        format!("ROMM_DOWNLOAD_DIR={}", escape_env_value(&download_dir)),
-        String::new(),
-    ];
-
-    // Track what we stored in the keyring vs .env file.
-    let mut keyring_success = true;
-
-    match choice {
-        AuthChoice::None => {
-            lines.push("# No auth variables set.".to_string());
-        }
+    let auth: Option<AuthConfig> = match choice {
+        AuthChoice::None => None,
         AuthChoice::Basic => {
             let username: String = Input::with_theme(&ColorfulTheme::default())
                 .with_prompt("Username")
@@ -134,39 +117,16 @@ pub fn handle(cmd: InitCommand) -> Result<()> {
             let password = Password::with_theme(&ColorfulTheme::default())
                 .with_prompt("Password")
                 .interact()?;
-
-            // Username is not secret, always in .env
-            lines.push("# Basic auth (password stored in OS keyring)".to_string());
-            lines.push(format!(
-                "API_USERNAME={}",
-                escape_env_value(username.trim())
-            ));
-
-            // Try keyring for password; fall back to .env
-            if let Err(e) = keyring_store("API_PASSWORD", &password) {
-                eprintln!(
-                    "warning: could not store password in OS keyring: {e}\n\
-                     Falling back to plaintext .env storage."
-                );
-                lines.push(format!("API_PASSWORD={}", escape_env_value(&password)));
-                keyring_success = false;
-            }
+            Some(AuthConfig::Basic {
+                username: username.trim().to_string(),
+                password,
+            })
         }
         AuthChoice::Bearer => {
             let token = Password::with_theme(&ColorfulTheme::default())
                 .with_prompt("Bearer token")
                 .interact()?;
-
-            lines.push("# Bearer token (stored in OS keyring)".to_string());
-
-            if let Err(e) = keyring_store("API_TOKEN", &token) {
-                eprintln!(
-                    "warning: could not store token in OS keyring: {e}\n\
-                     Falling back to plaintext .env storage."
-                );
-                lines.push(format!("API_TOKEN={}", escape_env_value(&token)));
-                keyring_success = false;
-            }
+            Some(AuthConfig::Bearer { token })
         }
         AuthChoice::ApiKeyHeader => {
             let header: String = Input::with_theme(&ColorfulTheme::default())
@@ -175,54 +135,17 @@ pub fn handle(cmd: InitCommand) -> Result<()> {
             let key = Password::with_theme(&ColorfulTheme::default())
                 .with_prompt("API key value")
                 .interact()?;
-
-            lines.push("# Custom header API key (key stored in OS keyring)".to_string());
-            lines.push(format!(
-                "API_KEY_HEADER={}",
-                escape_env_value(header.trim())
-            ));
-
-            if let Err(e) = keyring_store("API_KEY", &key) {
-                eprintln!(
-                    "warning: could not store API key in OS keyring: {e}\n\
-                     Falling back to plaintext .env storage."
-                );
-                lines.push(format!("API_KEY={}", escape_env_value(&key)));
-                keyring_success = false;
-            }
+            Some(AuthConfig::ApiKey {
+                header: header.trim().to_string(),
+                key,
+            })
         }
-    }
+    };
 
-    let content = lines.join("\n") + "\n";
-    {
-        let mut f = fs::File::create(&path).with_context(|| format!("write {}", path.display()))?;
-        f.write_all(content.as_bytes())?;
-    }
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let mut perms = fs::metadata(&path)?.permissions();
-        perms.set_mode(0o600);
-        fs::set_permissions(&path, perms)?;
-    }
+    persist_user_config(&base_url, &download_dir, auth)?;
 
     println!("Wrote {}", path.display());
-    if keyring_success {
-        println!("Credentials stored securely in the OS keyring.");
-    }
+    println!("Secrets are stored in the OS keyring when available (see file comments if plaintext fallback was used).");
     println!("You can run `romm-cli tui` or `romm-tui` to start the TUI.");
     Ok(())
-}
-
-fn escape_env_value(s: &str) -> String {
-    let needs_quote = s.is_empty()
-        || s.chars()
-            .any(|c| c.is_whitespace() || c == '#' || c == '"' || c == '\'');
-    if needs_quote {
-        let escaped = s.replace('\\', "\\\\").replace('"', "\\\"");
-        format!("\"{}\"", escaped)
-    } else {
-        s.to_string()
-    }
 }

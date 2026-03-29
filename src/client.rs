@@ -16,6 +16,18 @@ use tokio::io::AsyncWriteExt as _;
 use crate::config::{normalize_romm_origin, AuthConfig, Config};
 use crate::endpoints::Endpoint;
 
+/// Default `User-Agent` for every request. The stock `reqwest` UA is sometimes blocked at the HTTP
+/// layer (403, etc.) by reverse proxies; override with env `ROMM_USER_AGENT` if needed.
+fn http_user_agent() -> String {
+    match std::env::var("ROMM_USER_AGENT") {
+        Ok(s) if !s.trim().is_empty() => s,
+        _ => format!(
+            "Mozilla/5.0 (compatible; romm-cli/{}; +https://github.com/patricksmill/romm-cli)",
+            env!("CARGO_PKG_VERSION")
+        ),
+    }
+}
+
 /// Map a successful HTTP response body to JSON [`Value`].
 ///
 /// Empty or whitespace-only bodies become [`Value::Null`] (e.g. HTTP 204).
@@ -100,7 +112,9 @@ impl RommClient {
     /// This is typically done once in `main` and the resulting `RommClient` is shared
     /// (by reference or cloning) with the chosen frontend.
     pub fn new(config: &Config, verbose: bool) -> Result<Self> {
-        let http = HttpClient::builder().build()?;
+        let http = HttpClient::builder()
+            .user_agent(http_user_agent())
+            .build()?;
         Ok(Self {
             http,
             base_url: config.base_url.clone(),

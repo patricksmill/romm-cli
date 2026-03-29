@@ -23,7 +23,7 @@ impl SettingsScreen {
             Some(crate::config::AuthConfig::ApiKey { header, .. }) => {
                 format!("API key (header: {})", header)
             }
-            None => "None".to_string(),
+            None => "None (no API credentials in env/keyring)".to_string(),
         };
 
         let server_version = romm_server_version
@@ -53,7 +53,8 @@ impl SettingsScreen {
             format!("Base URL: {}", self.base_url),
             format!("Auth:     {}", self.auth_status),
             String::new(),
-            "Change via environment variables. Restart the app after changes.".to_string(),
+            "API auth is separate from logging into RomM in the browser.".to_string(),
+            "Change via env / ~/.config/romm-cli/.env / keyring; restart after edits.".to_string(),
         ];
         let text = lines.join("\n");
         let p =

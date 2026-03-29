@@ -94,7 +94,9 @@ pub async fn run(cli: Cli, config: Config) -> Result<()> {
             anyhow::bail!("internal error: init must be handled before load_config");
         }
         #[cfg(feature = "tui")]
-        Commands::Tui => crate::frontend::tui::run(client, config).await?,
+        Commands::Tui => {
+            anyhow::bail!("internal error: TUI must be started via run_interactive from main");
+        }
         #[cfg(not(feature = "tui"))]
         Commands::Tui => anyhow::bail!("this feature requires the tui"),
         command => crate::frontend::cli::run(command, &client, cli.json).await?,

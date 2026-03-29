@@ -6,6 +6,7 @@
 //! `tui::app` chooses which screen is active.
 
 pub mod browse;
+pub mod connected_splash;
 pub mod download;
 pub mod execute;
 pub mod game_detail;
@@ -14,6 +15,7 @@ pub mod main_menu;
 pub mod result;
 pub mod search;
 pub mod settings;
+pub mod setup_wizard;
 
 pub use browse::BrowseScreen;
 pub use download::DownloadScreen;

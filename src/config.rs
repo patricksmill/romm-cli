@@ -15,7 +15,7 @@
 
 use std::path::PathBuf;
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 
 // ---------------------------------------------------------------------------
 // Types
@@ -117,9 +117,20 @@ pub fn load_layered_env() {
     }
 }
 
-/// Read an env var, falling back to the OS keyring if not set.
+/// Read an env var, falling back to the OS keyring if unset or empty.
+///
+/// A line like `API_PASSWORD=` in a project `.env` sets the variable to the empty string; we treat
+/// that as "not set" so the keyring (e.g. after `romm-cli init` / TUI setup) is still used.
 fn env_or_keyring(key: &str) -> Option<String> {
-    std::env::var(key).ok().or_else(|| keyring_get(key))
+    match std::env::var(key) {
+        Ok(s) if !s.trim().is_empty() => Some(s),
+        Ok(_) => keyring_get(key),
+        Err(_) => keyring_get(key),
+    }
+}
+
+fn env_nonempty(key: &str) -> Option<String> {
+    std::env::var(key).ok().filter(|s| !s.trim().is_empty())
 }
 
 pub fn load_config() -> Result<Config> {
@@ -130,11 +141,11 @@ pub fn load_config() -> Result<Config> {
     })?;
     let base_url = normalize_romm_origin(&base_raw);
 
-    let username = std::env::var("API_USERNAME").ok();
+    let username = env_nonempty("API_USERNAME");
     let password = env_or_keyring("API_PASSWORD");
     let token = env_or_keyring("API_TOKEN").or_else(|| env_or_keyring("API_KEY"));
     let api_key = env_or_keyring("API_KEY");
-    let api_key_header = std::env::var("API_KEY_HEADER").ok();
+    let api_key_header = env_nonempty("API_KEY_HEADER");
 
     let auth = if let (Some(user), Some(pass)) = (username, password) {
         // Priority 1: Basic auth
@@ -161,6 +172,94 @@ pub fn load_config() -> Result<Config> {
     };
 
     Ok(Config { base_url, auth })
+}
+
+/// Escape a value for use in a `.env` file line (same rules as `romm-cli init`).
+pub(crate) fn escape_env_value(s: &str) -> String {
+    let needs_quote = s.is_empty()
+        || s.chars()
+            .any(|c| c.is_whitespace() || c == '#' || c == '"' || c == '\'');
+    if needs_quote {
+        let escaped = s.replace('\\', "\\\\").replace('"', "\\\"");
+        format!("\"{}\"", escaped)
+    } else {
+        s.to_string()
+    }
+}
+
+/// Write user-level `romm-cli/.env` and store secrets in the OS keyring when possible
+/// (same layout as interactive `romm-cli init`).
+pub fn persist_user_config(
+    base_url: &str,
+    download_dir: &str,
+    auth: Option<AuthConfig>,
+) -> Result<()> {
+    let Some(path) = user_config_env_path() else {
+        return Err(anyhow!(
+            "Could not determine config directory (no HOME / APPDATA?)."
+        ));
+    };
+    let dir = path
+        .parent()
+        .ok_or_else(|| anyhow!("invalid config path"))?;
+    std::fs::create_dir_all(dir).with_context(|| format!("create {}", dir.display()))?;
+
+    let mut lines: Vec<String> = vec![
+        "# romm-cli user configuration".to_string(),
+        "# Secrets are stored in the OS keyring when available.".to_string(),
+        "# Applied after project .env: only fills variables not already set.".to_string(),
+        String::new(),
+        format!("API_BASE_URL={}", escape_env_value(base_url)),
+        format!("ROMM_DOWNLOAD_DIR={}", escape_env_value(download_dir)),
+        String::new(),
+    ];
+
+    match &auth {
+        None => {
+            lines.push("# No auth variables set.".to_string());
+        }
+        Some(AuthConfig::Basic { username, password }) => {
+            lines.push("# Basic auth (password stored in OS keyring)".to_string());
+            lines.push(format!("API_USERNAME={}", escape_env_value(username)));
+            if let Err(e) = keyring_store("API_PASSWORD", password) {
+                tracing::warn!("keyring store API_PASSWORD: {e}; writing plaintext to .env");
+                lines.push(format!("API_PASSWORD={}", escape_env_value(password)));
+            }
+        }
+        Some(AuthConfig::Bearer { token }) => {
+            lines.push("# Bearer token (stored in OS keyring)".to_string());
+            if let Err(e) = keyring_store("API_TOKEN", token) {
+                tracing::warn!("keyring store API_TOKEN: {e}; writing plaintext to .env");
+                lines.push(format!("API_TOKEN={}", escape_env_value(token)));
+            }
+        }
+        Some(AuthConfig::ApiKey { header, key }) => {
+            lines.push("# Custom header API key (key stored in OS keyring)".to_string());
+            lines.push(format!("API_KEY_HEADER={}", escape_env_value(header)));
+            if let Err(e) = keyring_store("API_KEY", key) {
+                tracing::warn!("keyring store API_KEY: {e}; writing plaintext to .env");
+                lines.push(format!("API_KEY={}", escape_env_value(key)));
+            }
+        }
+    }
+
+    let content = lines.join("\n") + "\n";
+    {
+        use std::io::Write;
+        let mut f =
+            std::fs::File::create(&path).with_context(|| format!("write {}", path.display()))?;
+        f.write_all(content.as_bytes())?;
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&path)?.permissions();
+        perms.set_mode(0o600);
+        std::fs::set_permissions(&path, perms)?;
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -243,6 +342,21 @@ mod tests {
         assert_eq!(
             normalize_romm_origin("https://x.example"),
             "https://x.example"
+        );
+    }
+
+    #[test]
+    fn empty_api_username_does_not_enable_basic() {
+        let _guard = env_lock().lock().expect("env lock");
+        clear_auth_env();
+        std::env::set_var("API_BASE_URL", "http://example.test");
+        std::env::set_var("API_USERNAME", "");
+        std::env::set_var("API_PASSWORD", "secret");
+
+        let cfg = load_config().expect("config should load");
+        assert!(
+            cfg.auth.is_none(),
+            "empty API_USERNAME should not pair with password for Basic"
         );
     }
 
