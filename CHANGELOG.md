@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0](https://github.com/patricksmill/romm-cli/compare/v0.14.0...v0.15.0) (2026-03-30)
+
+
+### Features
+
+* overhaul CLI with Resource-Action subcommands and aliases ([90b5c43](https://github.com/patricksmill/romm-cli/commit/90b5c43225a00e91088118ea48427800d9259996))
+
 ## [0.14.0](https://github.com/patricksmill/romm-cli/compare/v0.13.1...v0.14.0) (2026-03-30)
 
 
