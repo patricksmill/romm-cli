@@ -482,18 +482,15 @@ impl SetupWizard {
                     if key.kind != KeyEventKind::Press {
                         continue;
                     }
-                    match key.code {
-                        KeyCode::Esc => {
-                            disable_raw_mode()?;
-                            execute!(
-                                terminal.backend_mut(),
-                                LeaveAlternateScreen,
-                                DisableMouseCapture
-                            )?;
-                            terminal.show_cursor()?;
-                            return Err(anyhow!("setup cancelled"));
-                        }
-                        _ => {}
+                    if key.code == KeyCode::Esc {
+                        disable_raw_mode()?;
+                        execute!(
+                            terminal.backend_mut(),
+                            LeaveAlternateScreen,
+                            DisableMouseCapture
+                        )?;
+                        terminal.show_cursor()?;
+                        return Err(anyhow!("setup cancelled"));
                     }
 
                     if self.testing {

@@ -45,7 +45,7 @@ pub fn render(f: &mut Frame, area: Rect, splash: &StartupSplash) {
         )]),
         Line::from(""),
         Line::from(Span::styled(
-            format!("{}", splash.base_url),
+            splash.base_url.to_string(),
             Style::default().fg(Color::White),
         )),
         Line::from(Span::styled(ver_line, Style::default().fg(Color::DarkGray))),
