@@ -3,7 +3,7 @@
 This document explains how the terminal UI is wired together.
 
 ## Event loop
-
+ 
 The heart of the TUI lives in `tui::app::App::run`:
 
 - Enable raw mode
