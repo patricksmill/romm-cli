@@ -59,11 +59,7 @@ fn startup_splash_for(
     None
 }
 
-async fn run_started(
-    client: RommClient,
-    config: Config,
-    from_setup_wizard: bool,
-) -> Result<()> {
+async fn run_started(client: RommClient, config: Config, from_setup_wizard: bool) -> Result<()> {
     install_panic_hook();
     let cache_path = openapi_cache_path()?;
     let (registry, server_version) = sync_openapi_registry(&client, &cache_path).await?;

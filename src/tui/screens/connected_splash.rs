@@ -56,13 +56,11 @@ pub fn render(f: &mut Frame, area: Rect, splash: &StartupSplash) {
         )),
     ];
 
-    let p = Paragraph::new(lines)
-        .alignment(Alignment::Center)
-        .block(
-            Block::default()
-                .title("romm-cli")
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::Green)),
-        );
+    let p = Paragraph::new(lines).alignment(Alignment::Center).block(
+        Block::default()
+            .title("romm-cli")
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::Green)),
+    );
     f.render_widget(p, area);
 }

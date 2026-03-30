@@ -183,16 +183,11 @@ impl SetupWizard {
             Step::Url => {
                 let line = format!(
                     "{}▏",
-                    self.url
-                        .chars()
-                        .take(self.url_cursor)
-                        .collect::<String>()
+                    self.url.chars().take(self.url_cursor).collect::<String>()
                 );
                 let rest: String = self.url.chars().skip(self.url_cursor).collect();
                 let text = format!("{line}{rest}");
-                let block = Block::default()
-                    .title(title)
-                    .borders(Borders::ALL);
+                let block = Block::default().title(title).borders(Borders::ALL);
                 let p = Paragraph::new(text).block(block);
                 f.render_widget(p, main[1]);
             }
@@ -206,9 +201,7 @@ impl SetupWizard {
                 );
                 let rest: String = self.download_dir.chars().skip(self.dl_cursor).collect();
                 let text = format!("{line}{rest}");
-                let block = Block::default()
-                    .title(title)
-                    .borders(Borders::ALL);
+                let block = Block::default().title(title).borders(Borders::ALL);
                 let p = Paragraph::new(text).block(block);
                 f.render_widget(p, main[1]);
             }
@@ -233,8 +226,14 @@ impl SetupWizard {
                 let user_line = if self.step == Step::BasicUser {
                     format!(
                         "{}▏{}",
-                        self.username.chars().take(self.user_cursor).collect::<String>(),
-                        self.username.chars().skip(self.user_cursor).collect::<String>()
+                        self.username
+                            .chars()
+                            .take(self.user_cursor)
+                            .collect::<String>(),
+                        self.username
+                            .chars()
+                            .skip(self.user_cursor)
+                            .collect::<String>()
                     )
                 } else {
                     self.username.clone()
@@ -244,9 +243,7 @@ impl SetupWizard {
                 } else {
                     "•".repeat(self.password.len())
                 };
-                let block = Block::default()
-                    .title(title)
-                    .borders(Borders::ALL);
+                let block = Block::default().title(title).borders(Borders::ALL);
                 let body = format!("Username\n{user_line}\n\nPassword (hidden)\n{pass_display}\n\nTab: switch field");
                 let p = Paragraph::new(body).block(block);
                 f.render_widget(p, main[1]);
@@ -258,11 +255,12 @@ impl SetupWizard {
                         .chars()
                         .take(self.bearer_cursor)
                         .collect::<String>(),
-                    self.bearer_token.chars().skip(self.bearer_cursor).collect::<String>()
+                    self.bearer_token
+                        .chars()
+                        .skip(self.bearer_cursor)
+                        .collect::<String>()
                 );
-                let block = Block::default()
-                    .title(title)
-                    .borders(Borders::ALL);
+                let block = Block::default().title(title).borders(Borders::ALL);
                 let p = Paragraph::new(line).block(block);
                 f.render_widget(p, main[1]);
             }
@@ -274,7 +272,10 @@ impl SetupWizard {
                             .chars()
                             .take(self.header_cursor)
                             .collect::<String>(),
-                        self.api_header.chars().skip(self.header_cursor).collect::<String>()
+                        self.api_header
+                            .chars()
+                            .skip(self.header_cursor)
+                            .collect::<String>()
                     )
                 } else {
                     self.api_header.clone()
@@ -284,10 +285,10 @@ impl SetupWizard {
                 } else {
                     "•".repeat(self.api_key.len())
                 };
-                let body = format!("Header name\n{header_line}\n\nKey (hidden)\n{key_line}\n\nTab: switch field");
-                let block = Block::default()
-                    .title(title)
-                    .borders(Borders::ALL);
+                let body = format!(
+                    "Header name\n{header_line}\n\nKey (hidden)\n{key_line}\n\nTab: switch field"
+                );
+                let block = Block::default().title(title).borders(Borders::ALL);
                 let p = Paragraph::new(body).block(block);
                 f.render_widget(p, main[1]);
             }
@@ -312,9 +313,7 @@ impl SetupWizard {
                 } else {
                     lines.push("Enter: test connection and save   Esc: quit".to_string());
                 }
-                let block = Block::default()
-                    .title(title)
-                    .borders(Borders::ALL);
+                let block = Block::default().title(title).borders(Borders::ALL);
                 let p = Paragraph::new(lines.join("\n")).block(block);
                 f.render_widget(p, main[1]);
             }
@@ -603,7 +602,8 @@ impl SetupWizard {
                                 self.bearer_cursor = pos + 1;
                             }
                             KeyCode::Backspace => {
-                                if self.bearer_cursor > 0 && self.bearer_cursor <= self.bearer_token.len()
+                                if self.bearer_cursor > 0
+                                    && self.bearer_cursor <= self.bearer_token.len()
                                 {
                                     self.bearer_token.remove(self.bearer_cursor - 1);
                                     self.bearer_cursor -= 1;
@@ -632,7 +632,8 @@ impl SetupWizard {
                                 self.header_cursor = pos + 1;
                             }
                             KeyCode::Backspace => {
-                                if self.header_cursor > 0 && self.header_cursor <= self.api_header.len()
+                                if self.header_cursor > 0
+                                    && self.header_cursor <= self.api_header.len()
                                 {
                                     self.api_header.remove(self.header_cursor - 1);
                                     self.header_cursor -= 1;
@@ -661,7 +662,9 @@ impl SetupWizard {
                                 self.api_key_cursor = pos + 1;
                             }
                             KeyCode::Backspace => {
-                                if self.api_key_cursor > 0 && self.api_key_cursor <= self.api_key.len() {
+                                if self.api_key_cursor > 0
+                                    && self.api_key_cursor <= self.api_key.len()
+                                {
                                     self.api_key.remove(self.api_key_cursor - 1);
                                     self.api_key_cursor -= 1;
                                 }
