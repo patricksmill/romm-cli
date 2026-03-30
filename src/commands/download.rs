@@ -1,10 +1,5 @@
-//! CLI `download` subcommand.
-//!
-//! Supports downloading a single ROM by ID, or batch-downloading all ROMs
-//! matching a platform/search filter using concurrent connections.
-
 use anyhow::{anyhow, Result};
-use clap::Args;
+use clap::{Args, Subcommand};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -22,32 +17,48 @@ const DEFAULT_CONCURRENCY: usize = 4;
 /// Download a ROM to the local filesystem with a progress bar.
 #[derive(Args, Debug)]
 pub struct DownloadCommand {
-    /// ID of the ROM to download (omit when using --batch)
+    #[command(subcommand)]
+    pub action: Option<DownloadAction>,
+
+    /// ID of the ROM to download (legacy, use 'download one <id>' or positional)
     pub rom_id: Option<u64>,
 
     /// Directory to save the ROM zip(s) to
-    #[arg(short, long)]
+    #[arg(short, long, global = true)]
     pub output: Option<PathBuf>,
 
-    /// Download all ROMs matching the given filters concurrently
-    #[arg(long)]
+    /// Download all ROMs matching the given filters concurrently (legacy, use 'download batch')
+    #[arg(long, global = true)]
     pub batch: bool,
 
-    /// Filter by platform ID (used with --batch)
-    #[arg(long)]
+    /// Filter by platform ID
+    #[arg(long, global = true)]
     pub platform_id: Option<u64>,
 
-    /// Filter by search term (used with --batch)
-    #[arg(long)]
+    /// Filter by search term
+    #[arg(long, global = true)]
     pub search_term: Option<String>,
 
     /// Maximum concurrent downloads (default: 4)
-    #[arg(long, default_value_t = DEFAULT_CONCURRENCY)]
+    #[arg(long, default_value_t = DEFAULT_CONCURRENCY, global = true)]
     pub jobs: usize,
 
     /// Resume interrupted downloads instead of re-downloading
-    #[arg(long, default_value_t = true)]
+    #[arg(long, default_value_t = true, global = true)]
     pub resume: bool,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum DownloadAction {
+    /// Download a single ROM by ID
+    #[command(visible_alias = "one")]
+    Id {
+        /// ID of the ROM
+        id: u64,
+    },
+    /// Download multiple ROMs matching filters
+    #[command(visible_alias = "all")]
+    Batch,
 }
 
 fn make_progress_style() -> ProgressStyle {
@@ -58,7 +69,6 @@ fn make_progress_style() -> ProgressStyle {
     .progress_chars("#>-")
 }
 
-/// Download a single ROM with a progress bar attached to a `MultiProgress`.
 async fn download_one(
     client: &RommClient,
     rom_id: u64,
@@ -92,11 +102,15 @@ pub async fn handle(cmd: DownloadCommand, client: &RommClient) -> Result<()> {
         .await
         .map_err(|e| anyhow!("create download dir {:?}: {e}", output_dir))?;
 
-    if cmd.batch {
+    // Determine if we are in batch mode.
+    // In order of priority: subcommand 'batch', then legacy '--batch' flag.
+    let is_batch = matches!(cmd.action, Some(DownloadAction::Batch)) || cmd.batch;
+
+    if is_batch {
         // ── Batch mode ─────────────────────────────────────────────────
         if cmd.platform_id.is_none() && cmd.search_term.is_none() {
             return Err(anyhow!(
-                "--batch requires at least --platform-id or --search-term to scope the download"
+                "Batch download requires at least --platform-id or --search-term to scope the download"
             ));
         }
 
@@ -161,9 +175,12 @@ pub async fn handle(cmd: DownloadCommand, client: &RommClient) -> Result<()> {
         println!("\nBatch complete: {successes} succeeded, {failures} failed.");
     } else {
         // ── Single ROM mode ────────────────────────────────────────────
-        let rom_id = cmd
-            .rom_id
-            .ok_or_else(|| anyhow!("ROM ID is required (or use --batch for bulk downloads)"))?;
+        let rom_id = if let Some(DownloadAction::Id { id }) = cmd.action {
+            id
+        } else {
+            cmd.rom_id
+                .ok_or_else(|| anyhow!("ROM ID is required (e.g. 'download 123' or 'download batch --search-term ...')"))?
+        };
 
         let save_path = output_dir.join(format!("rom_{rom_id}.zip"));
 

@@ -7,8 +7,11 @@
 use anyhow::Result;
 
 use crate::client::RommClient;
-use crate::endpoints::{platforms::ListPlatforms, roms::GetRoms};
-use crate::types::{Platform, RomList};
+use crate::endpoints::{
+    platforms::{GetPlatform, ListPlatforms},
+    roms::{GetRom, GetRoms},
+};
+use crate::types::{Platform, Rom, RomList};
 
 /// Service encapsulating platform-related operations.
 pub struct PlatformService<'a> {
@@ -24,6 +27,12 @@ impl<'a> PlatformService<'a> {
     pub async fn list_platforms(&self) -> Result<Vec<Platform>> {
         let platforms = self.client.call(&ListPlatforms).await?;
         Ok(platforms)
+    }
+
+    /// Get a single platform by ID.
+    pub async fn get_platform(&self, id: u64) -> Result<Platform> {
+        let platform = self.client.call(&GetPlatform { id }).await?;
+        Ok(platform)
     }
 }
 
@@ -41,5 +50,11 @@ impl<'a> RomService<'a> {
     pub async fn search_roms(&self, ep: &GetRoms) -> Result<RomList> {
         let results = self.client.call(ep).await?;
         Ok(results)
+    }
+
+    /// Get a single ROM by ID.
+    pub async fn get_rom(&self, id: u64) -> Result<Rom> {
+        let rom = self.client.call(&GetRom { id }).await?;
+        Ok(rom)
     }
 }

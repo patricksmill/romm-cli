@@ -1,32 +1,67 @@
-use anyhow::Result;
-use clap::Args;
+use anyhow::{anyhow, Result};
+use clap::{Args, Subcommand};
 
 use crate::client::RommClient;
 use crate::commands::OutputFormat;
 
 /// Low-level escape hatch for calling arbitrary ROMM API endpoints.
-///
-/// This command is most similar to `curl`: you provide the method,
-/// path, query parameters, and optional JSON body. Authentication and
-/// base URL are still taken from the usual `Config`.
 #[derive(Args, Debug)]
 pub struct ApiCommand {
-    /// HTTP method (GET, POST, PUT, DELETE, etc.)
-    pub method: String,
+    #[command(subcommand)]
+    pub action: Option<ApiAction>,
 
-    /// API path, e.g. /api/roms
-    pub path: String,
+    /// HTTP method (legacy, use 'api call <method> <path>')
+    pub method: Option<String>,
+
+    /// API path (legacy, use 'api call <method> <path>')
+    pub path: Option<String>,
 
     /// Query parameters as key=value, repeatable
-    #[arg(long = "query")]
+    #[arg(long = "query", global = true)]
     pub query: Vec<String>,
 
     /// JSON request body as a string
-    #[arg(long)]
+    #[arg(long, global = true)]
     pub data: Option<String>,
 }
 
+#[derive(Subcommand, Debug)]
+pub enum ApiAction {
+    /// Make a generic API call
+    Call {
+        /// HTTP method (GET, POST, etc.)
+        method: String,
+        /// API path (e.g. /api/roms)
+        path: String,
+    },
+    /// Shortcut for GET request
+    Get {
+        /// API path
+        path: String,
+    },
+    /// Shortcut for POST request
+    Post {
+        /// API path
+        path: String,
+    },
+}
+
 pub async fn handle(cmd: ApiCommand, client: &RommClient, format: OutputFormat) -> Result<()> {
+    let (method, path) = match cmd.action {
+        Some(ApiAction::Call { method, path }) => (method, path),
+        Some(ApiAction::Get { path }) => ("GET".to_string(), path),
+        Some(ApiAction::Post { path }) => ("POST".to_string(), path),
+        None => {
+            let m = cmd
+                .method
+                .ok_or_else(|| anyhow!("Method is required (e.g. 'api call GET /api/roms')"))?;
+            let p = cmd
+                .path
+                .ok_or_else(|| anyhow!("Path is required (e.g. 'api call GET /api/roms')"))?;
+            (m, p)
+        }
+    };
+
     let mut query_pairs = Vec::new();
     for q in &cmd.query {
         if let Some((k, v)) = q.split_once('=') {
@@ -46,17 +81,14 @@ pub async fn handle(cmd: ApiCommand, client: &RommClient, format: OutputFormat) 
     };
 
     let value = client
-        .request_json(&cmd.method, &cmd.path, &query_pairs, body)
+        .request_json(&method, &path, &query_pairs, body)
         .await?;
 
     match format {
         OutputFormat::Json => {
-            // Machine-friendly: still pretty-printed for now.
             println!("{}", serde_json::to_string_pretty(&value)?);
         }
         OutputFormat::Text => {
-            // There is no domain-specific text representation here, so we
-            // fall back to pretty-printed JSON.
             println!("{}", serde_json::to_string_pretty(&value)?);
         }
     }

@@ -47,7 +47,9 @@ impl OutputFormat {
 #[command(
     name = "romm-cli",
     version,
-    about = "Rust CLI and TUI for the ROMM API"
+    about = "Rust CLI and TUI for the ROMM API",
+    infer_subcommands = true,
+    arg_required_else_help = true
 )]
 pub struct Cli {
     /// Increase output verbosity
@@ -75,12 +77,16 @@ pub enum Commands {
     #[cfg(not(feature = "tui"))]
     Tui,
     /// Low-level access to any ROMM API endpoint
+    #[command(visible_alias = "call")]
     Api(api::ApiCommand),
     /// Platform-related commands
+    #[command(visible_aliases = ["platform", "p", "plats"])]
     Platforms(platforms::PlatformsCommand),
     /// ROM-related commands
+    #[command(visible_aliases = ["rom", "r"])]
     Roms(roms::RomsCommand),
     /// Download a ROM
+    #[command(visible_aliases = ["dl", "get"])]
     Download(download::DownloadCommand),
     /// Check for and install updates for romm-cli
     Update,

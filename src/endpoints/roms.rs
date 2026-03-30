@@ -50,3 +50,21 @@ impl Endpoint for GetRoms {
         q
     }
 }
+
+/// Retrieve a single ROM by ID.
+#[derive(Debug, Clone)]
+pub struct GetRom {
+    pub id: u64,
+}
+
+impl Endpoint for GetRom {
+    type Output = crate::types::Rom;
+
+    fn method(&self) -> &'static str {
+        "GET"
+    }
+
+    fn path(&self) -> String {
+        format!("/api/roms/{}", self.id)
+    }
+}

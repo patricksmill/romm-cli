@@ -13,7 +13,7 @@ pub struct PlatformsCommand {
     pub action: Option<PlatformsAction>,
 
     /// Output as JSON (overrides global --json when set).
-    #[arg(long)]
+    #[arg(long, global = true)]
     pub json: bool,
 }
 
@@ -21,7 +21,14 @@ pub struct PlatformsCommand {
 #[derive(Subcommand, Debug)]
 pub enum PlatformsAction {
     /// List all platforms (default)
+    #[command(visible_alias = "ls")]
     List,
+    /// Get details for a specific platform
+    #[command(visible_alias = "info")]
+    Get {
+        /// The ID of the platform
+        id: u64,
+    },
 }
 
 pub async fn handle(
@@ -31,23 +38,31 @@ pub async fn handle(
 ) -> Result<()> {
     let action = cmd.action.unwrap_or(PlatformsAction::List);
 
-    match action {
-        PlatformsAction::List => list_platforms(client, format).await?,
-    }
-
-    Ok(())
-}
-
-async fn list_platforms(client: &RommClient, format: OutputFormat) -> Result<()> {
     let service = PlatformService::new(client);
-    let platforms = service.list_platforms().await?;
+    match action {
+        PlatformsAction::List => {
+            let platforms = service.list_platforms().await?;
 
-    match format {
-        OutputFormat::Json => {
-            println!("{}", serde_json::to_string_pretty(&platforms)?);
+            match format {
+                OutputFormat::Json => {
+                    println!("{}", serde_json::to_string_pretty(&platforms)?);
+                }
+                OutputFormat::Text => {
+                    print_platforms_table(&platforms);
+                }
+            }
         }
-        OutputFormat::Text => {
-            print_platforms_table(&platforms);
+        PlatformsAction::Get { id } => {
+            let platform = service.get_platform(id).await?;
+
+            match format {
+                OutputFormat::Json => {
+                    println!("{}", serde_json::to_string_pretty(&platform)?);
+                }
+                OutputFormat::Text => {
+                    println!("{}", serde_json::to_string_pretty(&platform)?);
+                }
+            }
         }
     }
 
