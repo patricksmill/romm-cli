@@ -31,6 +31,8 @@ pub enum AuthConfig {
 #[derive(Debug, Clone)]
 pub struct Config {
     pub base_url: String,
+    pub download_dir: String,
+    pub use_https: bool,
     pub auth: Option<AuthConfig>,
 }
 
@@ -139,7 +141,24 @@ pub fn load_config() -> Result<Config> {
             "API_BASE_URL is not set. Set it in the environment, a .env file, or run: romm-cli init"
         )
     })?;
-    let base_url = normalize_romm_origin(&base_raw);
+    let mut base_url = normalize_romm_origin(&base_raw);
+
+    let download_dir = env_nonempty("ROMM_DOWNLOAD_DIR")
+        .unwrap_or_else(|| {
+            dirs::download_dir()
+                .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join("Downloads"))
+                .join("romm-cli")
+                .display()
+                .to_string()
+        });
+
+    let use_https = std::env::var("API_USE_HTTPS")
+        .map(|s| s.to_lowercase() == "true")
+        .unwrap_or(true);
+
+    if use_https && base_url.starts_with("http://") {
+        base_url = base_url.replace("http://", "https://");
+    }
 
     let username = env_nonempty("API_USERNAME");
     let password = env_or_keyring("API_PASSWORD");
@@ -171,7 +190,12 @@ pub fn load_config() -> Result<Config> {
         None
     };
 
-    Ok(Config { base_url, auth })
+    Ok(Config {
+        base_url,
+        download_dir,
+        use_https,
+        auth,
+    })
 }
 
 /// Escape a value for use in a `.env` file line (same rules as `romm-cli init`).
@@ -192,6 +216,7 @@ pub(crate) fn escape_env_value(s: &str) -> String {
 pub fn persist_user_config(
     base_url: &str,
     download_dir: &str,
+    use_https: bool,
     auth: Option<AuthConfig>,
 ) -> Result<()> {
     let Some(path) = user_config_env_path() else {
@@ -211,6 +236,7 @@ pub fn persist_user_config(
         String::new(),
         format!("API_BASE_URL={}", escape_env_value(base_url)),
         format!("ROMM_DOWNLOAD_DIR={}", escape_env_value(download_dir)),
+        format!("API_USE_HTTPS={}", if use_https { "true" } else { "false" }),
         String::new(),
     ];
 
@@ -280,6 +306,7 @@ mod tests {
             "API_TOKEN",
             "API_KEY",
             "API_KEY_HEADER",
+            "API_USE_HTTPS",
         ] {
             std::env::remove_var(key);
         }
@@ -325,12 +352,23 @@ mod tests {
     }
 
     #[test]
-    fn normalizes_api_base_url_strips_trailing_api() {
+    fn normalizes_api_base_url_and_enforces_https_by_default() {
         let _guard = env_lock().lock().expect("env lock");
         clear_auth_env();
-        std::env::set_var("API_BASE_URL", "https://romm.example/api/");
+        std::env::set_var("API_BASE_URL", "http://romm.example/api/");
         let cfg = load_config().expect("config");
+        // Upgraded to https by default
         assert_eq!(cfg.base_url, "https://romm.example");
+    }
+
+    #[test]
+    fn does_not_enforce_https_if_toggle_is_false() {
+        let _guard = env_lock().lock().expect("env lock");
+        clear_auth_env();
+        std::env::set_var("API_BASE_URL", "http://romm.example/api/");
+        std::env::set_var("API_USE_HTTPS", "false");
+        let cfg = load_config().expect("config");
+        assert_eq!(cfg.base_url, "http://romm.example");
     }
 
     #[test]
@@ -396,6 +434,8 @@ mod tests {
         std::env::set_current_dir(&work).unwrap();
 
         load_layered_env();
+        // Force use_https=false so the http assertion works
+        std::env::set_var("API_USE_HTTPS", "false");
         let cfg = load_config().expect("load from user .env");
         assert_eq!(cfg.base_url, "http://from-user-file.test");
 

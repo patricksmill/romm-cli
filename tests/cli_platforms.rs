@@ -54,7 +54,9 @@ async fn platforms_list_text_output() {
         .await;
 
     let mut cmd = Command::cargo_bin("romm-cli").unwrap();
-    cmd.env("API_BASE_URL", server.base_url()).arg("platforms");
+    cmd.env("API_BASE_URL", server.base_url())
+        .env("API_USE_HTTPS", "false")
+        .arg("platforms");
 
     cmd.assert()
         .success()

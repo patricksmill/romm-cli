@@ -31,6 +31,7 @@ enum AuthKind {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Step {
     Url,
+    Https,
     Download,
     AuthMenu,
     BasicUser,
@@ -60,6 +61,7 @@ pub struct SetupWizard {
     api_key: String,
     api_key_cursor: usize,
     testing: bool,
+    use_https: bool,
     error: Option<String>,
 }
 
@@ -88,6 +90,7 @@ impl SetupWizard {
             api_key: String::new(),
             api_key_cursor: 0,
             testing: false,
+            use_https: true,
             error: None,
         }
     }
@@ -152,17 +155,23 @@ impl SetupWizard {
                 })
             }
         };
-        Ok(Config { base_url, auth })
+        Ok(Config {
+            base_url,
+            download_dir: self.download_dir.trim().to_string(),
+            use_https: self.use_https,
+            auth,
+        })
     }
 
     fn render(&mut self, f: &mut ratatui::Frame, area: ratatui::layout::Rect) {
         let title = match self.step {
-            Step::Url => "Step 1/4 — RomM server URL",
-            Step::Download => "Step 2/4 — Download directory",
-            Step::AuthMenu => "Step 3/4 — Authentication",
-            Step::BasicUser | Step::BasicPass => "Step 4/4 — Basic auth",
-            Step::Bearer => "Step 4/4 — Bearer token",
-            Step::ApiHeader | Step::ApiKey => "Step 4/4 — API key",
+            Step::Url => "Step 1/5 — RomM server URL",
+            Step::Https => "Step 2/5 — Secure connection",
+            Step::Download => "Step 3/5 — Download directory",
+            Step::AuthMenu => "Step 4/5 — Authentication",
+            Step::BasicUser | Step::BasicPass => "Step 5/5 — Basic auth",
+            Step::Bearer => "Step 5/5 — Bearer token",
+            Step::ApiHeader | Step::ApiKey => "Step 5/5 — API key",
             Step::Summary => "Review & connect",
         };
 
@@ -189,6 +198,17 @@ impl SetupWizard {
                 let text = format!("{line}{rest}");
                 let block = Block::default().title(title).borders(Borders::ALL);
                 let p = Paragraph::new(text).block(block);
+                f.render_widget(p, main[1]);
+            }
+            Step::Https => {
+                let text = if self.use_https {
+                    "[X] Use HTTPS (Recommended)"
+                } else {
+                    "[ ] Use HTTPS (Insecure)"
+                };
+                let block = Block::default().title(title).borders(Borders::ALL);
+                let p = Paragraph::new(format!("\n  {}\n\n  Space: toggle   Enter: next", text))
+                    .block(block);
                 f.render_widget(p, main[1]);
             }
             Step::Download => {
@@ -303,6 +323,7 @@ impl SetupWizard {
                 let mut lines = vec![
                     format!("Server: {url_line}"),
                     format!("Downloads: {}", self.download_dir.trim()),
+                    format!("Use HTTPS: {}", if self.use_https { "Yes" } else { "No" }),
                     format!("Auth: {auth_desc}"),
                     String::new(),
                 ];
@@ -321,6 +342,7 @@ impl SetupWizard {
 
         let footer = match self.step {
             Step::Url => "Enter: next   Backspace: delete   Esc: quit",
+            Step::Https => "Space: toggle   Enter: next   Esc: quit",
             Step::Download => "Enter: next   Backspace: delete   Esc: quit",
             Step::AuthMenu => "↑/↓: choose   Enter: next   Esc: quit",
             Step::BasicUser | Step::BasicPass => {
@@ -381,7 +403,7 @@ impl SetupWizard {
                 let x = inner.x + 1 + self.api_key_cursor.min(self.api_key.len()) as u16;
                 Some((x, inner.y + 6))
             }
-            _ => None,
+            Step::Https | Step::AuthMenu | Step::Summary => None,
         }
     }
 
@@ -429,6 +451,9 @@ impl SetupWizard {
                     self.error = Some("Enter a valid server URL".to_string());
                     return Ok(());
                 }
+                self.step = Step::Https;
+            }
+            Step::Https => {
                 self.step = Step::Download;
                 self.dl_cursor = self.download_dir.len();
             }
@@ -456,7 +481,7 @@ impl SetupWizard {
         client.fetch_openapi_json().await?;
         let base = cfg.base_url.clone();
         let download = self.download_dir.trim().to_string();
-        persist_user_config(&base, &download, cfg.auth.clone())?;
+        persist_user_config(&base, &download, self.use_https, cfg.auth.clone())?;
         load_layered_env();
         load_config()
     }
@@ -514,6 +539,13 @@ impl SetupWizard {
                                     self.url_cursor += 1;
                                 }
                             }
+                            _ => {}
+                        },
+                        Step::Https => match key.code {
+                            KeyCode::Enter => {
+                                let _ = self.advance_step();
+                            }
+                            KeyCode::Char(' ') => self.use_https = !self.use_https,
                             _ => {}
                         },
                         Step::Download => match key.code {

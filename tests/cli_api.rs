@@ -21,6 +21,7 @@ async fn api_warns_on_malformed_query_pairs() {
 
     let mut cmd = Command::cargo_bin("romm-cli").expect("binary");
     cmd.env("API_BASE_URL", server.base_url())
+        .env("API_USE_HTTPS", "false")
         .arg("api")
         .arg("GET")
         .arg("/api/platforms")
@@ -47,6 +48,7 @@ async fn api_empty_204_body_prints_null_json() {
 
     let mut cmd = Command::cargo_bin("romm-cli").expect("binary");
     cmd.env("API_BASE_URL", server.base_url())
+        .env("API_USE_HTTPS", "false")
         .arg("api")
         .arg("GET")
         .arg("/api/ping");

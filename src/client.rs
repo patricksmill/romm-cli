@@ -123,6 +123,10 @@ impl RommClient {
         })
     }
 
+    pub fn verbose(&self) -> bool {
+        self.verbose
+    }
+
     /// Build the HTTP headers for the current authentication mode.
     ///
     /// This helper centralises all auth logic so that the rest of the

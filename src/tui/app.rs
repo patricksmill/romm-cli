@@ -19,6 +19,7 @@ use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
 use ratatui::backend::CrosstermBackend;
+use ratatui::style::Color;
 use ratatui::Terminal;
 use std::time::Duration;
 
@@ -482,7 +483,52 @@ impl App {
     // -- Settings -----------------------------------------------------------
 
     fn handle_settings(&mut self, key: KeyCode) -> Result<bool> {
+        let settings = match &mut self.screen {
+            AppScreen::Settings(s) => s,
+            _ => return Ok(false),
+        };
+
+        if settings.editing {
+            match key {
+                KeyCode::Enter => {
+                    settings.save_edit();
+                }
+                KeyCode::Esc => settings.cancel_edit(),
+                KeyCode::Backspace => settings.delete_char(),
+                KeyCode::Left => settings.move_cursor_left(),
+                KeyCode::Right => settings.move_cursor_right(),
+                KeyCode::Char(c) => settings.add_char(c),
+                _ => {}
+            }
+            return Ok(false);
+        }
+
         match key {
+            KeyCode::Up | KeyCode::Char('k') => settings.previous(),
+            KeyCode::Down | KeyCode::Char('j') => settings.next(),
+            KeyCode::Enter => settings.enter_edit(),
+            KeyCode::Char('s') => {
+                // Save to disk
+                use crate::config::persist_user_config;
+                if let Err(e) = persist_user_config(
+                    &settings.base_url,
+                    &settings.download_dir,
+                    settings.use_https,
+                    self.config.auth.clone(),
+                ) {
+                    settings.message = Some((format!("Error saving: {e}"), Color::Red));
+                } else {
+                    settings.message = Some(("Saved to .env".to_string(), Color::Green));
+                    // Update app state
+                    self.config.base_url = settings.base_url.clone();
+                    self.config.download_dir = settings.download_dir.clone();
+                    self.config.use_https = settings.use_https;
+                    // Re-create client to pick up new base URL
+                    if let Ok(new_client) = RommClient::new(&self.config, self.client.verbose()) {
+                        self.client = new_client;
+                    }
+                }
+            }
             KeyCode::Esc => self.screen = AppScreen::MainMenu(MainMenuScreen::new()),
             KeyCode::Char('q') => return Ok(true),
             _ => {}
@@ -767,7 +813,12 @@ impl App {
                     f.set_cursor(x, y);
                 }
             }
-            AppScreen::Settings(settings) => settings.render(f, area),
+            AppScreen::Settings(settings) => {
+                settings.render(f, area);
+                if let Some((x, y)) = settings.cursor_position(area) {
+                    f.set_cursor(x, y);
+                }
+            }
             AppScreen::Browse(browse) => browse.render(f, area),
             AppScreen::Execute(execute) => {
                 execute.render(f, area);

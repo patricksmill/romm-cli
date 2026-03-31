@@ -26,6 +26,7 @@ async fn roms_sends_platform_ids_query_param() {
 
     let mut cmd = Command::cargo_bin("romm-cli").unwrap();
     cmd.env("API_BASE_URL", server.base_url())
+        .env("API_USE_HTTPS", "false")
         .env("API_USERNAME", "u")
         .env("API_PASSWORD", "p")
         .arg("roms")
@@ -55,6 +56,7 @@ async fn roms_sends_search_term_query_param() {
 
     let mut cmd = Command::cargo_bin("romm-cli").unwrap();
     cmd.env("API_BASE_URL", server.base_url())
+        .env("API_USE_HTTPS", "false")
         .env("API_USERNAME", "u")
         .env("API_PASSWORD", "p")
         .arg("roms")

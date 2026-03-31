@@ -142,7 +142,12 @@ pub fn handle(cmd: InitCommand) -> Result<()> {
         }
     };
 
-    persist_user_config(&base_url, &download_dir, auth)?;
+    let use_https = Confirm::with_theme(&ColorfulTheme::default())
+        .with_prompt("Connect over HTTPS?")
+        .default(true)
+        .interact()?;
+
+    persist_user_config(&base_url, &download_dir, use_https, auth)?;
 
     println!("Wrote {}", path.display());
     println!("Secrets are stored in the OS keyring when available (see file comments if plaintext fallback was used).");
