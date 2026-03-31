@@ -154,34 +154,72 @@ impl SettingsScreen {
 
         // -- Header Info --
         let info = [
-            format!("romm-cli: v{} | RomM server: {}", self.version, self.server_version),
+            format!(
+                "romm-cli: v{} | RomM server: {}",
+                self.version, self.server_version
+            ),
             format!("GitHub:   {}", self.github_url),
             format!("Auth:     {}", self.auth_status),
         ];
-        f.render_widget(Paragraph::new(info.join("\n")).block(Block::default().borders(Borders::BOTTOM)), chunks[0]);
+        f.render_widget(
+            Paragraph::new(info.join("\n")).block(Block::default().borders(Borders::BOTTOM)),
+            chunks[0],
+        );
 
         // -- Editable List --
         let items = [
-            ListItem::new(format!("Base URL:     {}", if self.editing && self.selected_index == 0 { &self.edit_buffer } else { &self.base_url })),
-            ListItem::new(format!("Download Dir: {}", if self.editing && self.selected_index == 1 { &self.edit_buffer } else { &self.download_dir })),
-            ListItem::new(format!("Use HTTPS:    {}", if self.use_https { "[X] Yes" } else { "[ ] No" })),
+            ListItem::new(format!(
+                "Base URL:     {}",
+                if self.editing && self.selected_index == 0 {
+                    &self.edit_buffer
+                } else {
+                    &self.base_url
+                }
+            )),
+            ListItem::new(format!(
+                "Download Dir: {}",
+                if self.editing && self.selected_index == 1 {
+                    &self.edit_buffer
+                } else {
+                    &self.download_dir
+                }
+            )),
+            ListItem::new(format!(
+                "Use HTTPS:    {}",
+                if self.use_https { "[X] Yes" } else { "[ ] No" }
+            )),
         ];
 
         let mut state = ListState::default();
         state.select(Some(self.selected_index));
 
         let list = List::new(items)
-            .block(Block::default().title(" Configuration ").borders(Borders::ALL))
-            .highlight_style(Style::default().add_modifier(Modifier::BOLD).fg(Color::Yellow))
+            .block(
+                Block::default()
+                    .title(" Configuration ")
+                    .borders(Borders::ALL),
+            )
+            .highlight_style(
+                Style::default()
+                    .add_modifier(Modifier::BOLD)
+                    .fg(Color::Yellow),
+            )
             .highlight_symbol(">> ");
 
         f.render_stateful_widget(list, chunks[1], &mut state);
 
         // -- Message Area --
         if let Some((msg, color)) = &self.message {
-            f.render_widget(Paragraph::new(msg.as_str()).style(Style::default().fg(*color)), chunks[2]);
+            f.render_widget(
+                Paragraph::new(msg.as_str()).style(Style::default().fg(*color)),
+                chunks[2],
+            );
         } else if self.editing {
-            f.render_widget(Paragraph::new("Editing... Enter: save   Esc: cancel").style(Style::default().fg(Color::Cyan)), chunks[2]);
+            f.render_widget(
+                Paragraph::new("Editing... Enter: save   Esc: cancel")
+                    .style(Style::default().fg(Color::Cyan)),
+                chunks[2],
+            );
         }
 
         // -- Footer Help --
@@ -190,7 +228,10 @@ impl SettingsScreen {
         } else {
             "↑/↓: select   Enter: edit/toggle   S: save to disk   Esc: back"
         };
-        f.render_widget(Paragraph::new(help).block(Block::default().borders(Borders::ALL)), chunks[3]);
+        f.render_widget(
+            Paragraph::new(help).block(Block::default().borders(Borders::ALL)),
+            chunks[3],
+        );
     }
 
     pub fn cursor_position(&self, area: Rect) -> Option<(u16, u16)> {
@@ -212,7 +253,7 @@ impl SettingsScreen {
         let y = list_area.y + 1 + self.selected_index as u16;
         let label_len = if self.selected_index == 0 { 17 } else { 17 };
         let x = list_area.x + 3 + label_len + self.edit_cursor as u16;
-        
+
         Some((x, y))
     }
 }

@@ -143,14 +143,13 @@ pub fn load_config() -> Result<Config> {
     })?;
     let mut base_url = normalize_romm_origin(&base_raw);
 
-    let download_dir = env_nonempty("ROMM_DOWNLOAD_DIR")
-        .unwrap_or_else(|| {
-            dirs::download_dir()
-                .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join("Downloads"))
-                .join("romm-cli")
-                .display()
-                .to_string()
-        });
+    let download_dir = env_nonempty("ROMM_DOWNLOAD_DIR").unwrap_or_else(|| {
+        dirs::download_dir()
+            .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join("Downloads"))
+            .join("romm-cli")
+            .display()
+            .to_string()
+    });
 
     let use_https = std::env::var("API_USE_HTTPS")
         .map(|s| s.to_lowercase() == "true")
