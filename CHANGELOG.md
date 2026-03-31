@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.0](https://github.com/patricksmill/romm-cli/compare/v0.15.2...v0.16.0) (2026-03-31)
+
+
+### Features
+
+* **settings:** allow user to chang base url, enable/disable https, and edit password in settings in tui ([c49c30e](https://github.com/patricksmill/romm-cli/commit/c49c30e40926cca28093aa968612c4bd5f647d80))
+
+
+### Bug Fixes
+
+* **settings:** fix formatting ([cfb61be](https://github.com/patricksmill/romm-cli/commit/cfb61bee8640711c6c4fba30471a86416678e1e8))
+* **settings:** fix formatting ([90ec22d](https://github.com/patricksmill/romm-cli/commit/90ec22dffec6bcae18f4f4f5a29092b371e5fad1))
+
 ## [0.15.2](https://github.com/patricksmill/romm-cli/compare/v0.15.1...v0.15.2) (2026-03-30)
 
 
