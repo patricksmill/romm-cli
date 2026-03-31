@@ -1,6 +1,6 @@
 [package]
 name = "romm-cli"
-version = "0.15.2"
+version = "0.16.0"
 edition = "2021"
 description = "Rust-based CLI and TUI for the ROMM API"
 repository = "https://github.com/patricksmill/romm-cli"
