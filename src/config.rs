@@ -79,7 +79,6 @@ fn keyring_get(key: &str) -> Option<String> {
 
 /// Directory for user-level config (`romm-cli` under the OS config dir).
 pub fn user_config_dir() -> Option<PathBuf> {
-    #[cfg(test)]
     if let Ok(dir) = std::env::var("ROMM_TEST_CONFIG_DIR") {
         return Some(PathBuf::from(dir));
     }

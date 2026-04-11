@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Features
 
+* **init:** add non-interactive flags for automated setup and browser API token import (`--url`, `--token-file`, `--check`)
 * **settings:** allow user to chang base url, enable/disable https, and edit password in settings in tui ([c49c30e](https://github.com/patricksmill/romm-cli/commit/c49c30e40926cca28093aa968612c4bd5f647d80))
 
 

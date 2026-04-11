@@ -32,6 +32,7 @@ use crate::types::RomList;
 
 use super::openapi::{resolve_path_template, EndpointRegistry};
 use super::screens::connected_splash::{self, StartupSplash};
+use super::screens::setup_wizard::SetupWizard;
 use super::screens::{
     BrowseScreen, DownloadScreen, ExecuteScreen, GameDetailPrevious, GameDetailScreen,
     LibraryBrowseScreen, MainMenuScreen, ResultDetailScreen, ResultScreen, SearchScreen,
@@ -57,6 +58,7 @@ pub enum AppScreen {
     ResultDetail(ResultDetailScreen),
     GameDetail(Box<GameDetailScreen>),
     Download(DownloadScreen),
+    SetupWizard(Box<crate::tui::screens::setup_wizard::SetupWizard>),
 }
 
 // ---------------------------------------------------------------------------
@@ -240,6 +242,7 @@ impl App {
             AppScreen::ResultDetail(_) => self.handle_result_detail(key),
             AppScreen::GameDetail(_) => self.handle_game_detail(key),
             AppScreen::Download(_) => self.handle_download(key),
+            AppScreen::SetupWizard(_) => self.handle_setup_wizard(key).await,
         }
     }
 
@@ -506,7 +509,14 @@ impl App {
         match key {
             KeyCode::Up | KeyCode::Char('k') => settings.previous(),
             KeyCode::Down | KeyCode::Char('j') => settings.next(),
-            KeyCode::Enter => settings.enter_edit(),
+            KeyCode::Enter => {
+                if settings.selected_index == 3 {
+                    self.screen =
+                        AppScreen::SetupWizard(Box::new(SetupWizard::new_auth_only(&self.config)));
+                } else {
+                    settings.enter_edit();
+                }
+            }
             KeyCode::Char('s') => {
                 // Save to disk
                 use crate::config::persist_user_config;
@@ -794,6 +804,50 @@ impl App {
         Ok(false)
     }
 
+    // -- Setup Wizard -------------------------------------------------------
+
+    async fn handle_setup_wizard(&mut self, key: KeyCode) -> Result<bool> {
+        let wizard = match &mut self.screen {
+            AppScreen::SetupWizard(w) => w,
+            _ => return Ok(false),
+        };
+
+        // Create a dummy event to pass to handle_key
+        let event = crossterm::event::KeyEvent::new(key, crossterm::event::KeyModifiers::empty());
+        if wizard.handle_key(event)? {
+            // Esc pressed
+            self.screen = AppScreen::Settings(SettingsScreen::new(
+                &self.config,
+                self.server_version.as_deref(),
+            ));
+            return Ok(false);
+        }
+
+        if wizard.testing {
+            let result = wizard.try_connect_and_persist(self.client.verbose()).await;
+            wizard.testing = false;
+            match result {
+                Ok(cfg) => {
+                    self.config = cfg;
+                    if let Ok(new_client) = RommClient::new(&self.config, self.client.verbose()) {
+                        self.client = new_client;
+                    }
+                    let mut settings =
+                        SettingsScreen::new(&self.config, self.server_version.as_deref());
+                    settings.message = Some((
+                        "Authentication updated successfully".to_string(),
+                        Color::Green,
+                    ));
+                    self.screen = AppScreen::Settings(settings);
+                }
+                Err(e) => {
+                    wizard.error = Some(format!("{e:#}"));
+                }
+            }
+        }
+        Ok(false)
+    }
+
     // -----------------------------------------------------------------------
     // Render
     // -----------------------------------------------------------------------
@@ -830,6 +884,12 @@ impl App {
             AppScreen::ResultDetail(detail) => detail.render(f, area),
             AppScreen::GameDetail(detail) => detail.render(f, area),
             AppScreen::Download(d) => d.render(f, area),
+            AppScreen::SetupWizard(wizard) => {
+                wizard.render(f, area);
+                if let Some((x, y)) = wizard.cursor_pos(area) {
+                    f.set_cursor(x, y);
+                }
+            }
         }
     }
 }

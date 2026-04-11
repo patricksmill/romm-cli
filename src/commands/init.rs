@@ -7,8 +7,12 @@ use anyhow::{anyhow, Context, Result};
 use clap::Args;
 use dialoguer::{theme::ColorfulTheme, Confirm, Input, Password, Select};
 use std::fs;
+use std::io::Read;
 
-use crate::config::{normalize_romm_origin, persist_user_config, user_config_env_path, AuthConfig};
+use crate::client::RommClient;
+use crate::config::{
+    normalize_romm_origin, persist_user_config, user_config_env_path, AuthConfig, Config,
+};
 
 #[derive(Args, Debug, Clone)]
 pub struct InitCommand {
@@ -19,6 +23,30 @@ pub struct InitCommand {
     /// Print the path to the user config `.env` and exit
     #[arg(long)]
     pub print_path: bool,
+
+    /// RomM origin URL (e.g. https://romm.example). If provided with a token, skips interactive prompts.
+    #[arg(long)]
+    pub url: Option<String>,
+
+    /// Bearer token string (discouraged: visible in process list).
+    #[arg(long)]
+    pub token: Option<String>,
+
+    /// Read Bearer token from a UTF-8 file. Use '-' for stdin.
+    #[arg(long)]
+    pub token_file: Option<String>,
+
+    /// Download directory for ROMs.
+    #[arg(long)]
+    pub download_dir: Option<String>,
+
+    /// Disable HTTPS (use HTTP instead).
+    #[arg(long)]
+    pub no_https: bool,
+
+    /// Verify URL and token by fetching OpenAPI after saving.
+    #[arg(long)]
+    pub check: bool,
 }
 
 enum AuthChoice {
@@ -28,7 +56,7 @@ enum AuthChoice {
     ApiKeyHeader,
 }
 
-pub fn handle(cmd: InitCommand) -> Result<()> {
+pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
     let Some(path) = user_config_env_path() else {
         return Err(anyhow!(
             "Could not determine config directory (no HOME / APPDATA?)."
@@ -44,7 +72,15 @@ pub fn handle(cmd: InitCommand) -> Result<()> {
         .parent()
         .ok_or_else(|| anyhow!("invalid config path"))?;
 
+    let is_non_interactive = cmd.url.is_some() || cmd.token.is_some() || cmd.token_file.is_some();
+
     if path.exists() && !cmd.force {
+        if is_non_interactive {
+            return Err(anyhow!(
+                "Config file already exists at {}. Use --force to overwrite.",
+                path.display()
+            ));
+        }
         let cont = Confirm::with_theme(&ColorfulTheme::default())
             .with_prompt(format!("Overwrite existing config at {}?", path.display()))
             .default(false)
@@ -56,6 +92,74 @@ pub fn handle(cmd: InitCommand) -> Result<()> {
     }
 
     fs::create_dir_all(dir).with_context(|| format!("create {}", dir.display()))?;
+
+    // ── Non-interactive quick setup ────────────────────────────────────
+    if let Some(url) = cmd.url {
+        let token = match (cmd.token, cmd.token_file) {
+            (Some(t), _) => Some(t),
+            (None, Some(f)) => {
+                let mut content = String::new();
+                if f == "-" {
+                    std::io::stdin()
+                        .read_to_string(&mut content)
+                        .context("read token from stdin")?;
+                } else {
+                    content =
+                        fs::read_to_string(&f).with_context(|| format!("read token file {}", f))?;
+                }
+                Some(content.trim().to_string())
+            }
+            (None, None) => None,
+        };
+
+        if token.is_none() {
+            return Err(anyhow!("--url requires either --token or --token-file"));
+        }
+
+        let base_url = normalize_romm_origin(&url);
+        let default_dl_dir = dirs::download_dir()
+            .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join("Downloads"))
+            .join("romm-cli");
+        let download_dir = cmd
+            .download_dir
+            .unwrap_or_else(|| default_dl_dir.display().to_string());
+        let use_https = !cmd.no_https;
+        let auth = Some(AuthConfig::Bearer {
+            token: token.unwrap(),
+        });
+
+        persist_user_config(&base_url, &download_dir, use_https, auth.clone())?;
+        println!("Wrote {}", path.display());
+
+        if cmd.check {
+            let config = Config {
+                base_url,
+                download_dir,
+                use_https,
+                auth,
+            };
+            let client = RommClient::new(&config, verbose)?;
+            println!("Checking connection to {}...", config.base_url);
+            client
+                .fetch_openapi_json()
+                .await
+                .context("failed to fetch OpenAPI JSON")?;
+            println!("Success: connected and fetched OpenAPI spec.");
+
+            println!("Verifying authentication...");
+            client
+                .call(&crate::endpoints::platforms::ListPlatforms)
+                .await
+                .context("failed to authenticate or fetch platforms")?;
+            println!("Success: authentication verified.");
+        }
+        return Ok(());
+    }
+
+    // ── Interactive setup ──────────────────────────────────────────────
+    if cmd.token.is_some() || cmd.token_file.is_some() {
+        return Err(anyhow!("--token and --token-file require --url"));
+    }
 
     let base_input: String = Input::with_theme(&ColorfulTheme::default())
         .with_prompt("RomM web URL (same as in your browser; do not add /api)")
@@ -91,7 +195,7 @@ pub fn handle(cmd: InitCommand) -> Result<()> {
     let items = vec![
         "No authentication",
         "Basic (username + password)",
-        "Bearer token",
+        "API Token (Bearer)",
         "API key in custom header",
     ];
     let idx = Select::with_theme(&ColorfulTheme::default())
@@ -124,7 +228,7 @@ pub fn handle(cmd: InitCommand) -> Result<()> {
         }
         AuthChoice::Bearer => {
             let token = Password::with_theme(&ColorfulTheme::default())
-                .with_prompt("Bearer token")
+                .with_prompt("API Token")
                 .interact()?;
             Some(AuthConfig::Bearer { token })
         }

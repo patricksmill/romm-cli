@@ -51,6 +51,26 @@ This sets `API_BASE_URL` and authentication. Configuration lives in your OS conf
 
 `API_BASE_URL` should match the RomM **website** address from your browser (scheme, host, port only), for example `https://romm.example.com` or `http://my-server:1738`. Do **not** append `/api`; the client adds `/api/...` on every request. A trailing `/api` in `.env` is stripped automatically.
 
+### API token (recommended)
+
+If you have created an API token in the RomM web UI (under API tokens / developer settings), you can configure the CLI in one step without interactive prompts:
+
+```bash
+romm-cli init --url https://romm.example.com --token-file ~/.romm-token --check
+```
+
+*Note on security:* Prefer `--token-file` over `--token` to keep your secret out of shell history and process lists. The CLI stores the token in your OS keyring when available.
+
+**Non-interactive flags:**
+- `--url <URL>`: RomM origin (browser-style).
+- `--token <TOKEN>`: Bearer token string.
+- `--token-file <PATH>`: Read token from UTF-8 file. Use `-` for stdin.
+- `--download-dir <PATH>`: Override the default download directory.
+- `--no-https`: Disable HTTPS (use HTTP instead).
+- `--check`: Verify URL and token by fetching OpenAPI and calling the platforms endpoint after saving.
+- `--force`: Overwrite existing configuration without asking.
+- `--print-path`: Print the path to the user config `.env` and exit.
+
 ### Environment variables
 
 Set these in your shell or a local `.env` for advanced use:
@@ -58,8 +78,11 @@ Set these in your shell or a local `.env` for advanced use:
 | Variable | Description |
 |----------|-------------|
 | `API_BASE_URL` | RomM site URL (browser address, no `/api`; e.g. `https://romm.example.com`) |
+| `ROMM_DOWNLOAD_DIR` | Directory for downloaded ROMs (defaults to `Downloads/romm-cli`) |
+| `API_USE_HTTPS` | Set to `false` to disable automatic upgrade to HTTPS (default: `true`) |
 | `API_USERNAME` / `API_PASSWORD` | Basic Auth credentials |
-| `API_TOKEN` / `API_KEY` | Bearer token or API key |
+| `API_TOKEN` | Bearer token |
+| `API_KEY_HEADER` / `API_KEY` | Custom API key header (e.g. `X-API-Key`) and its value |
 | `ROMM_OPENAPI_BASE_URL` | Optional. Only if OpenAPI must be fetched from a different origin than `API_BASE_URL`. |
 | `ROMM_OPENAPI_PATH` | Optional. Override path for the downloaded OpenAPI cache (default: under the OS config dir). |
 | `ROMM_USER_AGENT` | Optional. Override the HTTP `User-Agent` (some proxies block non-browser defaults). |
@@ -79,7 +102,7 @@ romm-tui
 
 ### CLI
 
-The CLI supports JSON output where applicable:
+The CLI supports JSON output where applicable. Many commands have short aliases (e.g., `setup` for `init`, `call` for `api`, `p` for `platforms`, `r` for `roms`, `dl` for `download`).
 
 ```bash
 # List platforms
@@ -96,10 +119,12 @@ romm-cli update
 
 ## Project layout
 
-- **client**: HTTP client for the API.
-- **tui**: Terminal UI (`ratatui`, `crossterm`).
-- **frontend**: Routing between CLI and shared logic.
-- **core**: Caching and download handling.
+- **`src/frontend`**: Routing between CLI and TUI execution.
+- **`src/commands`**: CLI argument parsing and non-TUI command logic.
+- **`src/tui`**: Terminal UI (`ratatui`, `crossterm`) and state machine (`AppScreen`).
+- **`src/core`**: Caching and background download handling.
+- **`src/client.rs`**: HTTP client wrapper around `reqwest`.
+- **`src/config.rs`**: Layered environment loading and keyring integration.
 
 ---
 

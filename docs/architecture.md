@@ -8,9 +8,9 @@ Rustdoc (`cargo doc --open`).
 
 The crate exposes a library root (`src/lib.rs`, `romm_cli`) alongside the
 `romm-cli` binary so integration tests and helper binaries can reuse the same
-modules. A second binary, `romm-tui`, only launches the TUI. Configuration is
-loaded from the process environment, then a cwd `.env`, then the user config
-file written by `romm-cli init` (see README).
+modules. A second binary, `romm-tui`, only launches the TUI. 
+
+Configuration is loaded from the process environment, then a cwd `.env`, then the user config file written by `romm-cli init`. Secrets (like passwords and tokens) are stored in the OS keyring via `keyring::Entry` and loaded transparently. Note that `Commands::Init` is handled in `main.rs` *before* `load_config` so that the setup wizard can run even if no configuration exists yet.
 
 From bottom to top:
 
@@ -19,7 +19,7 @@ From bottom to top:
   - `endpoints/*` – implementations of the `Endpoint` trait describing
     the HTTP method, path, query params, and optional body for each
     ROMM API endpoint.
-- **Core services**
+- **Core services** (`src/core/`, `src/client.rs`, `src/config.rs`)
   - `Config` / `AuthConfig` – decide how to talk to ROMM (base URL and
     authentication mode).
   - `RommClient` – wraps `reqwest::Client` and uses `Endpoint` values to
@@ -28,20 +28,17 @@ From bottom to top:
     platform/collection.
   - `DownloadManager` – orchestrates background downloads and exposes a
     shared list of `DownloadJob`s.
-- **Frontends**
-  - **CLI** (`commands/*`) – one-shot commands for platforms/ROMs/API.
-  - **TUI** (`tui/*`) – an event loop and a set of screens that
+- **Frontends** (`src/frontend/`)
+  - **CLI** (`src/commands/*`) – one-shot commands for platforms/ROMs/API. The `frontend::cli` module routes parsed arguments to these handlers.
+  - **TUI** (`src/tui/*`) – an event loop and a set of screens that
     present and manipulate the underlying data.
 
 The CLI layer itself is split into:
 
-- `commands::mod` – top-level `Cli` and `Commands` enum plus
-  `OutputFormat`.
-- `commands::platforms` / `commands::roms` / `commands::api` – small
-  modules that parse arguments, call into services, and print results.
+- `commands::mod` – top-level `Cli` and `Commands` enum plus `OutputFormat`.
+- `commands::platforms` / `commands::roms` / `commands::api` / `commands::download` / `commands::init` / `commands::update` – small modules that parse arguments, call into services, and print results.
 - `commands::print` – helpers for tabular text output.
-- `services` – `PlatformService` and `RomService` wrappers around
-  endpoint calls.
+- `services` – `PlatformService` and `RomService` wrappers around endpoint calls.
 
 There are no TUI/CLI dependencies inside the core services, which makes
 it straightforward to add more frontends later.
@@ -51,7 +48,7 @@ it straightforward to add more frontends later.
 Roughly:
 
 ```text
-Config + env
+Config + env + OS Keyring
     ↓
 RommClient (HTTP + auth)
     ↓
@@ -66,8 +63,8 @@ The TUI and CLI both operate on the same `RommClient` and model types.
 
 The TUI uses:
 
-- `AppScreen` – an enum with variants for each high-level screen
-- `App` – a struct that owns shared services and the current `AppScreen`
+- `AppScreen` – an enum with variants for each high-level screen (`MainMenu`, `LibraryBrowse`, `Search`, `Settings`, `Browse`, `Execute`, `Result`, `ResultDetail`, `GameDetail`, `Download`, `SetupWizard`).
+- `App` – a struct that owns shared services (`RommClient`, `RomCache`, `DownloadManager`) and the current `AppScreen`. It also holds shared state like the `EndpointRegistry` (for the API browser), `server_version`, `startup_splash`, and `deferred_load_roms`.
 
 Each key press is dispatched to a method like `handle_main_menu` or
 `handle_library_browse`, which matches on `self.screen`, mutates it,

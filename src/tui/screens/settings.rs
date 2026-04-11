@@ -35,7 +35,7 @@ impl SettingsScreen {
             Some(crate::config::AuthConfig::Basic { username, .. }) => {
                 format!("Basic (user: {})", username)
             }
-            Some(crate::config::AuthConfig::Bearer { .. }) => "Bearer token".to_string(),
+            Some(crate::config::AuthConfig::Bearer { .. }) => "API Token".to_string(),
             Some(crate::config::AuthConfig::ApiKey { header, .. }) => {
                 format!("API key (header: {})", header)
             }
@@ -64,14 +64,14 @@ impl SettingsScreen {
 
     pub fn next(&mut self) {
         if !self.editing {
-            self.selected_index = (self.selected_index + 1) % 3;
+            self.selected_index = (self.selected_index + 1) % 4;
         }
     }
 
     pub fn previous(&mut self) {
         if !self.editing {
             if self.selected_index == 0 {
-                self.selected_index = 2;
+                self.selected_index = 3;
             } else {
                 self.selected_index -= 1;
             }
@@ -187,6 +187,10 @@ impl SettingsScreen {
             ListItem::new(format!(
                 "Use HTTPS:    {}",
                 if self.use_https { "[X] Yes" } else { "[ ] No" }
+            )),
+            ListItem::new(format!(
+                "Auth:         {} (Enter to change)",
+                self.auth_status
             )),
         ];
 

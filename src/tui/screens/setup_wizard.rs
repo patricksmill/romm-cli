@@ -60,9 +60,9 @@ pub struct SetupWizard {
     header_cursor: usize,
     api_key: String,
     api_key_cursor: usize,
-    testing: bool,
-    use_https: bool,
-    error: Option<String>,
+    pub testing: bool,
+    pub use_https: bool,
+    pub error: Option<String>,
 }
 
 impl SetupWizard {
@@ -95,11 +95,47 @@ impl SetupWizard {
         }
     }
 
+    pub fn new_auth_only(config: &Config) -> Self {
+        let mut wizard = Self::new();
+        wizard.step = Step::AuthMenu;
+        wizard.url = config.base_url.clone();
+        wizard.download_dir = config.download_dir.clone();
+        wizard.use_https = config.use_https;
+
+        match &config.auth {
+            Some(AuthConfig::Basic { username, .. }) => {
+                wizard.auth_kind = AuthKind::Basic;
+                wizard.auth_menu_selected = 1;
+                wizard.username = username.clone();
+                wizard.user_cursor = username.len();
+            }
+            Some(AuthConfig::Bearer { token }) => {
+                wizard.auth_kind = AuthKind::Bearer;
+                wizard.auth_menu_selected = 2;
+                wizard.bearer_token = token.clone();
+                wizard.bearer_cursor = token.len();
+            }
+            Some(AuthConfig::ApiKey { header, key }) => {
+                wizard.auth_kind = AuthKind::ApiKey;
+                wizard.auth_menu_selected = 3;
+                wizard.api_header = header.clone();
+                wizard.header_cursor = header.len();
+                wizard.api_key = key.clone();
+                wizard.api_key_cursor = key.len();
+            }
+            None => {
+                wizard.auth_kind = AuthKind::None;
+                wizard.auth_menu_selected = 0;
+            }
+        }
+        wizard
+    }
+
     fn auth_labels() -> [&'static str; 4] {
         [
             "No authentication",
             "Basic (username + password)",
-            "Bearer token",
+            "API Token (Bearer)",
             "API key in custom header",
         ]
     }
@@ -163,14 +199,14 @@ impl SetupWizard {
         })
     }
 
-    fn render(&mut self, f: &mut ratatui::Frame, area: ratatui::layout::Rect) {
+    pub fn render(&mut self, f: &mut ratatui::Frame, area: ratatui::layout::Rect) {
         let title = match self.step {
             Step::Url => "Step 1/5 — RomM server URL",
             Step::Https => "Step 2/5 — Secure connection",
             Step::Download => "Step 3/5 — Download directory",
             Step::AuthMenu => "Step 4/5 — Authentication",
             Step::BasicUser | Step::BasicPass => "Step 5/5 — Basic auth",
-            Step::Bearer => "Step 5/5 — Bearer token",
+            Step::Bearer => "Step 5/5 — API Token",
             Step::ApiHeader | Step::ApiKey => "Step 5/5 — API key",
             Step::Summary => "Review & connect",
         };
@@ -317,7 +353,7 @@ impl SetupWizard {
                 let auth_desc = match self.auth_kind {
                     AuthKind::None => "None",
                     AuthKind::Basic => "Basic",
-                    AuthKind::Bearer => "Bearer",
+                    AuthKind::Bearer => "API Token",
                     AuthKind::ApiKey => "API key header",
                 };
                 let mut lines = vec![
@@ -364,7 +400,7 @@ impl SetupWizard {
         f.render_widget(p, main[2]);
     }
 
-    fn cursor_pos(&self, area: ratatui::layout::Rect) -> Option<(u16, u16)> {
+    pub fn cursor_pos(&self, area: ratatui::layout::Rect) -> Option<(u16, u16)> {
         let main = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -475,7 +511,7 @@ impl SetupWizard {
         Ok(())
     }
 
-    async fn try_connect_and_persist(&mut self, verbose: bool) -> Result<Config> {
+    pub async fn try_connect_and_persist(&mut self, verbose: bool) -> Result<Config> {
         let cfg = self.build_config()?;
         let client = RommClient::new(&cfg, verbose)?;
         client.fetch_openapi_json().await?;
@@ -484,6 +520,212 @@ impl SetupWizard {
         persist_user_config(&base, &download, self.use_https, cfg.auth.clone())?;
         load_layered_env();
         load_config()
+    }
+
+    pub fn handle_key(&mut self, key: crossterm::event::KeyEvent) -> Result<bool> {
+        if key.kind != KeyEventKind::Press {
+            return Ok(false);
+        }
+        if key.code == KeyCode::Esc {
+            return Ok(true); // Signal to caller that we should exit/cancel
+        }
+
+        if self.testing {
+            return Ok(false);
+        }
+
+        match self.step {
+            Step::Url => match key.code {
+                KeyCode::Enter => {
+                    let _ = self.advance_step();
+                }
+                KeyCode::Char(c) => self.add_char_url(c),
+                KeyCode::Backspace => self.del_char_url(),
+                KeyCode::Left => {
+                    if self.url_cursor > 0 {
+                        self.url_cursor -= 1;
+                    }
+                }
+                KeyCode::Right => {
+                    if self.url_cursor < self.url.len() {
+                        self.url_cursor += 1;
+                    }
+                }
+                _ => {}
+            },
+            Step::Https => match key.code {
+                KeyCode::Enter => {
+                    let _ = self.advance_step();
+                }
+                KeyCode::Char(' ') => self.use_https = !self.use_https,
+                _ => {}
+            },
+            Step::Download => match key.code {
+                KeyCode::Enter => {
+                    let _ = self.advance_step();
+                }
+                KeyCode::Char(c) => self.add_char_dl(c),
+                KeyCode::Backspace => self.del_char_dl(),
+                KeyCode::Left => {
+                    if self.dl_cursor > 0 {
+                        self.dl_cursor -= 1;
+                    }
+                }
+                KeyCode::Right => {
+                    if self.dl_cursor < self.download_dir.len() {
+                        self.dl_cursor += 1;
+                    }
+                }
+                _ => {}
+            },
+            Step::AuthMenu => match key.code {
+                KeyCode::Up | KeyCode::Char('k') => {
+                    if self.auth_menu_selected > 0 {
+                        self.auth_menu_selected -= 1;
+                    }
+                }
+                KeyCode::Down | KeyCode::Char('j') => {
+                    if self.auth_menu_selected < 3 {
+                        self.auth_menu_selected += 1;
+                    }
+                }
+                KeyCode::Enter => {
+                    let _ = self.advance_step();
+                }
+                _ => {}
+            },
+            Step::BasicUser => match key.code {
+                KeyCode::Tab => self.step = Step::BasicPass,
+                KeyCode::Enter => {
+                    let _ = self.advance_step();
+                }
+                KeyCode::Char(c) => {
+                    let pos = self.user_cursor.min(self.username.len());
+                    self.username.insert(pos, c);
+                    self.user_cursor = pos + 1;
+                }
+                KeyCode::Backspace => {
+                    if self.user_cursor > 0 && self.user_cursor <= self.username.len() {
+                        self.username.remove(self.user_cursor - 1);
+                        self.user_cursor -= 1;
+                    }
+                }
+                KeyCode::Left => {
+                    if self.user_cursor > 0 {
+                        self.user_cursor -= 1;
+                    }
+                }
+                KeyCode::Right => {
+                    if self.user_cursor < self.username.len() {
+                        self.user_cursor += 1;
+                    }
+                }
+                _ => {}
+            },
+            Step::BasicPass => match key.code {
+                KeyCode::Tab => self.step = Step::BasicUser,
+                KeyCode::Enter => {
+                    let _ = self.advance_step();
+                }
+                KeyCode::Char(c) => self.password.push(c),
+                KeyCode::Backspace => {
+                    self.password.pop();
+                }
+                _ => {}
+            },
+            Step::Bearer => match key.code {
+                KeyCode::Enter => {
+                    let _ = self.advance_step();
+                }
+                KeyCode::Char(c) => {
+                    let pos = self.bearer_cursor.min(self.bearer_token.len());
+                    self.bearer_token.insert(pos, c);
+                    self.bearer_cursor = pos + 1;
+                }
+                KeyCode::Backspace => {
+                    if self.bearer_cursor > 0 && self.bearer_cursor <= self.bearer_token.len() {
+                        self.bearer_token.remove(self.bearer_cursor - 1);
+                        self.bearer_cursor -= 1;
+                    }
+                }
+                KeyCode::Left => {
+                    if self.bearer_cursor > 0 {
+                        self.bearer_cursor -= 1;
+                    }
+                }
+                KeyCode::Right => {
+                    if self.bearer_cursor < self.bearer_token.len() {
+                        self.bearer_cursor += 1;
+                    }
+                }
+                _ => {}
+            },
+            Step::ApiHeader => match key.code {
+                KeyCode::Tab => self.step = Step::ApiKey,
+                KeyCode::Enter => {
+                    let _ = self.advance_step();
+                }
+                KeyCode::Char(c) => {
+                    let pos = self.header_cursor.min(self.api_header.len());
+                    self.api_header.insert(pos, c);
+                    self.header_cursor = pos + 1;
+                }
+                KeyCode::Backspace => {
+                    if self.header_cursor > 0 && self.header_cursor <= self.api_header.len() {
+                        self.api_header.remove(self.header_cursor - 1);
+                        self.header_cursor -= 1;
+                    }
+                }
+                KeyCode::Left => {
+                    if self.header_cursor > 0 {
+                        self.header_cursor -= 1;
+                    }
+                }
+                KeyCode::Right => {
+                    if self.header_cursor < self.api_header.len() {
+                        self.header_cursor += 1;
+                    }
+                }
+                _ => {}
+            },
+            Step::ApiKey => match key.code {
+                KeyCode::Tab => self.step = Step::ApiHeader,
+                KeyCode::Enter => {
+                    let _ = self.advance_step();
+                }
+                KeyCode::Char(c) => {
+                    let pos = self.api_key_cursor.min(self.api_key.len());
+                    self.api_key.insert(pos, c);
+                    self.api_key_cursor = pos + 1;
+                }
+                KeyCode::Backspace => {
+                    if self.api_key_cursor > 0 && self.api_key_cursor <= self.api_key.len() {
+                        self.api_key.remove(self.api_key_cursor - 1);
+                        self.api_key_cursor -= 1;
+                    }
+                }
+                KeyCode::Left => {
+                    if self.api_key_cursor > 0 {
+                        self.api_key_cursor -= 1;
+                    }
+                }
+                KeyCode::Right => {
+                    if self.api_key_cursor < self.api_key.len() {
+                        self.api_key_cursor += 1;
+                    }
+                }
+                _ => {}
+            },
+            Step::Summary => {
+                if key.code == KeyCode::Enter {
+                    self.testing = true;
+                    self.error = None;
+                    // The caller handles the actual async try_connect_and_persist call
+                    // when they see testing = true.
+                }
+            }
+        }
+        Ok(false)
     }
 
     pub async fn run(mut self, verbose: bool) -> Result<Config> {
@@ -504,10 +746,7 @@ impl SetupWizard {
 
             if event::poll(std::time::Duration::from_millis(100))? {
                 if let Event::Key(key) = event::read()? {
-                    if key.kind != KeyEventKind::Press {
-                        continue;
-                    }
-                    if key.code == KeyCode::Esc {
+                    if self.handle_key(key)? {
                         disable_raw_mode()?;
                         execute!(
                             terminal.backend_mut(),
@@ -519,222 +758,25 @@ impl SetupWizard {
                     }
 
                     if self.testing {
-                        continue;
-                    }
-
-                    match self.step {
-                        Step::Url => match key.code {
-                            KeyCode::Enter => {
-                                let _ = self.advance_step();
+                        terminal.draw(|f| {
+                            let area = f.size();
+                            self.render(f, area);
+                        })?;
+                        let result = self.try_connect_and_persist(verbose).await;
+                        self.testing = false;
+                        match result {
+                            Ok(cfg) => {
+                                disable_raw_mode()?;
+                                execute!(
+                                    terminal.backend_mut(),
+                                    LeaveAlternateScreen,
+                                    DisableMouseCapture
+                                )?;
+                                terminal.show_cursor()?;
+                                return Ok(cfg);
                             }
-                            KeyCode::Char(c) => self.add_char_url(c),
-                            KeyCode::Backspace => self.del_char_url(),
-                            KeyCode::Left => {
-                                if self.url_cursor > 0 {
-                                    self.url_cursor -= 1;
-                                }
-                            }
-                            KeyCode::Right => {
-                                if self.url_cursor < self.url.len() {
-                                    self.url_cursor += 1;
-                                }
-                            }
-                            _ => {}
-                        },
-                        Step::Https => match key.code {
-                            KeyCode::Enter => {
-                                let _ = self.advance_step();
-                            }
-                            KeyCode::Char(' ') => self.use_https = !self.use_https,
-                            _ => {}
-                        },
-                        Step::Download => match key.code {
-                            KeyCode::Enter => {
-                                let _ = self.advance_step();
-                            }
-                            KeyCode::Char(c) => self.add_char_dl(c),
-                            KeyCode::Backspace => self.del_char_dl(),
-                            KeyCode::Left => {
-                                if self.dl_cursor > 0 {
-                                    self.dl_cursor -= 1;
-                                }
-                            }
-                            KeyCode::Right => {
-                                if self.dl_cursor < self.download_dir.len() {
-                                    self.dl_cursor += 1;
-                                }
-                            }
-                            _ => {}
-                        },
-                        Step::AuthMenu => match key.code {
-                            KeyCode::Up | KeyCode::Char('k') => {
-                                if self.auth_menu_selected > 0 {
-                                    self.auth_menu_selected -= 1;
-                                }
-                            }
-                            KeyCode::Down | KeyCode::Char('j') => {
-                                if self.auth_menu_selected < 3 {
-                                    self.auth_menu_selected += 1;
-                                }
-                            }
-                            KeyCode::Enter => {
-                                let _ = self.advance_step();
-                            }
-                            _ => {}
-                        },
-                        Step::BasicUser => match key.code {
-                            KeyCode::Tab => self.step = Step::BasicPass,
-                            KeyCode::Enter => {
-                                let _ = self.advance_step();
-                            }
-                            KeyCode::Char(c) => {
-                                let pos = self.user_cursor.min(self.username.len());
-                                self.username.insert(pos, c);
-                                self.user_cursor = pos + 1;
-                            }
-                            KeyCode::Backspace => {
-                                if self.user_cursor > 0 && self.user_cursor <= self.username.len() {
-                                    self.username.remove(self.user_cursor - 1);
-                                    self.user_cursor -= 1;
-                                }
-                            }
-                            KeyCode::Left => {
-                                if self.user_cursor > 0 {
-                                    self.user_cursor -= 1;
-                                }
-                            }
-                            KeyCode::Right => {
-                                if self.user_cursor < self.username.len() {
-                                    self.user_cursor += 1;
-                                }
-                            }
-                            _ => {}
-                        },
-                        Step::BasicPass => match key.code {
-                            KeyCode::Tab => self.step = Step::BasicUser,
-                            KeyCode::Enter => {
-                                let _ = self.advance_step();
-                            }
-                            KeyCode::Char(c) => self.password.push(c),
-                            KeyCode::Backspace => {
-                                self.password.pop();
-                            }
-                            _ => {}
-                        },
-                        Step::Bearer => match key.code {
-                            KeyCode::Enter => {
-                                let _ = self.advance_step();
-                            }
-                            KeyCode::Char(c) => {
-                                let pos = self.bearer_cursor.min(self.bearer_token.len());
-                                self.bearer_token.insert(pos, c);
-                                self.bearer_cursor = pos + 1;
-                            }
-                            KeyCode::Backspace => {
-                                if self.bearer_cursor > 0
-                                    && self.bearer_cursor <= self.bearer_token.len()
-                                {
-                                    self.bearer_token.remove(self.bearer_cursor - 1);
-                                    self.bearer_cursor -= 1;
-                                }
-                            }
-                            KeyCode::Left => {
-                                if self.bearer_cursor > 0 {
-                                    self.bearer_cursor -= 1;
-                                }
-                            }
-                            KeyCode::Right => {
-                                if self.bearer_cursor < self.bearer_token.len() {
-                                    self.bearer_cursor += 1;
-                                }
-                            }
-                            _ => {}
-                        },
-                        Step::ApiHeader => match key.code {
-                            KeyCode::Tab => self.step = Step::ApiKey,
-                            KeyCode::Enter => {
-                                let _ = self.advance_step();
-                            }
-                            KeyCode::Char(c) => {
-                                let pos = self.header_cursor.min(self.api_header.len());
-                                self.api_header.insert(pos, c);
-                                self.header_cursor = pos + 1;
-                            }
-                            KeyCode::Backspace => {
-                                if self.header_cursor > 0
-                                    && self.header_cursor <= self.api_header.len()
-                                {
-                                    self.api_header.remove(self.header_cursor - 1);
-                                    self.header_cursor -= 1;
-                                }
-                            }
-                            KeyCode::Left => {
-                                if self.header_cursor > 0 {
-                                    self.header_cursor -= 1;
-                                }
-                            }
-                            KeyCode::Right => {
-                                if self.header_cursor < self.api_header.len() {
-                                    self.header_cursor += 1;
-                                }
-                            }
-                            _ => {}
-                        },
-                        Step::ApiKey => match key.code {
-                            KeyCode::Tab => self.step = Step::ApiHeader,
-                            KeyCode::Enter => {
-                                let _ = self.advance_step();
-                            }
-                            KeyCode::Char(c) => {
-                                let pos = self.api_key_cursor.min(self.api_key.len());
-                                self.api_key.insert(pos, c);
-                                self.api_key_cursor = pos + 1;
-                            }
-                            KeyCode::Backspace => {
-                                if self.api_key_cursor > 0
-                                    && self.api_key_cursor <= self.api_key.len()
-                                {
-                                    self.api_key.remove(self.api_key_cursor - 1);
-                                    self.api_key_cursor -= 1;
-                                }
-                            }
-                            KeyCode::Left => {
-                                if self.api_key_cursor > 0 {
-                                    self.api_key_cursor -= 1;
-                                }
-                            }
-                            KeyCode::Right => {
-                                if self.api_key_cursor < self.api_key.len() {
-                                    self.api_key_cursor += 1;
-                                }
-                            }
-                            _ => {}
-                        },
-                        Step::Summary => {
-                            if key.code == KeyCode::Enter {
-                                self.testing = true;
-                                self.error = None;
-                                terminal.draw(|f| {
-                                    let area = f.size();
-                                    self.render(f, area);
-                                })?;
-                                let result = self.try_connect_and_persist(verbose).await;
-                                self.testing = false;
-                                match result {
-                                    Ok(cfg) => {
-                                        disable_raw_mode()?;
-                                        execute!(
-                                            terminal.backend_mut(),
-                                            LeaveAlternateScreen,
-                                            DisableMouseCapture
-                                        )?;
-                                        terminal.show_cursor()?;
-                                        return Ok(cfg);
-                                    }
-                                    Err(e) => {
-                                        self.error = Some(format!("{e:#}"));
-                                    }
-                                }
+                            Err(e) => {
+                                self.error = Some(format!("{e:#}"));
                             }
                         }
                     }
