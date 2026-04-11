@@ -4,7 +4,7 @@ use anyhow::Result;
 use clap::Parser;
 use romm_cli::commands::init;
 use romm_cli::commands::{run, Cli, Commands};
-use romm_cli::config::{load_config, load_layered_env};
+use romm_cli::config::load_config;
 use tracing_subscriber::{fmt, EnvFilter};
 
 #[tokio::main]
@@ -16,7 +16,6 @@ async fn main() {
 }
 
 async fn run_app() -> Result<()> {
-    load_layered_env();
 
     let Cli {
         verbose,

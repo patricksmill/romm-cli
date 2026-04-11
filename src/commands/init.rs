@@ -11,7 +11,7 @@ use std::io::Read;
 
 use crate::client::RommClient;
 use crate::config::{
-    normalize_romm_origin, persist_user_config, user_config_env_path, AuthConfig, Config,
+    normalize_romm_origin, persist_user_config, user_config_json_path, AuthConfig, Config,
 };
 
 #[derive(Args, Debug, Clone)]
@@ -57,7 +57,7 @@ enum AuthChoice {
 }
 
 pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
-    let Some(path) = user_config_env_path() else {
+    let Some(path) = user_config_json_path() else {
         return Err(anyhow!(
             "Could not determine config directory (no HOME / APPDATA?)."
         ));

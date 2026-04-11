@@ -17,7 +17,7 @@ use std::io::stdout;
 
 use crate::client::RommClient;
 use crate::config::{
-    load_config, load_layered_env, normalize_romm_origin, persist_user_config, AuthConfig, Config,
+    load_config, normalize_romm_origin, persist_user_config, AuthConfig, Config,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -518,7 +518,6 @@ impl SetupWizard {
         let base = cfg.base_url.clone();
         let download = self.download_dir.trim().to_string();
         persist_user_config(&base, &download, self.use_https, cfg.auth.clone())?;
-        load_layered_env();
         load_config()
     }
 

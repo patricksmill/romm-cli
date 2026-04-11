@@ -6,7 +6,7 @@
 //!
 //! ## Environment file precedence
 //!
-//! Call [`load_layered_env`] before reading config:
+//! Call [`load_config`] to read config:
 //!
 //! 1. Variables already set in the process environment (highest priority).
 //! 2. Project `.env` in the current working directory (via `dotenvy`).
@@ -17,18 +17,20 @@ use std::path::PathBuf;
 
 use anyhow::{anyhow, Context, Result};
 
+use serde::{Deserialize, Serialize};
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AuthConfig {
     Basic { username: String, password: String },
     Bearer { token: String },
     ApiKey { header: String, key: String },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub base_url: String,
     pub download_dir: String,
@@ -85,9 +87,9 @@ pub fn user_config_dir() -> Option<PathBuf> {
     dirs::config_dir().map(|d| d.join("romm-cli"))
 }
 
-/// Path to the user-level `.env` file (`.../romm-cli/.env`).
-pub fn user_config_env_path() -> Option<PathBuf> {
-    user_config_dir().map(|d| d.join(".env"))
+/// Path to the user-level `config.json` file (`.../romm-cli/config.json`).
+pub fn user_config_json_path() -> Option<PathBuf> {
+    user_config_dir().map(|d| d.join("config.json"))
 }
 
 /// Where the OpenAPI spec is cached (`.../romm-cli/openapi.json`).
@@ -107,16 +109,6 @@ pub fn openapi_cache_path() -> Result<PathBuf> {
 // Loading
 // ---------------------------------------------------------------------------
 
-/// Load env vars from `./.env` in cwd, then from the user config file.
-/// Later files only set variables not already set (env or earlier file), so a project `.env` overrides the same keys in the user file.
-pub fn load_layered_env() {
-    let _ = dotenvy::dotenv();
-    if let Some(path) = user_config_env_path() {
-        if path.is_file() {
-            let _ = dotenvy::from_path(path);
-        }
-    }
-}
 
 /// Read an env var, falling back to the OS keyring if unset or empty.
 ///
@@ -135,9 +127,47 @@ fn env_nonempty(key: &str) -> Option<String> {
 }
 
 pub fn load_config() -> Result<Config> {
+    // Attempt to load from JSON first
+    if let Some(path) = user_config_json_path() {
+        if path.is_file() {
+            if let Ok(content) = std::fs::read_to_string(&path) {
+                if let Ok(mut config) = serde_json::from_str::<Config>(&content) {
+                    // Populate secrets from keyring if they are missing or placeholders
+                    if let Some(auth) = &mut config.auth {
+                        match auth {
+                            AuthConfig::Basic { password, .. } => {
+                                if is_placeholder(password) {
+                                    if let Some(p) = keyring_get("API_PASSWORD") {
+                                        *password = p;
+                                    }
+                                }
+                            }
+                            AuthConfig::Bearer { token } => {
+                                if is_placeholder(token) {
+                                    if let Some(t) = keyring_get("API_TOKEN") {
+                                        *token = t;
+                                    }
+                                }
+                            }
+                            AuthConfig::ApiKey { key, .. } => {
+                                if is_placeholder(key) {
+                                    if let Some(k) = keyring_get("API_KEY") {
+                                        *key = k;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    return Ok(config);
+                }
+            }
+        }
+    }
+
+    // Fallback to environment variables
     let base_raw = std::env::var("API_BASE_URL").map_err(|_| {
         anyhow!(
-            "API_BASE_URL is not set. Set it in the environment, a .env file, or run: romm-cli init"
+            "API_BASE_URL is not set. Set it in the environment, a config.json file, or run: romm-cli init"
         )
     })?;
     let mut base_url = normalize_romm_origin(&base_raw);
@@ -196,20 +226,8 @@ pub fn load_config() -> Result<Config> {
     })
 }
 
-/// Escape a value for use in a `.env` file line (same rules as `romm-cli init`).
-pub(crate) fn escape_env_value(s: &str) -> String {
-    let needs_quote = s.is_empty()
-        || s.chars()
-            .any(|c| c.is_whitespace() || c == '#' || c == '"' || c == '\'');
-    if needs_quote {
-        let escaped = s.replace('\\', "\\\\").replace('"', "\\\"");
-        format!("\"{}\"", escaped)
-    } else {
-        s.to_string()
-    }
-}
 
-/// Write user-level `romm-cli/.env` and store secrets in the OS keyring when possible
+/// Write user-level `romm-cli/config.json` and store secrets in the OS keyring when possible
 /// (same layout as interactive `romm-cli init`).
 pub fn persist_user_config(
     base_url: &str,
@@ -217,7 +235,7 @@ pub fn persist_user_config(
     use_https: bool,
     auth: Option<AuthConfig>,
 ) -> Result<()> {
-    let Some(path) = user_config_env_path() else {
+    let Some(path) = user_config_json_path() else {
         return Err(anyhow!(
             "Could not determine config directory (no HOME / APPDATA?)."
         ));
@@ -227,47 +245,39 @@ pub fn persist_user_config(
         .ok_or_else(|| anyhow!("invalid config path"))?;
     std::fs::create_dir_all(dir).with_context(|| format!("create {}", dir.display()))?;
 
-    let mut lines: Vec<String> = vec![
-        "# romm-cli user configuration".to_string(),
-        "# Secrets are stored in the OS keyring when available.".to_string(),
-        "# Applied after project .env: only fills variables not already set.".to_string(),
-        String::new(),
-        format!("API_BASE_URL={}", escape_env_value(base_url)),
-        format!("ROMM_DOWNLOAD_DIR={}", escape_env_value(download_dir)),
-        format!("API_USE_HTTPS={}", if use_https { "true" } else { "false" }),
-        String::new(),
-    ];
+    let mut config_to_save = Config {
+        base_url: base_url.to_string(),
+        download_dir: download_dir.to_string(),
+        use_https,
+        auth: auth.clone(),
+    };
 
-    match &auth {
-        None => {
-            lines.push("# No auth variables set.".to_string());
-        }
-        Some(AuthConfig::Basic { username, password }) => {
-            lines.push("# Basic auth (password stored in OS keyring)".to_string());
-            lines.push(format!("API_USERNAME={}", escape_env_value(username)));
+    match &mut config_to_save.auth {
+        None => {}
+        Some(AuthConfig::Basic { password, .. }) => {
             if let Err(e) = keyring_store("API_PASSWORD", password) {
-                tracing::warn!("keyring store API_PASSWORD: {e}; writing plaintext to .env");
-                lines.push(format!("API_PASSWORD={}", escape_env_value(password)));
+                tracing::warn!("keyring store API_PASSWORD: {e}; writing plaintext to config.json");
+            } else {
+                *password = "<stored-in-keyring>".to_string();
             }
         }
         Some(AuthConfig::Bearer { token }) => {
-            lines.push("# Bearer token (stored in OS keyring)".to_string());
             if let Err(e) = keyring_store("API_TOKEN", token) {
-                tracing::warn!("keyring store API_TOKEN: {e}; writing plaintext to .env");
-                lines.push(format!("API_TOKEN={}", escape_env_value(token)));
+                tracing::warn!("keyring store API_TOKEN: {e}; writing plaintext to config.json");
+            } else {
+                *token = "<stored-in-keyring>".to_string();
             }
         }
-        Some(AuthConfig::ApiKey { header, key }) => {
-            lines.push("# Custom header API key (key stored in OS keyring)".to_string());
-            lines.push(format!("API_KEY_HEADER={}", escape_env_value(header)));
+        Some(AuthConfig::ApiKey { key, .. }) => {
             if let Err(e) = keyring_store("API_KEY", key) {
-                tracing::warn!("keyring store API_KEY: {e}; writing plaintext to .env");
-                lines.push(format!("API_KEY={}", escape_env_value(key)));
+                tracing::warn!("keyring store API_KEY: {e}; writing plaintext to config.json");
+            } else {
+                *key = "<stored-in-keyring>".to_string();
             }
         }
     }
 
-    let content = lines.join("\n") + "\n";
+    let content = serde_json::to_string_pretty(&config_to_save)?;
     {
         use std::io::Write;
         let mut f =
@@ -408,7 +418,7 @@ mod tests {
     }
 
     #[test]
-    fn layered_env_applies_user_file_for_unset_keys() {
+    fn loads_from_user_json_file() {
         let _guard = env_lock().lock().expect("env lock");
         clear_auth_env();
         std::env::remove_var("API_BASE_URL");
@@ -417,27 +427,29 @@ mod tests {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let base = std::env::temp_dir().join(format!("romm-layered-{ts}"));
+        let base = std::env::temp_dir().join(format!("romm-json-{ts}"));
         std::fs::create_dir_all(&base).unwrap();
-        let work = base.join("work");
-        std::fs::create_dir_all(&work).unwrap();
+        
+        let config_json = r#"{
+            "base_url": "http://from-json-file.test",
+            "download_dir": "/tmp/downloads",
+            "use_https": false,
+            "auth": null
+        }"#;
+        
         std::fs::write(
-            base.join(".env"),
-            "API_BASE_URL=http://from-user-file.test\n",
+            base.join("config.json"),
+            config_json,
         )
         .unwrap();
 
         std::env::set_var("ROMM_TEST_CONFIG_DIR", base.as_os_str());
-        let old_cwd = std::env::current_dir().unwrap();
-        std::env::set_current_dir(&work).unwrap();
 
-        load_layered_env();
-        // Force use_https=false so the http assertion works
-        std::env::set_var("API_USE_HTTPS", "false");
-        let cfg = load_config().expect("load from user .env");
-        assert_eq!(cfg.base_url, "http://from-user-file.test");
+        let cfg = load_config().expect("load from user config.json");
+        assert_eq!(cfg.base_url, "http://from-json-file.test");
+        assert_eq!(cfg.download_dir, "/tmp/downloads");
+        assert_eq!(cfg.use_https, false);
 
-        std::env::set_current_dir(old_cwd).unwrap();
         std::env::remove_var("ROMM_TEST_CONFIG_DIR");
         std::env::remove_var("API_BASE_URL");
         let _ = std::fs::remove_dir_all(&base);

@@ -76,7 +76,6 @@ pub async fn run(client: RommClient, config: Config) -> Result<()> {
 
 /// Load config, run first-time setup in the terminal if `API_BASE_URL` is missing, then start the TUI.
 pub async fn run_interactive(verbose: bool) -> Result<()> {
-    crate::config::load_layered_env();
     let (from_wizard, config) = match crate::config::load_config() {
         Ok(c) => (false, c),
         Err(_) => (true, SetupWizard::new().run(verbose).await?),

@@ -64,14 +64,14 @@ fn init_non_interactive_writes_config() {
         .success()
         .stdout(predicates::str::contains("Wrote"));
 
-    let env_path = config_dir.join(".env");
+    let env_path = config_dir.join("config.json");
     assert!(env_path.exists());
 
     let content = fs::read_to_string(&env_path).unwrap();
-    assert!(content.contains("API_BASE_URL=https://romm.example.com"));
-    assert!(content.contains("ROMM_DOWNLOAD_DIR=/tmp/roms"));
-    assert!(content.contains("API_USE_HTTPS=false"));
-    assert!(content.contains("Bearer token"));
+    assert!(content.contains(r#""base_url": "https://romm.example.com""#));
+    assert!(content.contains(r#""download_dir": "/tmp/roms""#));
+    assert!(content.contains(r#""use_https": false"#));
+    assert!(content.contains(r#""Bearer""#));
 
     let _ = fs::remove_dir_all(config_dir);
 }
