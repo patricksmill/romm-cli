@@ -262,6 +262,76 @@ impl RommClient {
         Ok(decode_json_response_body(&bytes))
     }
 
+    pub async fn request_json_unauthenticated(
+        &self,
+        method: &str,
+        path: &str,
+        query: &[(String, String)],
+        body: Option<Value>,
+    ) -> Result<Value> {
+        let url = format!(
+            "{}/{}",
+            self.base_url.trim_end_matches('/'),
+            path.trim_start_matches('/')
+        );
+        let headers = HeaderMap::new();
+
+        let http_method = Method::from_bytes(method.as_bytes())
+            .map_err(|_| anyhow!("invalid HTTP method: {method}"))?;
+
+        // Ensure query params serialize as key=value pairs (reqwest/serde_urlencoded
+        // expect sequences of (key, value); using &[(&str, &str)] guarantees correct encoding).
+        let query_refs: Vec<(&str, &str)> = query
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect();
+
+        let mut req = self
+            .http
+            .request(http_method, &url)
+            .headers(headers)
+            .query(&query_refs);
+
+        if let Some(body) = body {
+            req = req.json(&body);
+        }
+
+        let t0 = Instant::now();
+        let resp = req
+            .send()
+            .await
+            .map_err(|e| anyhow!("request error: {e}"))?;
+
+        let status = resp.status();
+        if self.verbose {
+            let keys: Vec<&str> = query.iter().map(|(k, _)| k.as_str()).collect();
+            tracing::info!(
+                "[romm-cli] {} {} query_keys={:?} -> {} ({}ms)",
+                method,
+                path,
+                keys,
+                status.as_u16(),
+                t0.elapsed().as_millis()
+            );
+        }
+        if !status.is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(anyhow!(
+                "ROMM API error: {} {} - {}",
+                status.as_u16(),
+                status.canonical_reason().unwrap_or(""),
+                body
+            ));
+        }
+
+        let bytes = resp
+            .bytes()
+            .await
+            .map_err(|e| anyhow!("read response body: {e}"))?;
+
+        Ok(decode_json_response_body(&bytes))
+    }
+
     /// GET the OpenAPI spec from the server. Tries [`openapi_spec_urls`] in order (HTTP/HTTPS and
     /// `/openapi.json` vs `/api/openapi.json`). Uses [`resolve_openapi_root`] for the origin.
     pub async fn fetch_openapi_json(&self) -> Result<String> {

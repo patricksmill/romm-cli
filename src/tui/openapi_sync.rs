@@ -96,7 +96,7 @@ pub async fn sync_openapi_registry(
         .map_err(|e| anyhow!("invalid OpenAPI document: {e}"))?;
 
     let server_version = client
-        .request_json("GET", "/api/heartbeat", &[], None)
+        .request_json_unauthenticated("GET", "/api/heartbeat", &[], None)
         .await
         .ok()
         .as_ref()
