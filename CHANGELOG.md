@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.0](https://github.com/patricksmill/romm-cli/compare/v0.17.0...v0.18.0) (2026-04-12)
+
+
+### Features
+
+* **client:** add unauthenticated JSON request method ([bb904f0](https://github.com/patricksmill/romm-cli/commit/bb904f061e72995a1ab7ed1900a3b527f5aaedf0))
+* **config:** enhance keyring integration and update config handling ([4c90381](https://github.com/patricksmill/romm-cli/commit/4c90381f71bb3ea0bd4163d50edfafa22e014cdd))
+* **tui:** implement global error handling and integrate wiremock for testing ([883be87](https://github.com/patricksmill/romm-cli/commit/883be8702b7e43a70eaf17f38f60a4e6864e92ef))
+
+
+### Bug Fixes
+
+* ran cargo fmt ([ffb4629](https://github.com/patricksmill/romm-cli/commit/ffb4629b1085914cde3b963d8657b553fb31f080))
+* **tests:** update assertion for HTTPS configuration in tests ([24c43e6](https://github.com/patricksmill/romm-cli/commit/24c43e6a27abbebf47d55103d03186767fdc9fbd))
+
 ## [0.17.0](https://github.com/patricksmill/romm-cli/compare/v0.16.0...v0.17.0) (2026-04-11)
 
 
