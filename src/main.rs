@@ -16,7 +16,6 @@ async fn main() {
 }
 
 async fn run_app() -> Result<()> {
-
     let Cli {
         verbose,
         json,

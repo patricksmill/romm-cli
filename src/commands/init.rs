@@ -256,7 +256,7 @@ pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
             let code: String = Input::with_theme(&ColorfulTheme::default())
                 .with_prompt("8-character pairing code")
                 .interact_text()?;
-            
+
             println!("Exchanging pairing code...");
             let temp_config = Config {
                 base_url: base_url.clone(),
@@ -266,11 +266,16 @@ pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
             };
             let client = RommClient::new(&temp_config, verbose)?;
             let endpoint = crate::endpoints::client_tokens::ExchangeClientToken { code };
-            
-            let response = client.call(&endpoint).await.context("failed to exchange pairing code")?;
+
+            let response = client
+                .call(&endpoint)
+                .await
+                .context("failed to exchange pairing code")?;
             println!("Successfully paired device as '{}'", response.name);
-            
-            Some(AuthConfig::Bearer { token: response.raw_token })
+
+            Some(AuthConfig::Bearer {
+                token: response.raw_token,
+            })
         }
     };
 

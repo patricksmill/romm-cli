@@ -119,10 +119,13 @@ impl SetupWizard {
                 wizard.auth_menu_selected = 1;
                 wizard.username = username.clone();
                 wizard.user_cursor = username.len();
-                let disk_pass = disk.as_ref().and_then(|c| c.auth.as_ref()).and_then(|a| match a {
-                    AuthConfig::Basic { password, .. } => Some(password.as_str()),
-                    _ => None,
-                });
+                let disk_pass = disk
+                    .as_ref()
+                    .and_then(|c| c.auth.as_ref())
+                    .and_then(|a| match a {
+                        AuthConfig::Basic { password, .. } => Some(password.as_str()),
+                        _ => None,
+                    });
                 if disk_pass.is_some_and(is_keyring_placeholder) {
                     wizard.password = String::new();
                     wizard.reuse_keyring_password = true;
@@ -133,10 +136,13 @@ impl SetupWizard {
             Some(AuthConfig::Bearer { token }) => {
                 wizard.auth_kind = AuthKind::Bearer;
                 wizard.auth_menu_selected = 2;
-                let disk_tok = disk.as_ref().and_then(|c| c.auth.as_ref()).and_then(|a| match a {
-                    AuthConfig::Bearer { token } => Some(token.as_str()),
-                    _ => None,
-                });
+                let disk_tok = disk
+                    .as_ref()
+                    .and_then(|c| c.auth.as_ref())
+                    .and_then(|a| match a {
+                        AuthConfig::Bearer { token } => Some(token.as_str()),
+                        _ => None,
+                    });
                 if disk_tok.is_some_and(is_keyring_placeholder) {
                     wizard.bearer_token = String::new();
                     wizard.bearer_cursor = 0;
@@ -151,10 +157,13 @@ impl SetupWizard {
                 wizard.auth_menu_selected = 3;
                 wizard.api_header = header.clone();
                 wizard.header_cursor = header.len();
-                let disk_key = disk.as_ref().and_then(|c| c.auth.as_ref()).and_then(|a| match a {
-                    AuthConfig::ApiKey { key, .. } => Some(key.as_str()),
-                    _ => None,
-                });
+                let disk_key = disk
+                    .as_ref()
+                    .and_then(|c| c.auth.as_ref())
+                    .and_then(|a| match a {
+                        AuthConfig::ApiKey { key, .. } => Some(key.as_str()),
+                        _ => None,
+                    });
                 if disk_key.is_some_and(is_keyring_placeholder) {
                     wizard.api_key = String::new();
                     wizard.api_key_cursor = 0;
@@ -204,9 +213,7 @@ impl SetupWizard {
                 }
                 let password = if self.password.is_empty() && self.reuse_keyring_password {
                     crate::config::keyring_get("API_PASSWORD").ok_or_else(|| {
-                        anyhow!(
-                            "Password not in OS keyring; enter a password or run romm-cli init"
-                        )
+                        anyhow!("Password not in OS keyring; enter a password or run romm-cli init")
                     })?
                 } else if self.password.is_empty() {
                     return Err(anyhow!("Password cannot be empty"));

@@ -1,10 +1,10 @@
-use wiremock::{MockServer, Mock, ResponseTemplate};
-use wiremock::matchers::{method, path};
-use romm_cli::tui::app::{App, AppScreen};
+use crossterm::event::KeyCode;
 use romm_cli::client::RommClient;
 use romm_cli::config::Config;
+use romm_cli::tui::app::{App, AppScreen};
 use romm_cli::tui::openapi::EndpointRegistry;
-use crossterm::event::KeyCode;
+use wiremock::matchers::{method, path};
+use wiremock::{Mock, MockServer, ResponseTemplate};
 
 #[tokio::test]
 async fn test_main_menu_api_error_shows_popup() {
@@ -27,11 +27,11 @@ async fn test_main_menu_api_error_shows_popup() {
     // Simulate pressing Enter on Main Menu (Platforms)
     let quit = app.handle_key(KeyCode::Enter).await.unwrap();
     assert!(!quit);
-    
+
     // Assert error is set and we didn't crash
     assert!(app.global_error.is_some());
     assert!(app.global_error.as_ref().unwrap().contains("500"));
-    
+
     // Assert Esc clears it
     app.handle_key(KeyCode::Esc).await.unwrap();
     assert!(app.global_error.is_none());
@@ -45,7 +45,7 @@ async fn test_main_menu_success_transitions_to_library() {
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([])))
         .mount(&mock_server)
         .await;
-        
+
     Mock::given(method("GET"))
         .and(path("/api/collections"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([])))
@@ -64,10 +64,10 @@ async fn test_main_menu_success_transitions_to_library() {
     // Simulate pressing Enter on Main Menu (Platforms)
     let quit = app.handle_key(KeyCode::Enter).await.unwrap();
     assert!(!quit);
-    
+
     // Assert error is not set
     assert!(app.global_error.is_none());
-    
+
     // Assert we transitioned to LibraryBrowse
     assert!(matches!(app.screen, AppScreen::LibraryBrowse(_)));
 }

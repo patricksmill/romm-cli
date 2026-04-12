@@ -131,8 +131,6 @@ pub fn openapi_cache_path() -> Result<PathBuf> {
 // Loading
 // ---------------------------------------------------------------------------
 
-
-
 fn env_nonempty(key: &str) -> Option<String> {
     std::env::var(key).ok().filter(|s| !s.trim().is_empty())
 }
@@ -194,16 +192,29 @@ pub fn load_config() -> Result<Config> {
     if let Some(c) = &json_config {
         if let Some(auth) = &c.auth {
             match auth {
-                AuthConfig::Basic { username: u, password: p } => {
-                    if username.is_none() { username = Some(u.clone()); }
-                    if password.is_none() { password = Some(p.clone()); }
+                AuthConfig::Basic {
+                    username: u,
+                    password: p,
+                } => {
+                    if username.is_none() {
+                        username = Some(u.clone());
+                    }
+                    if password.is_none() {
+                        password = Some(p.clone());
+                    }
                 }
                 AuthConfig::Bearer { token: t } => {
-                    if token.is_none() { token = Some(t.clone()); }
+                    if token.is_none() {
+                        token = Some(t.clone());
+                    }
                 }
                 AuthConfig::ApiKey { header: h, key: k } => {
-                    if api_key_header.is_none() { api_key_header = Some(h.clone()); }
-                    if api_key.is_none() { api_key = Some(k.clone()); }
+                    if api_key_header.is_none() {
+                        api_key_header = Some(h.clone());
+                    }
+                    if api_key.is_none() {
+                        api_key = Some(k.clone());
+                    }
                 }
             }
         }
@@ -272,7 +283,6 @@ pub fn load_config() -> Result<Config> {
         auth,
     })
 }
-
 
 /// Write user-level `romm-cli/config.json` and store secrets in the OS keyring when possible
 /// (same layout as interactive `romm-cli init`).
