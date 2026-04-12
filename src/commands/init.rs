@@ -1,7 +1,7 @@
-//! Interactive `romm-cli init` — writes user-level `romm-cli/.env`.
+//! Interactive `romm-cli init` — writes user-level `romm-cli/config.json`.
 //!
 //! Secrets (passwords, tokens, API keys) are stored in the OS keyring
-//! when available, keeping the `.env` file free of plaintext credentials.
+//! when available, keeping `config.json` free of plaintext credentials when keyring succeeds.
 
 use anyhow::{anyhow, Context, Result};
 use clap::Args;
@@ -16,11 +16,11 @@ use crate::config::{
 
 #[derive(Args, Debug, Clone)]
 pub struct InitCommand {
-    /// Overwrite existing user config `.env` without asking
+    /// Overwrite existing user config `config.json` without asking
     #[arg(long)]
     pub force: bool,
 
-    /// Print the path to the user config `.env` and exit
+    /// Print the path to the user config `config.json` and exit
     #[arg(long)]
     pub print_path: bool,
 

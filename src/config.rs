@@ -4,20 +4,26 @@
 //! both the TUI and the command-line subcommands share the same `Config`
 //! and `AuthConfig` types.
 //!
-//! ## Environment file precedence
+//! ## Configuration precedence
 //!
 //! Call [`load_config`] to read config:
 //!
 //! 1. Variables already set in the process environment (highest priority).
-//! 2. Project `.env` in the current working directory (via `dotenvy`).
-//! 3. User config: `{config_dir}/romm-cli/.env` — fills keys not already set (so a repo `.env` wins over user defaults).
-//! 4. OS keyring — secrets stored by `romm-cli init` (lowest priority fallback).
+//! 2. User `config.json` (see [`user_config_json_path`]) at `{config_dir}/romm-cli/config.json` — fills any of
+//!    `API_BASE_URL`, `ROMM_DOWNLOAD_DIR`, `API_USE_HTTPS`, and auth fields **not** set by the environment.
+//!
+//! There is **no** automatic loading of a `.env` file; set variables in your shell or process manager,
+//! or rely on `config.json` written by `romm-cli init` / the TUI setup wizard.
+//!
+//! After env + JSON merge, secrets that are still placeholders (including [`KEYRING_SECRET_PLACEHOLDER`])
+//! are resolved via the OS keyring (`keyring` crate, service name `romm-cli`). On Windows the stored
+//! credential target is typically `API_TOKEN.romm-cli`, `API_PASSWORD.romm-cli`, or `API_KEY.romm-cli`.
 //!
 //! ## `load_config` vs `config.json`
 //!
 //! [`load_config`] merges sources **per field**: process environment wins over values from
 //! `config.json` for `API_BASE_URL`, `ROMM_DOWNLOAD_DIR`, `API_USE_HTTPS`, and auth-related
-//! variables. The keyring is used only to fill missing or placeholder secrets after that merge.
+//! fields. The keyring is used only to replace placeholder or sentinel secret strings after that merge.
 
 use std::path::PathBuf;
 
@@ -112,6 +118,15 @@ pub fn read_user_config_json_from_disk() -> Option<Config> {
     let path = user_config_json_path()?;
     let content = std::fs::read_to_string(path).ok()?;
     serde_json::from_str(&content).ok()
+}
+
+/// Auth to pass to [`persist_user_config`] when saving non-auth fields (e.g. TUI Settings).
+///
+/// Prefer the in-memory [`Config::auth`]. If it is `None` (e.g. [`load_config`] could not read the
+/// token from the keyring), reuse `auth` from [`read_user_config_json_from_disk`] so we do not
+/// overwrite `config.json` with `"auth": null` while the file still held a bearer sentinel.
+pub fn auth_for_persist_merge(in_memory: Option<AuthConfig>) -> Option<AuthConfig> {
+    in_memory.or_else(|| read_user_config_json_from_disk().and_then(|c| c.auth))
 }
 
 /// Where the OpenAPI spec is cached (`.../romm-cli/openapi.json`).
@@ -249,6 +264,31 @@ pub fn load_config() -> Result<Config> {
         }
     } else {
         api_key = keyring_get("API_KEY");
+    }
+
+    if let Some(ref p) = password {
+        if is_keyring_placeholder(p) {
+            tracing::warn!(
+                "Could not read API_PASSWORD from the OS keyring; value is still <stored-in-keyring>. \
+                 On Windows, look for a Generic credential with target API_PASSWORD.romm-cli."
+            );
+        }
+    }
+    if let Some(ref t) = token {
+        if is_keyring_placeholder(t) {
+            tracing::warn!(
+                "Could not read API_TOKEN from the OS keyring; value is still <stored-in-keyring>. \
+                 On Windows, look for a Generic credential with target API_TOKEN.romm-cli."
+            );
+        }
+    }
+    if let Some(ref k) = api_key {
+        if is_keyring_placeholder(k) {
+            tracing::warn!(
+                "Could not read API_KEY from the OS keyring; value is still <stored-in-keyring>. \
+                 On Windows, look for a Generic credential with target API_KEY.romm-cli."
+            );
+        }
     }
 
     let auth = if let (Some(user), Some(pass)) = (username, password) {
@@ -518,5 +558,62 @@ mod tests {
         assert_eq!(cfg.base_url, "http://from-json-file.test");
         assert_eq!(cfg.download_dir, "/tmp/downloads");
         assert!(!cfg.use_https);
+    }
+
+    #[test]
+    fn auth_for_persist_merge_prefers_in_memory() {
+        let env = TestEnv::new();
+        let on_disk = r#"{
+            "base_url": "http://disk.test",
+            "download_dir": "/tmp",
+            "use_https": false,
+            "auth": { "Bearer": { "token": "from-disk" } }
+        }"#;
+        std::fs::write(env.config_dir.join("config.json"), on_disk).unwrap();
+
+        let mem = Some(AuthConfig::Bearer {
+            token: "from-memory".into(),
+        });
+        let merged = auth_for_persist_merge(mem.clone());
+        assert_eq!(format!("{:?}", merged), format!("{:?}", mem));
+    }
+
+    #[test]
+    fn auth_for_persist_merge_falls_back_to_disk_when_memory_empty() {
+        let env = TestEnv::new();
+        let on_disk = r#"{
+            "base_url": "http://disk.test",
+            "download_dir": "/tmp",
+            "use_https": false,
+            "auth": { "Bearer": { "token": "<stored-in-keyring>" } }
+        }"#;
+        std::fs::write(env.config_dir.join("config.json"), on_disk).unwrap();
+
+        let merged = auth_for_persist_merge(None);
+        match merged {
+            Some(AuthConfig::Bearer { token }) => {
+                assert_eq!(token, KEYRING_SECRET_PLACEHOLDER);
+            }
+            _ => panic!("expected bearer auth from disk"),
+        }
+    }
+
+    #[test]
+    fn bearer_keyring_sentinel_without_keyring_entry_yields_no_auth() {
+        let env = TestEnv::new();
+        std::env::set_var("API_BASE_URL", "http://example.test");
+        let config_json = r#"{
+            "base_url": "http://example.test",
+            "download_dir": "/tmp",
+            "use_https": false,
+            "auth": { "Bearer": { "token": "<stored-in-keyring>" } }
+        }"#;
+        std::fs::write(env.config_dir.join("config.json"), config_json).unwrap();
+
+        let cfg = load_config().expect("load");
+        assert!(
+            cfg.auth.is_none(),
+            "unresolved keyring sentinel must not become Bearer auth in Config"
+        );
     }
 }

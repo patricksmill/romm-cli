@@ -67,7 +67,7 @@ pub struct Cli {
 /// All top-level commands supported by the CLI.
 #[derive(Subcommand, Debug)]
 pub enum Commands {
-    /// Create or update user config (~/.config/romm-cli/.env or %APPDATA%\\romm-cli\\.env)
+    /// Create or update user config (~/.config/romm-cli/config.json or %APPDATA%\\romm-cli\\config.json)
     #[command(visible_alias = "setup")]
     Init(init::InitCommand),
     /// Launch interactive TUI for exploring API endpoints

@@ -47,9 +47,11 @@ Run the setup wizard:
 romm-cli init
 ```
 
-This sets `API_BASE_URL` and authentication. Configuration lives in your OS config directory (for example `~/.config/romm-cli/.env` on Unix).
+This sets `API_BASE_URL` and authentication. Configuration is stored as `config.json` under your OS config directory (for example `~/.config/romm-cli/config.json` on Unix, or `%APPDATA%\romm-cli\config.json` on Windows).
 
-`API_BASE_URL` should match the RomM **website** address from your browser (scheme, host, port only), for example `https://romm.example.com` or `http://my-server:1738`. Do **not** append `/api`; the client adds `/api/...` on every request. A trailing `/api` in `.env` is stripped automatically.
+`API_BASE_URL` should match the RomM **website** address from your browser (scheme, host, port only), for example `https://romm.example.com` or `http://my-server:1738`. Do **not** append `/api`; the client adds `/api/...` on every request. A trailing `/api` in the saved URL is stripped automatically.
+
+You can also set `API_BASE_URL` and auth-related variables in your **process environment**; env wins over `config.json` per field. The CLI does not auto-load a `.env` file.
 
 ### API token (recommended)
 
@@ -69,11 +71,11 @@ romm-cli init --url https://romm.example.com --token-file ~/.romm-token --check
 - `--no-https`: Disable HTTPS (use HTTP instead).
 - `--check`: Verify URL and token by fetching OpenAPI and calling the platforms endpoint after saving.
 - `--force`: Overwrite existing configuration without asking.
-- `--print-path`: Print the path to the user config `.env` and exit.
+- `--print-path`: Print the path to the user `config.json` and exit.
 
 ### Environment variables
 
-Set these in your shell or a local `.env` for advanced use:
+Set these in your shell (or any tool that injects env vars into the process) for advanced use:
 
 | Variable | Description |
 |----------|-------------|

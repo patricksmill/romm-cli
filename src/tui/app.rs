@@ -24,7 +24,7 @@ use ratatui::Terminal;
 use std::time::Duration;
 
 use crate::client::RommClient;
-use crate::config::Config;
+use crate::config::{auth_for_persist_merge, Config};
 use crate::core::cache::{RomCache, RomCacheKey};
 use crate::core::download::DownloadManager;
 use crate::endpoints::{collections::ListCollections, platforms::ListPlatforms, roms::GetRoms};
@@ -544,11 +544,12 @@ impl App {
             KeyCode::Char('s' | 'S') => {
                 // Save to disk (accept both cases; footer shows "S:")
                 use crate::config::persist_user_config;
+                let auth = auth_for_persist_merge(self.config.auth.clone());
                 if let Err(e) = persist_user_config(
                     &settings.base_url,
                     &settings.download_dir,
                     settings.use_https,
-                    self.config.auth.clone(),
+                    auth,
                 ) {
                     settings.message = Some((format!("Error saving: {e}"), Color::Red));
                 } else {
@@ -852,16 +853,25 @@ impl App {
             wizard.testing = false;
             match result {
                 Ok(cfg) => {
+                    let auth_ok = cfg.auth.is_some();
                     self.config = cfg;
                     if let Ok(new_client) = RommClient::new(&self.config, self.client.verbose()) {
                         self.client = new_client;
                     }
                     let mut settings =
                         SettingsScreen::new(&self.config, self.server_version.as_deref());
-                    settings.message = Some((
-                        "Authentication updated successfully".to_string(),
-                        Color::Green,
-                    ));
+                    if auth_ok {
+                        settings.message = Some((
+                            "Authentication updated successfully".to_string(),
+                            Color::Green,
+                        ));
+                    } else {
+                        settings.message = Some((
+                            "Saved configuration but credentials could not be loaded from the OS keyring (see logs)."
+                                .to_string(),
+                            Color::Yellow,
+                        ));
+                    }
                     self.screen = AppScreen::Settings(settings);
                 }
                 Err(e) => {
