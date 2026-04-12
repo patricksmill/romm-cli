@@ -517,6 +517,6 @@ mod tests {
         let cfg = load_config().expect("load from user config.json");
         assert_eq!(cfg.base_url, "http://from-json-file.test");
         assert_eq!(cfg.download_dir, "/tmp/downloads");
-        assert_eq!(cfg.use_https, false);
+        assert!(!cfg.use_https);
     }
 }
