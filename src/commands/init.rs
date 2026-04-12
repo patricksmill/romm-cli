@@ -54,6 +54,7 @@ enum AuthChoice {
     Basic,
     Bearer,
     ApiKeyHeader,
+    PairingCode,
 }
 
 pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
@@ -192,11 +193,17 @@ pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
     let download_dir = download_dir.trim().to_string();
 
     // ── Authentication ─────────────────────────────────────────────────
+    let use_https = Confirm::with_theme(&ColorfulTheme::default())
+        .with_prompt("Connect over HTTPS?")
+        .default(true)
+        .interact()?;
+
     let items = vec![
         "No authentication",
         "Basic (username + password)",
         "API Token (Bearer)",
         "API key in custom header",
+        "Pair with Web UI (8-character code)",
     ];
     let idx = Select::with_theme(&ColorfulTheme::default())
         .with_prompt("Authentication")
@@ -209,6 +216,7 @@ pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
         1 => AuthChoice::Basic,
         2 => AuthChoice::Bearer,
         3 => AuthChoice::ApiKeyHeader,
+        4 => AuthChoice::PairingCode,
         _ => AuthChoice::None,
     };
 
@@ -244,12 +252,27 @@ pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
                 key,
             })
         }
+        AuthChoice::PairingCode => {
+            let code: String = Input::with_theme(&ColorfulTheme::default())
+                .with_prompt("8-character pairing code")
+                .interact_text()?;
+            
+            println!("Exchanging pairing code...");
+            let temp_config = Config {
+                base_url: base_url.clone(),
+                download_dir: download_dir.clone(),
+                use_https,
+                auth: None,
+            };
+            let client = RommClient::new(&temp_config, verbose)?;
+            let endpoint = crate::endpoints::client_tokens::ExchangeClientToken { code };
+            
+            let response = client.call(&endpoint).await.context("failed to exchange pairing code")?;
+            println!("Successfully paired device as '{}'", response.name);
+            
+            Some(AuthConfig::Bearer { token: response.raw_token })
+        }
     };
-
-    let use_https = Confirm::with_theme(&ColorfulTheme::default())
-        .with_prompt("Connect over HTTPS?")
-        .default(true)
-        .interact()?;
 
     persist_user_config(&base_url, &download_dir, use_https, auth)?;
 

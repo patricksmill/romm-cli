@@ -75,7 +75,7 @@ pub struct ApiEndpoint {
     pub tags: Vec<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct EndpointRegistry {
     pub endpoints: Vec<ApiEndpoint>,
 }

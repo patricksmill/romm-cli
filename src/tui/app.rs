@@ -70,7 +70,7 @@ pub enum AppScreen {
 /// Owns shared services (`RommClient`, `RomCache`, `DownloadManager`)
 /// as well as the currently active [`AppScreen`].
 pub struct App {
-    screen: AppScreen,
+    pub screen: AppScreen,
     client: RommClient,
     config: Config,
     registry: EndpointRegistry,
@@ -84,6 +84,7 @@ pub struct App {
     deferred_load_roms: Option<(Option<RomCacheKey>, Option<GetRoms>, u64)>,
     /// Brief “connected” banner after setup or when the server responds to heartbeat.
     startup_splash: Option<StartupSplash>,
+    pub global_error: Option<String>,
 }
 
 impl App {
@@ -106,7 +107,12 @@ impl App {
             screen_before_download: None,
             deferred_load_roms: None,
             startup_splash,
+            global_error: None,
         }
+    }
+
+    pub fn set_error(&mut self, err: anyhow::Error) {
+        self.global_error = Some(format!("{:#}", err));
     }
 
     // -----------------------------------------------------------------------
@@ -219,7 +225,14 @@ impl App {
     // Key dispatch — one small method per screen
     // -----------------------------------------------------------------------
 
-    async fn handle_key(&mut self, key: KeyCode) -> Result<bool> {
+    pub async fn handle_key(&mut self, key: KeyCode) -> Result<bool> {
+        if self.global_error.is_some() {
+            if key == KeyCode::Esc || key == KeyCode::Enter {
+                self.global_error = None;
+            }
+            return Ok(false);
+        }
+
         if self.startup_splash.is_some() {
             self.startup_splash = None;
             return Ok(false);
@@ -287,7 +300,13 @@ impl App {
             KeyCode::Down | KeyCode::Char('j') => menu.next(),
             KeyCode::Enter => match menu.selected {
                 0 => {
-                    let platforms = self.client.call(&ListPlatforms).await?;
+                    let platforms = match self.client.call(&ListPlatforms).await {
+                        Ok(p) => p,
+                        Err(e) => {
+                            self.set_error(e);
+                            return Ok(false);
+                        }
+                    };
                     let collections = self.client.call(&ListCollections).await.unwrap_or_default();
                     let mut lib = LibraryBrowseScreen::new(platforms, collections);
                     if lib.list_len() > 0 {
@@ -890,6 +909,25 @@ impl App {
                     f.set_cursor(x, y);
                 }
             }
+        }
+
+        if let Some(ref err) = self.global_error {
+            let popup_area = ratatui::layout::Rect {
+                x: area.width.saturating_sub(60) / 2,
+                y: area.height.saturating_sub(10) / 2,
+                width: 60.min(area.width),
+                height: 10.min(area.height),
+            };
+            f.render_widget(ratatui::widgets::Clear, popup_area);
+            let block = ratatui::widgets::Block::default()
+                .title("Error")
+                .borders(ratatui::widgets::Borders::ALL)
+                .style(ratatui::style::Style::default().fg(ratatui::style::Color::Red));
+            let text = format!("{}\n\nPress Esc to dismiss", err);
+            let paragraph = ratatui::widgets::Paragraph::new(text)
+                .block(block)
+                .wrap(ratatui::widgets::Wrap { trim: true });
+            f.render_widget(paragraph, popup_area);
         }
     }
 }

@@ -12,6 +12,12 @@
 //! 2. Project `.env` in the current working directory (via `dotenvy`).
 //! 3. User config: `{config_dir}/romm-cli/.env` — fills keys not already set (so a repo `.env` wins over user defaults).
 //! 4. OS keyring — secrets stored by `romm-cli init` (lowest priority fallback).
+//!
+//! ## `load_config` vs `config.json`
+//!
+//! [`load_config`] merges sources **per field**: process environment wins over values from
+//! `config.json` for `API_BASE_URL`, `ROMM_DOWNLOAD_DIR`, `API_USE_HTTPS`, and auth-related
+//! variables. The keyring is used only to fill missing or placeholder secrets after that merge.
 
 use std::path::PathBuf;
 
@@ -110,105 +116,130 @@ pub fn openapi_cache_path() -> Result<PathBuf> {
 // ---------------------------------------------------------------------------
 
 
-/// Read an env var, falling back to the OS keyring if unset or empty.
-///
-/// A line like `API_PASSWORD=` in a project `.env` sets the variable to the empty string; we treat
-/// that as "not set" so the keyring (e.g. after `romm-cli init` / TUI setup) is still used.
-fn env_or_keyring(key: &str) -> Option<String> {
-    match std::env::var(key) {
-        Ok(s) if !s.trim().is_empty() => Some(s),
-        Ok(_) => keyring_get(key),
-        Err(_) => keyring_get(key),
-    }
-}
 
 fn env_nonempty(key: &str) -> Option<String> {
     std::env::var(key).ok().filter(|s| !s.trim().is_empty())
 }
 
 pub fn load_config() -> Result<Config> {
-    // Attempt to load from JSON first
+    // 1. Load from JSON first (if it exists)
+    let mut json_config = None;
     if let Some(path) = user_config_json_path() {
         if path.is_file() {
             if let Ok(content) = std::fs::read_to_string(&path) {
-                if let Ok(mut config) = serde_json::from_str::<Config>(&content) {
-                    // Populate secrets from keyring if they are missing or placeholders
-                    if let Some(auth) = &mut config.auth {
-                        match auth {
-                            AuthConfig::Basic { password, .. } => {
-                                if is_placeholder(password) {
-                                    if let Some(p) = keyring_get("API_PASSWORD") {
-                                        *password = p;
-                                    }
-                                }
-                            }
-                            AuthConfig::Bearer { token } => {
-                                if is_placeholder(token) {
-                                    if let Some(t) = keyring_get("API_TOKEN") {
-                                        *token = t;
-                                    }
-                                }
-                            }
-                            AuthConfig::ApiKey { key, .. } => {
-                                if is_placeholder(key) {
-                                    if let Some(k) = keyring_get("API_KEY") {
-                                        *key = k;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    return Ok(config);
+                if let Ok(config) = serde_json::from_str::<Config>(&content) {
+                    json_config = Some(config);
                 }
             }
         }
     }
 
-    // Fallback to environment variables
-    let base_raw = std::env::var("API_BASE_URL").map_err(|_| {
-        anyhow!(
-            "API_BASE_URL is not set. Set it in the environment, a config.json file, or run: romm-cli init"
-        )
-    })?;
+    // 2. Resolve base_url
+    let base_raw = env_nonempty("API_BASE_URL")
+        .or_else(|| json_config.as_ref().map(|c| c.base_url.clone()))
+        .ok_or_else(|| {
+            anyhow!(
+                "API_BASE_URL is not set. Set it in the environment, a config.json file, or run: romm-cli init"
+            )
+        })?;
     let mut base_url = normalize_romm_origin(&base_raw);
 
-    let download_dir = env_nonempty("ROMM_DOWNLOAD_DIR").unwrap_or_else(|| {
-        dirs::download_dir()
-            .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join("Downloads"))
-            .join("romm-cli")
-            .display()
-            .to_string()
-    });
+    // 3. Resolve download_dir
+    let download_dir = env_nonempty("ROMM_DOWNLOAD_DIR")
+        .or_else(|| json_config.as_ref().map(|c| c.download_dir.clone()))
+        .unwrap_or_else(|| {
+            dirs::download_dir()
+                .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join("Downloads"))
+                .join("romm-cli")
+                .display()
+                .to_string()
+        });
 
-    let use_https = std::env::var("API_USE_HTTPS")
-        .map(|s| s.to_lowercase() == "true")
-        .unwrap_or(true);
+    // 4. Resolve use_https
+    let use_https = if let Ok(s) = std::env::var("API_USE_HTTPS") {
+        s.to_lowercase() == "true"
+    } else if let Some(c) = &json_config {
+        c.use_https
+    } else {
+        true
+    };
 
     if use_https && base_url.starts_with("http://") {
         base_url = base_url.replace("http://", "https://");
     }
 
-    let username = env_nonempty("API_USERNAME");
-    let password = env_or_keyring("API_PASSWORD");
-    let token = env_or_keyring("API_TOKEN").or_else(|| env_or_keyring("API_KEY"));
-    let api_key = env_or_keyring("API_KEY");
-    let api_key_header = env_nonempty("API_KEY_HEADER");
+    // 5. Resolve Auth
+    let mut username = env_nonempty("API_USERNAME");
+    let mut password = env_nonempty("API_PASSWORD");
+    let mut token = env_nonempty("API_TOKEN");
+    let mut api_key = env_nonempty("API_KEY");
+    let mut api_key_header = env_nonempty("API_KEY_HEADER");
+
+    if let Some(c) = &json_config {
+        if let Some(auth) = &c.auth {
+            match auth {
+                AuthConfig::Basic { username: u, password: p } => {
+                    if username.is_none() { username = Some(u.clone()); }
+                    if password.is_none() { password = Some(p.clone()); }
+                }
+                AuthConfig::Bearer { token: t } => {
+                    if token.is_none() { token = Some(t.clone()); }
+                }
+                AuthConfig::ApiKey { header: h, key: k } => {
+                    if api_key_header.is_none() { api_key_header = Some(h.clone()); }
+                    if api_key.is_none() { api_key = Some(k.clone()); }
+                }
+            }
+        }
+    }
+
+    // Resolve placeholders from keyring
+    if let Some(p) = &password {
+        if is_placeholder(p) {
+            if let Some(k) = keyring_get("API_PASSWORD") {
+                password = Some(k);
+            }
+        }
+    } else {
+        password = keyring_get("API_PASSWORD");
+    }
+
+    if let Some(t) = &token {
+        if is_placeholder(t) {
+            if let Some(k) = keyring_get("API_TOKEN") {
+                token = Some(k);
+            }
+        }
+    } else {
+        token = keyring_get("API_TOKEN");
+    }
+
+    if let Some(k) = &api_key {
+        if is_placeholder(k) {
+            if let Some(kr) = keyring_get("API_KEY") {
+                api_key = Some(kr);
+            }
+        }
+    } else {
+        api_key = keyring_get("API_KEY");
+    }
 
     let auth = if let (Some(user), Some(pass)) = (username, password) {
-        // Priority 1: Basic auth
-        Some(AuthConfig::Basic {
-            username: user,
-            password: pass,
-        })
+        if !is_placeholder(&pass) {
+            Some(AuthConfig::Basic {
+                username: user,
+                password: pass,
+            })
+        } else {
+            None
+        }
     } else if let (Some(key), Some(header)) = (api_key, api_key_header) {
-        // Priority 2: API key in custom header (when both set, prefer over bearer)
         if !is_placeholder(&key) {
             Some(AuthConfig::ApiKey { header, key })
         } else {
             None
         }
     } else if let Some(tok) = token {
-        // Priority 3: Bearer token (skip placeholders)
         if !is_placeholder(&tok) {
             Some(AuthConfig::Bearer { token: tok })
         } else {
@@ -299,11 +330,44 @@ pub fn persist_user_config(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Mutex, OnceLock};
+    use std::sync::{Mutex, MutexGuard, OnceLock};
 
     fn env_lock() -> &'static Mutex<()> {
         static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
         LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    struct TestEnv {
+        _guard: MutexGuard<'static, ()>,
+        config_dir: PathBuf,
+    }
+
+    impl TestEnv {
+        fn new() -> Self {
+            let guard = env_lock().lock().expect("env lock");
+            clear_auth_env();
+
+            let ts = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            let config_dir = std::env::temp_dir().join(format!("romm-config-test-{ts}"));
+            std::fs::create_dir_all(&config_dir).unwrap();
+            std::env::set_var("ROMM_TEST_CONFIG_DIR", &config_dir);
+
+            Self {
+                _guard: guard,
+                config_dir,
+            }
+        }
+    }
+
+    impl Drop for TestEnv {
+        fn drop(&mut self) {
+            clear_auth_env();
+            std::env::remove_var("ROMM_TEST_CONFIG_DIR");
+            let _ = std::fs::remove_dir_all(&self.config_dir);
+        }
     }
 
     fn clear_auth_env() {
@@ -315,6 +379,7 @@ mod tests {
             "API_KEY",
             "API_KEY_HEADER",
             "API_USE_HTTPS",
+            "ROMM_TEST_CONFIG_DIR",
         ] {
             std::env::remove_var(key);
         }
@@ -322,8 +387,7 @@ mod tests {
 
     #[test]
     fn prefers_basic_auth_over_other_modes() {
-        let _guard = env_lock().lock().expect("env lock");
-        clear_auth_env();
+        let _env = TestEnv::new();
         std::env::set_var("API_BASE_URL", "http://example.test");
         std::env::set_var("API_USERNAME", "user");
         std::env::set_var("API_PASSWORD", "pass");
@@ -343,8 +407,7 @@ mod tests {
 
     #[test]
     fn uses_api_key_header_when_token_missing() {
-        let _guard = env_lock().lock().expect("env lock");
-        clear_auth_env();
+        let _env = TestEnv::new();
         std::env::set_var("API_BASE_URL", "http://example.test");
         std::env::set_var("API_KEY", "real-key");
         std::env::set_var("API_KEY_HEADER", "X-Api-Key");
@@ -361,8 +424,7 @@ mod tests {
 
     #[test]
     fn normalizes_api_base_url_and_enforces_https_by_default() {
-        let _guard = env_lock().lock().expect("env lock");
-        clear_auth_env();
+        let _env = TestEnv::new();
         std::env::set_var("API_BASE_URL", "http://romm.example/api/");
         let cfg = load_config().expect("config");
         // Upgraded to https by default
@@ -371,8 +433,7 @@ mod tests {
 
     #[test]
     fn does_not_enforce_https_if_toggle_is_false() {
-        let _guard = env_lock().lock().expect("env lock");
-        clear_auth_env();
+        let _env = TestEnv::new();
         std::env::set_var("API_BASE_URL", "http://romm.example/api/");
         std::env::set_var("API_USE_HTTPS", "false");
         let cfg = load_config().expect("config");
@@ -393,8 +454,7 @@ mod tests {
 
     #[test]
     fn empty_api_username_does_not_enable_basic() {
-        let _guard = env_lock().lock().expect("env lock");
-        clear_auth_env();
+        let _env = TestEnv::new();
         std::env::set_var("API_BASE_URL", "http://example.test");
         std::env::set_var("API_USERNAME", "");
         std::env::set_var("API_PASSWORD", "secret");
@@ -408,8 +468,7 @@ mod tests {
 
     #[test]
     fn ignores_placeholder_bearer_token() {
-        let _guard = env_lock().lock().expect("env lock");
-        clear_auth_env();
+        let _env = TestEnv::new();
         std::env::set_var("API_BASE_URL", "http://example.test");
         std::env::set_var("API_TOKEN", "your-bearer-token-here");
 
@@ -419,39 +478,19 @@ mod tests {
 
     #[test]
     fn loads_from_user_json_file() {
-        let _guard = env_lock().lock().expect("env lock");
-        clear_auth_env();
-        std::env::remove_var("API_BASE_URL");
-
-        let ts = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let base = std::env::temp_dir().join(format!("romm-json-{ts}"));
-        std::fs::create_dir_all(&base).unwrap();
-        
+        let env = TestEnv::new();
         let config_json = r#"{
             "base_url": "http://from-json-file.test",
             "download_dir": "/tmp/downloads",
             "use_https": false,
             "auth": null
         }"#;
-        
-        std::fs::write(
-            base.join("config.json"),
-            config_json,
-        )
-        .unwrap();
 
-        std::env::set_var("ROMM_TEST_CONFIG_DIR", base.as_os_str());
+        std::fs::write(env.config_dir.join("config.json"), config_json).unwrap();
 
         let cfg = load_config().expect("load from user config.json");
         assert_eq!(cfg.base_url, "http://from-json-file.test");
         assert_eq!(cfg.download_dir, "/tmp/downloads");
         assert_eq!(cfg.use_https, false);
-
-        std::env::remove_var("ROMM_TEST_CONFIG_DIR");
-        std::env::remove_var("API_BASE_URL");
-        let _ = std::fs::remove_dir_all(&base);
     }
 }
