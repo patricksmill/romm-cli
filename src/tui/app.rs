@@ -238,8 +238,15 @@ impl App {
             return Ok(false);
         }
 
-        // Global shortcut: 'd' toggles Download overlay (except on Search).
-        if key == KeyCode::Char('d') && !matches!(&self.screen, AppScreen::Search(_)) {
+        // Global shortcut: 'd' toggles Download overlay (not on screens that need free typing / menus).
+        if key == KeyCode::Char('d')
+            && !matches!(
+                &self.screen,
+                AppScreen::Search(_)
+                    | AppScreen::Settings(_)
+                    | AppScreen::SetupWizard(_)
+            )
+        {
             self.toggle_download_screen();
             return Ok(false);
         }
@@ -536,8 +543,8 @@ impl App {
                     settings.enter_edit();
                 }
             }
-            KeyCode::Char('s') => {
-                // Save to disk
+            KeyCode::Char('s' | 'S') => {
+                // Save to disk (accept both cases; footer shows "S:")
                 use crate::config::persist_user_config;
                 if let Err(e) = persist_user_config(
                     &settings.base_url,
@@ -547,7 +554,8 @@ impl App {
                 ) {
                     settings.message = Some((format!("Error saving: {e}"), Color::Red));
                 } else {
-                    settings.message = Some(("Saved to .env".to_string(), Color::Green));
+                    settings.message =
+                        Some(("Saved to config.json".to_string(), Color::Green));
                     // Update app state
                     self.config.base_url = settings.base_url.clone();
                     self.config.download_dir = settings.download_dir.clone();

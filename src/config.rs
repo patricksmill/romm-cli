@@ -48,6 +48,14 @@ fn is_placeholder(value: &str) -> bool {
     value.contains("your-") || value.contains("placeholder") || value.trim().is_empty()
 }
 
+/// Written to `config.json` when the real secret is stored in the OS keyring (`persist_user_config`).
+pub const KEYRING_SECRET_PLACEHOLDER: &str = "<stored-in-keyring>";
+
+/// True if `s` is the sentinel written to disk when the secret lives in the keyring.
+pub fn is_keyring_placeholder(s: &str) -> bool {
+    s == KEYRING_SECRET_PLACEHOLDER
+}
+
 /// RomM site URL: the same origin you use in the browser (scheme, host, optional port).
 ///
 /// Trims whitespace and trailing `/`, and removes a trailing `/api` segment if present. HTTP
@@ -76,7 +84,7 @@ pub fn keyring_store(key: &str, value: &str) -> Result<()> {
 }
 
 /// Retrieve a secret from the OS keyring, returning `None` if not found.
-fn keyring_get(key: &str) -> Option<String> {
+pub(crate) fn keyring_get(key: &str) -> Option<String> {
     let entry = keyring::Entry::new(KEYRING_SERVICE, key).ok()?;
     entry.get_password().ok()
 }
@@ -96,6 +104,14 @@ pub fn user_config_dir() -> Option<PathBuf> {
 /// Path to the user-level `config.json` file (`.../romm-cli/config.json`).
 pub fn user_config_json_path() -> Option<PathBuf> {
     user_config_dir().map(|d| d.join("config.json"))
+}
+
+/// Reads `config.json` from disk only (no env merge, no keyring resolution).
+/// Used by the TUI setup wizard to detect `<stored-in-keyring>` placeholders.
+pub fn read_user_config_json_from_disk() -> Option<Config> {
+    let path = user_config_json_path()?;
+    let content = std::fs::read_to_string(path).ok()?;
+    serde_json::from_str(&content).ok()
 }
 
 /// Where the OpenAPI spec is cached (`.../romm-cli/openapi.json`).
@@ -193,9 +209,9 @@ pub fn load_config() -> Result<Config> {
         }
     }
 
-    // Resolve placeholders from keyring
+    // Resolve placeholders from keyring (including disk sentinel `<stored-in-keyring>`).
     if let Some(p) = &password {
-        if is_placeholder(p) {
+        if is_placeholder(p) || is_keyring_placeholder(p) {
             if let Some(k) = keyring_get("API_PASSWORD") {
                 password = Some(k);
             }
@@ -205,7 +221,7 @@ pub fn load_config() -> Result<Config> {
     }
 
     if let Some(t) = &token {
-        if is_placeholder(t) {
+        if is_placeholder(t) || is_keyring_placeholder(t) {
             if let Some(k) = keyring_get("API_TOKEN") {
                 token = Some(k);
             }
@@ -215,7 +231,7 @@ pub fn load_config() -> Result<Config> {
     }
 
     if let Some(k) = &api_key {
-        if is_placeholder(k) {
+        if is_placeholder(k) || is_keyring_placeholder(k) {
             if let Some(kr) = keyring_get("API_KEY") {
                 api_key = Some(kr);
             }
@@ -225,7 +241,7 @@ pub fn load_config() -> Result<Config> {
     }
 
     let auth = if let (Some(user), Some(pass)) = (username, password) {
-        if !is_placeholder(&pass) {
+        if !is_placeholder(&pass) && !is_keyring_placeholder(&pass) {
             Some(AuthConfig::Basic {
                 username: user,
                 password: pass,
@@ -234,13 +250,13 @@ pub fn load_config() -> Result<Config> {
             None
         }
     } else if let (Some(key), Some(header)) = (api_key, api_key_header) {
-        if !is_placeholder(&key) {
+        if !is_placeholder(&key) && !is_keyring_placeholder(&key) {
             Some(AuthConfig::ApiKey { header, key })
         } else {
             None
         }
     } else if let Some(tok) = token {
-        if !is_placeholder(&tok) {
+        if !is_placeholder(&tok) && !is_keyring_placeholder(&tok) {
             Some(AuthConfig::Bearer { token: tok })
         } else {
             None
@@ -289,21 +305,21 @@ pub fn persist_user_config(
             if let Err(e) = keyring_store("API_PASSWORD", password) {
                 tracing::warn!("keyring store API_PASSWORD: {e}; writing plaintext to config.json");
             } else {
-                *password = "<stored-in-keyring>".to_string();
+                *password = KEYRING_SECRET_PLACEHOLDER.to_string();
             }
         }
         Some(AuthConfig::Bearer { token }) => {
             if let Err(e) = keyring_store("API_TOKEN", token) {
                 tracing::warn!("keyring store API_TOKEN: {e}; writing plaintext to config.json");
             } else {
-                *token = "<stored-in-keyring>".to_string();
+                *token = KEYRING_SECRET_PLACEHOLDER.to_string();
             }
         }
         Some(AuthConfig::ApiKey { key, .. }) => {
             if let Err(e) = keyring_store("API_KEY", key) {
                 tracing::warn!("keyring store API_KEY: {e}; writing plaintext to config.json");
             } else {
-                *key = "<stored-in-keyring>".to_string();
+                *key = KEYRING_SECRET_PLACEHOLDER.to_string();
             }
         }
     }

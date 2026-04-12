@@ -11,13 +11,15 @@ use crossterm::terminal::{
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph};
 use ratatui::Terminal;
 use std::io::stdout;
 
 use crate::client::RommClient;
 use crate::config::{
-    load_config, normalize_romm_origin, persist_user_config, AuthConfig, Config,
+    is_keyring_placeholder, load_config, normalize_romm_origin, persist_user_config,
+    read_user_config_json_from_disk, AuthConfig, Config,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -60,6 +62,10 @@ pub struct SetupWizard {
     header_cursor: usize,
     api_key: String,
     api_key_cursor: usize,
+    /// Empty field + `true` means resolve secret from OS keyring on save (disk had `<stored-in-keyring>`).
+    reuse_keyring_password: bool,
+    reuse_keyring_bearer: bool,
+    reuse_keyring_api_key: bool,
     pub testing: bool,
     pub use_https: bool,
     pub error: Option<String>,
@@ -89,6 +95,9 @@ impl SetupWizard {
             header_cursor: 0,
             api_key: String::new(),
             api_key_cursor: 0,
+            reuse_keyring_password: false,
+            reuse_keyring_bearer: false,
+            reuse_keyring_api_key: false,
             testing: false,
             use_https: true,
             error: None,
@@ -102,26 +111,58 @@ impl SetupWizard {
         wizard.download_dir = config.download_dir.clone();
         wizard.use_https = config.use_https;
 
+        let disk = read_user_config_json_from_disk();
+
         match &config.auth {
-            Some(AuthConfig::Basic { username, .. }) => {
+            Some(AuthConfig::Basic { username, password }) => {
                 wizard.auth_kind = AuthKind::Basic;
                 wizard.auth_menu_selected = 1;
                 wizard.username = username.clone();
                 wizard.user_cursor = username.len();
+                let disk_pass = disk.as_ref().and_then(|c| c.auth.as_ref()).and_then(|a| match a {
+                    AuthConfig::Basic { password, .. } => Some(password.as_str()),
+                    _ => None,
+                });
+                if disk_pass.is_some_and(is_keyring_placeholder) {
+                    wizard.password = String::new();
+                    wizard.reuse_keyring_password = true;
+                } else {
+                    wizard.password = password.clone();
+                }
             }
             Some(AuthConfig::Bearer { token }) => {
                 wizard.auth_kind = AuthKind::Bearer;
                 wizard.auth_menu_selected = 2;
-                wizard.bearer_token = token.clone();
-                wizard.bearer_cursor = token.len();
+                let disk_tok = disk.as_ref().and_then(|c| c.auth.as_ref()).and_then(|a| match a {
+                    AuthConfig::Bearer { token } => Some(token.as_str()),
+                    _ => None,
+                });
+                if disk_tok.is_some_and(is_keyring_placeholder) {
+                    wizard.bearer_token = String::new();
+                    wizard.bearer_cursor = 0;
+                    wizard.reuse_keyring_bearer = true;
+                } else {
+                    wizard.bearer_token = token.clone();
+                    wizard.bearer_cursor = token.len();
+                }
             }
             Some(AuthConfig::ApiKey { header, key }) => {
                 wizard.auth_kind = AuthKind::ApiKey;
                 wizard.auth_menu_selected = 3;
                 wizard.api_header = header.clone();
                 wizard.header_cursor = header.len();
-                wizard.api_key = key.clone();
-                wizard.api_key_cursor = key.len();
+                let disk_key = disk.as_ref().and_then(|c| c.auth.as_ref()).and_then(|a| match a {
+                    AuthConfig::ApiKey { key, .. } => Some(key.as_str()),
+                    _ => None,
+                });
+                if disk_key.is_some_and(is_keyring_placeholder) {
+                    wizard.api_key = String::new();
+                    wizard.api_key_cursor = 0;
+                    wizard.reuse_keyring_api_key = true;
+                } else {
+                    wizard.api_key = key.clone();
+                    wizard.api_key_cursor = key.len();
+                }
             }
             None => {
                 wizard.auth_kind = AuthKind::None;
@@ -161,33 +202,51 @@ impl SetupWizard {
                 if u.is_empty() {
                     return Err(anyhow!("Username cannot be empty"));
                 }
-                if self.password.is_empty() {
+                let password = if self.password.is_empty() && self.reuse_keyring_password {
+                    crate::config::keyring_get("API_PASSWORD").ok_or_else(|| {
+                        anyhow!(
+                            "Password not in OS keyring; enter a password or run romm-cli init"
+                        )
+                    })?
+                } else if self.password.is_empty() {
                     return Err(anyhow!("Password cannot be empty"));
-                }
+                } else {
+                    self.password.clone()
+                };
                 Some(AuthConfig::Basic {
                     username: u.to_string(),
-                    password: self.password.clone(),
+                    password,
                 })
             }
             AuthKind::Bearer => {
-                if self.bearer_token.trim().is_empty() {
+                let token = if self.bearer_token.trim().is_empty() && self.reuse_keyring_bearer {
+                    crate::config::keyring_get("API_TOKEN").ok_or_else(|| {
+                        anyhow!("API token not in OS keyring; enter a token or run romm-cli init")
+                    })?
+                } else if self.bearer_token.trim().is_empty() {
                     return Err(anyhow!("Bearer token cannot be empty"));
-                }
-                Some(AuthConfig::Bearer {
-                    token: self.bearer_token.trim().to_string(),
-                })
+                } else {
+                    self.bearer_token.trim().to_string()
+                };
+                Some(AuthConfig::Bearer { token })
             }
             AuthKind::ApiKey => {
                 let h = self.api_header.trim();
                 if h.is_empty() {
                     return Err(anyhow!("Header name cannot be empty"));
                 }
-                if self.api_key.is_empty() {
+                let key = if self.api_key.is_empty() && self.reuse_keyring_api_key {
+                    crate::config::keyring_get("API_KEY").ok_or_else(|| {
+                        anyhow!("API key not in OS keyring; enter a key or run romm-cli init")
+                    })?
+                } else if self.api_key.is_empty() {
                     return Err(anyhow!("API key cannot be empty"));
-                }
+                } else {
+                    self.api_key.clone()
+                };
                 Some(AuthConfig::ApiKey {
                     header: h.to_string(),
-                    key: self.api_key.clone(),
+                    key,
                 })
             }
         };
@@ -299,8 +358,18 @@ impl SetupWizard {
                 } else {
                     "•".repeat(self.password.len())
                 };
+                let kr_hint = if self.step == Step::BasicPass
+                    && self.password.is_empty()
+                    && self.reuse_keyring_password
+                {
+                    "\n\n(stored in OS keyring — leave blank to keep, or type a new password)"
+                } else {
+                    ""
+                };
                 let block = Block::default().title(title).borders(Borders::ALL);
-                let body = format!("Username\n{user_line}\n\nPassword (hidden)\n{pass_display}\n\nTab: switch field");
+                let body = format!(
+                    "Username\n{user_line}\n\nPassword (hidden)\n{pass_display}{kr_hint}\n\nTab: switch field"
+                );
                 let p = Paragraph::new(body).block(block);
                 f.render_widget(p, main[1]);
             }
@@ -316,8 +385,16 @@ impl SetupWizard {
                         .skip(self.bearer_cursor)
                         .collect::<String>()
                 );
+                let mut bearer_text = Text::from(vec![Line::from(line)]);
+                if self.bearer_token.is_empty() && self.reuse_keyring_bearer {
+                    bearer_text.push_line(Line::from(""));
+                    bearer_text.push_line(Line::from(Span::styled(
+                        "Token stored in OS keyring — leave blank to keep, or type a new token.",
+                        Style::default().fg(Color::DarkGray),
+                    )));
+                }
                 let block = Block::default().title(title).borders(Borders::ALL);
-                let p = Paragraph::new(line).block(block);
+                let p = Paragraph::new(bearer_text).block(block);
                 f.render_widget(p, main[1]);
             }
             Step::ApiHeader | Step::ApiKey => {
@@ -341,8 +418,16 @@ impl SetupWizard {
                 } else {
                     "•".repeat(self.api_key.len())
                 };
+                let kr_hint = if self.step == Step::ApiKey
+                    && self.api_key.is_empty()
+                    && self.reuse_keyring_api_key
+                {
+                    "\n\n(stored in OS keyring — leave blank to keep, or type a new key)"
+                } else {
+                    ""
+                };
                 let body = format!(
-                    "Header name\n{header_line}\n\nKey (hidden)\n{key_line}\n\nTab: switch field"
+                    "Header name\n{header_line}\n\nKey (hidden)\n{key_line}{kr_hint}\n\nTab: switch field"
                 );
                 let block = Block::default().title(title).borders(Borders::ALL);
                 let p = Paragraph::new(body).block(block);
@@ -626,7 +711,10 @@ impl SetupWizard {
                 KeyCode::Enter => {
                     let _ = self.advance_step();
                 }
-                KeyCode::Char(c) => self.password.push(c),
+                KeyCode::Char(c) => {
+                    self.reuse_keyring_password = false;
+                    self.password.push(c);
+                }
                 KeyCode::Backspace => {
                     self.password.pop();
                 }
@@ -637,6 +725,7 @@ impl SetupWizard {
                     let _ = self.advance_step();
                 }
                 KeyCode::Char(c) => {
+                    self.reuse_keyring_bearer = false;
                     let pos = self.bearer_cursor.min(self.bearer_token.len());
                     self.bearer_token.insert(pos, c);
                     self.bearer_cursor = pos + 1;
@@ -693,6 +782,7 @@ impl SetupWizard {
                     let _ = self.advance_step();
                 }
                 KeyCode::Char(c) => {
+                    self.reuse_keyring_api_key = false;
                     let pos = self.api_key_cursor.min(self.api_key.len());
                     self.api_key.insert(pos, c);
                     self.api_key_cursor = pos + 1;
