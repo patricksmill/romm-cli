@@ -1,6 +1,6 @@
 //! First-run setup: server URL, download directory, authentication, test connection, persist config.
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use crossterm::event::{
     self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind,
 };
@@ -21,6 +21,7 @@ use crate::config::{
     is_keyring_placeholder, load_config, normalize_romm_origin, persist_user_config,
     read_user_config_json_from_disk, AuthConfig, Config,
 };
+use crate::endpoints::client_tokens::ExchangeClientToken;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum AuthKind {
@@ -28,6 +29,7 @@ enum AuthKind {
     Basic,
     Bearer,
     ApiKey,
+    Pairing,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -41,6 +43,7 @@ enum Step {
     Bearer,
     ApiHeader,
     ApiKey,
+    PairingCode,
     Summary,
 }
 
@@ -62,6 +65,8 @@ pub struct SetupWizard {
     header_cursor: usize,
     api_key: String,
     api_key_cursor: usize,
+    pairing_code: String,
+    pairing_cursor: usize,
     /// Empty field + `true` means resolve secret from OS keyring on save (disk had `<stored-in-keyring>`).
     reuse_keyring_password: bool,
     reuse_keyring_bearer: bool,
@@ -95,6 +100,8 @@ impl SetupWizard {
             header_cursor: 0,
             api_key: String::new(),
             api_key_cursor: 0,
+            pairing_code: String::new(),
+            pairing_cursor: 0,
             reuse_keyring_password: false,
             reuse_keyring_bearer: false,
             reuse_keyring_api_key: false,
@@ -181,12 +188,13 @@ impl SetupWizard {
         wizard
     }
 
-    fn auth_labels() -> [&'static str; 4] {
+    fn auth_labels() -> [&'static str; 5] {
         [
             "No authentication",
             "Basic (username + password)",
             "API Token (Bearer)",
             "API key in custom header",
+            "Pair with Web UI (8-character code)",
         ]
     }
 
@@ -195,8 +203,40 @@ impl SetupWizard {
             1 => AuthKind::Basic,
             2 => AuthKind::Bearer,
             3 => AuthKind::ApiKey,
+            4 => AuthKind::Pairing,
             _ => AuthKind::None,
         }
+    }
+
+    /// Build config after exchanging a Web UI pairing code (unauthenticated POST).
+    async fn pairing_config_from_exchange(&self, verbose: bool) -> Result<Config> {
+        let base_url = normalize_romm_origin(self.url.trim());
+        if base_url.is_empty() {
+            return Err(anyhow!("Server URL cannot be empty"));
+        }
+        let code = self.pairing_code.trim().to_string();
+        if code.is_empty() {
+            return Err(anyhow!("Pairing code cannot be empty"));
+        }
+        let temp_config = Config {
+            base_url: base_url.clone(),
+            download_dir: self.download_dir.trim().to_string(),
+            use_https: self.use_https,
+            auth: None,
+        };
+        let client = RommClient::new(&temp_config, verbose)?;
+        let response = client
+            .call(&ExchangeClientToken { code })
+            .await
+            .context("failed to exchange pairing code")?;
+        Ok(Config {
+            base_url,
+            download_dir: self.download_dir.trim().to_string(),
+            use_https: self.use_https,
+            auth: Some(AuthConfig::Bearer {
+                token: response.raw_token,
+            }),
+        })
     }
 
     fn build_config(&self) -> Result<Config> {
@@ -256,6 +296,11 @@ impl SetupWizard {
                     key,
                 })
             }
+            AuthKind::Pairing => {
+                return Err(anyhow!(
+                    "Pairing auth is applied when connecting; use the pairing code step and connect"
+                ));
+            }
         };
         Ok(Config {
             base_url,
@@ -274,6 +319,7 @@ impl SetupWizard {
             Step::BasicUser | Step::BasicPass => "Step 5/5 — Basic auth",
             Step::Bearer => "Step 5/5 — API Token",
             Step::ApiHeader | Step::ApiKey => "Step 5/5 — API key",
+            Step::PairingCode => "Step 5/5 — Pair with Web UI",
             Step::Summary => "Review & connect",
         };
 
@@ -404,6 +450,23 @@ impl SetupWizard {
                 let p = Paragraph::new(bearer_text).block(block);
                 f.render_widget(p, main[1]);
             }
+            Step::PairingCode => {
+                let line = format!(
+                    "{}▏{}",
+                    self.pairing_code
+                        .chars()
+                        .take(self.pairing_cursor)
+                        .collect::<String>(),
+                    self.pairing_code
+                        .chars()
+                        .skip(self.pairing_cursor)
+                        .collect::<String>()
+                );
+                let body = format!("Enter the 8-character code from the RomM web UI.\n\n{line}");
+                let block = Block::default().title(title).borders(Borders::ALL);
+                let p = Paragraph::new(body).block(block);
+                f.render_widget(p, main[1]);
+            }
             Step::ApiHeader | Step::ApiKey => {
                 let header_line = if self.step == Step::ApiHeader {
                     format!(
@@ -447,6 +510,13 @@ impl SetupWizard {
                     AuthKind::Basic => "Basic",
                     AuthKind::Bearer => "API Token",
                     AuthKind::ApiKey => "API key header",
+                    AuthKind::Pairing => {
+                        if self.pairing_code.trim().is_empty() {
+                            "Pair with Web UI (no code yet)"
+                        } else {
+                            "Pair with Web UI (code entered)"
+                        }
+                    }
                 };
                 let mut lines = vec![
                     format!("Server: {url_line}"),
@@ -477,6 +547,7 @@ impl SetupWizard {
                 "Type text   Tab: switch field   Enter: next step   Esc: quit"
             }
             Step::Bearer => "Enter: next step   Esc: quit",
+            Step::PairingCode => "Enter: next step   Esc: quit",
             Step::ApiHeader | Step::ApiKey => "Tab: switch field   Enter: next step   Esc: quit",
             Step::Summary => {
                 if self.testing {
@@ -514,6 +585,10 @@ impl SetupWizard {
             Step::Bearer => {
                 let x = inner.x + 1 + self.bearer_cursor.min(self.bearer_token.len()) as u16;
                 Some((x, inner.y + 1))
+            }
+            Step::PairingCode => {
+                let x = inner.x + 1 + self.pairing_cursor.min(self.pairing_code.len()) as u16;
+                Some((x, inner.y + 3))
             }
             Step::BasicUser => {
                 let x = inner.x + 1 + self.user_cursor.min(self.username.len()) as u16;
@@ -568,6 +643,10 @@ impl SetupWizard {
             AuthKind::Basic => Step::BasicUser,
             AuthKind::Bearer => Step::Bearer,
             AuthKind::ApiKey => Step::ApiHeader,
+            AuthKind::Pairing => {
+                self.pairing_cursor = self.pairing_code.len();
+                Step::PairingCode
+            }
         };
     }
 
@@ -598,13 +677,18 @@ impl SetupWizard {
             Step::Bearer => self.step = Step::Summary,
             Step::ApiHeader => self.step = Step::ApiKey,
             Step::ApiKey => self.step = Step::Summary,
+            Step::PairingCode => self.step = Step::Summary,
             Step::Summary => {}
         }
         Ok(())
     }
 
     pub async fn try_connect_and_persist(&mut self, verbose: bool) -> Result<Config> {
-        let cfg = self.build_config()?;
+        let cfg = if self.auth_kind == AuthKind::Pairing {
+            self.pairing_config_from_exchange(verbose).await?
+        } else {
+            self.build_config()?
+        };
         let client = RommClient::new(&cfg, verbose)?;
         client.fetch_openapi_json().await?;
         let base = cfg.base_url.clone();
@@ -676,7 +760,7 @@ impl SetupWizard {
                     }
                 }
                 KeyCode::Down | KeyCode::Char('j') => {
-                    if self.auth_menu_selected < 3 {
+                    if self.auth_menu_selected < 4 {
                         self.auth_menu_selected += 1;
                     }
                 }
@@ -751,6 +835,33 @@ impl SetupWizard {
                 KeyCode::Right => {
                     if self.bearer_cursor < self.bearer_token.len() {
                         self.bearer_cursor += 1;
+                    }
+                }
+                _ => {}
+            },
+            Step::PairingCode => match key.code {
+                KeyCode::Enter => {
+                    let _ = self.advance_step();
+                }
+                KeyCode::Char(c) => {
+                    let pos = self.pairing_cursor.min(self.pairing_code.len());
+                    self.pairing_code.insert(pos, c);
+                    self.pairing_cursor = pos + 1;
+                }
+                KeyCode::Backspace => {
+                    if self.pairing_cursor > 0 && self.pairing_cursor <= self.pairing_code.len() {
+                        self.pairing_code.remove(self.pairing_cursor - 1);
+                        self.pairing_cursor -= 1;
+                    }
+                }
+                KeyCode::Left => {
+                    if self.pairing_cursor > 0 {
+                        self.pairing_cursor -= 1;
+                    }
+                }
+                KeyCode::Right => {
+                    if self.pairing_cursor < self.pairing_code.len() {
+                        self.pairing_cursor += 1;
                     }
                 }
                 _ => {}
@@ -885,5 +996,79 @@ impl SetupWizard {
 impl Default for SetupWizard {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    fn wizard_with_pairing(mock_uri: &str, code: &str) -> SetupWizard {
+        SetupWizard {
+            step: Step::PairingCode,
+            auth_kind: AuthKind::Pairing,
+            auth_menu_selected: 4,
+            url: mock_uri.to_string(),
+            url_cursor: mock_uri.len(),
+            download_dir: "/tmp/romm-dl-test".to_string(),
+            dl_cursor: 0,
+            username: String::new(),
+            user_cursor: 0,
+            password: String::new(),
+            bearer_token: String::new(),
+            bearer_cursor: 0,
+            api_header: String::new(),
+            header_cursor: 0,
+            api_key: String::new(),
+            api_key_cursor: 0,
+            pairing_code: code.to_string(),
+            pairing_cursor: code.len(),
+            reuse_keyring_password: false,
+            reuse_keyring_bearer: false,
+            reuse_keyring_api_key: false,
+            testing: false,
+            use_https: false,
+            error: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn pairing_config_from_exchange_returns_bearer_token() {
+        let mock_server = MockServer::start().await;
+
+        let token_json = serde_json::json!({
+            "id": 1,
+            "name": "cli-device",
+            "scopes": [],
+            "expires_at": null,
+            "last_used_at": null,
+            "created_at": "2020-01-01T00:00:00Z",
+            "user_id": 42,
+            "raw_token": "exchanged-bearer-secret"
+        });
+
+        Mock::given(method("POST"))
+            .and(path("/api/client-tokens/exchange"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&token_json))
+            .mount(&mock_server)
+            .await;
+
+        let uri = mock_server.uri();
+        let wizard = wizard_with_pairing(&uri, "ABCD1234");
+        let cfg = wizard
+            .pairing_config_from_exchange(false)
+            .await
+            .expect("pairing exchange should succeed");
+
+        match cfg.auth {
+            Some(AuthConfig::Bearer { token }) => {
+                assert_eq!(token, "exchanged-bearer-secret");
+            }
+            _ => panic!("expected bearer auth after pairing exchange"),
+        }
+        assert_eq!(cfg.base_url, normalize_romm_origin(&uri));
+        assert_eq!(cfg.download_dir, "/tmp/romm-dl-test");
     }
 }
