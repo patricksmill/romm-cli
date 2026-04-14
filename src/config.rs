@@ -8,9 +8,9 @@
 //!
 //! Call [`load_config`] to read config:
 //!
-//! 1. Variables already set in the process environment (highest priority).
-//! 2. User `config.json` (see [`user_config_json_path`]) at `{config_dir}/romm-cli/config.json` — fills any of
-//!    `API_BASE_URL`, `ROMM_DOWNLOAD_DIR`, `API_USE_HTTPS`, and auth fields **not** set by the environment.
+//! 1. Variables already set in the process environment (highest priority), including `API_TOKEN` and
+//!    paths `ROMM_TOKEN_FILE` / `API_TOKEN_FILE` (file contents used as bearer token when `API_TOKEN` is unset).
+//! 2. User `config.json` (see [`user_config_json_path`]) — fills any field **not** already set from the environment.
 //!
 //! There is **no** automatic loading of a `.env` file; set variables in your shell or process manager,
 //! or rely on `config.json` written by `romm-cli init` / the TUI setup wizard.
@@ -25,6 +25,7 @@
 //! `config.json` for `API_BASE_URL`, `ROMM_DOWNLOAD_DIR`, `API_USE_HTTPS`, and auth-related
 //! fields. The keyring is used only to replace placeholder or sentinel secret strings after that merge.
 
+use std::fs;
 use std::path::PathBuf;
 
 use anyhow::{anyhow, Context, Result};
@@ -150,6 +151,59 @@ fn env_nonempty(key: &str) -> Option<String> {
     std::env::var(key).ok().filter(|s| !s.trim().is_empty())
 }
 
+/// Max bytes read from bearer token files (`ROMM_TOKEN_FILE` / `API_TOKEN_FILE`).
+const MAX_TOKEN_FILE_BYTES: usize = 64 * 1024;
+
+/// Bearer token: `API_TOKEN` env, else UTF-8 file at `ROMM_TOKEN_FILE` or `API_TOKEN_FILE` path.
+fn token_from_env_or_file() -> Result<Option<String>> {
+    if let Some(t) = env_nonempty("API_TOKEN") {
+        return Ok(Some(t));
+    }
+    let path = env_nonempty("ROMM_TOKEN_FILE").or_else(|| env_nonempty("API_TOKEN_FILE"));
+    let Some(path) = path else {
+        return Ok(None);
+    };
+    let path = path.trim();
+    let bytes = fs::read(path).with_context(|| format!("read bearer token file {path}"))?;
+    if bytes.len() > MAX_TOKEN_FILE_BYTES {
+        return Err(anyhow!(
+            "bearer token file exceeds max size of {} bytes",
+            MAX_TOKEN_FILE_BYTES
+        ));
+    }
+    let s = String::from_utf8(bytes)
+        .map_err(|e| anyhow!("bearer token file must be valid UTF-8: {e}"))?;
+    let t = s.trim();
+    if t.is_empty() {
+        return Err(anyhow!(
+            "bearer token file is empty after trimming whitespace"
+        ));
+    }
+    Ok(Some(t.to_string()))
+}
+
+/// Returns true when [`load_config`] has no resolved [`AuthConfig::Bearer`] (etc.) but `config.json`
+/// on disk still contains [`KEYRING_SECRET_PLACEHOLDER`] (OS keyring could not supply the secret).
+pub fn disk_has_unresolved_keyring_sentinel(config: &Config) -> bool {
+    if config.auth.is_some() {
+        return false;
+    }
+    let Some(disk) = read_user_config_json_from_disk() else {
+        return false;
+    };
+    match &disk.auth {
+        Some(AuthConfig::Bearer { token }) => is_keyring_placeholder(token),
+        Some(AuthConfig::Basic { password, .. }) => is_keyring_placeholder(password),
+        Some(AuthConfig::ApiKey { key, .. }) => is_keyring_placeholder(key),
+        None => false,
+    }
+}
+
+/// Loads merged config from env, optional `config.json`, and the OS keyring.
+///
+/// Bearer token resolution order: `API_TOKEN`, then UTF-8 file at `ROMM_TOKEN_FILE` or `API_TOKEN_FILE`
+/// (max 64 KiB, trimmed), then JSON. If a token file path is set but the file is missing, empty, or
+/// too large, returns an error.
 pub fn load_config() -> Result<Config> {
     // 1. Load from JSON first (if it exists)
     let mut json_config = None;
@@ -200,7 +254,7 @@ pub fn load_config() -> Result<Config> {
     // 5. Resolve Auth
     let mut username = env_nonempty("API_USERNAME");
     let mut password = env_nonempty("API_PASSWORD");
-    let mut token = env_nonempty("API_TOKEN");
+    let mut token = token_from_env_or_file()?;
     let mut api_key = env_nonempty("API_KEY");
     let mut api_key_header = env_nonempty("API_KEY_HEADER");
 
@@ -442,6 +496,8 @@ mod tests {
             "API_USERNAME",
             "API_PASSWORD",
             "API_TOKEN",
+            "ROMM_TOKEN_FILE",
+            "API_TOKEN_FILE",
             "API_KEY",
             "API_KEY_HEADER",
             "API_USE_HTTPS",
@@ -614,6 +670,105 @@ mod tests {
         assert!(
             cfg.auth.is_none(),
             "unresolved keyring sentinel must not become Bearer auth in Config"
+        );
+        assert!(disk_has_unresolved_keyring_sentinel(&cfg));
+    }
+
+    #[test]
+    fn bearer_token_from_romm_token_file() {
+        let env = TestEnv::new();
+        let token_path = env.config_dir.join("secret.token");
+        std::fs::write(&token_path, "  tok-from-file\n").unwrap();
+        std::env::set_var("API_BASE_URL", "http://example.test");
+        std::env::set_var("ROMM_TOKEN_FILE", token_path.to_str().unwrap());
+
+        let cfg = load_config().expect("load");
+        match cfg.auth {
+            Some(AuthConfig::Bearer { token }) => assert_eq!(token, "tok-from-file"),
+            _ => panic!("expected bearer from token file"),
+        }
+    }
+
+    #[test]
+    fn api_token_env_wins_over_token_file() {
+        let env = TestEnv::new();
+        let token_path = env.config_dir.join("secret.token");
+        std::fs::write(&token_path, "from-file").unwrap();
+        std::env::set_var("API_BASE_URL", "http://example.test");
+        std::env::set_var("ROMM_TOKEN_FILE", token_path.to_str().unwrap());
+        std::env::set_var("API_TOKEN", "from-env");
+
+        let cfg = load_config().expect("load");
+        match cfg.auth {
+            Some(AuthConfig::Bearer { token }) => assert_eq!(token, "from-env"),
+            _ => panic!("expected env API_TOKEN to win"),
+        }
+    }
+
+    #[test]
+    fn romm_token_file_overrides_json_bearer() {
+        let env = TestEnv::new();
+        let token_path = env.config_dir.join("secret.token");
+        std::fs::write(&token_path, "from-file").unwrap();
+        std::env::set_var("API_BASE_URL", "http://example.test");
+        std::env::set_var("ROMM_TOKEN_FILE", token_path.to_str().unwrap());
+        let config_json = r#"{
+            "base_url": "http://example.test",
+            "download_dir": "/tmp",
+            "use_https": false,
+            "auth": { "Bearer": { "token": "from-json" } }
+        }"#;
+        std::fs::write(env.config_dir.join("config.json"), config_json).unwrap();
+
+        let cfg = load_config().expect("load");
+        match cfg.auth {
+            Some(AuthConfig::Bearer { token }) => assert_eq!(token, "from-file"),
+            _ => panic!("expected token file to override json"),
+        }
+    }
+
+    #[test]
+    fn romm_token_file_missing_errors() {
+        let env = TestEnv::new();
+        let missing = env.config_dir.join("this-token-file-does-not-exist");
+        std::env::set_var("API_BASE_URL", "http://example.test");
+        std::env::set_var("ROMM_TOKEN_FILE", missing.to_str().unwrap());
+
+        let err = load_config().expect_err("missing token file should error");
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains("read bearer token file"),
+            "unexpected error: {msg}"
+        );
+    }
+
+    #[test]
+    fn romm_token_file_empty_errors() {
+        let env = TestEnv::new();
+        let token_path = env.config_dir.join("empty.token");
+        std::fs::write(&token_path, "   \n\t  ").unwrap();
+        std::env::set_var("API_BASE_URL", "http://example.test");
+        std::env::set_var("ROMM_TOKEN_FILE", token_path.to_str().unwrap());
+
+        let err = load_config().expect_err("empty token file should error");
+        assert!(
+            format!("{err:#}").contains("empty"),
+            "unexpected error: {err:#}"
+        );
+    }
+
+    #[test]
+    fn romm_token_file_too_large_errors() {
+        let env = TestEnv::new();
+        let token_path = env.config_dir.join("huge.token");
+        std::fs::write(&token_path, vec![b'a'; MAX_TOKEN_FILE_BYTES + 1]).unwrap();
+        std::env::set_var("API_BASE_URL", "http://example.test");
+        std::env::set_var("ROMM_TOKEN_FILE", token_path.to_str().unwrap());
+
+        let err = load_config().expect_err("oversized token file should error");
+        assert!(
+            format!("{err:#}").contains("max size"),
+            "unexpected error: {err:#}"
         );
     }
 }

@@ -3,7 +3,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph};
 use ratatui::Frame;
 
-use crate::config::Config;
+use crate::config::{disk_has_unresolved_keyring_sentinel, Config};
 
 #[derive(PartialEq, Eq)]
 pub enum SettingsField {
@@ -39,7 +39,14 @@ impl SettingsScreen {
             Some(crate::config::AuthConfig::ApiKey { header, .. }) => {
                 format!("API key (header: {})", header)
             }
-            None => "None (no API credentials in env/keyring)".to_string(),
+            None => {
+                if disk_has_unresolved_keyring_sentinel(config) {
+                    "None — disk still references keyring; set API_TOKEN / ROMM_TOKEN_FILE or see docs/troubleshooting-auth.md"
+                        .to_string()
+                } else {
+                    "None (no API credentials in env/keyring)".to_string()
+                }
+            }
         };
 
         let server_version = romm_server_version

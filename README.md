@@ -53,6 +53,8 @@ This sets `API_BASE_URL` and authentication. Configuration is stored as `config.
 
 You can also set `API_BASE_URL` and auth-related variables in your **process environment**; env wins over `config.json` per field. The CLI does not auto-load a `.env` file.
 
+**Auth problems (keyring, Docker, CI, Windows credentials):** see [docs/troubleshooting-auth.md](docs/troubleshooting-auth.md).
+
 ### API token (recommended)
 
 If you have created an API token in the RomM web UI (under API tokens / developer settings), you can configure the CLI in one step without interactive prompts:
@@ -84,6 +86,7 @@ Set these in your shell (or any tool that injects env vars into the process) for
 | `API_USE_HTTPS` | Set to `false` to disable automatic upgrade to HTTPS (default: `true`) |
 | `API_USERNAME` / `API_PASSWORD` | Basic Auth credentials |
 | `API_TOKEN` | Bearer token |
+| `ROMM_TOKEN_FILE` | Path to a UTF-8 file containing the bearer token (trimmed). Alias: `API_TOKEN_FILE`. Used when `API_TOKEN` is unset; for Docker/K8s secrets. Max 64 KiB. |
 | `API_KEY_HEADER` / `API_KEY` | Custom API key header (e.g. `X-API-Key`) and its value |
 | `ROMM_OPENAPI_BASE_URL` | Optional. Only if OpenAPI must be fetched from a different origin than `API_BASE_URL`. |
 | `ROMM_OPENAPI_PATH` | Optional. Override path for the downloaded OpenAPI cache (default: under the OS config dir). |
