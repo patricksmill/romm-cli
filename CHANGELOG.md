@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.0](https://github.com/patricksmill/romm-cli/compare/v0.18.0...v0.19.0) (2026-04-14)
+
+
+### Features
+
+* **config:** cross-machine auth readiness ([4d9f44d](https://github.com/patricksmill/romm-cli/commit/4d9f44db9993a17281cf0d049f6cf1412768b351))
+* **tui:** add pairing authentication step to setup wizard ([10fa984](https://github.com/patricksmill/romm-cli/commit/10fa9842803e2dd78bdafc2869831e051576b09b))
+
+
+### Bug Fixes
+
+* **config:** keyring warnings, persist merge, and doc accuracy ([b26cdd1](https://github.com/patricksmill/romm-cli/commit/b26cdd13f6036fa82b35bb679bfb185e9615acbf))
+
 ## [0.18.0](https://github.com/patricksmill/romm-cli/compare/v0.17.0...v0.18.0) (2026-04-12)
 
 
