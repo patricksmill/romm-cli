@@ -43,6 +43,7 @@ async fn run_app() -> Result<()> {
     match command {
         Commands::Init(cmd) => init::handle(cmd, verbose).await,
         Commands::Update => romm_cli::commands::update::handle(),
+        Commands::Cache(cmd) => romm_cli::commands::cache::handle(cmd),
         #[cfg(feature = "tui")]
         Commands::Tui => {
             if verbose {

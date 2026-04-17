@@ -11,6 +11,7 @@ use crate::client::RommClient;
 use crate::config::Config;
 
 pub mod api;
+pub mod cache;
 pub mod download;
 pub mod init;
 pub mod platforms;
@@ -88,6 +89,8 @@ pub enum Commands {
     /// Download a ROM
     #[command(visible_aliases = ["dl", "get"])]
     Download(download::DownloadCommand),
+    /// Manage the persistent ROM cache
+    Cache(cache::CacheCommand),
     /// Check for and install updates for romm-cli
     Update,
 }

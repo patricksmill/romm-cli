@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::types::RomList;
 
-/// Default cache file path (next to the binary / CWD).
+/// Cache file name used by both default and legacy paths.
 const DEFAULT_CACHE_FILE: &str = "romm-cache.json";
 
 // ---------------------------------------------------------------------------
@@ -63,13 +63,78 @@ pub struct RomCache {
     path: PathBuf,
 }
 
+/// Basic diagnostics for the ROM cache file on disk.
+#[derive(Debug, Clone)]
+pub struct RomCacheInfo {
+    pub path: PathBuf,
+    pub exists: bool,
+    pub size_bytes: Option<u64>,
+    pub version: Option<u32>,
+    pub entry_count: Option<usize>,
+    pub parse_error: Option<String>,
+}
+
 impl RomCache {
     /// Load cache from disk (or start empty if the file is missing / corrupt).
     pub fn load() -> Self {
-        let path = PathBuf::from(
-            std::env::var("ROMM_CACHE_PATH").unwrap_or_else(|_| DEFAULT_CACHE_FILE.to_string()),
-        );
+        let (path, from_env_override) = cache_path_with_override();
+        if !from_env_override {
+            maybe_migrate_legacy_cache(&path);
+        }
         Self::load_from(path)
+    }
+
+    /// Effective ROM cache path (`ROMM_CACHE_PATH` override wins over OS-local default).
+    pub fn effective_path() -> PathBuf {
+        cache_path_with_override().0
+    }
+
+    /// Remove the cache file from disk if it exists.
+    pub fn clear_file() -> std::io::Result<bool> {
+        let path = Self::effective_path();
+        if path.is_file() {
+            std::fs::remove_file(path)?;
+            return Ok(true);
+        }
+        Ok(false)
+    }
+
+    /// Read best-effort metadata and parse information for the current cache file.
+    pub fn read_info() -> RomCacheInfo {
+        let path = Self::effective_path();
+        let meta = std::fs::metadata(&path).ok();
+        let exists = meta.is_some();
+        let size_bytes = meta.map(|m| m.len());
+
+        let mut info = RomCacheInfo {
+            path: path.clone(),
+            exists,
+            size_bytes,
+            version: None,
+            entry_count: None,
+            parse_error: None,
+        };
+
+        if !exists {
+            return info;
+        }
+
+        match std::fs::read_to_string(&path) {
+            Ok(data) => match serde_json::from_str::<CacheFile>(&data) {
+                Ok(file) => {
+                    info.version = Some(file.version);
+                    info.entry_count = Some(file.entries.len());
+                }
+                Err(err) => {
+                    info.parse_error = Some(err.to_string());
+                }
+            },
+            Err(err) => {
+                info.parse_error = Some(err.to_string());
+            }
+        }
+
+        info
     }
 
     fn load_from(path: PathBuf) -> Self {
@@ -107,6 +172,15 @@ impl RomCache {
         };
         match serde_json::to_string(&file) {
             Ok(json) => {
+                if let Some(parent) = self.path.parent() {
+                    if let Err(err) = std::fs::create_dir_all(parent) {
+                        eprintln!(
+                            "warning: failed to create ROM cache directory {:?}: {}",
+                            parent, err
+                        );
+                        return;
+                    }
+                }
                 if let Err(err) = std::fs::write(&self.path, json) {
                     eprintln!(
                         "warning: failed to write ROM cache file {:?}: {}",
@@ -142,11 +216,99 @@ impl RomCache {
     }
 }
 
+fn cache_path_with_override() -> (PathBuf, bool) {
+    if let Ok(path) = std::env::var("ROMM_CACHE_PATH") {
+        return (PathBuf::from(path), true);
+    }
+    (default_cache_path(), false)
+}
+
+fn default_cache_path() -> PathBuf {
+    if let Ok(dir) = std::env::var("ROMM_TEST_CACHE_DIR") {
+        return PathBuf::from(dir).join(DEFAULT_CACHE_FILE);
+    }
+    if let Some(dir) = dirs::cache_dir() {
+        return dir.join("romm-cli").join(DEFAULT_CACHE_FILE);
+    }
+    PathBuf::from(DEFAULT_CACHE_FILE)
+}
+
+fn legacy_cache_path() -> PathBuf {
+    PathBuf::from(DEFAULT_CACHE_FILE)
+}
+
+fn maybe_migrate_legacy_cache(destination: &Path) {
+    if destination.is_file() {
+        return;
+    }
+
+    let legacy = legacy_cache_path();
+    if !legacy.is_file() {
+        return;
+    }
+    if RomCache::read_file(&legacy).is_none() {
+        tracing::warn!(
+            "Skipping legacy ROM cache migration from {} because file is unreadable or invalid",
+            legacy.display()
+        );
+        return;
+    }
+    if let Some(parent) = destination.parent() {
+        if let Err(err) = std::fs::create_dir_all(parent) {
+            tracing::warn!(
+                "Failed to create ROM cache directory {} for migration: {}",
+                parent.display(),
+                err
+            );
+            return;
+        }
+    }
+    match std::fs::copy(&legacy, destination) {
+        Ok(_) => tracing::info!(
+            "Migrated ROM cache from {} to {}",
+            legacy.display(),
+            destination.display()
+        ),
+        Err(err) => tracing::warn!(
+            "Failed to migrate ROM cache from {} to {}: {}",
+            legacy.display(),
+            destination.display(),
+            err
+        ),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::types::Rom;
+    use std::sync::{Mutex, MutexGuard, OnceLock};
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    struct TestEnv {
+        _guard: MutexGuard<'static, ()>,
+    }
+
+    impl TestEnv {
+        fn new() -> Self {
+            let guard = env_lock().lock().expect("env lock");
+            std::env::remove_var("ROMM_CACHE_PATH");
+            std::env::remove_var("ROMM_TEST_CACHE_DIR");
+            Self { _guard: guard }
+        }
+    }
+
+    impl Drop for TestEnv {
+        fn drop(&mut self) {
+            std::env::remove_var("ROMM_CACHE_PATH");
+            std::env::remove_var("ROMM_TEST_CACHE_DIR");
+        }
+    }
 
     fn sample_rom_list() -> RomList {
         RomList {
@@ -229,5 +391,59 @@ mod tests {
         assert_eq!(cached.items.len(), 1);
 
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn effective_path_uses_env_override_when_set() {
+        let _env = TestEnv::new();
+        let path = std::env::temp_dir().join("romm-cache-env-override.json");
+        std::env::set_var("ROMM_CACHE_PATH", &path);
+        assert_eq!(RomCache::effective_path(), path);
+    }
+
+    #[test]
+    fn effective_path_uses_test_cache_dir_without_override() {
+        let _env = TestEnv::new();
+        let dir = std::env::temp_dir().join("romm-cache-default-dir-test");
+        std::env::set_var("ROMM_TEST_CACHE_DIR", &dir);
+        assert_eq!(RomCache::effective_path(), dir.join(DEFAULT_CACHE_FILE));
+    }
+
+    #[test]
+    fn migrates_legacy_cache_once_for_default_path() {
+        let _env = TestEnv::new();
+        let ts = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("time")
+            .as_nanos();
+        let work_dir = std::env::temp_dir().join(format!("romm-cache-migrate-cwd-{ts}"));
+        let cache_dir = std::env::temp_dir().join(format!("romm-cache-migrate-dest-{ts}"));
+        std::fs::create_dir_all(&work_dir).expect("create work dir");
+        std::env::set_var("ROMM_TEST_CACHE_DIR", &cache_dir);
+
+        let prev_cwd = std::env::current_dir().expect("cwd");
+        std::env::set_current_dir(&work_dir).expect("set cwd");
+        let mut legacy = RomCache::load_from(PathBuf::from(DEFAULT_CACHE_FILE));
+        let key = RomCacheKey::Platform(7);
+        legacy.insert(key.clone(), sample_rom_list(), 1);
+
+        let migrated = RomCache::load();
+        assert!(migrated.get_valid(&key, 1).is_some());
+
+        std::env::set_current_dir(prev_cwd).expect("restore cwd");
+        let _ = std::fs::remove_dir_all(&work_dir);
+        let _ = std::fs::remove_dir_all(&cache_dir);
+    }
+
+    #[test]
+    fn clear_file_removes_existing_cache_file() {
+        let _env = TestEnv::new();
+        let path = temp_cache_path();
+        std::env::set_var("ROMM_CACHE_PATH", &path);
+        let mut cache = RomCache::load();
+        cache.insert(RomCacheKey::Platform(1), sample_rom_list(), 1);
+        assert!(path.is_file());
+        assert!(RomCache::clear_file().expect("clear should work"));
+        assert!(!path.exists());
     }
 }

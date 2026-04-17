@@ -88,6 +88,7 @@ Set these in your shell (or any tool that injects env vars into the process) for
 | `API_TOKEN` | Bearer token |
 | `ROMM_TOKEN_FILE` | Path to a UTF-8 file containing the bearer token (trimmed). Alias: `API_TOKEN_FILE`. Used when `API_TOKEN` is unset; for Docker/K8s secrets. Max 64 KiB. |
 | `API_KEY_HEADER` / `API_KEY` | Custom API key header (e.g. `X-API-Key`) and its value |
+| `ROMM_CACHE_PATH` | Optional. Override path for the persistent ROM list cache (default: OS local cache dir, e.g. `%LOCALAPPDATA%` on Windows). |
 | `ROMM_OPENAPI_BASE_URL` | Optional. Only if OpenAPI must be fetched from a different origin than `API_BASE_URL`. |
 | `ROMM_OPENAPI_PATH` | Optional. Override path for the downloaded OpenAPI cache (default: under the OS config dir). |
 | `ROMM_USER_AGENT` | Optional. Override the HTTP `User-Agent` (some proxies block non-browser defaults). |
@@ -118,6 +119,11 @@ romm-cli roms --search-term "zelda" --json
 
 # Self-update
 romm-cli update
+
+# Cache utilities
+romm-cli cache path
+romm-cli cache info
+romm-cli cache clear
 ```
 
 ---

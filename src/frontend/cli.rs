@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 
 use crate::client::RommClient;
-use crate::commands::{api, download, platforms, roms, Commands, OutputFormat};
+use crate::commands::{api, cache, download, platforms, roms, Commands, OutputFormat};
 
 /// Execute one non-TUI CLI command.
 pub async fn run(command: Commands, client: &RommClient, global_json: bool) -> Result<()> {
@@ -19,6 +19,7 @@ pub async fn run(command: Commands, client: &RommClient, global_json: bool) -> R
             roms::handle(cmd, client, format).await
         }
         Commands::Download(cmd) => download::handle(cmd, client).await,
+        Commands::Cache(cmd) => cache::handle(cmd),
         Commands::Init(_) => Err(anyhow!(
             "internal routing error: init command in CLI frontend"
         )),
