@@ -372,8 +372,7 @@ impl App {
                             Vec::new()
                         }
                     };
-                    let collections =
-                        merge_all_collection_sources(manual, smart, virtual_rows);
+                    let collections = merge_all_collection_sources(manual, smart, virtual_rows);
                     if !collection_errors.is_empty() {
                         self.set_error(anyhow::anyhow!("{}", collection_errors.join("\n")));
                     }
@@ -483,10 +482,8 @@ impl App {
                     lib.rom_next();
                 }
             }
-            KeyCode::Left | KeyCode::Char('h') => {
-                if lib.view_mode == LibraryViewMode::Roms {
-                    lib.back_to_list();
-                }
+            KeyCode::Left | KeyCode::Char('h') if lib.view_mode == LibraryViewMode::Roms => {
+                lib.back_to_list();
             }
             KeyCode::Right | KeyCode::Char('l') => lib.switch_view(),
             KeyCode::Tab => {
@@ -673,15 +670,11 @@ impl App {
         match key {
             KeyCode::Up | KeyCode::Char('k') => browse.previous(),
             KeyCode::Down | KeyCode::Char('j') => browse.next(),
-            KeyCode::Left | KeyCode::Char('h') => {
-                if browse.view_mode == ViewMode::Endpoints {
-                    browse.switch_view();
-                }
+            KeyCode::Left | KeyCode::Char('h') if browse.view_mode == ViewMode::Endpoints => {
+                browse.switch_view();
             }
-            KeyCode::Right | KeyCode::Char('l') => {
-                if browse.view_mode == ViewMode::Sections {
-                    browse.switch_view();
-                }
+            KeyCode::Right | KeyCode::Char('l') if browse.view_mode == ViewMode::Sections => {
+                browse.switch_view();
             }
             KeyCode::Tab => browse.switch_view(),
             KeyCode::Enter => {
@@ -784,10 +777,8 @@ impl App {
                     result.table_next();
                 }
             }
-            KeyCode::Char('j') => {
-                if result.view_mode == ResultViewMode::Json {
-                    result.scroll_down(1);
-                }
+            KeyCode::Char('j') if result.view_mode == ResultViewMode::Json => {
+                result.scroll_down(1);
             }
             KeyCode::PageUp => {
                 if result.view_mode == ResultViewMode::Table {
@@ -803,22 +794,19 @@ impl App {
                     result.scroll_down(10);
                 }
             }
-            KeyCode::Char('t') => {
-                if result.table_row_count > 0 {
-                    result.switch_view_mode();
-                }
+            KeyCode::Char('t') if result.table_row_count > 0 => {
+                result.switch_view_mode();
             }
-            KeyCode::Enter => {
-                if result.view_mode == ResultViewMode::Table && result.table_row_count > 0 {
-                    if let Some(item) = result.get_selected_item_value() {
-                        let prev = std::mem::replace(
-                            &mut self.screen,
-                            AppScreen::MainMenu(MainMenuScreen::new()),
-                        );
-                        if let AppScreen::Result(rs) = prev {
-                            self.screen =
-                                AppScreen::ResultDetail(ResultDetailScreen::new(rs, item));
-                        }
+            KeyCode::Enter
+                if result.view_mode == ResultViewMode::Table && result.table_row_count > 0 =>
+            {
+                if let Some(item) = result.get_selected_item_value() {
+                    let prev = std::mem::replace(
+                        &mut self.screen,
+                        AppScreen::MainMenu(MainMenuScreen::new()),
+                    );
+                    if let AppScreen::Result(rs) = prev {
+                        self.screen = AppScreen::ResultDetail(ResultDetailScreen::new(rs, item));
                     }
                 }
             }
@@ -891,14 +879,12 @@ impl App {
         }
 
         match key {
-            KeyCode::Enter => {
-                // Only start a download once per detail view and avoid
-                // stacking multiple concurrent downloads for the same ROM.
-                if !detail.has_started_download {
-                    detail.has_started_download = true;
-                    self.downloads
-                        .start_download(&detail.rom, self.client.clone());
-                }
+            // Only start a download once per detail view and avoid
+            // stacking multiple concurrent downloads for the same ROM.
+            KeyCode::Enter if !detail.has_started_download => {
+                detail.has_started_download = true;
+                self.downloads
+                    .start_download(&detail.rom, self.client.clone());
             }
             KeyCode::Char('o') => detail.open_cover(),
             KeyCode::Char('m') => detail.toggle_technical(),

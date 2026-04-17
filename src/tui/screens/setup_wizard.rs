@@ -716,15 +716,11 @@ impl SetupWizard {
                 }
                 KeyCode::Char(c) => self.add_char_url(c),
                 KeyCode::Backspace => self.del_char_url(),
-                KeyCode::Left => {
-                    if self.url_cursor > 0 {
-                        self.url_cursor -= 1;
-                    }
+                KeyCode::Left if self.url_cursor > 0 => {
+                    self.url_cursor -= 1;
                 }
-                KeyCode::Right => {
-                    if self.url_cursor < self.url.len() {
-                        self.url_cursor += 1;
-                    }
+                KeyCode::Right if self.url_cursor < self.url.len() => {
+                    self.url_cursor += 1;
                 }
                 _ => {}
             },
@@ -741,28 +737,20 @@ impl SetupWizard {
                 }
                 KeyCode::Char(c) => self.add_char_dl(c),
                 KeyCode::Backspace => self.del_char_dl(),
-                KeyCode::Left => {
-                    if self.dl_cursor > 0 {
-                        self.dl_cursor -= 1;
-                    }
+                KeyCode::Left if self.dl_cursor > 0 => {
+                    self.dl_cursor -= 1;
                 }
-                KeyCode::Right => {
-                    if self.dl_cursor < self.download_dir.len() {
-                        self.dl_cursor += 1;
-                    }
+                KeyCode::Right if self.dl_cursor < self.download_dir.len() => {
+                    self.dl_cursor += 1;
                 }
                 _ => {}
             },
             Step::AuthMenu => match key.code {
-                KeyCode::Up | KeyCode::Char('k') => {
-                    if self.auth_menu_selected > 0 {
-                        self.auth_menu_selected -= 1;
-                    }
+                KeyCode::Up | KeyCode::Char('k') if self.auth_menu_selected > 0 => {
+                    self.auth_menu_selected -= 1;
                 }
-                KeyCode::Down | KeyCode::Char('j') => {
-                    if self.auth_menu_selected < 4 {
-                        self.auth_menu_selected += 1;
-                    }
+                KeyCode::Down | KeyCode::Char('j') if self.auth_menu_selected < 4 => {
+                    self.auth_menu_selected += 1;
                 }
                 KeyCode::Enter => {
                     let _ = self.advance_step();
@@ -779,21 +767,17 @@ impl SetupWizard {
                     self.username.insert(pos, c);
                     self.user_cursor = pos + 1;
                 }
-                KeyCode::Backspace => {
-                    if self.user_cursor > 0 && self.user_cursor <= self.username.len() {
-                        self.username.remove(self.user_cursor - 1);
-                        self.user_cursor -= 1;
-                    }
+                KeyCode::Backspace
+                    if self.user_cursor > 0 && self.user_cursor <= self.username.len() =>
+                {
+                    self.username.remove(self.user_cursor - 1);
+                    self.user_cursor -= 1;
                 }
-                KeyCode::Left => {
-                    if self.user_cursor > 0 {
-                        self.user_cursor -= 1;
-                    }
+                KeyCode::Left if self.user_cursor > 0 => {
+                    self.user_cursor -= 1;
                 }
-                KeyCode::Right => {
-                    if self.user_cursor < self.username.len() {
-                        self.user_cursor += 1;
-                    }
+                KeyCode::Right if self.user_cursor < self.username.len() => {
+                    self.user_cursor += 1;
                 }
                 _ => {}
             },
@@ -821,21 +805,17 @@ impl SetupWizard {
                     self.bearer_token.insert(pos, c);
                     self.bearer_cursor = pos + 1;
                 }
-                KeyCode::Backspace => {
-                    if self.bearer_cursor > 0 && self.bearer_cursor <= self.bearer_token.len() {
-                        self.bearer_token.remove(self.bearer_cursor - 1);
-                        self.bearer_cursor -= 1;
-                    }
+                KeyCode::Backspace
+                    if self.bearer_cursor > 0 && self.bearer_cursor <= self.bearer_token.len() =>
+                {
+                    self.bearer_token.remove(self.bearer_cursor - 1);
+                    self.bearer_cursor -= 1;
                 }
-                KeyCode::Left => {
-                    if self.bearer_cursor > 0 {
-                        self.bearer_cursor -= 1;
-                    }
+                KeyCode::Left if self.bearer_cursor > 0 => {
+                    self.bearer_cursor -= 1;
                 }
-                KeyCode::Right => {
-                    if self.bearer_cursor < self.bearer_token.len() {
-                        self.bearer_cursor += 1;
-                    }
+                KeyCode::Right if self.bearer_cursor < self.bearer_token.len() => {
+                    self.bearer_cursor += 1;
                 }
                 _ => {}
             },
@@ -848,21 +828,18 @@ impl SetupWizard {
                     self.pairing_code.insert(pos, c);
                     self.pairing_cursor = pos + 1;
                 }
-                KeyCode::Backspace => {
-                    if self.pairing_cursor > 0 && self.pairing_cursor <= self.pairing_code.len() {
-                        self.pairing_code.remove(self.pairing_cursor - 1);
-                        self.pairing_cursor -= 1;
-                    }
+                KeyCode::Backspace
+                    if self.pairing_cursor > 0
+                        && self.pairing_cursor <= self.pairing_code.len() =>
+                {
+                    self.pairing_code.remove(self.pairing_cursor - 1);
+                    self.pairing_cursor -= 1;
                 }
-                KeyCode::Left => {
-                    if self.pairing_cursor > 0 {
-                        self.pairing_cursor -= 1;
-                    }
+                KeyCode::Left if self.pairing_cursor > 0 => {
+                    self.pairing_cursor -= 1;
                 }
-                KeyCode::Right => {
-                    if self.pairing_cursor < self.pairing_code.len() {
-                        self.pairing_cursor += 1;
-                    }
+                KeyCode::Right if self.pairing_cursor < self.pairing_code.len() => {
+                    self.pairing_cursor += 1;
                 }
                 _ => {}
             },
@@ -876,21 +853,17 @@ impl SetupWizard {
                     self.api_header.insert(pos, c);
                     self.header_cursor = pos + 1;
                 }
-                KeyCode::Backspace => {
-                    if self.header_cursor > 0 && self.header_cursor <= self.api_header.len() {
-                        self.api_header.remove(self.header_cursor - 1);
-                        self.header_cursor -= 1;
-                    }
+                KeyCode::Backspace
+                    if self.header_cursor > 0 && self.header_cursor <= self.api_header.len() =>
+                {
+                    self.api_header.remove(self.header_cursor - 1);
+                    self.header_cursor -= 1;
                 }
-                KeyCode::Left => {
-                    if self.header_cursor > 0 {
-                        self.header_cursor -= 1;
-                    }
+                KeyCode::Left if self.header_cursor > 0 => {
+                    self.header_cursor -= 1;
                 }
-                KeyCode::Right => {
-                    if self.header_cursor < self.api_header.len() {
-                        self.header_cursor += 1;
-                    }
+                KeyCode::Right if self.header_cursor < self.api_header.len() => {
+                    self.header_cursor += 1;
                 }
                 _ => {}
             },
@@ -905,21 +878,17 @@ impl SetupWizard {
                     self.api_key.insert(pos, c);
                     self.api_key_cursor = pos + 1;
                 }
-                KeyCode::Backspace => {
-                    if self.api_key_cursor > 0 && self.api_key_cursor <= self.api_key.len() {
-                        self.api_key.remove(self.api_key_cursor - 1);
-                        self.api_key_cursor -= 1;
-                    }
+                KeyCode::Backspace
+                    if self.api_key_cursor > 0 && self.api_key_cursor <= self.api_key.len() =>
+                {
+                    self.api_key.remove(self.api_key_cursor - 1);
+                    self.api_key_cursor -= 1;
                 }
-                KeyCode::Left => {
-                    if self.api_key_cursor > 0 {
-                        self.api_key_cursor -= 1;
-                    }
+                KeyCode::Left if self.api_key_cursor > 0 => {
+                    self.api_key_cursor -= 1;
                 }
-                KeyCode::Right => {
-                    if self.api_key_cursor < self.api_key.len() {
-                        self.api_key_cursor += 1;
-                    }
+                KeyCode::Right if self.api_key_cursor < self.api_key.len() => {
+                    self.api_key_cursor += 1;
                 }
                 _ => {}
             },

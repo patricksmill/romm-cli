@@ -106,7 +106,9 @@ mod tests {
             ..Default::default()
         };
         let q = ep.query();
-        assert!(q.iter().any(|(k, v)| k == "smart_collection_id" && v == "3"));
+        assert!(q
+            .iter()
+            .any(|(k, v)| k == "smart_collection_id" && v == "3"));
         assert!(!q.iter().any(|(k, _)| k == "collection_id"));
         assert!(!q.iter().any(|(k, _)| k == "virtual_collection_id"));
     }

@@ -6,7 +6,9 @@ use ratatui::Frame;
 use crate::core::cache::RomCacheKey;
 use crate::core::utils::{self, RomGroup};
 use crate::endpoints::roms::GetRoms;
-use crate::tui::text_search::{filter_source_indices, jump_next_index, normalize_label, SearchState};
+use crate::tui::text_search::{
+    filter_source_indices, jump_next_index, normalize_label, SearchState,
+};
 use crate::types::{Collection, Platform, Rom, RomList};
 
 pub use crate::tui::text_search::LibrarySearchMode;
@@ -109,9 +111,7 @@ impl LibraryBrowseScreen {
 
     fn clamp_list_index(&mut self) {
         let v = self.visible_list_source_indices();
-        if v.is_empty() {
-            self.list_index = 0;
-        } else if self.list_index >= v.len() {
+        if v.is_empty() || self.list_index >= v.len() {
             self.list_index = 0;
         }
     }
@@ -333,8 +333,7 @@ impl LibraryBrowseScreen {
             return;
         }
         let source = self.rom_selected.min(labels.len().saturating_sub(1));
-        if let Some(idx) =
-            jump_next_index(&labels, source, &self.rom_search.normalized_query, next)
+        if let Some(idx) = jump_next_index(&labels, source, &self.rom_search.normalized_query, next)
         {
             self.rom_selected = idx;
             self.update_rom_scroll(self.visible_rows);
@@ -363,9 +362,7 @@ impl LibraryBrowseScreen {
         if self.rom_search.filter_active() {
             groups
                 .iter()
-                .filter(|g| {
-                    normalize_label(&g.name).contains(&self.rom_search.normalized_query)
-                })
+                .filter(|g| normalize_label(&g.name).contains(&self.rom_search.normalized_query))
                 .cloned()
                 .collect()
         } else {
@@ -477,8 +474,9 @@ impl LibraryBrowseScreen {
                     LibrarySearchMode::Filter => "Filter Search (list)",
                     LibrarySearchMode::Jump => "Jump Search (list, Tab next)",
                 };
-                let p = ratatui::widgets::Paragraph::new(format!("Search: {}", self.list_search.query))
-                    .block(Block::default().title(title).borders(Borders::ALL));
+                let p =
+                    ratatui::widgets::Paragraph::new(format!("Search: {}", self.list_search.query))
+                        .block(Block::default().title(title).borders(Borders::ALL));
                 f.render_widget(p, left_chunks[0]);
             }
             self.render_list(f, left_chunks[1]);
@@ -530,12 +528,11 @@ impl LibraryBrowseScreen {
                     .get(source_idx)
                     .cloned()
                     .unwrap_or_else(|| "?".to_string());
-                let prefix =
-                    if pos == self.list_index && self.view_mode == LibraryViewMode::List {
-                        "▶ "
-                    } else {
-                        "  "
-                    };
+                let prefix = if pos == self.list_index && self.view_mode == LibraryViewMode::List {
+                    "▶ "
+                } else {
+                    "  "
+                };
                 ListItem::new(format!("{}{}", prefix, line))
             })
             .collect();
@@ -709,7 +706,9 @@ mod tests {
         s.rom_search.mode = None;
         s.rom_search.filter_browsing = true;
         s.rom_selected = 99;
-        let (primary, _) = s.get_selected_group().expect("clamped index should yield a group");
+        let (primary, _) = s
+            .get_selected_group()
+            .expect("clamped index should yield a group");
         assert_eq!(primary.name, "alpha");
     }
 
