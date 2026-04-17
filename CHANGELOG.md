@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.20.0](https://github.com/patricksmill/romm-cli/compare/v0.19.0...v0.20.0) (2026-04-17)
+
+
+### Features
+
+* **collections:** introduce virtual and smart collections handling ([bd30eb8](https://github.com/patricksmill/romm-cli/commit/bd30eb8520871f1902008b2dd4d8853a56464254))
+* **tui:** enhance keyboard navigation and help overlay ([c7f47aa](https://github.com/patricksmill/romm-cli/commit/c7f47aa252d8ed3d977f0d665d1c8113286e3182))
+* **tui:** implement enhanced search functionality for library and ROM panes ([96309ae](https://github.com/patricksmill/romm-cli/commit/96309ae8ebf45089102bf3111467af98f2647289))
+
+
+### Bug Fixes
+
+* **tui:** improve filter browsing behavior and add index clamping ([b5e01e4](https://github.com/patricksmill/romm-cli/commit/b5e01e481953985e3cc9636283725fb68e32c5a2))
+* **tui:** refine search behavior and results handling ([99a9f03](https://github.com/patricksmill/romm-cli/commit/99a9f03861704e241640104bd8857809f56dc5b3))
+
 ## [0.19.0](https://github.com/patricksmill/romm-cli/compare/v0.18.0...v0.19.0) (2026-04-14)
 
 
