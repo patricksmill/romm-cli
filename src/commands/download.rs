@@ -118,6 +118,8 @@ pub async fn handle(cmd: DownloadCommand, client: &RommClient) -> Result<()> {
             search_term: cmd.search_term.clone(),
             platform_id: cmd.platform_id,
             collection_id: None,
+            smart_collection_id: None,
+            virtual_collection_id: None,
             limit: Some(9999),
             offset: None,
         };

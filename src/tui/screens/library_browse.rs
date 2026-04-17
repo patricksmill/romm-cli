@@ -312,18 +312,22 @@ impl LibraryBrowseScreen {
         }
     }
 
-    fn selected_collection_id(&self) -> Option<u64> {
-        match self.subsection {
-            LibrarySubsection::ByCollection => self.collections.get(self.list_index).map(|c| c.id),
-            LibrarySubsection::ByConsole => None,
-        }
-    }
-
     /// Cache key for the currently selected console or collection.
     pub fn cache_key(&self) -> Option<RomCacheKey> {
-        self.selected_platform_id()
-            .map(RomCacheKey::Platform)
-            .or_else(|| self.selected_collection_id().map(RomCacheKey::Collection))
+        match self.subsection {
+            LibrarySubsection::ByConsole => self.selected_platform_id().map(RomCacheKey::Platform),
+            LibrarySubsection::ByCollection => self.collections.get(self.list_index).map(|c| {
+                if c.is_virtual {
+                    RomCacheKey::VirtualCollection(
+                        c.virtual_id.clone().unwrap_or_default(),
+                    )
+                } else if c.is_smart {
+                    RomCacheKey::SmartCollection(c.id)
+                } else {
+                    RomCacheKey::Collection(c.id)
+                }
+            }),
+        }
     }
 
     /// Expected ROM count from the live platform/collection metadata.
@@ -353,11 +357,30 @@ impl LibraryBrowseScreen {
     }
 
     pub fn get_roms_request_collection(&self) -> Option<GetRoms> {
+        if self.subsection != LibrarySubsection::ByCollection {
+            return None;
+        }
         let count = self.expected_rom_count().min(20000);
-        self.selected_collection_id().map(|id| GetRoms {
-            collection_id: Some(id),
-            limit: Some(count as u32),
-            ..Default::default()
+        self.collections.get(self.list_index).map(|c| {
+            if c.is_virtual {
+                GetRoms {
+                    virtual_collection_id: c.virtual_id.clone(),
+                    limit: Some(count as u32),
+                    ..Default::default()
+                }
+            } else if c.is_smart {
+                GetRoms {
+                    smart_collection_id: Some(c.id),
+                    limit: Some(count as u32),
+                    ..Default::default()
+                }
+            } else {
+                GetRoms {
+                    collection_id: Some(c.id),
+                    limit: Some(count as u32),
+                    ..Default::default()
+                }
+            }
         })
     }
 
@@ -431,7 +454,14 @@ impl LibraryBrowseScreen {
                         } else {
                             "  "
                         };
-                    ListItem::new(format!("{}{} ({} roms)", prefix, c.name, count))
+                    let title = if c.is_virtual {
+                        format!("{} [auto]", c.name)
+                    } else if c.is_smart {
+                        format!("{} [smart]", c.name)
+                    } else {
+                        c.name.clone()
+                    };
+                    ListItem::new(format!("{}{} ({} roms)", prefix, title, count))
                 })
                 .collect(),
         };

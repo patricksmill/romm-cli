@@ -27,7 +27,10 @@ use crate::client::RommClient;
 use crate::config::{auth_for_persist_merge, Config};
 use crate::core::cache::{RomCache, RomCacheKey};
 use crate::core::download::DownloadManager;
-use crate::endpoints::{collections::ListCollections, platforms::ListPlatforms, roms::GetRoms};
+use crate::endpoints::collections::{
+    merge_all_collection_sources, ListCollections, ListSmartCollections, ListVirtualCollections,
+};
+use crate::endpoints::{platforms::ListPlatforms, roms::GetRoms};
 use crate::types::RomList;
 
 use super::keyboard_help;
@@ -209,8 +212,8 @@ impl App {
         expected_count: u64,
     ) -> Result<Option<RomList>> {
         // Try the disk-backed cache first.
-        if let Some(k) = key {
-            if let Some(cached) = self.rom_cache.get_valid(&k, expected_count) {
+        if let Some(ref k) = key {
+            if let Some(cached) = self.rom_cache.get_valid(k, expected_count) {
                 return Ok(Some(cached.clone()));
             }
         }
@@ -346,7 +349,34 @@ impl App {
                             return Ok(false);
                         }
                     };
-                    let collections = self.client.call(&ListCollections).await.unwrap_or_default();
+                    let mut collection_errors = Vec::new();
+                    let manual = match self.client.call(&ListCollections).await {
+                        Ok(c) => c.into_vec(),
+                        Err(e) => {
+                            collection_errors.push(format!("GET /api/collections: {e:#}"));
+                            Vec::new()
+                        }
+                    };
+                    let smart = match self.client.call(&ListSmartCollections).await {
+                        Ok(c) => c.into_vec(),
+                        Err(e) => {
+                            collection_errors.push(format!("GET /api/collections/smart: {e:#}"));
+                            Vec::new()
+                        }
+                    };
+                    let virtual_rows = match self.client.call(&ListVirtualCollections).await {
+                        Ok(v) => v,
+                        Err(e) => {
+                            collection_errors
+                                .push(format!("GET /api/collections/virtual?type=all: {e:#}"));
+                            Vec::new()
+                        }
+                    };
+                    let collections =
+                        merge_all_collection_sources(manual, smart, virtual_rows);
+                    if !collection_errors.is_empty() {
+                        self.set_error(anyhow::anyhow!("{}", collection_errors.join("\n")));
+                    }
                     let mut lib = LibraryBrowseScreen::new(platforms, collections);
                     if lib.list_len() > 0 {
                         let key = lib.cache_key();

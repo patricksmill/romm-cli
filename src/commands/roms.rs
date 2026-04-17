@@ -56,6 +56,8 @@ pub async fn handle(cmd: RomsCommand, client: &RommClient, format: OutputFormat)
                 search_term: cmd.search_term.clone(),
                 platform_id: cmd.platform_id,
                 collection_id: None,
+                smart_collection_id: None,
+                virtual_collection_id: None,
                 limit: cmd.limit,
                 offset: cmd.offset,
             };

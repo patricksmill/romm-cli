@@ -8,7 +8,7 @@ use romm_cli::tui::screens::library_browse::{
     LibraryBrowseScreen, LibrarySearchMode, LibraryViewMode,
 };
 use romm_cli::types::{Rom, RomList};
-use wiremock::matchers::{method, path};
+use wiremock::matchers::{method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 #[tokio::test]
@@ -53,6 +53,19 @@ async fn test_main_menu_success_transitions_to_library() {
 
     Mock::given(method("GET"))
         .and(path("/api/collections"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([])))
+        .mount(&mock_server)
+        .await;
+
+    Mock::given(method("GET"))
+        .and(path("/api/collections/smart"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([])))
+        .mount(&mock_server)
+        .await;
+
+    Mock::given(method("GET"))
+        .and(path("/api/collections/virtual"))
+        .and(query_param("type", "all"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([])))
         .mount(&mock_server)
         .await;
