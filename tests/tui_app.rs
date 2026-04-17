@@ -3,9 +3,11 @@ use romm_cli::client::RommClient;
 use romm_cli::config::Config;
 use romm_cli::tui::app::{App, AppScreen};
 use romm_cli::tui::openapi::EndpointRegistry;
+use romm_cli::core::utils;
 use romm_cli::tui::screens::library_browse::{
     LibraryBrowseScreen, LibrarySearchMode, LibraryViewMode,
 };
+use romm_cli::types::{Rom, RomList};
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -97,5 +99,72 @@ async fn library_filter_mode_d_types_in_search_bar_not_downloads() {
     assert!(
         matches!(&app.screen, AppScreen::LibraryBrowse(l) if l.search_query == "d" && l.search_mode.is_some()),
         "expected 'd' in filter bar, not Download overlay"
+    );
+}
+
+fn sample_rom(id: u64, name: &str) -> Rom {
+    Rom {
+        id,
+        platform_id: 1,
+        platform_slug: None,
+        platform_fs_slug: None,
+        platform_custom_name: None,
+        platform_display_name: None,
+        fs_name: format!("{name}.zip"),
+        fs_name_no_tags: name.to_string(),
+        fs_name_no_ext: name.to_string(),
+        fs_extension: "zip".to_string(),
+        fs_path: format!("/{id}.zip"),
+        fs_size_bytes: 1,
+        name: name.to_string(),
+        slug: None,
+        summary: None,
+        path_cover_small: None,
+        path_cover_large: None,
+        url_cover: None,
+        is_unidentified: false,
+        is_identified: true,
+    }
+}
+
+#[tokio::test]
+async fn library_filter_enter_then_enter_opens_game_detail() {
+    let config = Config {
+        base_url: "http://127.0.0.1:9".into(),
+        download_dir: "/tmp".into(),
+        use_https: false,
+        auth: None,
+    };
+    let client = RommClient::new(&config, false).unwrap();
+    let mut app = App::new(client, config, EndpointRegistry::default(), None, None);
+
+    let items = vec![sample_rom(1, "alpha"), sample_rom(2, "beta")];
+    let rom_list = RomList {
+        total: items.len() as u64,
+        limit: items.len() as u64,
+        offset: 0,
+        items: items.clone(),
+    };
+
+    let mut lib = LibraryBrowseScreen::new(vec![], vec![]);
+    lib.roms = Some(rom_list);
+    lib.rom_groups = Some(utils::group_roms_by_name(&items));
+    lib.view_mode = LibraryViewMode::Roms;
+    lib.enter_search(LibrarySearchMode::Filter);
+    for c in "al".chars() {
+        lib.add_search_char(c);
+    }
+    app.screen = AppScreen::LibraryBrowse(lib);
+
+    assert!(!app.handle_key(KeyCode::Enter).await.unwrap());
+    assert!(
+        matches!(&app.screen, AppScreen::LibraryBrowse(l) if l.filter_browsing && l.search_mode.is_none()),
+        "first Enter should commit filter browsing"
+    );
+
+    assert!(!app.handle_key(KeyCode::Enter).await.unwrap());
+    assert!(
+        matches!(&app.screen, AppScreen::GameDetail(d) if d.rom.name == "alpha"),
+        "second Enter should open the selected filtered game"
     );
 }

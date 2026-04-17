@@ -401,7 +401,8 @@ impl App {
                 KeyCode::Enter => {
                     if mode == LibrarySearchMode::Filter {
                         lib.search_mode = None;
-                        lib.filter_browsing = true;
+                        // Empty query: behave like closing the bar (no filter-browse state).
+                        lib.filter_browsing = !lib.search_query.trim().is_empty();
                     } else {
                         lib.search_mode = None;
                     }

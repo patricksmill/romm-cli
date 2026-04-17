@@ -129,9 +129,12 @@ impl LibraryBrowseScreen {
     /// render time). This manual bookkeeping gives us fine-grained control
     /// over scrolling behavior without storing a separate viewport object.
     fn update_rom_scroll(&mut self, visible: usize) {
-        if let Some(ref groups) = self.rom_groups {
-            self.update_rom_scroll_with_len(groups.len(), visible);
+        if self.rom_groups.is_none() {
+            return;
         }
+        // Must match `visible_rom_groups`: `rom_selected` is always an index into that list.
+        let list_len = self.visible_rom_groups().len();
+        self.update_rom_scroll_with_len(list_len, visible);
     }
 
     fn update_rom_scroll_with_len(&mut self, list_len: usize, visible: usize) {
@@ -261,8 +264,18 @@ impl LibraryBrowseScreen {
 
     /// Primary ROM and other files (updates/DLC) for the selected game.
     pub fn get_selected_group(&self) -> Option<(Rom, Vec<Rom>)> {
-        self.visible_rom_groups()
-            .get(self.rom_selected)
+        let visible = self.visible_rom_groups();
+        if visible.is_empty() {
+            return None;
+        }
+        // Keep in sync with `render_roms`, which clamps before draw (we can't mutate here).
+        let idx = if self.rom_selected >= visible.len() {
+            0
+        } else {
+            self.rom_selected
+        };
+        visible
+            .get(idx)
             .map(|g| (g.primary.clone(), g.others.clone()))
     }
 
@@ -566,6 +579,29 @@ mod tests {
             is_unidentified: false,
             is_identified: true,
         }
+    }
+
+    #[test]
+    fn get_selected_group_clamps_stale_index_after_filter() {
+        let mut s = LibraryBrowseScreen::new(vec![], vec![]);
+        let items = vec![
+            rom(1, "alpha", "a.zip"),
+            rom(2, "alphabet", "ab.zip"),
+            rom(3, "beta", "b.zip"),
+        ];
+        s.rom_groups = Some(utils::group_roms_by_name(&items));
+        s.view_mode = LibraryViewMode::Roms;
+        s.enter_search(LibrarySearchMode::Filter);
+        for c in "alp".chars() {
+            s.add_search_char(c);
+        }
+        s.search_mode = None;
+        s.filter_browsing = true;
+        // Simulate desync: full-list index or bad scroll state would leave this out of bounds
+        // for the filtered slice; Enter on a game must still resolve (same as render_roms).
+        s.rom_selected = 99;
+        let (primary, _) = s.get_selected_group().expect("clamped index should yield a group");
+        assert_eq!(primary.name, "alpha");
     }
 
     #[test]
