@@ -50,12 +50,6 @@ Settings
   Esc                Main menu
   q                  Quit
 
-API browse
-  Up / k, Down / j   Move
-  Left / h, Right / l, Tab   Switch panes
-  Enter              Open endpoint or switch pane
-  Esc                Main menu
-
 Execute request
   Tab / Shift+Tab    Next / previous field
   Typing             Edit fields

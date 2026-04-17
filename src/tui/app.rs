@@ -371,8 +371,7 @@ impl App {
                         self.server_version.as_deref(),
                     ))
                 }
-                4 => self.screen = AppScreen::Browse(BrowseScreen::new(self.registry.clone())),
-                5 => return Ok(true),
+                4 => return Ok(true),
                 _ => {}
             },
             KeyCode::Esc | KeyCode::Char('q') => return Ok(true),

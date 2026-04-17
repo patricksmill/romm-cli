@@ -18,12 +18,12 @@ impl MainMenuScreen {
     }
 
     pub fn next(&mut self) {
-        self.selected = (self.selected + 1) % 6;
+        self.selected = (self.selected + 1) % 5;
     }
 
     pub fn previous(&mut self) {
         self.selected = if self.selected == 0 {
-            5
+            4
         } else {
             self.selected - 1
         };
@@ -35,7 +35,6 @@ impl MainMenuScreen {
             ListItem::new("Search"),
             ListItem::new("Downloads"),
             ListItem::new("Settings"),
-            ListItem::new("API (Expert)"),
             ListItem::new("Exit"),
         ];
 

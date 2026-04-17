@@ -78,6 +78,28 @@ async fn test_main_menu_success_transitions_to_library() {
 }
 
 #[tokio::test]
+async fn main_menu_fifth_item_is_exit() {
+    let mock_server = MockServer::start().await;
+    let config = Config {
+        base_url: mock_server.uri(),
+        download_dir: "/tmp".into(),
+        use_https: false,
+        auth: None,
+    };
+    let client = RommClient::new(&config, false).unwrap();
+    let mut app = App::new(client, config, EndpointRegistry::default(), None, None);
+
+    // Move to the 5th menu row (0-based index 4).
+    for _ in 0..4 {
+        assert!(!app.handle_key(KeyCode::Down).await.unwrap());
+    }
+
+    // Without API (Expert) in the menu, the 5th item should be Exit.
+    let quit = app.handle_key(KeyCode::Enter).await.unwrap();
+    assert!(quit, "expected Enter on 5th item to quit");
+}
+
+#[tokio::test]
 async fn library_filter_mode_d_types_in_search_bar_not_downloads() {
     let mock_server = MockServer::start().await;
     let config = Config {
