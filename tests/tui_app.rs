@@ -126,13 +126,13 @@ async fn library_filter_mode_d_types_in_search_bar_not_downloads() {
 
     let mut lib = LibraryBrowseScreen::new(vec![], vec![]);
     lib.view_mode = LibraryViewMode::Roms;
-    lib.enter_search(LibrarySearchMode::Filter);
+    lib.enter_rom_search(LibrarySearchMode::Filter);
     app.screen = AppScreen::LibraryBrowse(lib);
 
     let quit = app.handle_key(KeyCode::Char('d')).await.unwrap();
     assert!(!quit);
     assert!(
-        matches!(&app.screen, AppScreen::LibraryBrowse(l) if l.search_query == "d" && l.search_mode.is_some()),
+        matches!(&app.screen, AppScreen::LibraryBrowse(l) if l.rom_search.query == "d" && l.rom_search.mode.is_some()),
         "expected 'd' in filter bar, not Download overlay"
     );
 }
@@ -185,15 +185,15 @@ async fn library_filter_enter_then_enter_opens_game_detail() {
     lib.roms = Some(rom_list);
     lib.rom_groups = Some(utils::group_roms_by_name(&items));
     lib.view_mode = LibraryViewMode::Roms;
-    lib.enter_search(LibrarySearchMode::Filter);
+    lib.enter_rom_search(LibrarySearchMode::Filter);
     for c in "al".chars() {
-        lib.add_search_char(c);
+        lib.add_rom_search_char(c);
     }
     app.screen = AppScreen::LibraryBrowse(lib);
 
     assert!(!app.handle_key(KeyCode::Enter).await.unwrap());
     assert!(
-        matches!(&app.screen, AppScreen::LibraryBrowse(l) if l.filter_browsing && l.search_mode.is_none()),
+        matches!(&app.screen, AppScreen::LibraryBrowse(l) if l.rom_search.filter_browsing && l.rom_search.mode.is_none()),
         "first Enter should commit filter browsing"
     );
 

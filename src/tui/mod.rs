@@ -13,6 +13,7 @@
 pub mod app;
 pub mod keyboard_help;
 pub mod openapi;
+pub mod text_search;
 pub mod openapi_sync;
 pub mod screens;
 pub mod utils;

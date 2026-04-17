@@ -19,9 +19,9 @@ Library (consoles / games)
   Up / k, Down / j   Move in list or game rows
   Left / h           Back to console list (games view)
   Right / l, Tab     Switch panel or view
-  /                  Filter games (games view)
+  /                  Filter (focused pane: console/collection list or games)
   Enter              After typing a filter: browse matches; Esc clears filter
-  f                  Jump to match (games view)
+  f                  Jump to match (focused pane: list or games)
   Tab                Next jump match (jump mode)
   Enter              Open games list or game detail
   t                  Switch consoles / collections

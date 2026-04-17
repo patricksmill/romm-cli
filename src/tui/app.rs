@@ -68,7 +68,7 @@ pub enum AppScreen {
 fn blocks_global_d_shortcut(screen: &AppScreen) -> bool {
     match screen {
         AppScreen::Search(_) | AppScreen::Settings(_) | AppScreen::SetupWizard(_) => true,
-        AppScreen::LibraryBrowse(lib) => lib.search_mode.is_some(),
+        AppScreen::LibraryBrowse(lib) => lib.any_search_bar_open(),
         _ => false,
     }
 }
@@ -76,7 +76,7 @@ fn blocks_global_d_shortcut(screen: &AppScreen) -> bool {
 fn allows_global_question_help(screen: &AppScreen) -> bool {
     match screen {
         AppScreen::Search(_) | AppScreen::SetupWizard(_) | AppScreen::Execute(_) => false,
-        AppScreen::LibraryBrowse(lib) if lib.search_mode.is_some() => false,
+        AppScreen::LibraryBrowse(lib) if lib.any_search_bar_open() => false,
         AppScreen::Settings(s) if s.editing => false,
         _ => true,
     }
@@ -420,25 +420,34 @@ impl App {
             _ => return Ok(false),
         };
 
-        // If in search mode, intercept typing keys.
-        if let Some(mode) = lib.search_mode {
-            match key {
-                KeyCode::Esc => lib.clear_search(),
-                KeyCode::Backspace => lib.delete_search_char(),
-                KeyCode::Char(c) => lib.add_search_char(c),
-                KeyCode::Tab if mode == LibrarySearchMode::Jump => lib.jump_to_match(true),
-                KeyCode::Enter => {
-                    if mode == LibrarySearchMode::Filter {
-                        lib.search_mode = None;
-                        // Empty query: behave like closing the bar (no filter-browse state).
-                        lib.filter_browsing = !lib.search_query.trim().is_empty();
-                    } else {
-                        lib.search_mode = None;
-                    }
+        // List pane: search typing bar
+        if lib.view_mode == LibraryViewMode::List {
+            if let Some(mode) = lib.list_search.mode {
+                match key {
+                    KeyCode::Esc => lib.clear_list_search(),
+                    KeyCode::Backspace => lib.delete_list_search_char(),
+                    KeyCode::Char(c) => lib.add_list_search_char(c),
+                    KeyCode::Tab if mode == LibrarySearchMode::Jump => lib.list_jump_match(true),
+                    KeyCode::Enter => lib.commit_list_filter_bar(),
+                    _ => {}
                 }
-                _ => {}
+                return Ok(false);
             }
-            return Ok(false);
+        }
+
+        // Games pane: search typing bar
+        if lib.view_mode == LibraryViewMode::Roms {
+            if let Some(mode) = lib.rom_search.mode {
+                match key {
+                    KeyCode::Esc => lib.clear_rom_search(),
+                    KeyCode::Backspace => lib.delete_rom_search_char(),
+                    KeyCode::Char(c) => lib.add_rom_search_char(c),
+                    KeyCode::Tab if mode == LibrarySearchMode::Jump => lib.jump_rom_match(true),
+                    KeyCode::Enter => lib.commit_rom_filter_bar(),
+                    _ => {}
+                }
+                return Ok(false);
+            }
         }
 
         match key {
@@ -487,12 +496,14 @@ impl App {
                     lib.switch_view(); // Normal tab also switches panels
                 }
             }
-            KeyCode::Char('/') if lib.view_mode == LibraryViewMode::Roms => {
-                lib.enter_search(LibrarySearchMode::Filter);
-            }
-            KeyCode::Char('f') if lib.view_mode == LibraryViewMode::Roms => {
-                lib.enter_search(LibrarySearchMode::Jump);
-            }
+            KeyCode::Char('/') => match lib.view_mode {
+                LibraryViewMode::List => lib.enter_list_search(LibrarySearchMode::Filter),
+                LibraryViewMode::Roms => lib.enter_rom_search(LibrarySearchMode::Filter),
+            },
+            KeyCode::Char('f') => match lib.view_mode {
+                LibraryViewMode::List => lib.enter_list_search(LibrarySearchMode::Jump),
+                LibraryViewMode::Roms => lib.enter_rom_search(LibrarySearchMode::Jump),
+            },
             KeyCode::Enter => {
                 if lib.view_mode == LibraryViewMode::List {
                     lib.switch_view();
@@ -514,11 +525,13 @@ impl App {
             KeyCode::Char('t') => lib.switch_subsection(),
             KeyCode::Esc => {
                 if lib.view_mode == LibraryViewMode::Roms {
-                    if lib.filter_browsing {
-                        lib.clear_search();
+                    if lib.rom_search.filter_browsing {
+                        lib.clear_rom_search();
                     } else {
                         lib.back_to_list();
                     }
+                } else if lib.list_search.filter_browsing {
+                    lib.clear_list_search();
                 } else {
                     self.screen = AppScreen::MainMenu(MainMenuScreen::new());
                 }
