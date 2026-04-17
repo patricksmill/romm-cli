@@ -13,6 +13,8 @@ pub struct SearchScreen {
     pub results: Option<RomList>,
     /// One row per game name (base + updates/DLC grouped).
     pub result_groups: Option<Vec<RomGroup>>,
+    /// Query string used for the API call that produced [`Self::result_groups`], if any.
+    pub last_searched_query: Option<String>,
     pub selected: usize,
     pub scroll_offset: usize,
     visible_rows: usize,
@@ -31,6 +33,7 @@ impl SearchScreen {
             cursor_pos: 0,
             results: None,
             result_groups: None,
+            last_searched_query: None,
             selected: 0,
             scroll_offset: 0,
             visible_rows: 15,
@@ -65,6 +68,7 @@ impl SearchScreen {
     pub fn set_results(&mut self, results: RomList) {
         self.results = Some(results.clone());
         self.result_groups = Some(utils::group_roms_by_name(&results.items));
+        self.last_searched_query = Some(self.query.clone());
         self.selected = 0;
         self.scroll_offset = 0;
     }
@@ -72,6 +76,12 @@ impl SearchScreen {
     pub fn clear_results(&mut self) {
         self.results = None;
         self.result_groups = None;
+        self.last_searched_query = None;
+    }
+
+    /// True when the on-screen results were fetched for the current `query` string.
+    pub fn results_match_current_query(&self) -> bool {
+        self.last_searched_query.as_deref() == Some(self.query.as_str())
     }
 
     pub fn next(&mut self) {
@@ -191,7 +201,7 @@ impl SearchScreen {
             f.render_widget(p, chunks[1]);
         }
 
-        let help = "Enter: Search / Open game | ↑↓: Navigate results | Esc: Back";
+        let help = "Enter: Search (or open game if query unchanged) | ↑↓: Navigate | Esc: Back";
         let p = Paragraph::new(help).block(Block::default().borders(Borders::ALL));
         f.render_widget(p, chunks[2]);
     }
@@ -209,5 +219,50 @@ impl SearchScreen {
         let x = chunks[0].x + offset.min(chunks[0].width.saturating_sub(1));
         let y = chunks[0].y + 1;
         Some((x, y))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SearchScreen;
+    use crate::types::RomList;
+
+    fn empty_list() -> RomList {
+        RomList {
+            items: vec![],
+            total: 0,
+            limit: 50,
+            offset: 0,
+        }
+    }
+
+    #[test]
+    fn set_results_records_last_searched_query() {
+        let mut s = SearchScreen::new();
+        s.query = "mario".to_string();
+        s.set_results(empty_list());
+        assert_eq!(s.last_searched_query.as_deref(), Some("mario"));
+        assert!(s.results_match_current_query());
+    }
+
+    #[test]
+    fn editing_query_after_search_marks_stale() {
+        let mut s = SearchScreen::new();
+        s.query = "mario".to_string();
+        s.cursor_pos = s.query.len();
+        s.set_results(empty_list());
+        assert!(s.results_match_current_query());
+        s.delete_char();
+        assert_eq!(s.query, "mari");
+        assert!(!s.results_match_current_query());
+    }
+
+    #[test]
+    fn clear_results_clears_last_searched_query() {
+        let mut s = SearchScreen::new();
+        s.query = "a".to_string();
+        s.set_results(empty_list());
+        s.clear_results();
+        assert!(s.last_searched_query.is_none());
     }
 }

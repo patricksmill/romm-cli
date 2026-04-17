@@ -557,7 +557,9 @@ impl App {
             KeyCode::Down => search.next(),
             KeyCode::Char(c) => search.add_char(c),
             KeyCode::Enter => {
-                if search.result_groups.is_some() {
+                if search.query.is_empty() {
+                    // no-op (same as before: empty query does not search)
+                } else if search.result_groups.is_some() && search.results_match_current_query() {
                     if let Some((primary, others)) = search.get_selected_group() {
                         let prev = std::mem::replace(
                             &mut self.screen,
@@ -572,7 +574,7 @@ impl App {
                             )));
                         }
                     }
-                } else if !search.query.is_empty() {
+                } else {
                     let req = GetRoms {
                         search_term: Some(search.query.clone()),
                         limit: Some(50),

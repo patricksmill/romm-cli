@@ -30,7 +30,7 @@ Library (consoles / games)
 
 Search
   Arrows, typing     Edit query and move in results
-  Enter              Run search or open game
+  Enter              Run search; open game only if the query matches the last search
   Esc                Clear results or main menu
 
 Game detail
