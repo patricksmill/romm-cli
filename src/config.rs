@@ -18,6 +18,8 @@
 //! After env + JSON merge, secrets that are still placeholders (including [`KEYRING_SECRET_PLACEHOLDER`])
 //! are resolved via the OS keyring (`keyring` crate, service name `romm-cli`). On Windows the stored
 //! credential target is typically `API_TOKEN.romm-cli`, `API_PASSWORD.romm-cli`, or `API_KEY.romm-cli`.
+//! Missing entries are silent; other keyring errors are logged at warn (never with secret values).
+//! On save, a successful store is followed by read-back verification before writing the sentinel to JSON.
 //!
 //! ## `load_config` vs `config.json`
 //!
@@ -90,10 +92,57 @@ pub fn keyring_store(key: &str, value: &str) -> Result<()> {
         .map_err(|e| anyhow!("keyring set error: {e}"))
 }
 
-/// Retrieve a secret from the OS keyring, returning `None` if not found.
+/// Map `get_password` result: [`keyring::Error::NoEntry`] is normal when no credential exists (no log).
+/// Other errors are logged (never logs secret bytes).
+fn keyring_get_password_result(key: &str, result: keyring::Result<String>) -> Option<String> {
+    match result {
+        Ok(s) => Some(s),
+        Err(keyring::Error::NoEntry) => None,
+        Err(e) => {
+            tracing::warn!("keyring get_password for key {key}: {e}");
+            None
+        }
+    }
+}
+
+/// Retrieve a secret from the OS keyring, returning `None` if not found or on error (after logging unexpected errors).
 pub(crate) fn keyring_get(key: &str) -> Option<String> {
-    let entry = keyring::Entry::new(KEYRING_SERVICE, key).ok()?;
-    entry.get_password().ok()
+    let entry = match keyring::Entry::new(KEYRING_SERVICE, key) {
+        Ok(e) => e,
+        Err(e) => {
+            tracing::warn!("keyring Entry::new for key {key}: {e}");
+            return None;
+        }
+    };
+    keyring_get_password_result(key, entry.get_password())
+}
+
+/// After a successful `set_password`, confirm read-back matches `expected`. If not, caller should keep plaintext in JSON.
+fn keyring_verify_read_back_matches(key: &str, expected: &str) -> bool {
+    let entry = match keyring::Entry::new(KEYRING_SERVICE, key) {
+        Ok(e) => e,
+        Err(e) => {
+            tracing::warn!(
+                "keyring verify: Entry::new for key {key} after successful store: {e}; writing plaintext to config.json"
+            );
+            return false;
+        }
+    };
+    match entry.get_password() {
+        Ok(read) if read == expected => true,
+        Ok(_) => {
+            tracing::warn!(
+                "keyring verify: read-back for key {key} did not match; writing plaintext to config.json"
+            );
+            false
+        }
+        Err(e) => {
+            tracing::warn!(
+                "keyring verify: get_password for key {key} after successful store: {e}; writing plaintext to config.json"
+            );
+            false
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -380,6 +429,13 @@ pub fn load_config() -> Result<Config> {
 
 /// Write user-level `romm-cli/config.json` and store secrets in the OS keyring when possible
 /// (same layout as interactive `romm-cli init`).
+///
+/// If a secret field is already [`KEYRING_SECRET_PLACEHOLDER`], it is written to JSON as-is and
+/// the keyring is not updated (avoids overwriting the vault with the literal sentinel string).
+///
+/// After a successful [`keyring_store`], the secret is read back from the keyring; only if it
+/// matches the stored value is JSON updated to the sentinel (otherwise plaintext is kept and a
+/// warning is logged).
 pub fn persist_user_config(
     base_url: &str,
     download_dir: &str,
@@ -406,23 +462,35 @@ pub fn persist_user_config(
     match &mut config_to_save.auth {
         None => {}
         Some(AuthConfig::Basic { password, .. }) => {
-            if let Err(e) = keyring_store("API_PASSWORD", password) {
+            if is_keyring_placeholder(password) {
+                tracing::debug!(
+                    "skip keyring store for API_PASSWORD: value is keyring sentinel; leaving disk sentinel unchanged"
+                );
+            } else if let Err(e) = keyring_store("API_PASSWORD", password) {
                 tracing::warn!("keyring store API_PASSWORD: {e}; writing plaintext to config.json");
-            } else {
+            } else if keyring_verify_read_back_matches("API_PASSWORD", password.as_str()) {
                 *password = KEYRING_SECRET_PLACEHOLDER.to_string();
             }
         }
         Some(AuthConfig::Bearer { token }) => {
-            if let Err(e) = keyring_store("API_TOKEN", token) {
+            if is_keyring_placeholder(token) {
+                tracing::debug!(
+                    "skip keyring store for API_TOKEN: value is keyring sentinel; leaving disk sentinel unchanged"
+                );
+            } else if let Err(e) = keyring_store("API_TOKEN", token) {
                 tracing::warn!("keyring store API_TOKEN: {e}; writing plaintext to config.json");
-            } else {
+            } else if keyring_verify_read_back_matches("API_TOKEN", token.as_str()) {
                 *token = KEYRING_SECRET_PLACEHOLDER.to_string();
             }
         }
         Some(AuthConfig::ApiKey { key, .. }) => {
-            if let Err(e) = keyring_store("API_KEY", key) {
+            if is_keyring_placeholder(key) {
+                tracing::debug!(
+                    "skip keyring store for API_KEY: value is keyring sentinel; leaving disk sentinel unchanged"
+                );
+            } else if let Err(e) = keyring_store("API_KEY", key) {
                 tracing::warn!("keyring store API_KEY: {e}; writing plaintext to config.json");
-            } else {
+            } else if keyring_verify_read_back_matches("API_KEY", key.as_str()) {
                 *key = KEYRING_SECRET_PLACEHOLDER.to_string();
             }
         }
@@ -451,6 +519,22 @@ pub fn persist_user_config(
 mod tests {
     use super::*;
     use std::sync::{Mutex, MutexGuard, OnceLock};
+
+    #[test]
+    fn keyring_get_password_result_ok() {
+        assert_eq!(
+            super::keyring_get_password_result("API_TOKEN", Ok("secret".into())),
+            Some("secret".into())
+        );
+    }
+
+    #[test]
+    fn keyring_get_password_result_no_entry_is_none() {
+        assert_eq!(
+            super::keyring_get_password_result("API_TOKEN", Err(keyring::Error::NoEntry)),
+            None
+        );
+    }
 
     fn env_lock() -> &'static Mutex<()> {
         static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
@@ -770,5 +854,77 @@ mod tests {
             format!("{err:#}").contains("max size"),
             "unexpected error: {err:#}"
         );
+    }
+
+    /// When auth is merged from disk as [`KEYRING_SECRET_PLACEHOLDER`], persist must not call
+    /// `keyring_store` with that literal (would overwrite the real vault entry). JSON should still
+    /// contain the sentinel and updated non-auth fields.
+    #[test]
+    fn persist_user_config_preserves_sentinel_secrets_in_json() {
+        let env = TestEnv::new();
+        let path = env.config_dir.join("config.json");
+
+        persist_user_config(
+            "https://updated.example",
+            "/var/romm-dl",
+            true,
+            Some(AuthConfig::Bearer {
+                token: KEYRING_SECRET_PLACEHOLDER.to_string(),
+            }),
+        )
+        .expect("persist bearer sentinel");
+
+        let cfg: Config = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(cfg.base_url, "https://updated.example");
+        assert_eq!(cfg.download_dir, "/var/romm-dl");
+        assert!(cfg.use_https);
+        match cfg.auth {
+            Some(AuthConfig::Bearer { token }) => {
+                assert_eq!(token, KEYRING_SECRET_PLACEHOLDER);
+            }
+            _ => panic!("expected bearer sentinel preserved in config.json"),
+        }
+
+        persist_user_config(
+            "https://apikey.example",
+            "/dl",
+            false,
+            Some(AuthConfig::ApiKey {
+                header: "X-Api-Key".into(),
+                key: KEYRING_SECRET_PLACEHOLDER.to_string(),
+            }),
+        )
+        .expect("persist api key sentinel");
+
+        let cfg: Config = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(cfg.base_url, "https://apikey.example");
+        match cfg.auth {
+            Some(AuthConfig::ApiKey { header, key }) => {
+                assert_eq!(header, "X-Api-Key");
+                assert_eq!(key, KEYRING_SECRET_PLACEHOLDER);
+            }
+            _ => panic!("expected api key sentinel preserved"),
+        }
+
+        persist_user_config(
+            "https://basic.example",
+            "/dl",
+            true,
+            Some(AuthConfig::Basic {
+                username: "alice".into(),
+                password: KEYRING_SECRET_PLACEHOLDER.to_string(),
+            }),
+        )
+        .expect("persist basic password sentinel");
+
+        let cfg: Config = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(cfg.base_url, "https://basic.example");
+        match cfg.auth {
+            Some(AuthConfig::Basic { username, password }) => {
+                assert_eq!(username, "alice");
+                assert_eq!(password, KEYRING_SECRET_PLACEHOLDER);
+            }
+            _ => panic!("expected basic password sentinel preserved"),
+        }
     }
 }

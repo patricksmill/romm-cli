@@ -50,6 +50,8 @@ pub struct LibraryBrowseScreen {
     // Search state
     pub search_query: String,
     pub search_mode: Option<LibrarySearchMode>,
+    /// After committing filter with Enter: keep query applied but hide the search bar for navigation.
+    pub filter_browsing: bool,
     /// Normalized search query (de-accented, lowercase).
     normalized_query: String,
 }
@@ -69,6 +71,7 @@ impl LibraryBrowseScreen {
             visible_rows: 20, // reasonable default until first render
             search_query: String::new(),
             search_mode: None,
+            filter_browsing: false,
             normalized_query: String::new(),
         }
     }
@@ -99,24 +102,24 @@ impl LibraryBrowseScreen {
     }
 
     pub fn rom_next(&mut self) {
-        if let Some(ref groups) = self.rom_groups {
-            if !groups.is_empty() {
-                self.rom_selected = (self.rom_selected + 1) % groups.len();
-                self.update_rom_scroll(self.visible_rows);
-            }
+        let groups = self.visible_rom_groups();
+        let len = groups.len();
+        if len > 0 {
+            self.rom_selected = (self.rom_selected + 1) % len;
+            self.update_rom_scroll(self.visible_rows);
         }
     }
 
     pub fn rom_previous(&mut self) {
-        if let Some(ref groups) = self.rom_groups {
-            if !groups.is_empty() {
-                self.rom_selected = if self.rom_selected == 0 {
-                    groups.len() - 1
-                } else {
-                    self.rom_selected - 1
-                };
-                self.update_rom_scroll(self.visible_rows);
-            }
+        let groups = self.visible_rom_groups();
+        let len = groups.len();
+        if len > 0 {
+            self.rom_selected = if self.rom_selected == 0 {
+                len - 1
+            } else {
+                self.rom_selected - 1
+            };
+            self.update_rom_scroll(self.visible_rows);
         }
     }
 
@@ -162,8 +165,9 @@ impl LibraryBrowseScreen {
     }
 
     pub fn back_to_list(&mut self) {
+        self.clear_search();
         self.view_mode = LibraryViewMode::List;
-        self.roms = None;
+        self.clear_roms();
     }
 
     /// Clear the ROM list (and groups) so the right panel does not show
@@ -186,6 +190,7 @@ impl LibraryBrowseScreen {
 
     pub fn enter_search(&mut self, mode: LibrarySearchMode) {
         self.search_mode = Some(mode);
+        self.filter_browsing = false;
         self.search_query.clear();
         self.normalized_query.clear();
         self.rom_selected = 0;
@@ -194,6 +199,7 @@ impl LibraryBrowseScreen {
 
     pub fn clear_search(&mut self) {
         self.search_mode = None;
+        self.filter_browsing = false;
         self.search_query.clear();
         self.normalized_query.clear();
     }
@@ -265,8 +271,10 @@ impl LibraryBrowseScreen {
         let Some(ref groups) = self.rom_groups else {
             return Vec::new();
         };
-        if self.search_mode == Some(LibrarySearchMode::Filter) && !self.normalized_query.is_empty()
-        {
+        let filter_active = (self.search_mode == Some(LibrarySearchMode::Filter)
+            || self.filter_browsing)
+            && !self.normalized_query.is_empty();
+        if filter_active {
             groups
                 .iter()
                 .filter(|g| self.normalize(&g.name).contains(&self.normalized_query))
@@ -485,7 +493,14 @@ impl LibraryBrowseScreen {
 
         let total_files = self.roms.as_ref().map(|r| r.items.len()).unwrap_or(0);
         let total_roms = self.roms.as_ref().map(|r| r.total).unwrap_or(0);
-        let title = if total_roms > 0 && (groups.len() as u64) < total_roms {
+        let title = if self.filter_browsing && !self.search_query.is_empty() {
+            format!(
+                "Games (filtered: \"{}\") — {} — {} files",
+                self.search_query,
+                groups.len(),
+                total_files
+            )
+        } else if total_roms > 0 && (groups.len() as u64) < total_roms {
             format!(
                 "Games ({} of {}) — {} files",
                 groups.len(),
@@ -506,10 +521,73 @@ impl LibraryBrowseScreen {
     fn render_help(&self, f: &mut Frame, area: Rect) {
         let help = match self.view_mode {
             LibraryViewMode::List => "t: Switch Console/Collection | ↑↓: Select (games load) | Enter: Focus games | Esc: Back",
-            LibraryViewMode::Roms => "←: Back to list | ↑↓: Navigate | Enter: Game detail | Esc: Back",
+            LibraryViewMode::Roms => {
+                if self.search_mode.is_some() {
+                    "Type filter | Enter: browse matches | Esc: clear filter"
+                } else if self.filter_browsing {
+                    "←: Back to list | ↑↓: Navigate | Enter: Game detail | Esc: clear filter"
+                } else {
+                    "←: Back to list | ↑↓: Navigate | Enter: Game detail | Esc: Back"
+                }
+            }
         };
         let p =
             ratatui::widgets::Paragraph::new(help).block(Block::default().borders(Borders::ALL));
         f.render_widget(p, area);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::utils;
+    use crate::types::Rom;
+
+    fn rom(id: u64, name: &str, fs_name: &str) -> Rom {
+        Rom {
+            id,
+            platform_id: 1,
+            platform_slug: None,
+            platform_fs_slug: None,
+            platform_custom_name: None,
+            platform_display_name: None,
+            fs_name: fs_name.to_string(),
+            fs_name_no_tags: name.to_string(),
+            fs_name_no_ext: name.to_string(),
+            fs_extension: "zip".to_string(),
+            fs_path: format!("/{id}.zip"),
+            fs_size_bytes: 1,
+            name: name.to_string(),
+            slug: None,
+            summary: None,
+            path_cover_small: None,
+            path_cover_large: None,
+            url_cover: None,
+            is_unidentified: false,
+            is_identified: true,
+        }
+    }
+
+    #[test]
+    fn rom_next_wraps_within_filtered_list_when_filter_browsing() {
+        let mut s = LibraryBrowseScreen::new(vec![], vec![]);
+        let items = vec![
+            rom(1, "alpha", "a.zip"),
+            rom(2, "alphabet", "ab.zip"),
+            rom(3, "beta", "b.zip"),
+        ];
+        s.rom_groups = Some(utils::group_roms_by_name(&items));
+        s.view_mode = LibraryViewMode::Roms;
+        s.enter_search(LibrarySearchMode::Filter);
+        for c in "alp".chars() {
+            s.add_search_char(c);
+        }
+        s.search_mode = None;
+        s.filter_browsing = true;
+        assert_eq!(s.rom_selected, 0);
+        s.rom_next();
+        assert_eq!(s.rom_selected, 1);
+        s.rom_next();
+        assert_eq!(s.rom_selected, 0);
     }
 }

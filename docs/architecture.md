@@ -10,7 +10,7 @@ The crate exposes a library root (`src/lib.rs`, `romm_cli`) alongside the
 `romm-cli` binary so integration tests and helper binaries can reuse the same
 modules. A second binary, `romm-tui`, only launches the TUI. 
 
-Configuration is loaded from the process environment, then `config.json` in the user config directory (written by `romm-cli init` or the TUI setup wizard). Secrets (like passwords and tokens) may be stored in the OS keyring via `keyring::Entry` with a `<stored-in-keyring>` sentinel in JSON. Note that `Commands::Init` is handled in `main.rs` *before* `load_config` so that `init` can run even if no configuration exists yet.
+Configuration is loaded from the process environment, then `config.json` in the user config directory (written by `romm-cli init` or the TUI setup wizard). Secrets (like passwords and tokens) may be stored in the OS keyring via `keyring::Entry` with a `<stored-in-keyring>` sentinel in JSON only after a successful read-back verification. Note that `Commands::Init` is handled in `main.rs` *before* `load_config` so that `init` can run even if no configuration exists yet.
 
 From bottom to top:
 

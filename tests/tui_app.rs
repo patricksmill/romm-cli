@@ -3,6 +3,9 @@ use romm_cli::client::RommClient;
 use romm_cli::config::Config;
 use romm_cli::tui::app::{App, AppScreen};
 use romm_cli::tui::openapi::EndpointRegistry;
+use romm_cli::tui::screens::library_browse::{
+    LibraryBrowseScreen, LibrarySearchMode, LibraryViewMode,
+};
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -70,4 +73,29 @@ async fn test_main_menu_success_transitions_to_library() {
 
     // Assert we transitioned to LibraryBrowse
     assert!(matches!(app.screen, AppScreen::LibraryBrowse(_)));
+}
+
+#[tokio::test]
+async fn library_filter_mode_d_types_in_search_bar_not_downloads() {
+    let mock_server = MockServer::start().await;
+    let config = Config {
+        base_url: mock_server.uri(),
+        download_dir: "/tmp".into(),
+        use_https: false,
+        auth: None,
+    };
+    let client = RommClient::new(&config, false).unwrap();
+    let mut app = App::new(client, config, EndpointRegistry::default(), None, None);
+
+    let mut lib = LibraryBrowseScreen::new(vec![], vec![]);
+    lib.view_mode = LibraryViewMode::Roms;
+    lib.enter_search(LibrarySearchMode::Filter);
+    app.screen = AppScreen::LibraryBrowse(lib);
+
+    let quit = app.handle_key(KeyCode::Char('d')).await.unwrap();
+    assert!(!quit);
+    assert!(
+        matches!(&app.screen, AppScreen::LibraryBrowse(l) if l.search_query == "d" && l.search_mode.is_some()),
+        "expected 'd' in filter bar, not Download overlay"
+    );
 }

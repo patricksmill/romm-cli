@@ -59,6 +59,10 @@ So the failure mode is **not** “pairing didn’t save” but **round-trip**: *
 
 **Recommendation:** **A + D** short term; consider **C** only if we want Windows-specific naming parity with other tools.
 
+## Update: persist must not call `set_password` with the sentinel
+
+If `persist_user_config` receives auth whose secret fields are already `<stored-in-keyring>` (e.g. TUI Settings merge when `load_config` could not resolve the keyring), it must **not** pass that literal string to `keyring_store`. Doing so overwrote the real vault entry with the placeholder. **`persist_user_config` now skips keyring updates when the value is the sentinel** and writes JSON unchanged—see `persist_user_config` in `src/config.rs`.
+
 ## References
 
 - [keyring 3.6.3 — `Entry::new`](https://docs.rs/keyring/3.6.3/keyring/struct.Entry.html#method.new)

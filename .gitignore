@@ -1,4 +1,7 @@
-/target
+# Cargo (default dir + custom CARGO_TARGET_DIR e.g. when default target/ is locked)
+/target/
+/target-*/
+
 .env
 /.cursor
 romm-cache.json

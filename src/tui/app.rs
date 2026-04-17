@@ -30,6 +30,7 @@ use crate::core::download::DownloadManager;
 use crate::endpoints::{collections::ListCollections, platforms::ListPlatforms, roms::GetRoms};
 use crate::types::RomList;
 
+use super::keyboard_help;
 use super::openapi::{resolve_path_template, EndpointRegistry};
 use super::screens::connected_splash::{self, StartupSplash};
 use super::screens::setup_wizard::SetupWizard;
@@ -61,6 +62,23 @@ pub enum AppScreen {
     SetupWizard(Box<crate::tui::screens::setup_wizard::SetupWizard>),
 }
 
+fn blocks_global_d_shortcut(screen: &AppScreen) -> bool {
+    match screen {
+        AppScreen::Search(_) | AppScreen::Settings(_) | AppScreen::SetupWizard(_) => true,
+        AppScreen::LibraryBrowse(lib) => lib.search_mode.is_some(),
+        _ => false,
+    }
+}
+
+fn allows_global_question_help(screen: &AppScreen) -> bool {
+    match screen {
+        AppScreen::Search(_) | AppScreen::SetupWizard(_) | AppScreen::Execute(_) => false,
+        AppScreen::LibraryBrowse(lib) if lib.search_mode.is_some() => false,
+        AppScreen::Settings(s) if s.editing => false,
+        _ => true,
+    }
+}
+
 // ---------------------------------------------------------------------------
 // App
 // ---------------------------------------------------------------------------
@@ -85,6 +103,7 @@ pub struct App {
     /// Brief “connected” banner after setup or when the server responds to heartbeat.
     startup_splash: Option<StartupSplash>,
     pub global_error: Option<String>,
+    show_keyboard_help: bool,
 }
 
 impl App {
@@ -108,6 +127,7 @@ impl App {
             deferred_load_roms: None,
             startup_splash,
             global_error: None,
+            show_keyboard_help: false,
         }
     }
 
@@ -238,13 +258,27 @@ impl App {
             return Ok(false);
         }
 
+        if self.show_keyboard_help {
+            if matches!(
+                key,
+                KeyCode::Esc | KeyCode::Enter | KeyCode::F(1) | KeyCode::Char('?')
+            ) {
+                self.show_keyboard_help = false;
+            }
+            return Ok(false);
+        }
+
+        if key == KeyCode::F(1) {
+            self.show_keyboard_help = true;
+            return Ok(false);
+        }
+        if key == KeyCode::Char('?') && allows_global_question_help(&self.screen) {
+            self.show_keyboard_help = true;
+            return Ok(false);
+        }
+
         // Global shortcut: 'd' toggles Download overlay (not on screens that need free typing / menus).
-        if key == KeyCode::Char('d')
-            && !matches!(
-                &self.screen,
-                AppScreen::Search(_) | AppScreen::Settings(_) | AppScreen::SetupWizard(_)
-            )
-        {
+        if key == KeyCode::Char('d') && !blocks_global_d_shortcut(&self.screen) {
             self.toggle_download_screen();
             return Ok(false);
         }
@@ -364,7 +398,14 @@ impl App {
                 KeyCode::Backspace => lib.delete_search_char(),
                 KeyCode::Char(c) => lib.add_search_char(c),
                 KeyCode::Tab if mode == LibrarySearchMode::Jump => lib.jump_to_match(true),
-                KeyCode::Enter => lib.search_mode = None, // Commit search (keep filtered/position)
+                KeyCode::Enter => {
+                    if mode == LibrarySearchMode::Filter {
+                        lib.search_mode = None;
+                        lib.filter_browsing = true;
+                    } else {
+                        lib.search_mode = None;
+                    }
+                }
                 _ => {}
             }
             return Ok(false);
@@ -443,7 +484,11 @@ impl App {
             KeyCode::Char('t') => lib.switch_subsection(),
             KeyCode::Esc => {
                 if lib.view_mode == LibraryViewMode::Roms {
-                    lib.back_to_list();
+                    if lib.filter_browsing {
+                        lib.clear_search();
+                    } else {
+                        lib.back_to_list();
+                    }
                 } else {
                     self.screen = AppScreen::MainMenu(MainMenuScreen::new());
                 }
@@ -924,6 +969,10 @@ impl App {
                     f.set_cursor(x, y);
                 }
             }
+        }
+
+        if self.show_keyboard_help {
+            keyboard_help::render_keyboard_help(f, area);
         }
 
         if let Some(ref err) = self.global_error {
