@@ -9,7 +9,7 @@ use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
 use ratatui::backend::CrosstermBackend;
-use ratatui::layout::{Constraint, Direction, Layout};
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph};
@@ -45,6 +45,27 @@ enum Step {
     ApiKey,
     PairingCode,
     Summary,
+}
+
+fn wizard_layout(area: Rect, step: Step) -> [Rect; 3] {
+    let top = if matches!(step, Step::Url) { 5 } else { 3 };
+    let v = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(top),
+            Constraint::Min(6),
+            Constraint::Length(4),
+        ])
+        .split(area);
+    [v[0], v[1], v[2]]
+}
+
+fn wizard_footer_text(keys: &str) -> Text<'_> {
+    let ver = format!("romm-cli {}", env!("CARGO_PKG_VERSION"));
+    Text::from(vec![
+        Line::from(keys).style(Style::default().fg(Color::Cyan)),
+        Line::from(ver).style(Style::default().fg(Color::DarkGray)),
+    ])
 }
 
 /// Interactive setup run before the main TUI when `API_BASE_URL` is missing.
@@ -323,18 +344,29 @@ impl SetupWizard {
             Step::Summary => "Review & connect",
         };
 
-        let main = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(3),
-                Constraint::Min(6),
-                Constraint::Length(4),
-            ])
-            .split(area);
+        let main = wizard_layout(area, self.step);
 
-        let hint_top = "Same origin as in your browser (no trailing /api). Esc: quit";
-        let p = Paragraph::new(hint_top).style(Style::default().fg(Color::DarkGray));
-        f.render_widget(p, main[0]);
+        match self.step {
+            Step::Url => {
+                let intro = Text::from(vec![
+                    Line::from("First-time setup: point the CLI at your RomM server."),
+                    Line::from(Span::styled(
+                        "Example: https://romm.example.com or http://192.168.1.10:8080",
+                        Style::default().fg(Color::DarkGray),
+                    )),
+                    Line::from(Span::styled(
+                        "Same origin as in your browser (no trailing /api). Esc: quit",
+                        Style::default().fg(Color::DarkGray),
+                    )),
+                ]);
+                f.render_widget(Paragraph::new(intro), main[0]);
+            }
+            _ => {
+                let hint_top = "Same origin as in your browser (no trailing /api). Esc: quit";
+                let p = Paragraph::new(hint_top).style(Style::default().fg(Color::DarkGray));
+                f.render_widget(p, main[0]);
+            }
+        }
 
         match self.step {
             Step::Url => {
@@ -538,7 +570,7 @@ impl SetupWizard {
             }
         }
 
-        let footer = match self.step {
+        let footer_keys = match self.step {
             Step::Url => "Enter: next   Backspace: delete   Esc: quit",
             Step::Https => "Space: toggle   Enter: next   Esc: quit",
             Step::Download => "Enter: next   Backspace: delete   Esc: quit",
@@ -557,21 +589,13 @@ impl SetupWizard {
                 }
             }
         };
-        let p = Paragraph::new(footer)
-            .style(Style::default().fg(Color::Cyan))
+        let p = Paragraph::new(wizard_footer_text(footer_keys))
             .block(Block::default().borders(Borders::ALL));
         f.render_widget(p, main[2]);
     }
 
     pub fn cursor_pos(&self, area: ratatui::layout::Rect) -> Option<(u16, u16)> {
-        let main = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(3),
-                Constraint::Min(6),
-                Constraint::Length(4),
-            ])
-            .split(area);
+        let main = wizard_layout(area, self.step);
         let inner = main[1];
         match self.step {
             Step::Url => {

@@ -24,7 +24,7 @@ use ratatui::Terminal;
 use std::time::Duration;
 
 use crate::client::RommClient;
-use crate::config::{auth_for_persist_merge, Config};
+use crate::config::{auth_for_persist_merge, normalize_romm_origin, Config};
 use crate::core::cache::{RomCache, RomCacheKey};
 use crate::core::download::DownloadManager;
 use crate::endpoints::collections::{
@@ -290,7 +290,7 @@ impl App {
             AppScreen::MainMenu(_) => self.handle_main_menu(key).await,
             AppScreen::LibraryBrowse(_) => self.handle_library_browse(key).await,
             AppScreen::Search(_) => self.handle_search(key).await,
-            AppScreen::Settings(_) => self.handle_settings(key),
+            AppScreen::Settings(_) => self.handle_settings(key).await,
             AppScreen::Browse(_) => self.handle_browse(key),
             AppScreen::Execute(_) => self.handle_execute(key).await,
             AppScreen::Result(_) => self.handle_result(key),
@@ -596,7 +596,60 @@ impl App {
 
     // -- Settings -----------------------------------------------------------
 
-    fn handle_settings(&mut self, key: KeyCode) -> Result<bool> {
+    async fn refresh_settings_server_version(&mut self) -> Result<()> {
+        let (base_url, download_dir, use_https, verbose, auth) = {
+            let settings = match &self.screen {
+                AppScreen::Settings(s) => s,
+                _ => return Ok(()),
+            };
+            let mut base_url = normalize_romm_origin(settings.base_url.trim());
+            if settings.use_https && base_url.starts_with("http://") {
+                base_url = base_url.replace("http://", "https://");
+            }
+            if !settings.use_https && base_url.starts_with("https://") {
+                base_url = base_url.replace("https://", "http://");
+            }
+            (
+                base_url,
+                settings.download_dir.clone(),
+                settings.use_https,
+                self.client.verbose(),
+                self.config.auth.clone(),
+            )
+        };
+        let cfg = Config {
+            base_url,
+            download_dir,
+            use_https,
+            auth,
+        };
+        let client = match RommClient::new(&cfg, verbose) {
+            Ok(c) => c,
+            Err(_) => {
+                if let AppScreen::Settings(s) = &mut self.screen {
+                    s.server_version = "unavailable (invalid URL or client error)".to_string();
+                    self.server_version = None;
+                }
+                return Ok(());
+            }
+        };
+        let ver = client.rom_server_version_from_heartbeat().await;
+        if let AppScreen::Settings(s) = &mut self.screen {
+            match ver {
+                Some(v) => {
+                    s.server_version = v.clone();
+                    self.server_version = Some(v);
+                }
+                None => {
+                    s.server_version = "unavailable (heartbeat failed)".to_string();
+                    self.server_version = None;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    async fn handle_settings(&mut self, key: KeyCode) -> Result<bool> {
         let settings = match &mut self.screen {
             AppScreen::Settings(s) => s,
             _ => return Ok(false),
@@ -605,7 +658,11 @@ impl App {
         if settings.editing {
             match key {
                 KeyCode::Enter => {
+                    let idx = settings.selected_index;
                     settings.save_edit();
+                    if idx == 0 {
+                        self.refresh_settings_server_version().await?;
+                    }
                 }
                 KeyCode::Esc => settings.cancel_edit(),
                 KeyCode::Backspace => settings.delete_char(),
@@ -625,7 +682,11 @@ impl App {
                     self.screen =
                         AppScreen::SetupWizard(Box::new(SetupWizard::new_auth_only(&self.config)));
                 } else {
+                    let toggle_https = settings.selected_index == 2;
                     settings.enter_edit();
+                    if toggle_https {
+                        self.refresh_settings_server_version().await?;
+                    }
                 }
             }
             KeyCode::Char('s' | 'S') => {

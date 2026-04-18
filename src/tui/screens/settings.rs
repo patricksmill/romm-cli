@@ -87,11 +87,14 @@ impl SettingsScreen {
 
     pub fn enter_edit(&mut self) {
         if self.selected_index == 2 {
-            // Toggle HTTPS directly
+            // Toggle HTTPS directly and keep the Base URL scheme in sync.
             self.use_https = !self.use_https;
             if self.use_https && self.base_url.starts_with("http://") {
                 self.base_url = self.base_url.replace("http://", "https://");
-                self.message = Some(("Upgraded to HTTPS".to_string(), Color::Green));
+                self.message = Some(("Updated URL scheme (HTTPS)".to_string(), Color::Green));
+            } else if !self.use_https && self.base_url.starts_with("https://") {
+                self.base_url = self.base_url.replace("https://", "http://");
+                self.message = Some(("Updated URL scheme (HTTP)".to_string(), Color::Green));
             }
         } else {
             self.editing = true;

@@ -27,10 +27,6 @@ pub fn parse_openapi_info_version(json: &str) -> Option<String> {
     v.get("info")?.get("version")?.as_str().map(String::from)
 }
 
-fn heartbeat_rom_version(v: &Value) -> Option<String> {
-    v.get("SYSTEM")?.get("VERSION")?.as_str().map(String::from)
-}
-
 /// Resolve OpenAPI JSON: try the server first (updates disk cache when the spec changes), then
 /// `./openapi.json`, then the user cache file, then the embedded bundle.
 ///
@@ -95,12 +91,7 @@ pub async fn sync_openapi_registry(
     let registry = EndpointRegistry::from_openapi_json(&openapi_body)
         .map_err(|e| anyhow!("invalid OpenAPI document: {e}"))?;
 
-    let server_version = client
-        .request_json_unauthenticated("GET", "/api/heartbeat", &[], None)
-        .await
-        .ok()
-        .as_ref()
-        .and_then(heartbeat_rom_version);
+    let server_version = client.rom_server_version_from_heartbeat().await;
 
     Ok((registry, server_version))
 }

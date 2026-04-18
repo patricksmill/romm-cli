@@ -22,11 +22,7 @@ async fn run_app() -> Result<()> {
         command,
     } = Cli::parse();
 
-    let filter = if verbose {
-        EnvFilter::new("romm_cli=debug")
-    } else {
-        EnvFilter::new("romm_cli=info")
-    };
+    let filter = EnvFilter::from_default_env();
 
     #[cfg(feature = "tui")]
     let is_tui = matches!(command, Commands::Tui);
@@ -42,8 +38,6 @@ async fn run_app() -> Result<()> {
 
     match command {
         Commands::Init(cmd) => init::handle(cmd, verbose).await,
-        Commands::Update => romm_cli::commands::update::handle(),
-        Commands::Cache(cmd) => romm_cli::commands::cache::handle(cmd),
         #[cfg(feature = "tui")]
         Commands::Tui => {
             if verbose {
@@ -55,6 +49,24 @@ async fn run_app() -> Result<()> {
             romm_cli::frontend::tui::run_interactive(verbose).await
         }
         command => {
+            if !command_requires_config(&command) {
+                let dummy_config = romm_cli::config::Config {
+                    base_url: String::new(),
+                    download_dir: String::new(),
+                    use_https: true,
+                    auth: None,
+                };
+                return run(
+                    Cli {
+                        verbose,
+                        json,
+                        command,
+                    },
+                    dummy_config,
+                )
+                .await;
+            }
+
             let config = load_config()?;
             run(
                 Cli {
@@ -66,5 +78,15 @@ async fn run_app() -> Result<()> {
             )
             .await
         }
+    }
+}
+
+fn command_requires_config(command: &Commands) -> bool {
+    match command {
+        Commands::Api(_) | Commands::Platforms(_) | Commands::Roms(_) | Commands::Download(_) => {
+            true
+        }
+        Commands::Cache(_) | Commands::Update => false,
+        Commands::Init(_) | Commands::Tui => false,
     }
 }

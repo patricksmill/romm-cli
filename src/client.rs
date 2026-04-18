@@ -43,6 +43,10 @@ fn decode_json_response_body(bytes: &[u8]) -> Value {
     })
 }
 
+fn version_from_heartbeat_json(v: &Value) -> Option<String> {
+    v.get("SYSTEM")?.get("VERSION")?.as_str().map(String::from)
+}
+
 /// High-level HTTP client for the ROMM API.
 ///
 /// This type hides the details of `reqwest` and authentication headers
@@ -330,6 +334,15 @@ impl RommClient {
             .map_err(|e| anyhow!("read response body: {e}"))?;
 
         Ok(decode_json_response_body(&bytes))
+    }
+
+    /// RomM application version from `GET /api/heartbeat` (`SYSTEM.VERSION`), if the endpoint succeeds.
+    pub async fn rom_server_version_from_heartbeat(&self) -> Option<String> {
+        let v = self
+            .request_json_unauthenticated("GET", "/api/heartbeat", &[], None)
+            .await
+            .ok()?;
+        version_from_heartbeat_json(&v)
     }
 
     /// GET the OpenAPI spec from the server. Tries [`openapi_spec_urls`] in order (HTTP/HTTPS and
