@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crossterm::event::KeyCode;
 use romm_cli::client::RommClient;
 use romm_cli::config::Config;
@@ -33,13 +35,27 @@ async fn test_main_menu_api_error_shows_popup() {
     let quit = app.handle_key(KeyCode::Enter).await.unwrap();
     assert!(!quit);
 
-    // Assert error is set and we didn't crash
-    assert!(app.global_error.is_some());
-    assert!(app.global_error.as_ref().unwrap().contains("500"));
-
-    // Assert Esc clears it
-    app.handle_key(KeyCode::Esc).await.unwrap();
+    // Library opens immediately; metadata refresh runs in background.
+    assert!(matches!(app.screen, AppScreen::LibraryBrowse(_)));
     assert!(app.global_error.is_none());
+
+    let mut saw_failure_footer = false;
+    for _ in 0..80 {
+        app.poll_background_tasks();
+        if let AppScreen::LibraryBrowse(ref lib) = app.screen {
+            if let Some(ref foot) = lib.metadata_footer {
+                if foot.contains("500") || foot.contains("Partial refresh") {
+                    saw_failure_footer = true;
+                    break;
+                }
+            }
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    assert!(
+        saw_failure_footer,
+        "expected metadata footer to mention API failure after background refresh"
+    );
 }
 
 #[tokio::test]

@@ -5,4 +5,5 @@
 
 pub mod cache;
 pub mod download;
+pub mod startup_library_snapshot;
 pub mod utils;

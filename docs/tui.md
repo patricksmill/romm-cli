@@ -9,10 +9,20 @@ The heart of the TUI lives in `tui::app::App::run`:
 - Enable raw mode
 - Enter the alternate screen
 - In a loop:
+  - drain background tasks via `App::poll_background_tasks` (library metadata refresh completions)
   - draw the current screen via `App::render`
   - poll for key events with a short timeout
   - dispatch keys to the appropriate `handle_*` method
   - perform deferred work (like ROM loading)
+
+## Library startup (metadata snapshot)
+
+Choosing **Library** from the main menu loads a compact on-disk snapshot of
+platforms and merged collections (if present) so the list can render without
+waiting for the network. A background task then refetches the same endpoints,
+updates the UI when complete, and writes a fresh snapshot. Full ROM lists are
+still loaded on demand (and use the ROM list cache). Snapshot path defaults
+next to `ROMM_CACHE_PATH`; override with `ROMM_LIBRARY_METADATA_SNAPSHOT_PATH`.
 
 The TUI uses `crossterm` to manage the terminal and `ratatui` to build
 widgets.

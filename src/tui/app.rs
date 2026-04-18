@@ -27,11 +27,9 @@ use crate::client::RommClient;
 use crate::config::{auth_for_persist_merge, normalize_romm_origin, Config};
 use crate::core::cache::{RomCache, RomCacheKey};
 use crate::core::download::DownloadManager;
-use crate::endpoints::collections::{
-    merge_all_collection_sources, ListCollections, ListSmartCollections, ListVirtualCollections,
-};
-use crate::endpoints::{platforms::ListPlatforms, roms::GetRoms};
-use crate::types::RomList;
+use crate::core::startup_library_snapshot;
+use crate::endpoints::roms::GetRoms;
+use crate::types::{Collection, Platform, RomList};
 
 use super::keyboard_help;
 use super::openapi::{resolve_path_template, EndpointRegistry};
@@ -42,6 +40,14 @@ use super::screens::{
     LibraryBrowseScreen, MainMenuScreen, ResultDetailScreen, ResultScreen, SearchScreen,
     SettingsScreen,
 };
+
+/// Result of a background library metadata refresh (generation-guarded).
+struct LibraryMetadataRefreshDone {
+    gen: u64,
+    platforms: Vec<Platform>,
+    collections: Vec<Collection>,
+    warnings: Vec<String>,
+}
 
 // ---------------------------------------------------------------------------
 // Screen enum
@@ -107,6 +113,10 @@ pub struct App {
     startup_splash: Option<StartupSplash>,
     pub global_error: Option<String>,
     show_keyboard_help: bool,
+    /// Receives completed background metadata refreshes for the library screen.
+    library_metadata_rx: Option<tokio::sync::mpsc::UnboundedReceiver<LibraryMetadataRefreshDone>>,
+    /// Incremented each time a new refresh is spawned; stale completions are ignored.
+    library_metadata_refresh_gen: u64,
 }
 
 impl App {
@@ -131,6 +141,98 @@ impl App {
             startup_splash,
             global_error: None,
             show_keyboard_help: false,
+            library_metadata_rx: None,
+            library_metadata_refresh_gen: 0,
+        }
+    }
+
+    fn spawn_library_metadata_refresh(&mut self) {
+        self.library_metadata_refresh_gen = self.library_metadata_refresh_gen.saturating_add(1);
+        let gen = self.library_metadata_refresh_gen;
+        let client = self.client.clone();
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        self.library_metadata_rx = Some(rx);
+        tokio::spawn(async move {
+            let fetch = startup_library_snapshot::fetch_merged_library_metadata(&client).await;
+            let _ = tx.send(LibraryMetadataRefreshDone {
+                gen,
+                platforms: fetch.platforms,
+                collections: fetch.collections,
+                warnings: fetch.warnings,
+            });
+        });
+    }
+
+    /// Drain background work (e.g. library metadata refresh). Safe to call each frame.
+    pub fn poll_background_tasks(&mut self) {
+        self.poll_library_metadata_refresh();
+    }
+
+    fn poll_library_metadata_refresh(&mut self) {
+        let mut batch = Vec::new();
+        let mut disconnected = false;
+        if let Some(rx) = &mut self.library_metadata_rx {
+            loop {
+                match rx.try_recv() {
+                    Ok(msg) => batch.push(msg),
+                    Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
+                    Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
+                        disconnected = true;
+                        break;
+                    }
+                }
+            }
+        }
+        if disconnected {
+            self.library_metadata_rx = None;
+        }
+        for msg in batch {
+            self.apply_library_metadata_refresh(msg);
+        }
+    }
+
+    fn apply_library_metadata_refresh(&mut self, msg: LibraryMetadataRefreshDone) {
+        if msg.gen != self.library_metadata_refresh_gen {
+            return;
+        }
+        let AppScreen::LibraryBrowse(ref mut lib) = self.screen else {
+            return;
+        };
+
+        let had_cached_lists = !lib.platforms.is_empty() || !lib.collections.is_empty();
+        let live_empty = msg.platforms.is_empty() && msg.collections.is_empty();
+        if live_empty && had_cached_lists && !msg.warnings.is_empty() {
+            lib.set_metadata_footer(Some(
+                "Could not refresh library metadata (keeping cached list).".into(),
+            ));
+            return;
+        }
+
+        lib.replace_metadata(msg.platforms, msg.collections);
+        startup_library_snapshot::save_snapshot(&lib.platforms, &lib.collections);
+
+        let footer = if msg.warnings.is_empty() {
+            Some("Library metadata updated.".into())
+        } else {
+            let w = msg.warnings.join(" | ");
+            let short: String = if w.chars().count() > 160 {
+                let prefix: String = w.chars().take(157).collect();
+                format!("{prefix}…")
+            } else {
+                w
+            };
+            Some(format!("Partial refresh: {}", short))
+        };
+        lib.set_metadata_footer(footer);
+
+        if lib.list_len() > 0 {
+            lib.clear_roms();
+            let key = lib.cache_key();
+            let expected = lib.expected_rom_count();
+            let req = lib
+                .get_roms_request_platform()
+                .or_else(|| lib.get_roms_request_collection());
+            self.deferred_load_roms = Some((key, req, expected));
         }
     }
 
@@ -155,6 +257,7 @@ impl App {
         let mut terminal = Terminal::new(backend)?;
 
         loop {
+            self.poll_background_tasks();
             if self
                 .startup_splash
                 .as_ref()
@@ -342,52 +445,29 @@ impl App {
             KeyCode::Down | KeyCode::Char('j') => menu.next(),
             KeyCode::Enter => match menu.selected {
                 0 => {
-                    let platforms = match self.client.call(&ListPlatforms).await {
-                        Ok(p) => p,
-                        Err(e) => {
-                            self.set_error(e);
-                            return Ok(false);
-                        }
+                    let snap = startup_library_snapshot::load_snapshot();
+                    let (platforms, collections, from_disk) = match snap {
+                        Some(s) => (s.platforms, s.collections, true),
+                        None => (Vec::new(), Vec::new(), false),
                     };
-                    let mut collection_errors = Vec::new();
-                    let manual = match self.client.call(&ListCollections).await {
-                        Ok(c) => c.into_vec(),
-                        Err(e) => {
-                            collection_errors.push(format!("GET /api/collections: {e:#}"));
-                            Vec::new()
-                        }
-                    };
-                    let smart = match self.client.call(&ListSmartCollections).await {
-                        Ok(c) => c.into_vec(),
-                        Err(e) => {
-                            collection_errors.push(format!("GET /api/collections/smart: {e:#}"));
-                            Vec::new()
-                        }
-                    };
-                    let virtual_rows = match self.client.call(&ListVirtualCollections).await {
-                        Ok(v) => v,
-                        Err(e) => {
-                            collection_errors
-                                .push(format!("GET /api/collections/virtual?type=all: {e:#}"));
-                            Vec::new()
-                        }
-                    };
-                    let collections = merge_all_collection_sources(manual, smart, virtual_rows);
-                    if !collection_errors.is_empty() {
-                        self.set_error(anyhow::anyhow!("{}", collection_errors.join("\n")));
-                    }
                     let mut lib = LibraryBrowseScreen::new(platforms, collections);
+                    if from_disk && lib.list_len() > 0 {
+                        lib.set_metadata_footer(Some(
+                            "Refreshing library metadata in background…".into(),
+                        ));
+                    } else if lib.list_len() == 0 {
+                        lib.set_metadata_footer(Some("Loading library metadata…".into()));
+                    }
                     if lib.list_len() > 0 {
                         let key = lib.cache_key();
                         let expected = lib.expected_rom_count();
                         let req = lib
                             .get_roms_request_platform()
                             .or_else(|| lib.get_roms_request_collection());
-                        if let Ok(Some(roms)) = self.load_roms_cached(key, req, expected).await {
-                            lib.set_roms(roms);
-                        }
+                        self.deferred_load_roms = Some((key, req, expected));
                     }
                     self.screen = AppScreen::LibraryBrowse(lib);
+                    self.spawn_library_metadata_refresh();
                 }
                 1 => self.screen = AppScreen::Search(SearchScreen::new()),
                 2 => {

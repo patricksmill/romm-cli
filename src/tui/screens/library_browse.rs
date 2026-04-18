@@ -47,6 +47,8 @@ pub struct LibraryBrowseScreen {
     pub list_search: SearchState,
     /// Filter/jump for the games table (right pane).
     pub rom_search: SearchState,
+    /// Non-blocking status from metadata refresh (API warnings, “updated”, etc.).
+    pub metadata_footer: Option<String>,
 }
 
 impl LibraryBrowseScreen {
@@ -64,7 +66,24 @@ impl LibraryBrowseScreen {
             visible_rows: 20,
             list_search: SearchState::new(),
             rom_search: SearchState::new(),
+            metadata_footer: None,
         }
+    }
+
+    pub fn set_metadata_footer(&mut self, msg: Option<String>) {
+        self.metadata_footer = msg;
+    }
+
+    /// Replace lists after a background metadata refresh; reset navigation ROM pane.
+    pub fn replace_metadata(&mut self, platforms: Vec<Platform>, collections: Vec<Collection>) {
+        self.platforms = platforms;
+        self.collections = collections;
+        self.list_index = 0;
+        self.list_search.clear();
+        self.clear_roms();
+        self.view_mode = LibraryViewMode::List;
+        self.rom_selected = 0;
+        self.scroll_offset = 0;
     }
 
     /// True while either pane has the search typing bar open (blocks global shortcuts).
@@ -652,8 +671,12 @@ impl LibraryBrowseScreen {
                 }
             }
         };
+        let text = match &self.metadata_footer {
+            Some(m) if !m.is_empty() => format!("{m}\n{help}"),
+            _ => help.to_string(),
+        };
         let p =
-            ratatui::widgets::Paragraph::new(help).block(Block::default().borders(Borders::ALL));
+            ratatui::widgets::Paragraph::new(text).block(Block::default().borders(Borders::ALL));
         f.render_widget(p, area);
     }
 }

@@ -88,6 +88,7 @@ Set these in your shell (or any tool that injects env vars into the process) for
 | `ROMM_TOKEN_FILE` | Path to a UTF-8 file containing the bearer token (trimmed). Alias: `API_TOKEN_FILE`. Used when `API_TOKEN` is unset; for Docker/K8s secrets. Max 64 KiB. |
 | `API_KEY_HEADER` / `API_KEY` | Custom API key header (e.g. `X-API-Key`) and its value |
 | `ROMM_CACHE_PATH` | Optional. Override path for the persistent ROM list cache (default: OS local cache dir, e.g. `%LOCALAPPDATA%` on Windows). On first run after upgrading, a legacy `./romm-cache.json` is migrated automatically when no override is set. |
+| `ROMM_LIBRARY_METADATA_SNAPSHOT_PATH` | Optional. Override path for the TUI library metadata snapshot (platforms + merged collections) used for fast startup (default: under the OS cache dir next to the ROM list cache). |
 | `ROMM_OPENAPI_BASE_URL` | Optional. Only if OpenAPI must be fetched from a different origin than `API_BASE_URL`. |
 | `ROMM_OPENAPI_PATH` | Optional. Override path for the downloaded OpenAPI cache (default: under the OS config dir). |
 | `ROMM_USER_AGENT` | Optional. Override the HTTP `User-Agent` (some proxies block non-browser defaults). |
