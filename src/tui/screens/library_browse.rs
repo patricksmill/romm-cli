@@ -49,6 +49,8 @@ pub struct LibraryBrowseScreen {
     pub rom_search: SearchState,
     /// Non-blocking status from metadata refresh (API warnings, “updated”, etc.).
     pub metadata_footer: Option<String>,
+    /// True only while ROM data for the current selection is actively loading.
+    pub rom_loading: bool,
 }
 
 impl LibraryBrowseScreen {
@@ -67,6 +69,7 @@ impl LibraryBrowseScreen {
             list_search: SearchState::new(),
             rom_search: SearchState::new(),
             metadata_footer: None,
+            rom_loading: false,
         }
     }
 
@@ -370,6 +373,7 @@ impl LibraryBrowseScreen {
         };
         self.list_index = 0;
         self.roms = None;
+        self.rom_loading = false;
         self.view_mode = LibraryViewMode::List;
         self.list_search.clear();
     }
@@ -392,7 +396,6 @@ impl LibraryBrowseScreen {
     pub fn back_to_list(&mut self) {
         self.rom_search.clear();
         self.view_mode = LibraryViewMode::List;
-        self.clear_roms();
     }
 
     pub fn clear_roms(&mut self) {
@@ -400,9 +403,14 @@ impl LibraryBrowseScreen {
         self.rom_groups = None;
     }
 
+    pub fn set_rom_loading(&mut self, loading: bool) {
+        self.rom_loading = loading;
+    }
+
     pub fn set_roms(&mut self, roms: RomList) {
         self.roms = Some(roms.clone());
         self.rom_groups = Some(utils::group_roms_by_name(&roms.items));
+        self.rom_loading = false;
         self.rom_selected = 0;
         self.scroll_offset = 0;
         self.rom_search.clear();
@@ -715,13 +723,7 @@ impl LibraryBrowseScreen {
 
         let groups = self.visible_rom_groups();
         if groups.is_empty() {
-            let msg = if self.rom_search.mode.is_some() {
-                "No games match your search".to_string()
-            } else if self.roms.is_none() && self.expected_rom_count() > 0 {
-                format!("Loading {} games... please wait", self.expected_rom_count())
-            } else {
-                "Select a console or collection and press Enter to load ROMs".to_string()
-            };
+            let msg = self.empty_rom_state_message();
             let p = ratatui::widgets::Paragraph::new(msg)
                 .block(Block::default().title("Games").borders(Borders::ALL));
             f.render_widget(p, area);
@@ -781,6 +783,16 @@ impl LibraryBrowseScreen {
             .block(Block::default().title(title).borders(Borders::ALL));
 
         f.render_widget(table, area);
+    }
+
+    fn empty_rom_state_message(&self) -> String {
+        if self.rom_search.mode.is_some() {
+            "No games match your search".to_string()
+        } else if self.rom_loading && self.expected_rom_count() > 0 {
+            format!("Loading {} games... please wait", self.expected_rom_count())
+        } else {
+            "Select a console or collection and press Enter to load ROMs".to_string()
+        }
     }
 
     fn render_help(&self, f: &mut Frame, area: Rect) {
@@ -937,6 +949,46 @@ mod tests {
         assert!(
             s.get_roms_request_platform().is_none(),
             "zero-rom platform should not produce ROM API request"
+        );
+    }
+
+    #[test]
+    fn back_to_list_retains_current_rom_state() {
+        let mut s = LibraryBrowseScreen::new(vec![platform(1, "SNES", 12)], vec![]);
+        let items = vec![rom(1, "alpha", "a.zip")];
+        let rom_list = RomList {
+            total: 1,
+            limit: 1,
+            offset: 0,
+            items: items.clone(),
+        };
+        s.view_mode = LibraryViewMode::Roms;
+        s.roms = Some(rom_list);
+        s.rom_groups = Some(utils::group_roms_by_name(&items));
+        s.set_rom_loading(true);
+        s.back_to_list();
+        assert_eq!(s.view_mode, LibraryViewMode::List);
+        assert!(s.roms.is_some(), "back navigation should keep loaded ROM list");
+        assert!(s.rom_groups.is_some(), "back navigation should keep grouped ROM rows");
+        assert!(
+            s.rom_loading,
+            "back navigation should preserve in-flight loading state"
+        );
+    }
+
+    #[test]
+    fn empty_state_message_shows_loading_only_when_loading_flag_is_true() {
+        let mut s = LibraryBrowseScreen::new(vec![platform(1, "SNES", 12)], vec![]);
+        s.clear_roms();
+        s.set_rom_loading(false);
+        assert_eq!(
+            s.empty_rom_state_message(),
+            "Select a console or collection and press Enter to load ROMs"
+        );
+        s.set_rom_loading(true);
+        assert_eq!(
+            s.empty_rom_state_message(),
+            "Loading 12 games... please wait"
         );
     }
 }

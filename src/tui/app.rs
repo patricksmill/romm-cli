@@ -265,6 +265,7 @@ impl App {
             let req = lib
                 .get_roms_request_platform()
                 .or_else(|| lib.get_roms_request_collection());
+            lib.set_rom_loading(expected > 0);
             self.deferred_load_roms = Some((key, req, expected, "refresh_selection", Instant::now()));
         }
         self.queue_collection_prefetches_from_screen(1, "refresh_warmup");
@@ -379,10 +380,17 @@ impl App {
             // the screen handler only *records* the intent to load ROMs,
             // and the actual HTTP call happens here after rendering.
             if let Some((key, req, expected, context, started)) = self.deferred_load_roms.take() {
+                if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
+                    lib.set_rom_loading(expected > 0);
+                }
                 if expected == 0 {
+                    if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
+                        lib.set_rom_loading(false);
+                    }
                     continue;
                 }
-                if let Ok(Some(roms)) = self.load_roms_cached(key, req, expected).await {
+                let load_result = self.load_roms_cached(key, req, expected).await;
+                if let Ok(Some(roms)) = load_result {
                     if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
                         lib.set_roms(roms);
                         tracing::debug!(
@@ -391,6 +399,9 @@ impl App {
                             started.elapsed().as_millis()
                         );
                     }
+                }
+                if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
+                    lib.set_rom_loading(false);
                 }
             }
         }
@@ -569,6 +580,7 @@ impl App {
                         let req = lib
                             .get_roms_request_platform()
                             .or_else(|| lib.get_roms_request_collection());
+                        lib.set_rom_loading(expected > 0);
                         self.deferred_load_roms =
                             Some((key, req, expected, "startup_first_selection", Instant::now()));
                     }
@@ -652,9 +664,11 @@ impl App {
                             let req = lib
                                 .get_roms_request_platform()
                                 .or_else(|| lib.get_roms_request_collection());
+                            lib.set_rom_loading(true);
                             self.deferred_load_roms =
                                 Some((key, req, expected, "list_move_up", Instant::now()));
                         } else {
+                            lib.set_rom_loading(false);
                             self.deferred_load_roms = None;
                         }
                         if lib.subsection
@@ -679,9 +693,11 @@ impl App {
                             let req = lib
                                 .get_roms_request_platform()
                                 .or_else(|| lib.get_roms_request_collection());
+                            lib.set_rom_loading(true);
                             self.deferred_load_roms =
                                 Some((key, req, expected, "list_move_down", Instant::now()));
                         } else {
+                            lib.set_rom_loading(false);
                             self.deferred_load_roms = None;
                         }
                         if lib.subsection
