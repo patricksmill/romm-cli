@@ -379,6 +379,9 @@ impl App {
             // the screen handler only *records* the intent to load ROMs,
             // and the actual HTTP call happens here after rendering.
             if let Some((key, req, expected, context, started)) = self.deferred_load_roms.take() {
+                if expected == 0 {
+                    continue;
+                }
                 if let Ok(Some(roms)) = self.load_roms_cached(key, req, expected).await {
                     if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
                         lib.set_roms(roms);
@@ -645,11 +648,15 @@ impl App {
                         lib.clear_roms(); // avoid showing previous console's games
                         let key = lib.cache_key();
                         let expected = lib.expected_rom_count();
-                        let req = lib
-                            .get_roms_request_platform()
-                            .or_else(|| lib.get_roms_request_collection());
-                        self.deferred_load_roms =
-                            Some((key, req, expected, "list_move_up", Instant::now()));
+                        if expected > 0 {
+                            let req = lib
+                                .get_roms_request_platform()
+                                .or_else(|| lib.get_roms_request_collection());
+                            self.deferred_load_roms =
+                                Some((key, req, expected, "list_move_up", Instant::now()));
+                        } else {
+                            self.deferred_load_roms = None;
+                        }
                         if lib.subsection
                             == super::screens::library_browse::LibrarySubsection::ByCollection
                         {
@@ -668,11 +675,15 @@ impl App {
                         lib.clear_roms(); // avoid showing previous console's games
                         let key = lib.cache_key();
                         let expected = lib.expected_rom_count();
-                        let req = lib
-                            .get_roms_request_platform()
-                            .or_else(|| lib.get_roms_request_collection());
-                        self.deferred_load_roms =
-                            Some((key, req, expected, "list_move_down", Instant::now()));
+                        if expected > 0 {
+                            let req = lib
+                                .get_roms_request_platform()
+                                .or_else(|| lib.get_roms_request_collection());
+                            self.deferred_load_roms =
+                                Some((key, req, expected, "list_move_down", Instant::now()));
+                        } else {
+                            self.deferred_load_roms = None;
+                        }
                         if lib.subsection
                             == super::screens::library_browse::LibrarySubsection::ByCollection
                         {
@@ -1293,5 +1304,78 @@ impl App {
                 .wrap(ratatui::widgets::Wrap { trim: true });
             f.render_widget(paragraph, popup_area);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+    use crate::tui::openapi::EndpointRegistry;
+    use crate::tui::screens::library_browse::LibraryBrowseScreen;
+    use crate::types::Platform;
+    use serde_json::json;
+
+    fn platform(id: u64, name: &str, rom_count: u64) -> Platform {
+        serde_json::from_value(json!({
+            "id": id,
+            "slug": format!("p{id}"),
+            "fs_slug": format!("p{id}"),
+            "rom_count": rom_count,
+            "name": name,
+            "igdb_slug": null,
+            "moby_slug": null,
+            "hltb_slug": null,
+            "custom_name": null,
+            "igdb_id": null,
+            "sgdb_id": null,
+            "moby_id": null,
+            "launchbox_id": null,
+            "ss_id": null,
+            "ra_id": null,
+            "hasheous_id": null,
+            "tgdb_id": null,
+            "flashpoint_id": null,
+            "category": null,
+            "generation": null,
+            "family_name": null,
+            "family_slug": null,
+            "url": null,
+            "url_logo": null,
+            "firmware": [],
+            "aspect_ratio": null,
+            "created_at": "",
+            "updated_at": "",
+            "fs_size_bytes": 0,
+            "is_unidentified": false,
+            "is_identified": true,
+            "missing_from_fs": false,
+            "display_name": null
+        }))
+        .expect("valid platform fixture")
+    }
+
+    fn app_with_library(platforms: Vec<Platform>) -> App {
+        let config = Config {
+            base_url: "http://127.0.0.1:9".into(),
+            download_dir: "/tmp".into(),
+            use_https: false,
+            auth: None,
+        };
+        let client = RommClient::new(&config, false).expect("client");
+        let mut app = App::new(client, config, EndpointRegistry::default(), None, None);
+        app.screen = AppScreen::LibraryBrowse(LibraryBrowseScreen::new(platforms, vec![]));
+        app
+    }
+
+    #[tokio::test]
+    async fn list_move_to_zero_rom_selection_does_not_queue_deferred_load() {
+        let mut app = app_with_library(vec![platform(1, "HasRoms", 5), platform(2, "Empty", 0)]);
+
+        assert!(!app.handle_key(KeyCode::Down).await.expect("key handled"));
+        assert!(
+            app.deferred_load_roms.is_none(),
+            "selection move to zero-rom platform should not queue deferred ROM load"
+        );
     }
 }

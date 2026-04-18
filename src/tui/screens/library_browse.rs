@@ -124,6 +124,9 @@ impl LibraryBrowseScreen {
         let count = self
             .expected_rom_count_for_position(subsection, source_idx)
             .min(20000);
+        if count == 0 {
+            return None;
+        }
         match subsection {
             LibrarySubsection::ByConsole => self.platforms.get(source_idx).map(|p| GetRoms {
                 platform_id: Some(p.id),
@@ -815,7 +818,8 @@ impl LibraryBrowseScreen {
 mod tests {
     use super::*;
     use crate::core::utils;
-    use crate::types::Rom;
+    use crate::types::{Platform, Rom};
+    use serde_json::json;
 
     fn rom(id: u64, name: &str, fs_name: &str) -> Rom {
         Rom {
@@ -840,6 +844,45 @@ mod tests {
             is_unidentified: false,
             is_identified: true,
         }
+    }
+
+    fn platform(id: u64, name: &str, rom_count: u64) -> Platform {
+        serde_json::from_value(json!({
+            "id": id,
+            "slug": format!("p{id}"),
+            "fs_slug": format!("p{id}"),
+            "rom_count": rom_count,
+            "name": name,
+            "igdb_slug": null,
+            "moby_slug": null,
+            "hltb_slug": null,
+            "custom_name": null,
+            "igdb_id": null,
+            "sgdb_id": null,
+            "moby_id": null,
+            "launchbox_id": null,
+            "ss_id": null,
+            "ra_id": null,
+            "hasheous_id": null,
+            "tgdb_id": null,
+            "flashpoint_id": null,
+            "category": null,
+            "generation": null,
+            "family_name": null,
+            "family_slug": null,
+            "url": null,
+            "url_logo": null,
+            "firmware": [],
+            "aspect_ratio": null,
+            "created_at": "",
+            "updated_at": "",
+            "fs_size_bytes": 0,
+            "is_unidentified": false,
+            "is_identified": true,
+            "missing_from_fs": false,
+            "display_name": null
+        }))
+        .expect("valid platform fixture")
     }
 
     #[test]
@@ -886,5 +929,14 @@ mod tests {
         assert_eq!(s.rom_selected, 1);
         s.rom_next();
         assert_eq!(s.rom_selected, 0);
+    }
+
+    #[test]
+    fn zero_rom_platform_builds_no_rom_request() {
+        let s = LibraryBrowseScreen::new(vec![platform(1, "Empty", 0)], vec![]);
+        assert!(
+            s.get_roms_request_platform().is_none(),
+            "zero-rom platform should not produce ROM API request"
+        );
     }
 }
