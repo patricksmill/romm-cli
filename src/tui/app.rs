@@ -21,7 +21,8 @@ use crossterm::terminal::{
 use ratatui::backend::CrosstermBackend;
 use ratatui::style::Color;
 use ratatui::Terminal;
-use std::time::Duration;
+use std::collections::{HashSet, VecDeque};
+use std::time::{Duration, Instant};
 
 use crate::client::RommClient;
 use crate::config::{auth_for_persist_merge, normalize_romm_origin, Config};
@@ -29,7 +30,7 @@ use crate::core::cache::{RomCache, RomCacheKey};
 use crate::core::download::DownloadManager;
 use crate::core::startup_library_snapshot;
 use crate::endpoints::roms::GetRoms;
-use crate::types::{Collection, Platform, RomList};
+use crate::types::{Collection, RomList};
 
 use super::keyboard_help;
 use super::openapi::{resolve_path_template, EndpointRegistry};
@@ -44,9 +45,16 @@ use super::screens::{
 /// Result of a background library metadata refresh (generation-guarded).
 struct LibraryMetadataRefreshDone {
     gen: u64,
-    platforms: Vec<Platform>,
     collections: Vec<Collection>,
+    collection_digest: Vec<startup_library_snapshot::CollectionDigestEntry>,
     warnings: Vec<String>,
+}
+
+struct CollectionPrefetchDone {
+    key: RomCacheKey,
+    expected: u64,
+    roms: Option<RomList>,
+    warning: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -107,8 +115,8 @@ pub struct App {
     downloads: DownloadManager,
     /// Screen to restore when closing the Download overlay.
     screen_before_download: Option<AppScreen>,
-    /// Deferred ROM load: (cache_key, api_request, expected_rom_count).
-    deferred_load_roms: Option<(Option<RomCacheKey>, Option<GetRoms>, u64)>,
+    /// Deferred ROM load: (cache_key, api_request, expected_rom_count, context, start).
+    deferred_load_roms: Option<(Option<RomCacheKey>, Option<GetRoms>, u64, &'static str, Instant)>,
     /// Brief “connected” banner after setup or when the server responds to heartbeat.
     startup_splash: Option<StartupSplash>,
     pub global_error: Option<String>,
@@ -117,6 +125,11 @@ pub struct App {
     library_metadata_rx: Option<tokio::sync::mpsc::UnboundedReceiver<LibraryMetadataRefreshDone>>,
     /// Incremented each time a new refresh is spawned; stale completions are ignored.
     library_metadata_refresh_gen: u64,
+    collection_prefetch_rx: tokio::sync::mpsc::UnboundedReceiver<CollectionPrefetchDone>,
+    collection_prefetch_tx: tokio::sync::mpsc::UnboundedSender<CollectionPrefetchDone>,
+    collection_prefetch_queue: VecDeque<(RomCacheKey, GetRoms, u64)>,
+    collection_prefetch_queued_keys: HashSet<RomCacheKey>,
+    collection_prefetch_inflight_keys: HashSet<RomCacheKey>,
 }
 
 impl App {
@@ -128,6 +141,7 @@ impl App {
         server_version: Option<String>,
         startup_splash: Option<StartupSplash>,
     ) -> Self {
+        let (prefetch_tx, prefetch_rx) = tokio::sync::mpsc::unbounded_channel();
         Self {
             screen: AppScreen::MainMenu(MainMenuScreen::new()),
             client,
@@ -143,6 +157,11 @@ impl App {
             show_keyboard_help: false,
             library_metadata_rx: None,
             library_metadata_refresh_gen: 0,
+            collection_prefetch_rx: prefetch_rx,
+            collection_prefetch_tx: prefetch_tx,
+            collection_prefetch_queue: VecDeque::new(),
+            collection_prefetch_queued_keys: HashSet::new(),
+            collection_prefetch_inflight_keys: HashSet::new(),
         }
     }
 
@@ -153,11 +172,11 @@ impl App {
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         self.library_metadata_rx = Some(rx);
         tokio::spawn(async move {
-            let fetch = startup_library_snapshot::fetch_merged_library_metadata(&client).await;
+            let fetch = startup_library_snapshot::fetch_collection_summaries(&client).await;
             let _ = tx.send(LibraryMetadataRefreshDone {
                 gen,
-                platforms: fetch.platforms,
                 collections: fetch.collections,
+                collection_digest: fetch.collection_digest,
                 warnings: fetch.warnings,
             });
         });
@@ -166,6 +185,8 @@ impl App {
     /// Drain background work (e.g. library metadata refresh). Safe to call each frame.
     pub fn poll_background_tasks(&mut self) {
         self.poll_library_metadata_refresh();
+        self.poll_collection_prefetch_results();
+        self.drive_collection_prefetch_scheduler();
     }
 
     fn poll_library_metadata_refresh(&mut self) {
@@ -200,7 +221,7 @@ impl App {
         };
 
         let had_cached_lists = !lib.platforms.is_empty() || !lib.collections.is_empty();
-        let live_empty = msg.platforms.is_empty() && msg.collections.is_empty();
+        let live_empty = msg.collections.is_empty();
         if live_empty && had_cached_lists && !msg.warnings.is_empty() {
             lib.set_metadata_footer(Some(
                 "Could not refresh library metadata (keeping cached list).".into(),
@@ -208,11 +229,23 @@ impl App {
             return;
         }
 
-        lib.replace_metadata(msg.platforms, msg.collections);
+        let old_digest =
+            startup_library_snapshot::build_collection_digest_from_collections(&lib.collections);
+        let digest_changed = old_digest != msg.collection_digest;
+        let selection_changed = lib.replace_metadata_preserving_selection(
+            Vec::new(),
+            msg.collections,
+            false,
+            true,
+        );
         startup_library_snapshot::save_snapshot(&lib.platforms, &lib.collections);
 
         let footer = if msg.warnings.is_empty() {
-            Some("Library metadata updated.".into())
+            if digest_changed {
+                Some("Collection metadata updated.".into())
+            } else {
+                Some("Collection metadata already up to date.".into())
+            }
         } else {
             let w = msg.warnings.join(" | ");
             let short: String = if w.chars().count() > 160 {
@@ -225,14 +258,76 @@ impl App {
         };
         lib.set_metadata_footer(footer);
 
-        if lib.list_len() > 0 {
+        if selection_changed && lib.list_len() > 0 {
             lib.clear_roms();
             let key = lib.cache_key();
             let expected = lib.expected_rom_count();
             let req = lib
                 .get_roms_request_platform()
                 .or_else(|| lib.get_roms_request_collection());
-            self.deferred_load_roms = Some((key, req, expected));
+            self.deferred_load_roms = Some((key, req, expected, "refresh_selection", Instant::now()));
+        }
+        self.queue_collection_prefetches_from_screen(1, "refresh_warmup");
+    }
+
+    fn queue_collection_prefetches_from_screen(&mut self, radius: usize, _reason: &'static str) {
+        let AppScreen::LibraryBrowse(ref lib) = self.screen else {
+            return;
+        };
+        for (key, req, expected) in lib.collection_prefetch_candidates(radius) {
+            if self.rom_cache.get_valid(&key, expected).is_some() {
+                continue;
+            }
+            if self.collection_prefetch_queued_keys.contains(&key)
+                || self.collection_prefetch_inflight_keys.contains(&key)
+            {
+                continue;
+            }
+            self.collection_prefetch_queued_keys.insert(key.clone());
+            self.collection_prefetch_queue.push_back((key, req, expected));
+        }
+    }
+
+    fn drive_collection_prefetch_scheduler(&mut self) {
+        const PREFETCH_MAX_INFLIGHT: usize = 2;
+        while self.collection_prefetch_inflight_keys.len() < PREFETCH_MAX_INFLIGHT {
+            let Some((key, req, expected)) = self.collection_prefetch_queue.pop_front() else {
+                break;
+            };
+            self.collection_prefetch_queued_keys.remove(&key);
+            self.collection_prefetch_inflight_keys.insert(key.clone());
+            let tx = self.collection_prefetch_tx.clone();
+            let client = self.client.clone();
+            tokio::spawn(async move {
+                let result = Self::fetch_roms_full(client, req).await;
+                let (roms, warning) = match result {
+                    Ok(list) => (Some(list), None),
+                    Err(e) => (None, Some(format!("Collection prefetch failed: {e:#}"))),
+                };
+                let _ = tx.send(CollectionPrefetchDone {
+                    key,
+                    expected,
+                    roms,
+                    warning,
+                });
+            });
+        }
+    }
+
+    fn poll_collection_prefetch_results(&mut self) {
+        loop {
+            match self.collection_prefetch_rx.try_recv() {
+                Ok(done) => {
+                    self.collection_prefetch_inflight_keys.remove(&done.key);
+                    if let Some(roms) = done.roms {
+                        self.rom_cache.insert(done.key, roms, done.expected);
+                    } else if let Some(warning) = done.warning {
+                        tracing::debug!("{warning}");
+                    }
+                }
+                Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
+                Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => break,
+            }
         }
     }
 
@@ -283,10 +378,15 @@ impl App {
             // This avoids borrowing `self` mutably in two places at once:
             // the screen handler only *records* the intent to load ROMs,
             // and the actual HTTP call happens here after rendering.
-            if let Some((key, req, expected)) = self.deferred_load_roms.take() {
+            if let Some((key, req, expected, context, started)) = self.deferred_load_roms.take() {
                 if let Ok(Some(roms)) = self.load_roms_cached(key, req, expected).await {
                     if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
                         lib.set_roms(roms);
+                        tracing::debug!(
+                            "rom-list-render context={} latency_ms={}",
+                            context,
+                            started.elapsed().as_millis()
+                        );
                     }
                 }
             }
@@ -322,22 +422,7 @@ impl App {
         }
         // Cache miss or stale — fetch fresh data from the API.
         if let Some(r) = req {
-            let mut roms = self.client.call(&r).await?;
-            let total = roms.total;
-            let ceiling = 20000;
-
-            // The RomM API has a default limit (often 500) even if we request more.
-            // Loop until the items list is complete or we hit the ceiling.
-            while (roms.items.len() as u64) < total && (roms.items.len() as u64) < ceiling {
-                let mut next_req = r.clone();
-                next_req.offset = Some(roms.items.len() as u32);
-
-                let next_batch = self.client.call(&next_req).await?;
-                if next_batch.items.is_empty() {
-                    break;
-                }
-                roms.items.extend(next_batch.items);
-            }
+            let roms = Self::fetch_roms_full(self.client.clone(), r).await?;
 
             if let Some(k) = key {
                 self.rom_cache.insert(k, roms.clone(), expected_count); // also persists to disk
@@ -345,6 +430,22 @@ impl App {
             return Ok(Some(roms));
         }
         Ok(None)
+    }
+
+    async fn fetch_roms_full(client: RommClient, req: GetRoms) -> Result<RomList> {
+        let mut roms = client.call(&req).await?;
+        let total = roms.total;
+        let ceiling = 20000;
+        while (roms.items.len() as u64) < total && (roms.items.len() as u64) < ceiling {
+            let mut next_req = req.clone();
+            next_req.offset = Some(roms.items.len() as u32);
+            let next_batch = client.call(&next_req).await?;
+            if next_batch.items.is_empty() {
+                break;
+            }
+            roms.items.extend(next_batch.items);
+        }
+        Ok(roms)
     }
 
     // -----------------------------------------------------------------------
@@ -445,6 +546,7 @@ impl App {
             KeyCode::Down | KeyCode::Char('j') => menu.next(),
             KeyCode::Enter => match menu.selected {
                 0 => {
+                    let start = Instant::now();
                     let snap = startup_library_snapshot::load_snapshot();
                     let (platforms, collections, from_disk) = match snap {
                         Some(s) => (s.platforms, s.collections, true),
@@ -464,10 +566,16 @@ impl App {
                         let req = lib
                             .get_roms_request_platform()
                             .or_else(|| lib.get_roms_request_collection());
-                        self.deferred_load_roms = Some((key, req, expected));
+                        self.deferred_load_roms =
+                            Some((key, req, expected, "startup_first_selection", Instant::now()));
                     }
                     self.screen = AppScreen::LibraryBrowse(lib);
                     self.spawn_library_metadata_refresh();
+                    tracing::debug!(
+                        "library-open latency_ms={} snapshot_hit={}",
+                        start.elapsed().as_millis(),
+                        from_disk
+                    );
                 }
                 1 => self.screen = AppScreen::Search(SearchScreen::new()),
                 2 => {
@@ -540,7 +648,14 @@ impl App {
                         let req = lib
                             .get_roms_request_platform()
                             .or_else(|| lib.get_roms_request_collection());
-                        self.deferred_load_roms = Some((key, req, expected));
+                        self.deferred_load_roms =
+                            Some((key, req, expected, "list_move_up", Instant::now()));
+                        if lib.subsection
+                            == super::screens::library_browse::LibrarySubsection::ByCollection
+                        {
+                            tracing::debug!("collections-selection move=up expected={expected}");
+                            self.queue_collection_prefetches_from_screen(1, "move_up");
+                        }
                     }
                 } else {
                     lib.rom_previous();
@@ -556,7 +671,14 @@ impl App {
                         let req = lib
                             .get_roms_request_platform()
                             .or_else(|| lib.get_roms_request_collection());
-                        self.deferred_load_roms = Some((key, req, expected));
+                        self.deferred_load_roms =
+                            Some((key, req, expected, "list_move_down", Instant::now()));
+                        if lib.subsection
+                            == super::screens::library_browse::LibrarySubsection::ByCollection
+                        {
+                            tracing::debug!("collections-selection move=down expected={expected}");
+                            self.queue_collection_prefetches_from_screen(1, "move_down");
+                        }
                     }
                 } else {
                     lib.rom_next();
@@ -599,7 +721,13 @@ impl App {
                     }
                 }
             }
-            KeyCode::Char('t') => lib.switch_subsection(),
+            KeyCode::Char('t') => {
+                lib.switch_subsection();
+                if lib.subsection == super::screens::library_browse::LibrarySubsection::ByCollection {
+                    tracing::debug!("collections-subsection entered");
+                    self.queue_collection_prefetches_from_screen(1, "enter_collections");
+                }
+            }
             KeyCode::Esc => {
                 if lib.view_mode == LibraryViewMode::Roms {
                     if lib.rom_search.filter_browsing {

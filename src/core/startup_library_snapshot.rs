@@ -26,6 +26,15 @@ struct SnapshotFile {
     saved_at_secs: u64,
     platforms: Vec<Platform>,
     collections: Vec<Collection>,
+    #[serde(default)]
+    collection_digest: Vec<CollectionDigestEntry>,
+}
+
+/// Compact digest used to quickly detect collection-summary changes.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CollectionDigestEntry {
+    pub key: String,
+    pub rom_count: u64,
 }
 
 /// Result of a live metadata fetch (background or cold path).
@@ -33,6 +42,7 @@ struct SnapshotFile {
 pub struct LibraryMetadataFetch {
     pub platforms: Vec<Platform>,
     pub collections: Vec<Collection>,
+    pub collection_digest: Vec<CollectionDigestEntry>,
     pub warnings: Vec<String>,
 }
 
@@ -44,9 +54,15 @@ pub fn load_snapshot() -> Option<LibraryMetadataFetch> {
     if file.version != SNAPSHOT_VERSION {
         return None;
     }
+    let collection_digest = if file.collection_digest.is_empty() {
+        build_collection_digest_from_collections(&file.collections)
+    } else {
+        file.collection_digest.clone()
+    };
     Some(LibraryMetadataFetch {
         platforms: file.platforms,
         collections: file.collections,
+        collection_digest,
         warnings: Vec::new(),
     })
 }
@@ -59,6 +75,7 @@ pub fn save_snapshot(platforms: &[Platform], collections: &[Collection]) {
         saved_at_secs: unix_now_secs(),
         platforms: platforms.to_vec(),
         collections: collections.to_vec(),
+        collection_digest: build_collection_digest_from_collections(collections),
     };
     if let Some(parent) = path.parent() {
         if let Err(err) = std::fs::create_dir_all(parent) {
@@ -113,6 +130,25 @@ fn unix_now_secs() -> u64 {
         .unwrap_or(0)
 }
 
+/// Build a lightweight digest keyed by collection identity (manual/smart/virtual).
+pub fn build_collection_digest_from_collections(
+    collections: &[Collection],
+) -> Vec<CollectionDigestEntry> {
+    collections
+        .iter()
+        .map(|c| CollectionDigestEntry {
+            key: if c.is_virtual {
+                format!("virtual:{}", c.virtual_id.clone().unwrap_or_default())
+            } else if c.is_smart {
+                format!("smart:{}", c.id)
+            } else {
+                format!("manual:{}", c.id)
+            },
+            rom_count: c.rom_count.unwrap_or(0),
+        })
+        .collect()
+}
+
 /// Fetch platforms and merged collections from the API (same behavior as the
 /// former synchronous TUI main-menu path, including virtual collection timeout).
 pub async fn fetch_merged_library_metadata(client: &RommClient) -> LibraryMetadataFetch {
@@ -162,6 +198,52 @@ pub async fn fetch_merged_library_metadata(client: &RommClient) -> LibraryMetada
 
     LibraryMetadataFetch {
         platforms,
+        collection_digest: build_collection_digest_from_collections(&collections),
+        collections,
+        warnings,
+    }
+}
+
+/// Stage-A refresh: collections summary only (manual/smart/virtual merge).
+pub async fn fetch_collection_summaries(client: &RommClient) -> LibraryMetadataFetch {
+    use std::time::Duration;
+
+    let mut warnings = Vec::new();
+    let manual = match client.call(&ListCollections).await {
+        Ok(c) => c.into_vec(),
+        Err(e) => {
+            warnings.push(format!("GET /api/collections: {e:#}"));
+            Vec::new()
+        }
+    };
+    let smart = match client.call(&ListSmartCollections).await {
+        Ok(c) => c.into_vec(),
+        Err(e) => {
+            warnings.push(format!("GET /api/collections/smart: {e:#}"));
+            Vec::new()
+        }
+    };
+    let virtual_rows =
+        match tokio::time::timeout(Duration::from_secs(3), client.call(&ListVirtualCollections))
+            .await
+        {
+            Ok(Ok(v)) => v,
+            Ok(Err(e)) => {
+                warnings.push(format!("GET /api/collections/virtual?type=all: {e:#}"));
+                Vec::new()
+            }
+            Err(_) => {
+                warnings
+                    .push("GET /api/collections/virtual?type=all: timed out after 3s".to_string());
+                Vec::new()
+            }
+        };
+    let collections = merge_all_collection_sources(manual, smart, virtual_rows);
+
+    LibraryMetadataFetch {
+        // Stage-A intentionally skips platform refresh for faster collection-first UI updates.
+        platforms: Vec::new(),
+        collection_digest: build_collection_digest_from_collections(&collections),
         collections,
         warnings,
     }
@@ -244,6 +326,10 @@ mod tests {
                 is_virtual: false,
                 virtual_id: None,
             }],
+            collection_digest: vec![CollectionDigestEntry {
+                key: "manual:10".into(),
+                rom_count: 1,
+            }],
             warnings: vec![],
         }
     }
@@ -269,6 +355,7 @@ mod tests {
         assert_eq!(loaded.collections.len(), 1);
         assert_eq!(loaded.platforms[0].id, 1);
         assert_eq!(loaded.collections[0].id, 10);
+        assert_eq!(loaded.collection_digest.len(), 1);
 
         let _ = std::fs::remove_dir_all(&dir);
     }
