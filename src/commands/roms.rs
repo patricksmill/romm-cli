@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::{Args, Subcommand};
 use indicatif::{ProgressBar, ProgressStyle};
 use std::path::PathBuf;
+use std::path::PathBuf;
 
 use crate::client::RommClient;
 use crate::commands::print::print_roms_table;
