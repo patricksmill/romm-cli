@@ -506,6 +506,179 @@ impl RommClient {
 
         Ok(())
     }
+
+    /// Upload a ROM file using the RomM chunked upload API.
+    pub async fn upload_rom<F>(
+        &self,
+        platform_id: u64,
+        file_path: &Path,
+        mut on_progress: F,
+    ) -> Result<()>
+    where
+        F: FnMut(u64, u64) + Send,
+    {
+        let filename = file_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .ok_or_else(|| anyhow!("Invalid filename for upload"))?;
+
+        let metadata = tokio::fs::metadata(file_path)
+            .await
+            .map_err(|e| anyhow!("Failed to read file metadata {:?}: {}", file_path, e))?;
+        let total_size = metadata.len();
+
+        // 2MB chunk size
+        let chunk_size: u64 = 2 * 1024 * 1024;
+        // Use integer division ceiling
+        let total_chunks = if total_size == 0 {
+            1
+        } else {
+            (total_size + chunk_size - 1) / chunk_size
+        };
+
+        let mut start_headers = self.build_headers()?;
+        start_headers.insert(
+            reqwest::header::HeaderName::from_static("x-upload-platform"),
+            reqwest::header::HeaderValue::from_str(&platform_id.to_string())?,
+        );
+        start_headers.insert(
+            reqwest::header::HeaderName::from_static("x-upload-filename"),
+            reqwest::header::HeaderValue::from_str(filename)?,
+        );
+        start_headers.insert(
+            reqwest::header::HeaderName::from_static("x-upload-total-size"),
+            reqwest::header::HeaderValue::from_str(&total_size.to_string())?,
+        );
+        start_headers.insert(
+            reqwest::header::HeaderName::from_static("x-upload-total-chunks"),
+            reqwest::header::HeaderValue::from_str(&total_chunks.to_string())?,
+        );
+
+        let start_url = format!(
+            "{}/api/roms/upload/start",
+            self.base_url.trim_end_matches('/')
+        );
+
+        let t0 = Instant::now();
+        let resp = self
+            .http
+            .post(&start_url)
+            .headers(start_headers)
+            .send()
+            .await
+            .map_err(|e| anyhow!("upload start request error: {}", e))?;
+
+        let status = resp.status();
+        if self.verbose {
+            tracing::info!(
+                "[romm-cli] POST /api/roms/upload/start -> {} ({}ms)",
+                status.as_u16(),
+                t0.elapsed().as_millis()
+            );
+        }
+
+        if !status.is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(anyhow!(
+                "ROMM API error: {} {} - {}",
+                status.as_u16(),
+                status.canonical_reason().unwrap_or(""),
+                body
+            ));
+        }
+
+        let start_resp: Value = resp
+            .json()
+            .await
+            .map_err(|e| anyhow!("failed to parse start upload response: {}", e))?;
+        let upload_id = start_resp
+            .get("upload_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("Missing upload_id in start response: {}", start_resp))?
+            .to_string();
+
+        use tokio::io::AsyncReadExt;
+        let mut file = tokio::fs::File::open(file_path).await?;
+        let mut uploaded_bytes = 0;
+        let mut buffer = vec![0u8; chunk_size as usize];
+
+        for chunk_index in 0..total_chunks {
+            let mut chunk_bytes = 0;
+            let mut chunk_data = Vec::new();
+
+            while chunk_bytes < chunk_size as usize {
+                let n = file.read(&mut buffer[..]).await?;
+                if n == 0 {
+                    break;
+                }
+                chunk_data.extend_from_slice(&buffer[..n]);
+                chunk_bytes += n;
+            }
+
+            let mut chunk_headers = self.build_headers()?;
+            chunk_headers.insert(
+                reqwest::header::HeaderName::from_static("x-chunk-index"),
+                reqwest::header::HeaderValue::from_str(&chunk_index.to_string())?,
+            );
+
+            let chunk_url = format!(
+                "{}/api/roms/upload/{}",
+                self.base_url.trim_end_matches('/'),
+                upload_id
+            );
+
+            let _t_chunk = Instant::now();
+            let chunk_resp = self
+                .http
+                .put(&chunk_url)
+                .headers(chunk_headers)
+                .body(chunk_data.clone())
+                .send()
+                .await
+                .map_err(|e| anyhow!("chunk upload request error: {}", e))?;
+
+            if !chunk_resp.status().is_success() {
+                let body = chunk_resp.text().await.unwrap_or_default();
+                // Attempt to cancel
+                let cancel_url = format!(
+                    "{}/api/roms/upload/{}/cancel",
+                    self.base_url.trim_end_matches('/'),
+                    upload_id
+                );
+                let _ = self
+                    .http
+                    .post(&cancel_url)
+                    .headers(self.build_headers()?)
+                    .send()
+                    .await;
+
+                return Err(anyhow!("Failed to upload chunk {}: {}", chunk_index, body));
+            }
+
+            uploaded_bytes += chunk_data.len() as u64;
+            on_progress(uploaded_bytes, total_size);
+        }
+
+        let complete_url = format!(
+            "{}/api/roms/upload/{}/complete",
+            self.base_url.trim_end_matches('/'),
+            upload_id
+        );
+        let complete_resp = self
+            .http
+            .post(&complete_url)
+            .headers(self.build_headers()?)
+            .send()
+            .await
+            .map_err(|e| anyhow!("upload complete request error: {}", e))?;
+
+        if !complete_resp.status().is_success() {
+            let body = complete_resp.text().await.unwrap_or_default();
+            return Err(anyhow!("Failed to complete upload: {}", body));
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]

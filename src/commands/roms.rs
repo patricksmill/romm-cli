@@ -1,5 +1,7 @@
+use std::path::PathBuf;
 use anyhow::Result;
 use clap::{Args, Subcommand};
+use indicatif::{ProgressBar, ProgressStyle};
 
 use crate::client::RommClient;
 use crate::commands::print::print_roms_table;
@@ -45,6 +47,52 @@ pub enum RomsAction {
         /// The ID of the ROM
         id: u64,
     },
+    /// Upload a ROM file to a platform
+    #[command(visible_alias = "up")]
+    Upload {
+        /// The platform ID to upload to
+        platform_id: u64,
+        /// The file to upload
+        file: PathBuf,
+    },
+}
+
+fn make_progress_style() -> ProgressStyle {
+    ProgressStyle::with_template(
+        "[{elapsed_precise}] {bar:40.cyan/blue} {bytes}/{total_bytes} ({eta}) {msg}",
+    )
+    .unwrap()
+    .progress_chars("#>-")
+}
+
+async fn upload_one(
+    client: &RommClient,
+    platform_id: u64,
+    file_path: std::path::PathBuf,
+    pb: ProgressBar,
+) -> Result<()> {
+    let filename = file_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("file")
+        .to_string();
+
+    pb.set_message(format!("Uploading {}", filename));
+
+    client
+        .upload_rom(platform_id, &file_path, {
+            let pb = pb.clone();
+            move |uploaded, total| {
+                if pb.length() != Some(total) {
+                    pb.set_length(total);
+                }
+                pb.set_position(uploaded);
+            }
+        })
+        .await?;
+
+    pb.finish_with_message(format!("✓ Upload complete: {}", filename));
+    Ok(())
 }
 
 pub async fn handle(cmd: RomsCommand, client: &RommClient, format: OutputFormat) -> Result<()> {
@@ -86,6 +134,43 @@ pub async fn handle(cmd: RomsCommand, client: &RommClient, format: OutputFormat)
                     // For now, reuse the table printer for a single item
                     // or just pretty-print the JSON.
                     println!("{}", serde_json::to_string_pretty(&rom)?);
+                }
+            }
+        }
+        RomsAction::Upload { file, platform_id } => {
+            if !file.exists() {
+                anyhow::bail!("File or directory does not exist: {:?}", file);
+            }
+
+            let mut files = Vec::new();
+            if file.is_dir() {
+                let mut entries = tokio::fs::read_dir(&file).await?;
+                while let Some(entry) = entries.next_entry().await? {
+                    let path = entry.path();
+                    if path.is_file() {
+                        files.push(path);
+                    }
+                }
+                files.sort(); // Consistent order
+            } else {
+                files.push(file);
+            }
+
+            if files.is_empty() {
+                println!("No files found to upload.");
+                return Ok(());
+            }
+
+            if files.len() > 1 {
+                println!("Found {} files to upload.", files.len());
+            }
+
+            let mp = indicatif::MultiProgress::new();
+            for path in files {
+                let pb = mp.add(ProgressBar::new(0));
+                pb.set_style(make_progress_style());
+                if let Err(e) = upload_one(client, platform_id, path.clone(), pb).await {
+                    eprintln!("Error uploading {:?}: {}", path, e);
                 }
             }
         }
