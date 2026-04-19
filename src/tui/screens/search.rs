@@ -187,15 +187,17 @@ impl SearchScreen {
             let total_files = self.results.as_ref().map(|r| r.items.len()).unwrap_or(0);
             let widths = [Constraint::Percentage(60), Constraint::Percentage(40)];
             let title = if self.loading {
-                format!("Results ({}) — {} files [Loading...]", groups.len(), total_files)
+                format!(
+                    "Results ({}) — {} files [Loading...]",
+                    groups.len(),
+                    total_files
+                )
             } else {
                 format!("Results ({}) — {} files", groups.len(), total_files)
             };
-            let table = Table::new(rows, widths).header(header).block(
-                Block::default()
-                    .title(title)
-                    .borders(Borders::ALL),
-            );
+            let table = Table::new(rows, widths)
+                .header(header)
+                .block(Block::default().title(title).borders(Borders::ALL));
             f.render_widget(table, chunks[1]);
         } else {
             let msg = if self.loading {

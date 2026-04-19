@@ -530,7 +530,7 @@ impl App {
                     }
                     continue;
                 }
-                
+
                 let Some(r) = req else {
                     if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
                         lib.set_rom_loading(false);
@@ -539,11 +539,11 @@ impl App {
                 };
                 let client = self.client.clone();
                 let tx = self.rom_load_tx.clone();
-                
+
                 if let Some(task) = self.rom_load_task.take() {
                     task.abort();
                 }
-                
+
                 self.rom_load_task = Some(tokio::spawn(async move {
                     let result = Self::fetch_roms_full(client, r)
                         .await

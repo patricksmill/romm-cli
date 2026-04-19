@@ -171,32 +171,30 @@ impl RomCache {
                 .collect(),
         };
         let path = self.path.clone();
-        
-        let write_fn = move || {
-            match serde_json::to_string(&file) {
-                Ok(json) => {
-                    if let Some(parent) = path.parent() {
-                        if let Err(err) = std::fs::create_dir_all(parent) {
-                            eprintln!(
-                                "warning: failed to create ROM cache directory {:?}: {}",
-                                parent, err
-                            );
-                            return;
-                        }
-                    }
-                    if let Err(err) = std::fs::write(&path, json) {
+
+        let write_fn = move || match serde_json::to_string(&file) {
+            Ok(json) => {
+                if let Some(parent) = path.parent() {
+                    if let Err(err) = std::fs::create_dir_all(parent) {
                         eprintln!(
-                            "warning: failed to write ROM cache file {:?}: {}",
-                            path, err
+                            "warning: failed to create ROM cache directory {:?}: {}",
+                            parent, err
                         );
+                        return;
                     }
                 }
-                Err(err) => {
+                if let Err(err) = std::fs::write(&path, json) {
                     eprintln!(
-                        "warning: failed to serialize ROM cache file {:?}: {}",
+                        "warning: failed to write ROM cache file {:?}: {}",
                         path, err
                     );
                 }
+            }
+            Err(err) => {
+                eprintln!(
+                    "warning: failed to serialize ROM cache file {:?}: {}",
+                    path, err
+                );
             }
         };
 
