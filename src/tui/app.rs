@@ -71,6 +71,15 @@ struct SearchLoadDone {
     result: Result<RomList, String>,
 }
 
+/// Deferred primary ROM load: cache key, API request, expected count, context label, start time.
+type DeferredLoadRoms = (
+    Option<RomCacheKey>,
+    Option<GetRoms>,
+    u64,
+    &'static str,
+    Instant,
+);
+
 #[inline]
 fn primary_rom_load_result_is_current(done_gen: u64, current_gen: u64) -> bool {
     done_gen == current_gen
@@ -135,13 +144,7 @@ pub struct App {
     /// Screen to restore when closing the Download overlay.
     screen_before_download: Option<AppScreen>,
     /// Deferred ROM load: (cache_key, api_request, expected_rom_count, context, start).
-    deferred_load_roms: Option<(
-        Option<RomCacheKey>,
-        Option<GetRoms>,
-        u64,
-        &'static str,
-        Instant,
-    )>,
+    deferred_load_roms: Option<DeferredLoadRoms>,
     /// Brief “connected” banner after setup or when the server responds to heartbeat.
     startup_splash: Option<StartupSplash>,
     pub global_error: Option<String>,
