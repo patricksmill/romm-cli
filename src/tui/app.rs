@@ -67,6 +67,10 @@ struct RomLoadDone {
     started: Instant,
 }
 
+struct SearchLoadDone {
+    result: Result<RomList, String>,
+}
+
 #[inline]
 fn primary_rom_load_result_is_current(done_gen: u64, current_gen: u64) -> bool {
     done_gen == current_gen
@@ -155,6 +159,10 @@ pub struct App {
     rom_load_gen: u64,
     rom_load_rx: tokio::sync::mpsc::UnboundedReceiver<RomLoadDone>,
     rom_load_tx: tokio::sync::mpsc::UnboundedSender<RomLoadDone>,
+    rom_load_task: Option<tokio::task::JoinHandle<()>>,
+    search_load_rx: tokio::sync::mpsc::UnboundedReceiver<SearchLoadDone>,
+    search_load_tx: tokio::sync::mpsc::UnboundedSender<SearchLoadDone>,
+    search_load_task: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl App {
@@ -187,6 +195,7 @@ impl App {
     ) -> Self {
         let (prefetch_tx, prefetch_rx) = tokio::sync::mpsc::unbounded_channel();
         let (rom_load_tx, rom_load_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (search_load_tx, search_load_rx) = tokio::sync::mpsc::unbounded_channel();
         Self {
             screen: AppScreen::MainMenu(MainMenuScreen::new()),
             client,
@@ -210,6 +219,10 @@ impl App {
             rom_load_gen: 0,
             rom_load_rx,
             rom_load_tx,
+            rom_load_task: None,
+            search_load_rx,
+            search_load_tx,
+            search_load_task: None,
         }
     }
 
@@ -235,7 +248,25 @@ impl App {
         self.poll_library_metadata_refresh();
         self.poll_rom_load_results();
         self.poll_collection_prefetch_results();
+        self.poll_search_load_results();
         self.drive_collection_prefetch_scheduler();
+    }
+
+    fn poll_search_load_results(&mut self) {
+        loop {
+            match self.search_load_rx.try_recv() {
+                Ok(done) => {
+                    if let AppScreen::Search(ref mut search) = self.screen {
+                        search.loading = false;
+                        if let Ok(roms) = done.result {
+                            search.set_results(roms);
+                        }
+                    }
+                }
+                Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
+                Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => break,
+            }
+        }
     }
 
     fn poll_rom_load_results(&mut self) {
@@ -372,7 +403,7 @@ impl App {
     fn drive_collection_prefetch_scheduler(&mut self) {
         const PREFETCH_MAX_INFLIGHT: usize = 2;
         while self.collection_prefetch_inflight_keys.len() < PREFETCH_MAX_INFLIGHT {
-            let Some((key, req, expected)) = self.collection_prefetch_queue.pop_front() else {
+            let Some((key, req, expected)) = self.collection_prefetch_queue.pop_back() else {
                 break;
             };
             self.collection_prefetch_queued_keys.remove(&key);
@@ -462,18 +493,7 @@ impl App {
             // Cache hits apply synchronously; network fetch runs in a background task so the loop
             // never awaits HTTP and the UI stays responsive (see `poll_rom_load_results`).
             if let Some((key, req, expected, context, started)) = self.deferred_load_roms.take() {
-                self.rom_load_gen = self.rom_load_gen.saturating_add(1);
-                let gen = self.rom_load_gen;
-                if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
-                    lib.set_rom_loading(expected > 0);
-                }
-                if expected == 0 {
-                    if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
-                        lib.set_rom_loading(false);
-                    }
-                    continue;
-                }
-                // Fast path: valid disk cache — no await, no spawn.
+                // Fast path: valid disk cache — no await, no spawn, load immediately.
                 if let Some(ref k) = key {
                     if let Some(cached) = self.rom_cache.get_valid(k, expected) {
                         if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
@@ -488,6 +508,26 @@ impl App {
                         continue;
                     }
                 }
+
+                // Debounce network fetches
+                if started.elapsed() < std::time::Duration::from_millis(250) {
+                    // Put it back to keep waiting
+                    self.deferred_load_roms = Some((key, req, expected, context, started));
+                    continue;
+                }
+
+                self.rom_load_gen = self.rom_load_gen.saturating_add(1);
+                let gen = self.rom_load_gen;
+                if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
+                    lib.set_rom_loading(expected > 0);
+                }
+                if expected == 0 {
+                    if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
+                        lib.set_rom_loading(false);
+                    }
+                    continue;
+                }
+                
                 let Some(r) = req else {
                     if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
                         lib.set_rom_loading(false);
@@ -496,7 +536,12 @@ impl App {
                 };
                 let client = self.client.clone();
                 let tx = self.rom_load_tx.clone();
-                tokio::spawn(async move {
+                
+                if let Some(task) = self.rom_load_task.take() {
+                    task.abort();
+                }
+                
+                self.rom_load_task = Some(tokio::spawn(async move {
                     let result = Self::fetch_roms_full(client, r)
                         .await
                         .map_err(|e| format!("{e:#}"));
@@ -508,7 +553,7 @@ impl App {
                         context,
                         started,
                     });
-                });
+                }));
             }
         }
 
@@ -708,6 +753,7 @@ impl App {
         // List pane: search typing bar
         if lib.view_mode == LibraryViewMode::List {
             if let Some(mode) = lib.list_search.mode {
+                let old_key = lib.cache_key();
                 match key {
                     KeyCode::Esc => lib.clear_list_search(),
                     KeyCode::Backspace => lib.delete_list_search_char(),
@@ -715,6 +761,20 @@ impl App {
                     KeyCode::Tab if mode == LibrarySearchMode::Jump => lib.list_jump_match(true),
                     KeyCode::Enter => lib.commit_list_filter_bar(),
                     _ => {}
+                }
+                let new_key = lib.cache_key();
+                if old_key != new_key && lib.list_len() > 0 {
+                    lib.clear_roms();
+                    let expected = lib.expected_rom_count();
+                    if expected > 0 {
+                        let req = Self::selected_rom_request_for_library(lib);
+                        lib.set_rom_loading(true);
+                        self.deferred_load_roms =
+                            Some((new_key, req, expected, "search_filter", Instant::now()));
+                    } else {
+                        lib.set_rom_loading(false);
+                        self.deferred_load_roms = None;
+                    }
                 }
                 return Ok(false);
             }
@@ -907,9 +967,16 @@ impl App {
                         limit: Some(50),
                         ..Default::default()
                     };
-                    if let Ok(roms) = self.client.call(&req).await {
-                        search.set_results(roms);
+                    search.loading = true;
+                    if let Some(task) = self.search_load_task.take() {
+                        task.abort();
                     }
+                    let client = self.client.clone();
+                    let tx = self.search_load_tx.clone();
+                    self.search_load_task = Some(tokio::spawn(async move {
+                        let result = client.call(&req).await.map_err(|e| format!("{e:#}"));
+                        let _ = tx.send(SearchLoadDone { result });
+                    }));
                 }
             }
             KeyCode::Esc => {

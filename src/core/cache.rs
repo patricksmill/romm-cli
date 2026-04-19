@@ -170,31 +170,41 @@ impl RomCache {
                 })
                 .collect(),
         };
-        match serde_json::to_string(&file) {
-            Ok(json) => {
-                if let Some(parent) = self.path.parent() {
-                    if let Err(err) = std::fs::create_dir_all(parent) {
+        let path = self.path.clone();
+        
+        let write_fn = move || {
+            match serde_json::to_string(&file) {
+                Ok(json) => {
+                    if let Some(parent) = path.parent() {
+                        if let Err(err) = std::fs::create_dir_all(parent) {
+                            eprintln!(
+                                "warning: failed to create ROM cache directory {:?}: {}",
+                                parent, err
+                            );
+                            return;
+                        }
+                    }
+                    if let Err(err) = std::fs::write(&path, json) {
                         eprintln!(
-                            "warning: failed to create ROM cache directory {:?}: {}",
-                            parent, err
+                            "warning: failed to write ROM cache file {:?}: {}",
+                            path, err
                         );
-                        return;
                     }
                 }
-                if let Err(err) = std::fs::write(&self.path, json) {
+                Err(err) => {
                     eprintln!(
-                        "warning: failed to write ROM cache file {:?}: {}",
-                        self.path, err
+                        "warning: failed to serialize ROM cache file {:?}: {}",
+                        path, err
                     );
                 }
             }
-            Err(err) => {
-                eprintln!(
-                    "warning: failed to serialize ROM cache file {:?}: {}",
-                    self.path, err
-                );
-            }
-        }
+        };
+
+        #[cfg(test)]
+        write_fn();
+
+        #[cfg(not(test))]
+        std::thread::spawn(write_fn);
     }
 
     /// Return cached data **only** if the platform's `rom_count` hasn't changed

@@ -18,6 +18,7 @@ pub struct SearchScreen {
     pub selected: usize,
     pub scroll_offset: usize,
     visible_rows: usize,
+    pub loading: bool,
 }
 
 impl Default for SearchScreen {
@@ -37,6 +38,7 @@ impl SearchScreen {
             selected: 0,
             scroll_offset: 0,
             visible_rows: 15,
+            loading: false,
         }
     }
 
@@ -184,18 +186,23 @@ impl SearchScreen {
 
             let total_files = self.results.as_ref().map(|r| r.items.len()).unwrap_or(0);
             let widths = [Constraint::Percentage(60), Constraint::Percentage(40)];
+            let title = if self.loading {
+                format!("Results ({}) — {} files [Loading...]", groups.len(), total_files)
+            } else {
+                format!("Results ({}) — {} files", groups.len(), total_files)
+            };
             let table = Table::new(rows, widths).header(header).block(
                 Block::default()
-                    .title(format!(
-                        "Results ({}) — {} files",
-                        groups.len(),
-                        total_files
-                    ))
+                    .title(title)
                     .borders(Borders::ALL),
             );
             f.render_widget(table, chunks[1]);
         } else {
-            let msg = "Type a search term and press Enter to search";
+            let msg = if self.loading {
+                "Searching..."
+            } else {
+                "Type a search term and press Enter to search"
+            };
             let p =
                 Paragraph::new(msg).block(Block::default().title("Results").borders(Borders::ALL));
             f.render_widget(p, chunks[1]);
