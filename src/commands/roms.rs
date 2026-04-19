@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use anyhow::Result;
 use clap::{Args, Subcommand};
 use indicatif::{ProgressBar, ProgressStyle};
