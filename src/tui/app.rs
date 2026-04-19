@@ -12,7 +12,7 @@
 
 use anyhow::Result;
 use crossterm::event::{
-    self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind,
+    self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind, KeyModifiers,
 };
 use crossterm::execute;
 use crossterm::terminal::{
@@ -133,6 +133,25 @@ pub struct App {
 }
 
 impl App {
+    fn is_force_quit_key(key: &crossterm::event::KeyEvent) -> bool {
+        key.kind == KeyEventKind::Press
+            && key.modifiers.contains(KeyModifiers::CONTROL)
+            && matches!(key.code, KeyCode::Char('c') | KeyCode::Char('C'))
+    }
+
+    fn selected_rom_request_for_library(
+        lib: &super::screens::library_browse::LibraryBrowseScreen,
+    ) -> Option<GetRoms> {
+        match lib.subsection {
+            super::screens::library_browse::LibrarySubsection::ByConsole => {
+                lib.get_roms_request_platform()
+            }
+            super::screens::library_browse::LibrarySubsection::ByCollection => {
+                lib.get_roms_request_collection()
+            }
+        }
+    }
+
     /// Construct a new `App` with fresh cache and empty download list.
     pub fn new(
         client: RommClient,
@@ -262,9 +281,7 @@ impl App {
             lib.clear_roms();
             let key = lib.cache_key();
             let expected = lib.expected_rom_count();
-            let req = lib
-                .get_roms_request_platform()
-                .or_else(|| lib.get_roms_request_collection());
+            let req = Self::selected_rom_request_for_library(lib);
             lib.set_rom_loading(expected > 0);
             self.deferred_load_roms = Some((key, req, expected, "refresh_selection", Instant::now()));
         }
@@ -369,6 +386,9 @@ impl App {
             // even when the user is not pressing any keys.
             if event::poll(Duration::from_millis(100))? {
                 if let Event::Key(key) = event::read()? {
+                    if Self::is_force_quit_key(&key) {
+                        break;
+                    }
                     if key.kind == KeyEventKind::Press && self.handle_key(key.code).await? {
                         break;
                     }
@@ -577,9 +597,7 @@ impl App {
                     if lib.list_len() > 0 {
                         let key = lib.cache_key();
                         let expected = lib.expected_rom_count();
-                        let req = lib
-                            .get_roms_request_platform()
-                            .or_else(|| lib.get_roms_request_collection());
+                        let req = Self::selected_rom_request_for_library(&lib);
                         lib.set_rom_loading(expected > 0);
                         self.deferred_load_roms =
                             Some((key, req, expected, "startup_first_selection", Instant::now()));
@@ -661,9 +679,7 @@ impl App {
                         let key = lib.cache_key();
                         let expected = lib.expected_rom_count();
                         if expected > 0 {
-                            let req = lib
-                                .get_roms_request_platform()
-                                .or_else(|| lib.get_roms_request_collection());
+                            let req = Self::selected_rom_request_for_library(lib);
                             lib.set_rom_loading(true);
                             self.deferred_load_roms =
                                 Some((key, req, expected, "list_move_up", Instant::now()));
@@ -690,9 +706,7 @@ impl App {
                         let key = lib.cache_key();
                         let expected = lib.expected_rom_count();
                         if expected > 0 {
-                            let req = lib
-                                .get_roms_request_platform()
-                                .or_else(|| lib.get_roms_request_collection());
+                            let req = Self::selected_rom_request_for_library(lib);
                             lib.set_rom_loading(true);
                             self.deferred_load_roms =
                                 Some((key, req, expected, "list_move_down", Instant::now()));
@@ -750,6 +764,26 @@ impl App {
             }
             KeyCode::Char('t') => {
                 lib.switch_subsection();
+                // `switch_subsection` clears ROMs but does not queue a load; mirror list ↑/↓ so the
+                // first row in the new subsection (index 0) gets ROMs without an extra keypress.
+                if lib.view_mode == LibraryViewMode::List && lib.list_len() > 0 {
+                    let key = lib.cache_key();
+                    let expected = lib.expected_rom_count();
+                    if expected > 0 {
+                        let req = Self::selected_rom_request_for_library(lib);
+                        lib.set_rom_loading(true);
+                        self.deferred_load_roms = Some((
+                            key,
+                            req,
+                            expected,
+                            "switch_subsection",
+                            Instant::now(),
+                        ));
+                    } else {
+                        lib.set_rom_loading(false);
+                        self.deferred_load_roms = None;
+                    }
+                }
                 if lib.subsection == super::screens::library_browse::LibrarySubsection::ByCollection {
                     tracing::debug!("collections-subsection entered");
                     self.queue_collection_prefetches_from_screen(1, "enter_collections");
@@ -1330,6 +1364,7 @@ mod tests {
     use crate::tui::openapi::EndpointRegistry;
     use crate::tui::screens::library_browse::LibraryBrowseScreen;
     use crate::types::Platform;
+    use crossterm::event::{KeyEvent, KeyModifiers};
     use serde_json::json;
 
     fn platform(id: u64, name: &str, rom_count: u64) -> Platform {
@@ -1393,5 +1428,14 @@ mod tests {
             app.deferred_load_roms.is_none(),
             "selection move to zero-rom platform should not queue deferred ROM load"
         );
+    }
+
+    #[test]
+    fn ctrl_c_is_treated_as_force_quit() {
+        let ctrl_c = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL);
+        assert!(App::is_force_quit_key(&ctrl_c));
+
+        let plain_c = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::empty());
+        assert!(!App::is_force_quit_key(&plain_c));
     }
 }

@@ -178,10 +178,9 @@ pub async fn fetch_merged_library_metadata(client: &RommClient) -> LibraryMetada
             Vec::new()
         }
     };
-    let virtual_rows =
-        match tokio::time::timeout(Duration::from_secs(3), client.call(&ListVirtualCollections))
-            .await
-        {
+    let virtual_rows = match tokio::time::timeout(Duration::from_secs(3), client.call(&ListVirtualCollections))
+        .await
+    {
             Ok(Ok(v)) => v,
             Ok(Err(e)) => {
                 warnings.push(format!("GET /api/collections/virtual?type=all: {e:#}"));
@@ -206,8 +205,6 @@ pub async fn fetch_merged_library_metadata(client: &RommClient) -> LibraryMetada
 
 /// Stage-A refresh: collections summary only (manual/smart/virtual merge).
 pub async fn fetch_collection_summaries(client: &RommClient) -> LibraryMetadataFetch {
-    use std::time::Duration;
-
     let mut warnings = Vec::new();
     let manual = match client.call(&ListCollections).await {
         Ok(c) => c.into_vec(),
@@ -223,21 +220,13 @@ pub async fn fetch_collection_summaries(client: &RommClient) -> LibraryMetadataF
             Vec::new()
         }
     };
-    let virtual_rows =
-        match tokio::time::timeout(Duration::from_secs(3), client.call(&ListVirtualCollections))
-            .await
-        {
-            Ok(Ok(v)) => v,
-            Ok(Err(e)) => {
-                warnings.push(format!("GET /api/collections/virtual?type=all: {e:#}"));
-                Vec::new()
-            }
-            Err(_) => {
-                warnings
-                    .push("GET /api/collections/virtual?type=all: timed out after 3s".to_string());
-                Vec::new()
-            }
-        };
+    let virtual_rows = match client.call(&ListVirtualCollections).await {
+        Ok(v) => v,
+        Err(e) => {
+            warnings.push(format!("GET /api/collections/virtual?type=all: {e:#}"));
+            Vec::new()
+        }
+    };
     let collections = merge_all_collection_sources(manual, smart, virtual_rows);
 
     LibraryMetadataFetch {
