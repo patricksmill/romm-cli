@@ -22,9 +22,11 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::style::Color;
 use ratatui::Terminal;
 use std::collections::{HashSet, VecDeque};
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use crate::client::RommClient;
+use crate::commands::library_scan::ScanCacheInvalidate;
 use crate::config::{auth_for_persist_merge, normalize_romm_origin, Config};
 use crate::core::cache::{RomCache, RomCacheKey};
 use crate::core::download::DownloadManager;
@@ -108,21 +110,10 @@ pub enum AppScreen {
     SetupWizard(Box<crate::tui::screens::setup_wizard::SetupWizard>),
 }
 
-fn blocks_global_d_shortcut(screen: &AppScreen) -> bool {
-    match screen {
-        AppScreen::Search(_) | AppScreen::Settings(_) | AppScreen::SetupWizard(_) => true,
-        AppScreen::LibraryBrowse(lib) => lib.any_search_bar_open(),
-        _ => false,
-    }
-}
-
-fn allows_global_question_help(screen: &AppScreen) -> bool {
-    match screen {
-        AppScreen::Search(_) | AppScreen::SetupWizard(_) | AppScreen::Execute(_) => false,
-        AppScreen::LibraryBrowse(lib) if lib.any_search_bar_open() => false,
-        AppScreen::Settings(s) if s.editing => false,
-        _ => true,
-    }
+/// Result of a background ROM upload (path validated before spawn).
+struct LibraryUploadComplete {
+    platform_id: u64,
+    scan_after: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -170,11 +161,42 @@ pub struct App {
     /// Receives `Ok(())` when a background `scan_library` (with wait) finishes successfully.
     library_scan_rx: Option<tokio::sync::mpsc::UnboundedReceiver<Result<(), String>>>,
     library_scan_inflight: bool,
+    /// Cache policy applied when the current background scan completes successfully.
+    library_scan_pending_invalidate: Option<ScanCacheInvalidate>,
     /// After a successful server scan, force ROM list reload once metadata refresh completes.
     force_rom_reload_after_metadata: bool,
+    /// Background chunked ROM upload to the selected platform.
+    library_upload_inflight: bool,
+    library_upload_progress_rx: Option<tokio::sync::mpsc::UnboundedReceiver<(u64, u64)>>,
+    library_upload_done_rx:
+        Option<tokio::sync::mpsc::UnboundedReceiver<Result<LibraryUploadComplete, String>>>,
 }
 
 impl App {
+    fn blocks_global_d_shortcut(&self) -> bool {
+        let base = match &self.screen {
+            AppScreen::Search(_) | AppScreen::Settings(_) | AppScreen::SetupWizard(_) => true,
+            AppScreen::LibraryBrowse(lib) => {
+                lib.any_search_bar_open() || lib.any_upload_prompt_open()
+            }
+            _ => false,
+        };
+        base || self.library_upload_inflight
+    }
+
+    fn allows_global_question_help(&self) -> bool {
+        match &self.screen {
+            AppScreen::Search(_) | AppScreen::SetupWizard(_) | AppScreen::Execute(_) => false,
+            AppScreen::LibraryBrowse(lib)
+                if lib.any_search_bar_open() || lib.any_upload_prompt_open() =>
+            {
+                false
+            }
+            AppScreen::Settings(s) if s.editing => false,
+            _ => true,
+        }
+    }
+
     fn is_force_quit_key(key: &crossterm::event::KeyEvent) -> bool {
         key.kind == KeyEventKind::Press
             && key.modifiers.contains(KeyModifiers::CONTROL)
@@ -234,7 +256,11 @@ impl App {
             search_load_task: None,
             library_scan_rx: None,
             library_scan_inflight: false,
+            library_scan_pending_invalidate: None,
             force_rom_reload_after_metadata: false,
+            library_upload_inflight: false,
+            library_upload_progress_rx: None,
+            library_upload_done_rx: None,
         }
     }
 
@@ -262,15 +288,17 @@ impl App {
         self.poll_rom_load_results();
         self.poll_collection_prefetch_results();
         self.poll_search_load_results();
+        self.poll_library_upload();
         self.poll_library_scan();
         self.drive_collection_prefetch_scheduler();
     }
 
-    fn spawn_library_rescan_worker(&mut self) {
+    fn spawn_library_rescan_worker(&mut self, cache_on_success: ScanCacheInvalidate) {
         if self.library_scan_inflight {
             return;
         }
         self.library_scan_inflight = true;
+        self.library_scan_pending_invalidate = Some(cache_on_success);
         if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
             lib.set_metadata_footer(Some("Server library scan running…".into()));
         }
@@ -306,6 +334,7 @@ impl App {
                 match result {
                     Ok(()) => self.on_library_scan_completed_success(),
                     Err(e) => {
+                        self.library_scan_pending_invalidate = None;
                         if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
                             lib.set_metadata_footer(Some(format!("Library scan failed: {e}")));
                         } else {
@@ -318,22 +347,140 @@ impl App {
             Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
                 self.library_scan_rx = None;
                 self.library_scan_inflight = false;
+                self.library_scan_pending_invalidate = None;
+            }
+        }
+    }
+
+    fn apply_library_scan_cache_invalidate(&mut self, inv: &ScanCacheInvalidate) {
+        match inv {
+            ScanCacheInvalidate::None => {}
+            ScanCacheInvalidate::Platform(pid) => {
+                self.rom_cache.remove(&RomCacheKey::Platform(*pid));
+            }
+            ScanCacheInvalidate::AllPlatforms => {
+                self.rom_cache.remove_all_platform_entries();
+                if let AppScreen::LibraryBrowse(lib) = &self.screen {
+                    if let Some(ref k) = lib.cache_key() {
+                        if !matches!(k, RomCacheKey::Platform(_)) {
+                            self.rom_cache.remove(k);
+                        }
+                    }
+                }
             }
         }
     }
 
     fn on_library_scan_completed_success(&mut self) {
-        self.rom_cache.remove_all_platform_entries();
-        if let AppScreen::LibraryBrowse(lib) = &self.screen {
-            if let Some(ref k) = lib.cache_key() {
-                if !matches!(k, RomCacheKey::Platform(_)) {
-                    self.rom_cache.remove(k);
-                }
-            }
-        }
+        let inv = self
+            .library_scan_pending_invalidate
+            .take()
+            .unwrap_or(ScanCacheInvalidate::AllPlatforms);
+        self.apply_library_scan_cache_invalidate(&inv);
         if matches!(self.screen, AppScreen::LibraryBrowse(_)) {
             self.force_rom_reload_after_metadata = true;
             self.spawn_library_metadata_refresh();
+        }
+    }
+
+    fn format_upload_bytes(n: u64) -> String {
+        const KB: u64 = 1024;
+        const MB: u64 = KB * 1024;
+        const GB: u64 = MB * 1024;
+        if n >= GB {
+            format!("{:.2} GiB", n as f64 / GB as f64)
+        } else if n >= MB {
+            format!("{:.2} MiB", n as f64 / MB as f64)
+        } else if n >= KB {
+            format!("{:.1} KiB", n as f64 / KB as f64)
+        } else {
+            format!("{n} B")
+        }
+    }
+
+    fn spawn_library_upload_worker(&mut self, platform_id: u64, path: PathBuf, scan_after: bool) {
+        if self.library_upload_inflight || self.library_scan_inflight {
+            return;
+        }
+        self.library_upload_inflight = true;
+        self.library_upload_progress_rx = None;
+        if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
+            lib.set_metadata_footer(Some("Preparing upload…".into()));
+        }
+        let (prog_tx, prog_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (done_tx, done_rx) = tokio::sync::mpsc::unbounded_channel();
+        self.library_upload_progress_rx = Some(prog_rx);
+        self.library_upload_done_rx = Some(done_rx);
+        let client = self.client.clone();
+        tokio::spawn(async move {
+            let result: Result<LibraryUploadComplete, String> = async {
+                client
+                    .upload_rom(platform_id, &path, move |uploaded, total| {
+                        let _ = prog_tx.send((uploaded, total));
+                    })
+                    .await
+                    .map_err(|e| e.to_string())?;
+                Ok(LibraryUploadComplete {
+                    platform_id,
+                    scan_after,
+                })
+            }
+            .await;
+            let _ = done_tx.send(result);
+        });
+    }
+
+    fn poll_library_upload(&mut self) {
+        if let Some(rx) = &mut self.library_upload_progress_rx {
+            while let Ok((up, tot)) = rx.try_recv() {
+                if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
+                    lib.set_metadata_footer(Some(format!(
+                        "Uploading {} / {}…",
+                        Self::format_upload_bytes(up),
+                        Self::format_upload_bytes(tot)
+                    )));
+                }
+            }
+        }
+
+        let Some(rx) = &mut self.library_upload_done_rx else {
+            return;
+        };
+        match rx.try_recv() {
+            Ok(result) => {
+                self.library_upload_done_rx = None;
+                self.library_upload_progress_rx = None;
+                self.library_upload_inflight = false;
+                match result {
+                    Ok(done) => {
+                        if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
+                            if done.scan_after {
+                                lib.set_metadata_footer(Some(
+                                    "Upload complete. Starting library scan…".into(),
+                                ));
+                                self.spawn_library_rescan_worker(ScanCacheInvalidate::Platform(
+                                    done.platform_id,
+                                ));
+                            } else {
+                                lib.set_metadata_footer(Some("Upload complete.".into()));
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
+                            lib.set_metadata_footer(Some(format!("Upload failed: {e}")));
+                        } else {
+                            self.global_error = Some(format!("Upload failed: {e}"));
+                        }
+                    }
+                }
+            }
+            Err(tokio::sync::mpsc::error::TryRecvError::Empty) => {}
+            Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
+                self.library_upload_done_rx = None;
+                self.library_upload_progress_rx = None;
+                self.library_upload_inflight = false;
+            }
         }
     }
 
@@ -591,8 +738,36 @@ impl App {
                         && matches!(key_event.code, KeyCode::Char('r') | KeyCode::Char('R'))
                     {
                         if let AppScreen::LibraryBrowse(ref lib) = self.screen {
-                            if !lib.any_search_bar_open() && !self.library_scan_inflight {
-                                self.spawn_library_rescan_worker();
+                            if !lib.any_search_bar_open()
+                                && !lib.any_upload_prompt_open()
+                                && !self.library_upload_inflight
+                                && !self.library_scan_inflight
+                            {
+                                self.spawn_library_rescan_worker(ScanCacheInvalidate::AllPlatforms);
+                            }
+                        }
+                        continue;
+                    }
+                    if key_event.kind == KeyEventKind::Press
+                        && key_event.modifiers.contains(KeyModifiers::CONTROL)
+                        && matches!(key_event.code, KeyCode::Char('u') | KeyCode::Char('U'))
+                    {
+                        if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
+                            if lib.any_upload_prompt_open() {
+                                lib.close_upload_prompt();
+                            } else if !lib.any_search_bar_open()
+                                && !self.library_upload_inflight
+                                && !self.library_scan_inflight
+                            {
+                                if lib.subsection
+                                    == super::screens::library_browse::LibrarySubsection::ByConsole
+                                {
+                                    lib.open_upload_prompt();
+                                } else {
+                                    lib.set_metadata_footer(Some(
+                                        "Upload requires Consoles view — press t".into(),
+                                    ));
+                                }
                             }
                         }
                         continue;
@@ -734,13 +909,13 @@ impl App {
             self.show_keyboard_help = true;
             return Ok(false);
         }
-        if key == KeyCode::Char('?') && allows_global_question_help(&self.screen) {
+        if key == KeyCode::Char('?') && self.allows_global_question_help() {
             self.show_keyboard_help = true;
             return Ok(false);
         }
 
         // Global shortcut: 'd' toggles Download overlay (not on screens that need free typing / menus).
-        if key == KeyCode::Char('d') && !blocks_global_d_shortcut(&self.screen) {
+        if key == KeyCode::Char('d') && !self.blocks_global_d_shortcut() {
             self.toggle_download_screen();
             return Ok(false);
         }
@@ -860,6 +1035,50 @@ impl App {
 
     async fn handle_library_browse(&mut self, key: KeyCode) -> Result<bool> {
         use super::screens::library_browse::{LibrarySearchMode, LibraryViewMode};
+
+        if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
+            if lib.upload_prompt.is_some() {
+                if let Some(up) = lib.upload_prompt.as_mut() {
+                    match key {
+                        KeyCode::Esc => lib.close_upload_prompt(),
+                        KeyCode::Tab => up.scan_after = !up.scan_after,
+                        KeyCode::Left => up.cursor_left(),
+                        KeyCode::Right => up.cursor_right(),
+                        KeyCode::Backspace => up.delete_char(),
+                        KeyCode::Char(c) => up.add_char(c),
+                        KeyCode::Enter => {
+                            let path_trim = up.path.trim().to_string();
+                            let scan_after = up.scan_after;
+                            if path_trim.is_empty() {
+                                return Ok(false);
+                            }
+                            let path = PathBuf::from(&path_trim);
+                            if !Path::new(&path).is_file() {
+                                lib.set_metadata_footer(Some(format!(
+                                    "Not a file: {}",
+                                    path.display()
+                                )));
+                                return Ok(false);
+                            }
+                            let Some(pid) = lib.selected_platform_id() else {
+                                lib.set_metadata_footer(Some(
+                                    "Select a console before uploading.".into(),
+                                ));
+                                return Ok(false);
+                            };
+                            lib.close_upload_prompt();
+                            self.spawn_library_upload_worker(pid, path, scan_after);
+                        }
+                        _ => {}
+                    }
+                }
+                return Ok(false);
+            }
+        }
+
+        if self.library_upload_inflight {
+            return Ok(false);
+        }
 
         let lib = match &mut self.screen {
             AppScreen::LibraryBrowse(l) => l,
@@ -1544,7 +1763,12 @@ impl App {
         }
         match &mut self.screen {
             AppScreen::MainMenu(menu) => menu.render(f, area),
-            AppScreen::LibraryBrowse(lib) => lib.render(f, area),
+            AppScreen::LibraryBrowse(lib) => {
+                lib.render(f, area);
+                if let Some((x, y)) = lib.upload_prompt_cursor(area) {
+                    f.set_cursor(x, y);
+                }
+            }
             AppScreen::Search(search) => {
                 search.render(f, area);
                 if let Some((x, y)) = search.cursor_position(area) {

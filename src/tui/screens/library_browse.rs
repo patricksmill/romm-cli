@@ -1,6 +1,8 @@
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Style};
-use ratatui::widgets::{Block, Borders, Cell, List, ListItem, ListState, Row, Table};
+use ratatui::widgets::{
+    Block, Borders, Cell, Clear, List, ListItem, ListState, Paragraph, Row, Table,
+};
 use ratatui::Frame;
 
 use crate::core::cache::RomCacheKey;
@@ -12,6 +14,69 @@ use crate::tui::text_search::{
 use crate::types::{Collection, Platform, Rom, RomList};
 
 pub use crate::tui::text_search::LibrarySearchMode;
+
+/// Path input for TUI upload (single file; type or paste a filesystem path).
+#[derive(Debug, Clone)]
+pub struct UploadPrompt {
+    pub path: String,
+    pub cursor_pos: usize,
+    /// When true, run `scan_library` with wait after upload (matches CLI `roms upload --scan --wait`).
+    pub scan_after: bool,
+}
+
+impl Default for UploadPrompt {
+    fn default() -> Self {
+        Self {
+            path: String::new(),
+            cursor_pos: 0,
+            scan_after: true,
+        }
+    }
+}
+
+impl UploadPrompt {
+    pub fn add_char(&mut self, c: char) {
+        let pos = self.cursor_pos.min(self.path.len());
+        let clen = c.len_utf8();
+        self.path.insert(pos, c);
+        self.cursor_pos = pos + clen;
+    }
+
+    pub fn delete_char(&mut self) {
+        if self.cursor_pos > 0 && self.cursor_pos <= self.path.len() {
+            let prev = self.path[..self.cursor_pos]
+                .chars()
+                .next_back()
+                .map(|c| c.len_utf8())
+                .unwrap_or(1);
+            let start = self.cursor_pos - prev;
+            self.path.replace_range(start..self.cursor_pos, "");
+            self.cursor_pos = start;
+        }
+    }
+
+    pub fn cursor_left(&mut self) {
+        if self.cursor_pos > 0 {
+            let prev = self.path[..self.cursor_pos]
+                .chars()
+                .next_back()
+                .map(|c| c.len_utf8())
+                .unwrap_or(1);
+            self.cursor_pos -= prev;
+        }
+    }
+
+    pub fn cursor_right(&mut self) {
+        if self.cursor_pos < self.path.len() {
+            let next = self.path[self.cursor_pos..]
+                .chars()
+                .next()
+                .map(|c| c.len_utf8())
+                .unwrap_or(1);
+            self.cursor_pos += next;
+        }
+    }
+}
 
 /// Which high-level grouping is currently shown in the left pane.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -51,6 +116,8 @@ pub struct LibraryBrowseScreen {
     pub metadata_footer: Option<String>,
     /// True only while ROM data for the current selection is actively loading.
     pub rom_loading: bool,
+    /// Modal path entry for uploading a ROM to the selected console (`None` when closed).
+    pub upload_prompt: Option<UploadPrompt>,
 }
 
 impl LibraryBrowseScreen {
@@ -70,11 +137,25 @@ impl LibraryBrowseScreen {
             rom_search: SearchState::new(),
             metadata_footer: None,
             rom_loading: false,
+            upload_prompt: None,
         }
     }
 
     pub fn set_metadata_footer(&mut self, msg: Option<String>) {
         self.metadata_footer = msg;
+    }
+
+    /// `Ctrl+u` upload path modal is open.
+    pub fn any_upload_prompt_open(&self) -> bool {
+        self.upload_prompt.is_some()
+    }
+
+    pub fn open_upload_prompt(&mut self) {
+        self.upload_prompt = Some(UploadPrompt::default());
+    }
+
+    pub fn close_upload_prompt(&mut self) {
+        self.upload_prompt = None;
     }
 
     fn collection_key(c: &Collection) -> RomCacheKey {
@@ -566,7 +647,7 @@ impl LibraryBrowseScreen {
         }
     }
 
-    fn selected_platform_id(&self) -> Option<u64> {
+    pub fn selected_platform_id(&self) -> Option<u64> {
         match self.subsection {
             LibrarySubsection::ByConsole => self
                 .selected_list_source_index()
@@ -677,6 +758,69 @@ impl LibraryBrowseScreen {
             self.render_roms(f, right_chunks[0]);
             self.render_help(f, right_chunks[1]);
         }
+
+        if let Some(ref up) = self.upload_prompt {
+            self.render_upload_popup(f, area, up);
+        }
+    }
+
+    fn upload_popup_rect(area: Rect) -> Rect {
+        let w = (area.width * 4 / 5).max(45).min(area.width);
+        let h = 8u16.min(area.height);
+        let x = area.x + (area.width.saturating_sub(w)) / 2;
+        let y = area.y + (area.height.saturating_sub(h)) / 2;
+        Rect {
+            x,
+            y,
+            width: w,
+            height: h,
+        }
+    }
+
+    fn upload_popup_platform_name(&self) -> String {
+        match self.subsection {
+            LibrarySubsection::ByConsole => self
+                .selected_list_source_index()
+                .and_then(|i| self.platforms.get(i))
+                .map(|p| p.display_name.as_deref().unwrap_or(&p.name).to_string())
+                .unwrap_or_else(|| "?".to_string()),
+            LibrarySubsection::ByCollection => "(switch to Consoles — t)".to_string(),
+        }
+    }
+
+    fn render_upload_popup(&self, f: &mut Frame, area: Rect, up: &UploadPrompt) {
+        let popup = Self::upload_popup_rect(area);
+        f.render_widget(Clear, popup);
+        let platform_name = self.upload_popup_platform_name();
+        let scan_line = if up.scan_after {
+            "Rescan library after upload: yes — Tab to disable"
+        } else {
+            "Rescan library after upload: no — Tab to enable"
+        };
+        let body = format!("{platform_name}\n{scan_line}\nPath: {}", up.path);
+        let block = Block::default()
+            .title("Upload ROM (Ctrl+u)")
+            .borders(Borders::ALL);
+        let inner = block.inner(popup);
+        let p = Paragraph::new(body);
+        f.render_widget(block, popup);
+        f.render_widget(p, inner);
+    }
+
+    /// Cursor for the upload path field (when [`Self::upload_prompt`] is open).
+    pub fn upload_prompt_cursor(&self, area: Rect) -> Option<(u16, u16)> {
+        let up = self.upload_prompt.as_ref()?;
+        let popup = Self::upload_popup_rect(area);
+        let block = Block::default()
+            .title("Upload ROM (Ctrl+u)")
+            .borders(Borders::ALL);
+        let inner = block.inner(popup);
+        let byte_before = up.cursor_pos.min(up.path.len());
+        let path_before = &up.path[..byte_before];
+        const PATH_LABEL: &str = "Path: ";
+        let cx = inner.x + PATH_LABEL.chars().count() as u16 + path_before.chars().count() as u16;
+        let cy = inner.y + 2;
+        Some((cx.min(inner.x + inner.width.saturating_sub(1)), cy))
     }
 
     fn render_list(&self, f: &mut Frame, area: Rect) {
@@ -806,7 +950,7 @@ impl LibraryBrowseScreen {
                 } else if self.list_search.filter_browsing {
                     "↑↓: Navigate | Enter: Load games | Esc: clear filter"
                 } else {
-                    "t: Switch | ↑↓: Select | / f: Filter/Jump list | Enter: Games | Esc: Menu"
+                    "t: Switch | ↑↓: Select | Ctrl+u: Upload | / f: Filter | Enter: Games | Esc: Menu"
                 }
             }
             LibraryViewMode::Roms => {
@@ -815,7 +959,7 @@ impl LibraryBrowseScreen {
                 } else if self.rom_search.filter_browsing {
                     "←: Back to list | ↑↓: Navigate | Enter: Game detail | Esc: clear filter"
                 } else {
-                    "←: Back to list | ↑↓: Navigate | / f: Filter/Jump games | Enter: Game detail | Esc: Back"
+                    "←: Back | ↑↓: Navigate | Ctrl+u: Upload | / f: Filter | Enter: Detail | Esc: Back"
                 }
             }
         };

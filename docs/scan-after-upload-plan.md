@@ -45,6 +45,12 @@ In the Library (consoles / games) screen, **Ctrl+R** starts the same `scan_libra
 
 While a filter/jump search bar is open in the Library, **Ctrl+R** is ignored (same idea as other global shortcuts during typing). Only one scan may run at a time; a second **Ctrl+R** is ignored until the first completes.
 
+### TUI: upload ROM from the Library (Consoles list)
+
+In the Library, on the **Consoles** subsection (not Collections), **Ctrl+U** opens an upload dialog: type or paste a **single file** path, **Tab** toggles **rescan library after upload** (default on, matching `roms upload --scan --wait`), **Enter** starts the chunked upload, **Esc** or **Ctrl+U** closes the dialog. Upload and scan cannot run concurrently with each other; the downloads shortcut (**d**) is disabled while an upload is in progress.
+
+After a successful upload, if rescan is enabled, the TUI runs the same `scan_library` wait flow as **Ctrl+R**, but cache invalidation matches **`roms upload … --scan --wait`**: only the selected platform’s ROM list cache entry is cleared. If rescan is off, the footer shows upload completion and the cache is unchanged (as when the CLI uploads without `--scan`).
+
 ## Client API helpers
 
 In [`src/client.rs`](../src/client.rs):
