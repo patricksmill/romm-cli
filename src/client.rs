@@ -533,7 +533,7 @@ impl RommClient {
         let total_chunks = if total_size == 0 {
             1
         } else {
-            (total_size + chunk_size - 1) / chunk_size
+            total_size.div_ceil(chunk_size)
         };
 
         let mut start_headers = self.build_headers()?;
@@ -678,6 +678,27 @@ impl RommClient {
         }
 
         Ok(())
+    }
+
+    /// Trigger a server-side task by name (e.g. `"scan_library"`).
+    ///
+    /// Sends `POST /api/tasks/run/{task_name}` with an optional JSON body
+    /// (`task_kwargs`). Returns the raw `TaskExecutionResponse` JSON.
+    pub async fn run_task(
+        &self,
+        task_name: &str,
+        kwargs: Option<Value>,
+    ) -> Result<Value> {
+        let path = format!("/api/tasks/run/{}", task_name);
+        self.request_json("POST", &path, &[], kwargs).await
+    }
+
+    /// Poll the status of a running task.
+    ///
+    /// Sends `GET /api/tasks/{task_id}`. Returns the raw status JSON.
+    pub async fn get_task_status(&self, task_id: &str) -> Result<Value> {
+        let path = format!("/api/tasks/{}", task_id);
+        self.request_json("GET", &path, &[], None).await
     }
 }
 

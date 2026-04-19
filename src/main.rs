@@ -83,9 +83,11 @@ async fn run_app() -> Result<()> {
 
 fn command_requires_config(command: &Commands) -> bool {
     match command {
-        Commands::Api(_) | Commands::Platforms(_) | Commands::Roms(_) | Commands::Download(_) => {
-            true
-        }
+        Commands::Api(_)
+        | Commands::Platforms(_)
+        | Commands::Roms(_)
+        | Commands::Download(_)
+        | Commands::Scan(_) => true,
         Commands::Cache(_) | Commands::Update => false,
         Commands::Init(_) | Commands::Tui => false,
     }

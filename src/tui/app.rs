@@ -30,7 +30,7 @@ use crate::core::cache::{RomCache, RomCacheKey};
 use crate::core::download::DownloadManager;
 use crate::core::startup_library_snapshot;
 use crate::endpoints::roms::GetRoms;
-use crate::types::{Collection, RomList};
+use crate::types::{Collection, Platform, RomList};
 
 use super::keyboard_help;
 use super::openapi::{resolve_path_template, EndpointRegistry};
@@ -45,6 +45,7 @@ use super::screens::{
 /// Result of a background library metadata refresh (generation-guarded).
 struct LibraryMetadataRefreshDone {
     gen: u64,
+    platforms: Vec<Platform>,
     collections: Vec<Collection>,
     collection_digest: Vec<startup_library_snapshot::CollectionDigestEntry>,
     warnings: Vec<String>,
@@ -236,9 +237,10 @@ impl App {
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         self.library_metadata_rx = Some(rx);
         tokio::spawn(async move {
-            let fetch = startup_library_snapshot::fetch_collection_summaries(&client).await;
+            let fetch = startup_library_snapshot::fetch_merged_library_metadata(&client).await;
             let _ = tx.send(LibraryMetadataRefreshDone {
                 gen,
+                platforms: fetch.platforms,
                 collections: fetch.collections,
                 collection_digest: fetch.collection_digest,
                 warnings: fetch.warnings,
@@ -350,8 +352,13 @@ impl App {
         let old_digest =
             startup_library_snapshot::build_collection_digest_from_collections(&lib.collections);
         let digest_changed = old_digest != msg.collection_digest;
-        let selection_changed =
-            lib.replace_metadata_preserving_selection(Vec::new(), msg.collections, false, true);
+        let update_platforms = !msg.platforms.is_empty();
+        let selection_changed = lib.replace_metadata_preserving_selection(
+            msg.platforms,
+            msg.collections,
+            update_platforms,
+            true,
+        );
         startup_library_snapshot::save_snapshot(&lib.platforms, &lib.collections);
 
         let footer = if msg.warnings.is_empty() {

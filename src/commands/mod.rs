@@ -14,9 +14,11 @@ pub mod api;
 pub mod cache;
 pub mod download;
 pub mod init;
+pub mod library_scan;
 pub mod platforms;
 pub mod print;
 pub mod roms;
+pub mod scan;
 pub mod update;
 
 /// How a command should format its output.
@@ -86,6 +88,8 @@ pub enum Commands {
     /// ROM-related commands
     #[command(visible_aliases = ["rom", "r"])]
     Roms(roms::RomsCommand),
+    /// Trigger a full library scan on the server (`scan_library` task)
+    Scan(scan::ScanCommand),
     /// Download a ROM
     #[command(visible_aliases = ["dl", "get"])]
     Download(download::DownloadCommand),

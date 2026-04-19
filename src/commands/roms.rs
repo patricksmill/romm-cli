@@ -1,10 +1,12 @@
+use std::path::PathBuf;
+use std::time::Duration;
+
 use anyhow::Result;
 use clap::{Args, Subcommand};
 use indicatif::{ProgressBar, ProgressStyle};
-use std::path::PathBuf;
-use std::path::PathBuf;
 
 use crate::client::RommClient;
+use crate::commands::library_scan::{run_scan_library_flow, ScanLibraryOptions};
 use crate::commands::print::print_roms_table;
 use crate::commands::OutputFormat;
 use crate::endpoints::roms::GetRoms;
@@ -55,6 +57,15 @@ pub enum RomsAction {
         platform_id: u64,
         /// The file to upload
         file: PathBuf,
+        /// Trigger a library scan after upload completes
+        #[arg(short, long)]
+        scan: bool,
+        /// Wait until the library scan finishes (requires `--scan`; polls every 2 seconds)
+        #[arg(long, requires = "scan")]
+        wait: bool,
+        /// Max seconds to wait when `--wait` is set (default: 3600)
+        #[arg(long, requires = "wait")]
+        wait_timeout_secs: Option<u64>,
     },
 }
 
@@ -138,7 +149,13 @@ pub async fn handle(cmd: RomsCommand, client: &RommClient, format: OutputFormat)
                 }
             }
         }
-        RomsAction::Upload { file, platform_id } => {
+        RomsAction::Upload {
+            file,
+            platform_id,
+            scan,
+            wait,
+            wait_timeout_secs,
+        } => {
             if !file.exists() {
                 anyhow::bail!("File or directory does not exist: {:?}", file);
             }
@@ -167,11 +184,25 @@ pub async fn handle(cmd: RomsCommand, client: &RommClient, format: OutputFormat)
             }
 
             let mp = indicatif::MultiProgress::new();
+            let mut successes = 0u32;
             for path in files {
                 let pb = mp.add(ProgressBar::new(0));
                 pb.set_style(make_progress_style());
-                if let Err(e) = upload_one(client, platform_id, path.clone(), pb).await {
-                    eprintln!("Error uploading {:?}: {}", path, e);
+                match upload_one(client, platform_id, path.clone(), pb).await {
+                    Ok(()) => successes += 1,
+                    Err(e) => eprintln!("Error uploading {:?}: {}", path, e),
+                }
+            }
+
+            if scan {
+                if successes == 0 {
+                    eprintln!("Skipping library scan: no uploads completed successfully.");
+                } else {
+                    let options = ScanLibraryOptions {
+                        wait,
+                        wait_timeout: Duration::from_secs(wait_timeout_secs.unwrap_or(3600)),
+                    };
+                    run_scan_library_flow(client, options, format).await?;
                 }
             }
         }
