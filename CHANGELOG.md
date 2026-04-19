@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.21.0](https://github.com/patricksmill/romm-cli/compare/v0.20.0...v0.21.0) (2026-04-19)
+
+
+### Features
+
+* **cache:** add cache management commands and functionality ([3c99a05](https://github.com/patricksmill/romm-cli/commit/3c99a05c23123326f9f9dfc53fefdfbba32ae58c))
+* **tui:** enhance library browsing with collection digest and prefetching ([7f779c2](https://github.com/patricksmill/romm-cli/commit/7f779c2c3b7f3d4c7e80a169d49113dbfc6e861e))
+* **tui:** enhance ROM loading management and error handling ([f3085b9](https://github.com/patricksmill/romm-cli/commit/f3085b940633c0383dca35d99daac9ed9f5ed1d8))
+* **tui:** enhance settings screen and server version handling ([e59b015](https://github.com/patricksmill/romm-cli/commit/e59b015f43f68b9766095c664c212bb98edf08b3))
+* **tui:** implement library metadata snapshot for faster TUI startup ([d33b36e](https://github.com/patricksmill/romm-cli/commit/d33b36e607df13268b1324b2fbd21d551d1f7c04))
+* **tui:** implement search loading state and improve error handling ([7d17fbd](https://github.com/patricksmill/romm-cli/commit/7d17fbde998aa14d21378b65c3d9fd498de7f169))
+* **tui:** improve ROM loading state management in library browsing ([2c46982](https://github.com/patricksmill/romm-cli/commit/2c46982ed0bba4039395630f98953ab50fb57c30))
+
+
+### Bug Fixes
+
+* **tui:** fix clippy warning in deferred_load_roms ([27c6059](https://github.com/patricksmill/romm-cli/commit/27c60598ba7f74c2879b3aea461e5e4396edc632))
+* **tui:** prevent deferred ROM loading for zero-ROM platforms ([7e2f89b](https://github.com/patricksmill/romm-cli/commit/7e2f89b926c1ac14adaa565b0f281814b3d5b7dd))
+
 ## [0.20.0](https://github.com/patricksmill/romm-cli/compare/v0.19.0...v0.20.0) (2026-04-17)
 
 
