@@ -27,6 +27,24 @@ Same scan path as upload: shared implementation in [`src/commands/library_scan.r
 
 With global `--json`, `scan` (and the scan phase of `roms upload --scan`) prints pretty JSON: the start response from `run_task`, and after `--wait` an extra `final_status` object with the last poll body.
 
+### On-disk ROM list cache after a successful `--wait`
+
+When a scan finishes in the **finished** state after `--wait`, the CLI updates the persistent ROM cache ([`RomCache`](../src/core/cache.rs)) so the next TUI (or CLI) session does not keep a stale platform list:
+
+- **`roms upload … --scan --wait`:** removes the cache entry for the upload `platform_id` only.
+- **`scan --wait`:** removes **all** cached platform lists (full-library scan); collection-type cache entries are not cleared here.
+
+If `--wait` is not used, the cache is left unchanged (the server scan may still be running).
+
+### TUI: rescan from the Library screen
+
+In the Library (consoles / games) screen, **Ctrl+R** starts the same `scan_library` task and waits for completion (no `indicatif` spinner; status is shown in the metadata footer). On success:
+
+1. All platform ROM list entries are removed from `RomCache`, plus the current row’s cache key when it is a collection (not a platform).
+2. A library metadata refresh runs, then the current console/collection’s game list is **reloaded automatically** (same deferred fetch path as after a cache miss), so you do not need to move selection to force a refetch.
+
+While a filter/jump search bar is open in the Library, **Ctrl+R** is ignored (same idea as other global shortcuts during typing). Only one scan may run at a time; a second **Ctrl+R** is ignored until the first completes.
+
 ## Client API helpers
 
 In [`src/client.rs`](../src/client.rs):

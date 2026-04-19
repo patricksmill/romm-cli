@@ -39,7 +39,9 @@ async fn scan_triggers_post_run_scan_library() {
         .env("API_USE_HTTPS", "false")
         .arg("scan");
 
-    cmd.assert().success().stdout(predicates::str::contains("job-abc"));
+    cmd.assert()
+        .success()
+        .stdout(predicates::str::contains("job-abc"));
 
     let _ = std::fs::remove_dir_all(config_dir);
 }

@@ -222,6 +222,27 @@ impl RomCache {
         self.entries.insert(key, (expected_count, data));
         self.save();
     }
+
+    /// Drop one cache entry if present, then persist.
+    pub fn remove(&mut self, key: &RomCacheKey) -> bool {
+        let removed = self.entries.remove(key).is_some();
+        if removed {
+            self.save();
+        }
+        removed
+    }
+
+    /// Remove every [`RomCacheKey::Platform`] entry (e.g. after a full `scan_library`).
+    pub fn remove_all_platform_entries(&mut self) -> usize {
+        let before = self.entries.len();
+        self.entries
+            .retain(|k, _| !matches!(k, RomCacheKey::Platform(_)));
+        let removed = before - self.entries.len();
+        if removed > 0 {
+            self.save();
+        }
+        removed
+    }
 }
 
 fn cache_path_with_override() -> (PathBuf, bool) {
@@ -397,6 +418,25 @@ mod tests {
         let loaded = RomCache::load_from(path.clone());
         let cached = loaded.get_valid(&key, 5).expect("cached value");
         assert_eq!(cached.items.len(), 1);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn remove_and_remove_all_platform_entries() {
+        let path = temp_cache_path();
+        let mut cache = RomCache::load_from(path.clone());
+        cache.insert(RomCacheKey::Platform(1), sample_rom_list(), 1);
+        cache.insert(RomCacheKey::Platform(2), sample_rom_list(), 1);
+        cache.insert(RomCacheKey::Collection(9), sample_rom_list(), 1);
+
+        assert!(cache.remove(&RomCacheKey::Platform(1)));
+        assert!(cache.get_valid(&RomCacheKey::Platform(1), 1).is_none());
+        assert!(cache.get_valid(&RomCacheKey::Platform(2), 1).is_some());
+
+        assert_eq!(cache.remove_all_platform_entries(), 1);
+        assert!(cache.get_valid(&RomCacheKey::Platform(2), 1).is_none());
+        assert!(cache.get_valid(&RomCacheKey::Collection(9), 1).is_some());
 
         let _ = std::fs::remove_file(path);
     }

@@ -684,11 +684,7 @@ impl RommClient {
     ///
     /// Sends `POST /api/tasks/run/{task_name}` with an optional JSON body
     /// (`task_kwargs`). Returns the raw `TaskExecutionResponse` JSON.
-    pub async fn run_task(
-        &self,
-        task_name: &str,
-        kwargs: Option<Value>,
-    ) -> Result<Value> {
+    pub async fn run_task(&self, task_name: &str, kwargs: Option<Value>) -> Result<Value> {
         let path = format!("/api/tasks/run/{}", task_name);
         self.request_json("POST", &path, &[], kwargs).await
     }

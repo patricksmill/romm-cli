@@ -25,6 +25,7 @@ Library (consoles / games)
   Tab                Next jump match (jump mode)
   Enter              Open games list or game detail
   t                  Switch consoles / collections
+  Ctrl-r             Rescan library on server (waits until done; refreshes games list)
   Esc                Back or main menu
   q                  Quit
 

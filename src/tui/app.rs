@@ -167,6 +167,11 @@ pub struct App {
     search_load_rx: tokio::sync::mpsc::UnboundedReceiver<SearchLoadDone>,
     search_load_tx: tokio::sync::mpsc::UnboundedSender<SearchLoadDone>,
     search_load_task: Option<tokio::task::JoinHandle<()>>,
+    /// Receives `Ok(())` when a background `scan_library` (with wait) finishes successfully.
+    library_scan_rx: Option<tokio::sync::mpsc::UnboundedReceiver<Result<(), String>>>,
+    library_scan_inflight: bool,
+    /// After a successful server scan, force ROM list reload once metadata refresh completes.
+    force_rom_reload_after_metadata: bool,
 }
 
 impl App {
@@ -227,6 +232,9 @@ impl App {
             search_load_rx,
             search_load_tx,
             search_load_task: None,
+            library_scan_rx: None,
+            library_scan_inflight: false,
+            force_rom_reload_after_metadata: false,
         }
     }
 
@@ -254,7 +262,79 @@ impl App {
         self.poll_rom_load_results();
         self.poll_collection_prefetch_results();
         self.poll_search_load_results();
+        self.poll_library_scan();
         self.drive_collection_prefetch_scheduler();
+    }
+
+    fn spawn_library_rescan_worker(&mut self) {
+        if self.library_scan_inflight {
+            return;
+        }
+        self.library_scan_inflight = true;
+        if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
+            lib.set_metadata_footer(Some("Server library scan running…".into()));
+        }
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        self.library_scan_rx = Some(rx);
+        let client = self.client.clone();
+        tokio::spawn(async move {
+            let result = async {
+                let start = crate::commands::library_scan::start_scan_library(&client).await?;
+                crate::commands::library_scan::wait_for_task_terminal(
+                    &client,
+                    &start.task_id,
+                    Duration::from_secs(3600),
+                    |_| {},
+                )
+                .await?;
+                Ok::<(), anyhow::Error>(())
+            }
+            .await
+            .map_err(|e| e.to_string());
+            let _ = tx.send(result);
+        });
+    }
+
+    fn poll_library_scan(&mut self) {
+        let Some(rx) = &mut self.library_scan_rx else {
+            return;
+        };
+        match rx.try_recv() {
+            Ok(result) => {
+                self.library_scan_rx = None;
+                self.library_scan_inflight = false;
+                match result {
+                    Ok(()) => self.on_library_scan_completed_success(),
+                    Err(e) => {
+                        if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
+                            lib.set_metadata_footer(Some(format!("Library scan failed: {e}")));
+                        } else {
+                            self.global_error = Some(format!("Library scan failed: {e}"));
+                        }
+                    }
+                }
+            }
+            Err(tokio::sync::mpsc::error::TryRecvError::Empty) => {}
+            Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
+                self.library_scan_rx = None;
+                self.library_scan_inflight = false;
+            }
+        }
+    }
+
+    fn on_library_scan_completed_success(&mut self) {
+        self.rom_cache.remove_all_platform_entries();
+        if let AppScreen::LibraryBrowse(lib) = &self.screen {
+            if let Some(ref k) = lib.cache_key() {
+                if !matches!(k, RomCacheKey::Platform(_)) {
+                    self.rom_cache.remove(k);
+                }
+            }
+        }
+        if matches!(self.screen, AppScreen::LibraryBrowse(_)) {
+            self.force_rom_reload_after_metadata = true;
+            self.spawn_library_metadata_refresh();
+        }
     }
 
     fn poll_search_load_results(&mut self) {
@@ -346,6 +426,7 @@ impl App {
             lib.set_metadata_footer(Some(
                 "Could not refresh library metadata (keeping cached list).".into(),
             ));
+            self.force_rom_reload_after_metadata = false;
             return;
         }
 
@@ -388,6 +469,18 @@ impl App {
             self.deferred_load_roms =
                 Some((key, req, expected, "refresh_selection", Instant::now()));
         }
+
+        let force_reload = std::mem::take(&mut self.force_rom_reload_after_metadata);
+        if force_reload && lib.list_len() > 0 && !selection_changed {
+            lib.clear_roms();
+            let key = lib.cache_key();
+            let expected = lib.expected_rom_count();
+            let req = Self::selected_rom_request_for_library(lib);
+            lib.set_rom_loading(expected > 0);
+            self.deferred_load_roms =
+                Some((key, req, expected, "post_scan_reload", Instant::now()));
+        }
+
         self.queue_collection_prefetches_from_screen(1, "refresh_warmup");
     }
 
@@ -489,11 +582,24 @@ impl App {
             // Poll with a short timeout so the UI refreshes during downloads
             // even when the user is not pressing any keys.
             if event::poll(Duration::from_millis(100))? {
-                if let Event::Key(key) = event::read()? {
-                    if Self::is_force_quit_key(&key) {
+                if let Event::Key(key_event) = event::read()? {
+                    if Self::is_force_quit_key(&key_event) {
                         break;
                     }
-                    if key.kind == KeyEventKind::Press && self.handle_key(key.code).await? {
+                    if key_event.kind == KeyEventKind::Press
+                        && key_event.modifiers.contains(KeyModifiers::CONTROL)
+                        && matches!(key_event.code, KeyCode::Char('r') | KeyCode::Char('R'))
+                    {
+                        if let AppScreen::LibraryBrowse(ref lib) = self.screen {
+                            if !lib.any_search_bar_open() && !self.library_scan_inflight {
+                                self.spawn_library_rescan_worker();
+                            }
+                        }
+                        continue;
+                    }
+                    if key_event.kind == KeyEventKind::Press
+                        && self.handle_key(key_event.code).await?
+                    {
                         break;
                     }
                 }

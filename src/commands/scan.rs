@@ -7,7 +7,7 @@ use clap::Args;
 
 use crate::client::RommClient;
 
-use super::library_scan::{run_scan_library_flow, ScanLibraryOptions};
+use super::library_scan::{run_scan_library_flow, ScanCacheInvalidate, ScanLibraryOptions};
 use super::OutputFormat;
 
 #[derive(Args, Debug)]
@@ -25,6 +25,11 @@ pub async fn handle(cmd: ScanCommand, client: &RommClient, format: OutputFormat)
     let options = ScanLibraryOptions {
         wait: cmd.wait,
         wait_timeout: Duration::from_secs(cmd.wait_timeout_secs.unwrap_or(3600)),
+        cache_invalidate: if cmd.wait {
+            ScanCacheInvalidate::AllPlatforms
+        } else {
+            ScanCacheInvalidate::None
+        },
     };
     run_scan_library_flow(client, options, format).await
 }

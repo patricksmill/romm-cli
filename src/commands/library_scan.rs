@@ -7,16 +7,43 @@ use indicatif::ProgressBar;
 use serde_json::Value;
 
 use crate::client::RommClient;
+use crate::core::cache::{RomCache, RomCacheKey};
 
 use super::OutputFormat;
 
 pub const SCAN_LIBRARY_TASK_NAME: &str = "scan_library";
+
+/// After a successful `--wait`, optionally drop stale entries from the on-disk ROM list cache.
+#[derive(Clone, Debug, Default)]
+pub enum ScanCacheInvalidate {
+    #[default]
+    None,
+    /// Clear the cached list for this platform (e.g. after `roms upload … --scan --wait`).
+    Platform(u64),
+    /// Clear every platform entry (full `scan_library` scope).
+    AllPlatforms,
+}
 
 /// Options for starting a library scan and optionally blocking until it finishes.
 #[derive(Clone, Debug)]
 pub struct ScanLibraryOptions {
     pub wait: bool,
     pub wait_timeout: Duration,
+    pub cache_invalidate: ScanCacheInvalidate,
+}
+
+fn apply_cache_invalidate(inv: &ScanCacheInvalidate) {
+    match inv {
+        ScanCacheInvalidate::None => {}
+        ScanCacheInvalidate::Platform(pid) => {
+            let mut c = RomCache::load();
+            c.remove(&RomCacheKey::Platform(*pid));
+        }
+        ScanCacheInvalidate::AllPlatforms => {
+            let mut c = RomCache::load();
+            c.remove_all_platform_entries();
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -72,20 +99,17 @@ fn is_success_status(status: &str) -> bool {
 }
 
 /// Poll `GET /api/tasks/{task_id}` every 2 seconds until terminal state or timeout.
+/// `on_status` is invoked with each non-terminal status string (may be empty on parse miss).
 /// On success returns the last status JSON (typically `status` == `finished`).
-pub async fn wait_for_scan_task(
+pub async fn wait_for_task_terminal(
     client: &RommClient,
     task_id: &str,
     timeout: Duration,
+    mut on_status: impl FnMut(&str),
 ) -> Result<Value> {
-    let pb = ProgressBar::new_spinner();
-    pb.enable_steady_tick(Duration::from_millis(120));
-    pb.set_message(format!("Waiting for library scan (task {task_id})…"));
-
     let deadline = Instant::now() + timeout;
     loop {
         if Instant::now() >= deadline {
-            pb.finish_and_clear();
             anyhow::bail!(
                 "timed out waiting for library scan task {} after {:?}",
                 task_id,
@@ -99,18 +123,35 @@ pub async fn wait_for_scan_task(
             .with_context(|| format!("failed to poll task {task_id}"))?;
         let st = status_from_json(&body).unwrap_or("");
 
-        pb.set_message(format!("Library scan: {st}…"));
-
         if is_terminal_status(st) {
-            pb.finish_and_clear();
             if is_success_status(st) {
                 return Ok(body);
             }
             anyhow::bail!("library scan task ended with status {st:?}: {body}");
         }
 
+        on_status(st);
         tokio::time::sleep(Duration::from_secs(2)).await;
     }
+}
+
+/// CLI: poll task status with an `indicatif` spinner (do not use under the TUI alternate screen).
+pub async fn wait_for_scan_task(
+    client: &RommClient,
+    task_id: &str,
+    timeout: Duration,
+) -> Result<Value> {
+    let pb = ProgressBar::new_spinner();
+    pb.enable_steady_tick(Duration::from_millis(120));
+    pb.set_message(format!("Waiting for library scan (task {task_id})…"));
+
+    let result = wait_for_task_terminal(client, task_id, timeout, |st| {
+        pb.set_message(format!("Library scan: {st}…"));
+    })
+    .await;
+
+    pb.finish_and_clear();
+    result
 }
 
 /// Start a library scan; optionally wait. Prints human text or JSON per `format`.
@@ -139,6 +180,7 @@ pub async fn run_scan_library_flow(
 
     if options.wait {
         let final_body = wait_for_scan_task(client, &start.task_id, options.wait_timeout).await?;
+        apply_cache_invalidate(&options.cache_invalidate);
         match format {
             OutputFormat::Text => println!("Library scan finished successfully."),
             OutputFormat::Json => {

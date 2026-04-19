@@ -6,7 +6,9 @@ use clap::{Args, Subcommand};
 use indicatif::{ProgressBar, ProgressStyle};
 
 use crate::client::RommClient;
-use crate::commands::library_scan::{run_scan_library_flow, ScanLibraryOptions};
+use crate::commands::library_scan::{
+    run_scan_library_flow, ScanCacheInvalidate, ScanLibraryOptions,
+};
 use crate::commands::print::print_roms_table;
 use crate::commands::OutputFormat;
 use crate::endpoints::roms::GetRoms;
@@ -201,6 +203,11 @@ pub async fn handle(cmd: RomsCommand, client: &RommClient, format: OutputFormat)
                     let options = ScanLibraryOptions {
                         wait,
                         wait_timeout: Duration::from_secs(wait_timeout_secs.unwrap_or(3600)),
+                        cache_invalidate: if wait {
+                            ScanCacheInvalidate::Platform(platform_id)
+                        } else {
+                            ScanCacheInvalidate::None
+                        },
                     };
                     run_scan_library_flow(client, options, format).await?;
                 }
