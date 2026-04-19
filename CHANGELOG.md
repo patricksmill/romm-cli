@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.22.0](https://github.com/patricksmill/romm-cli/compare/v0.21.0...v0.22.0) (2026-04-19)
+
+
+### Features
+
+* **roms:** implement ROM file upload functionality ([b418c15](https://github.com/patricksmill/romm-cli/commit/b418c1556c894ae1dc9dbdbf23d84dcb8994162f))
+* **roms:** implement ROM file upload functionality ([15fc288](https://github.com/patricksmill/romm-cli/commit/15fc288c1394940d46c417b0d9e9c68d329700f5))
+* **scan:** add library scan functionality post-ROM upload ([e71855d](https://github.com/patricksmill/romm-cli/commit/e71855d0c8ebeffe89faf67c5f630b7333a42891))
+* **scan:** enhance library scan functionality with cache management ([349e316](https://github.com/patricksmill/romm-cli/commit/349e316b1e2c6b0f5035c103de6316aa31db4163))
+* **upload:** add ROM upload functionality to Library screen ([24ce155](https://github.com/patricksmill/romm-cli/commit/24ce155bc6f310a5ac90020c11d9267b99143eb6))
+
 ## [0.21.0](https://github.com/patricksmill/romm-cli/compare/v0.20.0...v0.21.0) (2026-04-19)
 
 
