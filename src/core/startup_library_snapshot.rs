@@ -178,9 +178,10 @@ pub async fn fetch_merged_library_metadata(client: &RommClient) -> LibraryMetada
             Vec::new()
         }
     };
-    let virtual_rows = match tokio::time::timeout(Duration::from_secs(3), client.call(&ListVirtualCollections))
-        .await
-    {
+    let virtual_rows =
+        match tokio::time::timeout(Duration::from_secs(3), client.call(&ListVirtualCollections))
+            .await
+        {
             Ok(Ok(v)) => v,
             Ok(Err(e)) => {
                 warnings.push(format!("GET /api/collections/virtual?type=all: {e:#}"));

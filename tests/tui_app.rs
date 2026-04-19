@@ -16,6 +16,18 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 #[tokio::test]
 async fn test_main_menu_api_error_shows_popup() {
     let mock_server = MockServer::start().await;
+    // Background library refresh uses collection summary endpoints (not GET /api/platforms).
+    for api_path in [
+        "/api/collections",
+        "/api/collections/smart",
+        "/api/collections/virtual",
+    ] {
+        Mock::given(method("GET"))
+            .and(path(api_path))
+            .respond_with(ResponseTemplate::new(500).set_body_string("Internal Server Error"))
+            .mount(&mock_server)
+            .await;
+    }
     Mock::given(method("GET"))
         .and(path("/api/platforms"))
         .respond_with(ResponseTemplate::new(500).set_body_string("Internal Server Error"))
@@ -44,7 +56,10 @@ async fn test_main_menu_api_error_shows_popup() {
         app.poll_background_tasks();
         if let AppScreen::LibraryBrowse(ref lib) = app.screen {
             if let Some(ref foot) = lib.metadata_footer {
-                if foot.contains("500") || foot.contains("Partial refresh") {
+                if foot.contains("500")
+                    || foot.contains("Partial refresh")
+                    || foot.contains("Could not refresh library metadata")
+                {
                     saw_failure_footer = true;
                     break;
                 }

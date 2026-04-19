@@ -87,16 +87,19 @@ impl LibraryBrowseScreen {
         }
     }
 
-    fn cache_key_for_position(&self, subsection: LibrarySubsection, source_idx: usize) -> Option<RomCacheKey> {
+    fn cache_key_for_position(
+        &self,
+        subsection: LibrarySubsection,
+        source_idx: usize,
+    ) -> Option<RomCacheKey> {
         match subsection {
             LibrarySubsection::ByConsole => self
                 .platforms
                 .get(source_idx)
                 .map(|p| RomCacheKey::Platform(p.id)),
-            LibrarySubsection::ByCollection => self
-                .collections
-                .get(source_idx)
-                .map(Self::collection_key),
+            LibrarySubsection::ByCollection => {
+                self.collections.get(source_idx).map(Self::collection_key)
+            }
         }
     }
 
@@ -240,8 +243,8 @@ impl LibraryBrowseScreen {
                 self.cache_key_for_position(LibrarySubsection::ByCollection, *source_idx),
                 self.get_roms_request_for_position(LibrarySubsection::ByCollection, *source_idx),
             ) {
-                let expected =
-                    self.expected_rom_count_for_position(LibrarySubsection::ByCollection, *source_idx);
+                let expected = self
+                    .expected_rom_count_for_position(LibrarySubsection::ByCollection, *source_idx);
                 out.push((key, req, expected));
             }
         }
@@ -789,7 +792,7 @@ impl LibraryBrowseScreen {
         if self.rom_search.mode.is_some() {
             "No games match your search".to_string()
         } else if self.rom_loading && self.expected_rom_count() > 0 {
-            format!("Loading {} games... please wait", self.expected_rom_count())
+            "Loading games...".to_string()
         } else {
             "Select a console or collection and press Enter to load ROMs".to_string()
         }
@@ -968,8 +971,14 @@ mod tests {
         s.set_rom_loading(true);
         s.back_to_list();
         assert_eq!(s.view_mode, LibraryViewMode::List);
-        assert!(s.roms.is_some(), "back navigation should keep loaded ROM list");
-        assert!(s.rom_groups.is_some(), "back navigation should keep grouped ROM rows");
+        assert!(
+            s.roms.is_some(),
+            "back navigation should keep loaded ROM list"
+        );
+        assert!(
+            s.rom_groups.is_some(),
+            "back navigation should keep grouped ROM rows"
+        );
         assert!(
             s.rom_loading,
             "back navigation should preserve in-flight loading state"
@@ -986,9 +995,6 @@ mod tests {
             "Select a console or collection and press Enter to load ROMs"
         );
         s.set_rom_loading(true);
-        assert_eq!(
-            s.empty_rom_state_message(),
-            "Loading 12 games... please wait"
-        );
+        assert_eq!(s.empty_rom_state_message(), "Loading games...");
     }
 }
