@@ -187,7 +187,7 @@ impl SettingsScreen {
                 }
             )),
             ListItem::new(format!(
-                "Download Dir: {}",
+                "Roms Dir:     {}",
                 if self.editing && self.selected_index == 1 {
                     &self.edit_buffer
                 } else {

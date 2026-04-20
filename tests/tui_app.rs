@@ -234,3 +234,113 @@ async fn library_filter_enter_then_enter_opens_game_detail() {
         "second Enter should open the selected filtered game"
     );
 }
+
+#[tokio::test]
+async fn game_detail_download_is_blocked_when_config_download_path_is_invalid() {
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let base = std::env::temp_dir().join(format!("romm-invalid-dl-{ts}"));
+    std::fs::create_dir_all(&base).unwrap();
+    let invalid_target = base.join("not-a-directory.txt");
+    std::fs::write(&invalid_target, b"x").unwrap();
+
+    let config = Config {
+        base_url: "http://127.0.0.1:9".into(),
+        download_dir: invalid_target.to_string_lossy().to_string(),
+        use_https: false,
+        auth: None,
+    };
+    let client = RommClient::new(&config, false).unwrap();
+    let mut app = App::new(client, config, EndpointRegistry::default(), None, None);
+
+    let items = vec![sample_rom(1, "alpha")];
+    let rom_list = RomList {
+        total: items.len() as u64,
+        limit: items.len() as u64,
+        offset: 0,
+        items: items.clone(),
+    };
+
+    let mut lib = LibraryBrowseScreen::new(vec![], vec![]);
+    lib.roms = Some(rom_list);
+    lib.rom_groups = Some(utils::group_roms_by_name(&items));
+    lib.view_mode = LibraryViewMode::Roms;
+    app.screen = AppScreen::LibraryBrowse(lib);
+
+    assert!(!app.handle_key(KeyCode::Enter).await.unwrap());
+    assert!(matches!(&app.screen, AppScreen::GameDetail(_)));
+
+    assert!(!app.handle_key(KeyCode::Enter).await.unwrap());
+    assert!(
+        matches!(&app.screen, AppScreen::GameDetail(d) if d.message.as_deref().is_some_and(|m| m.contains("Download blocked"))),
+        "invalid configured download path should block start with a user-facing message"
+    );
+
+    let _ = std::fs::remove_file(&invalid_target);
+    let _ = std::fs::remove_dir_all(&base);
+}
+
+#[tokio::test]
+async fn game_detail_download_skips_when_rom_already_exists_in_console_folder() {
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let roms_dir = std::env::temp_dir().join(format!("romm-roms-dir-{ts}"));
+    let console_dir = roms_dir.join("platform-1");
+    std::fs::create_dir_all(&console_dir).unwrap();
+    std::fs::write(console_dir.join("alpha.zip"), b"existing").unwrap();
+
+    let config = Config {
+        base_url: "http://127.0.0.1:9".into(),
+        download_dir: roms_dir.to_string_lossy().to_string(),
+        use_https: false,
+        auth: None,
+    };
+    let client = RommClient::new(&config, false).unwrap();
+    let mut app = App::new(client, config, EndpointRegistry::default(), None, None);
+
+    let items = vec![sample_rom(1, "alpha")];
+    let rom_list = RomList {
+        total: items.len() as u64,
+        limit: items.len() as u64,
+        offset: 0,
+        items: items.clone(),
+    };
+
+    let mut lib = LibraryBrowseScreen::new(vec![], vec![]);
+    lib.roms = Some(rom_list);
+    lib.rom_groups = Some(utils::group_roms_by_name(&items));
+    lib.view_mode = LibraryViewMode::Roms;
+    app.screen = AppScreen::LibraryBrowse(lib);
+
+    assert!(!app.handle_key(KeyCode::Enter).await.unwrap());
+    assert!(!app.handle_key(KeyCode::Enter).await.unwrap());
+
+    let mut saw_skip = false;
+    for _ in 0..50 {
+        if let AppScreen::GameDetail(detail) = &app.screen {
+            if let Ok(list) = detail.downloads.lock() {
+                saw_skip = list.iter().any(|j| {
+                    j.rom_id == 1
+                        && matches!(
+                            j.status,
+                            romm_cli::core::download::DownloadStatus::SkippedAlreadyExists
+                        )
+                });
+            }
+        }
+        if saw_skip {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+
+    assert!(
+        saw_skip,
+        "expected existing ROM to produce SkippedAlreadyExists status"
+    );
+    let _ = std::fs::remove_dir_all(&roms_dir);
+}

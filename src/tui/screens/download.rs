@@ -62,6 +62,14 @@ impl DownloadScreen {
                             (format!("{}%", percent), Style::default().fg(Color::Cyan))
                         }
                         DownloadStatus::Done => ("Done".into(), Style::default().fg(Color::Green)),
+                        DownloadStatus::SkippedAlreadyExists => (
+                            "Skipped (already exists)".into(),
+                            Style::default().fg(Color::Yellow),
+                        ),
+                        DownloadStatus::FinalizeFailed(msg) => (
+                            format!("Finalize failed: {}", truncate(msg, 40)),
+                            Style::default().fg(Color::Red),
+                        ),
                         DownloadStatus::Error(msg) => (
                             format!("Error: {}", truncate(msg, 50)),
                             Style::default().fg(Color::Red),

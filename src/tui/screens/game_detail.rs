@@ -160,7 +160,10 @@ impl GameDetailScreen {
                             || (!self.download_completion_acknowledged
                                 && matches!(
                                     j.status,
-                                    DownloadStatus::Done | DownloadStatus::Error(_)
+                                    DownloadStatus::Done
+                                        | DownloadStatus::SkippedAlreadyExists
+                                        | DownloadStatus::FinalizeFailed(_)
+                                        | DownloadStatus::Error(_)
                                 )))
                 })
                 .cloned()
@@ -377,6 +380,14 @@ impl GameDetailScreen {
                 DownloadStatus::Done => (
                     "Download complete".to_string(),
                     Style::default().fg(Color::Green),
+                ),
+                DownloadStatus::SkippedAlreadyExists => (
+                    "Already present (skipped)".to_string(),
+                    Style::default().fg(Color::Yellow),
+                ),
+                DownloadStatus::FinalizeFailed(msg) => (
+                    format!("Finalize failed: {}", truncate(msg, 40)),
+                    Style::default().fg(Color::Red),
                 ),
                 DownloadStatus::Error(msg) => (
                     format!("Error: {}", truncate(msg, 50)),

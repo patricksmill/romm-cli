@@ -1732,6 +1732,8 @@ impl App {
                         && matches!(
                             j.status,
                             crate::core::download::DownloadStatus::Done
+                                | crate::core::download::DownloadStatus::SkippedAlreadyExists
+                                | crate::core::download::DownloadStatus::FinalizeFailed(_)
                                 | crate::core::download::DownloadStatus::Error(_)
                         )
                 });
@@ -1750,9 +1752,19 @@ impl App {
             // Only start a download once per detail view and avoid
             // stacking multiple concurrent downloads for the same ROM.
             KeyCode::Enter if !detail.has_started_download => {
-                detail.has_started_download = true;
-                self.downloads
-                    .start_download(&detail.rom, self.client.clone());
+                match self.downloads.start_download(
+                    &detail.rom,
+                    self.client.clone(),
+                    Some(self.config.download_dir.as_str()),
+                ) {
+                    Ok(()) => detail.has_started_download = true,
+                    Err(err) => {
+                        detail.has_started_download = false;
+                        detail.message = Some(format!(
+                            "Download blocked: {err}. Fix ROMs directory in settings/setup."
+                        ));
+                    }
+                }
             }
             KeyCode::Char('o') => detail.open_cover(),
             KeyCode::Char('m') => detail.toggle_technical(),

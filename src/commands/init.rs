@@ -36,7 +36,7 @@ pub struct InitCommand {
     #[arg(long)]
     pub token_file: Option<String>,
 
-    /// Download directory for ROMs.
+    /// ROMs directory.
     #[arg(long)]
     pub download_dir: Option<String>,
 
@@ -180,13 +180,13 @@ pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
         );
     }
 
-    // ── Download directory ──────────────────────────────────────────────
+    // ── ROMs directory ─────────────────────────────────────────────────
     let default_dl_dir = dirs::download_dir()
         .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join("Downloads"))
         .join("romm-cli");
 
     let download_dir: String = Input::with_theme(&ColorfulTheme::default())
-        .with_prompt("Download directory for ROMs")
+        .with_prompt("ROMs directory")
         .default(default_dl_dir.display().to_string())
         .interact_text()?;
 

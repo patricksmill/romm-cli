@@ -1,4 +1,4 @@
-//! First-run setup: server URL, download directory, authentication, test connection, persist config.
+//! First-run setup: server URL, ROMs directory, authentication, test connection, persist config.
 
 use anyhow::{anyhow, Context, Result};
 use crossterm::event::{
@@ -21,6 +21,7 @@ use crate::config::{
     is_keyring_placeholder, load_config, normalize_romm_origin, persist_user_config,
     read_user_config_json_from_disk, AuthConfig, Config,
 };
+use crate::core::download::validate_configured_download_directory;
 use crate::endpoints::client_tokens::ExchangeClientToken;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -239,9 +240,12 @@ impl SetupWizard {
         if code.is_empty() {
             return Err(anyhow!("Pairing code cannot be empty"));
         }
+        let download_dir = validate_configured_download_directory(self.download_dir.trim())?
+            .display()
+            .to_string();
         let temp_config = Config {
             base_url: base_url.clone(),
-            download_dir: self.download_dir.trim().to_string(),
+            download_dir: download_dir.clone(),
             use_https: self.use_https,
             auth: None,
         };
@@ -252,7 +256,7 @@ impl SetupWizard {
             .context("failed to exchange pairing code")?;
         Ok(Config {
             base_url,
-            download_dir: self.download_dir.trim().to_string(),
+            download_dir,
             use_https: self.use_https,
             auth: Some(AuthConfig::Bearer {
                 token: response.raw_token,
@@ -265,6 +269,9 @@ impl SetupWizard {
         if base_url.is_empty() {
             return Err(anyhow!("Server URL cannot be empty"));
         }
+        let download_dir = validate_configured_download_directory(self.download_dir.trim())?
+            .display()
+            .to_string();
         let auth: Option<AuthConfig> = match self.auth_kind {
             AuthKind::None => None,
             AuthKind::Basic => {
@@ -325,7 +332,7 @@ impl SetupWizard {
         };
         Ok(Config {
             base_url,
-            download_dir: self.download_dir.trim().to_string(),
+            download_dir,
             use_https: self.use_https,
             auth,
         })
@@ -335,7 +342,7 @@ impl SetupWizard {
         let title = match self.step {
             Step::Url => "Step 1/5 — RomM server URL",
             Step::Https => "Step 2/5 — Secure connection",
-            Step::Download => "Step 3/5 — Download directory",
+            Step::Download => "Step 3/5 — ROMs directory",
             Step::AuthMenu => "Step 4/5 — Authentication",
             Step::BasicUser | Step::BasicPass => "Step 5/5 — Basic auth",
             Step::Bearer => "Step 5/5 — API Token",
@@ -552,7 +559,7 @@ impl SetupWizard {
                 };
                 let mut lines = vec![
                     format!("Server: {url_line}"),
-                    format!("Downloads: {}", self.download_dir.trim()),
+                    format!("ROMs Dir: {}", self.download_dir.trim()),
                     format!("Use HTTPS: {}", if self.use_https { "Yes" } else { "No" }),
                     format!("Auth: {auth_desc}"),
                     String::new(),
@@ -690,7 +697,7 @@ impl SetupWizard {
             }
             Step::Download => {
                 if self.download_dir.trim().is_empty() {
-                    self.error = Some("Download path cannot be empty".to_string());
+                    self.error = Some("ROMs directory path cannot be empty".to_string());
                     return Ok(());
                 }
                 self.step = Step::AuthMenu;
@@ -1062,6 +1069,8 @@ mod tests {
             _ => panic!("expected bearer auth after pairing exchange"),
         }
         assert_eq!(cfg.base_url, normalize_romm_origin(&uri));
-        assert_eq!(cfg.download_dir, "/tmp/romm-dl-test");
+        let expected_download_dir =
+            validate_configured_download_directory("/tmp/romm-dl-test").unwrap();
+        assert_eq!(cfg.download_dir, expected_download_dir.display().to_string());
     }
 }

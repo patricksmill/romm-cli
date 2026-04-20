@@ -70,7 +70,7 @@ romm-cli init --url https://romm.example.com --token-file ~/.romm-token --check
 - `--url <URL>`: RomM origin (browser-style).
 - `--token <TOKEN>`: Bearer token string.
 - `--token-file <PATH>`: Read token from UTF-8 file. Use `-` for stdin.
-- `--download-dir <PATH>`: Override the default download directory.
+- `--download-dir <PATH>`: Override the default ROMs directory.
 - `--no-https`: Disable HTTPS (use HTTP instead).
 - `--check`: Verify URL and token by fetching OpenAPI and calling the platforms endpoint after saving.
 - `--force`: Overwrite existing configuration without asking.
@@ -83,7 +83,8 @@ Set these in your shell (or any tool that injects env vars into the process) for
 | Variable | Description |
 |----------|-------------|
 | `API_BASE_URL` | RomM site URL (browser address, no `/api`; e.g. `https://romm.example.com`) |
-| `ROMM_DOWNLOAD_DIR` | Directory for downloaded ROMs (defaults to `Downloads/romm-cli`) |
+| `ROMM_ROMS_DIR` | Preferred. Directory for stored ROMs (defaults to `Downloads/romm-cli`) |
+| `ROMM_DOWNLOAD_DIR` | Legacy alias for `ROMM_ROMS_DIR` |
 | `API_USE_HTTPS` | Set to `false` to disable automatic upgrade to HTTPS (default: `true`) |
 | `API_USERNAME` / `API_PASSWORD` | Basic Auth credentials |
 | `API_TOKEN` | Bearer token |

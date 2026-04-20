@@ -24,7 +24,7 @@
 //! ## `load_config` vs `config.json`
 //!
 //! [`load_config`] merges sources **per field**: process environment wins over values from
-//! `config.json` for `API_BASE_URL`, `ROMM_DOWNLOAD_DIR`, `API_USE_HTTPS`, and auth-related
+//! `config.json` for `API_BASE_URL`, `ROMM_ROMS_DIR`/`ROMM_DOWNLOAD_DIR`, `API_USE_HTTPS`, and auth-related
 //! fields. The keyring is used only to replace placeholder or sentinel secret strings after that merge.
 
 use std::fs;
@@ -276,8 +276,9 @@ pub fn load_config() -> Result<Config> {
         })?;
     let mut base_url = normalize_romm_origin(&base_raw);
 
-    // 3. Resolve download_dir
-    let download_dir = env_nonempty("ROMM_DOWNLOAD_DIR")
+    // 3. Resolve ROM storage directory
+    let download_dir = env_nonempty("ROMM_ROMS_DIR")
+        .or_else(|| env_nonempty("ROMM_DOWNLOAD_DIR"))
         .or_else(|| json_config.as_ref().map(|c| c.download_dir.clone()))
         .unwrap_or_else(|| {
             dirs::download_dir()
@@ -577,6 +578,7 @@ mod tests {
     fn clear_auth_env() {
         for key in [
             "API_BASE_URL",
+            "ROMM_ROMS_DIR",
             "API_USERNAME",
             "API_PASSWORD",
             "API_TOKEN",
@@ -698,6 +700,17 @@ mod tests {
         assert_eq!(cfg.base_url, "http://from-json-file.test");
         assert_eq!(cfg.download_dir, "/tmp/downloads");
         assert!(!cfg.use_https);
+    }
+
+    #[test]
+    fn roms_dir_env_takes_precedence_over_legacy_download_dir_env() {
+        let _env = TestEnv::new();
+        std::env::set_var("API_BASE_URL", "http://example.test");
+        std::env::set_var("ROMM_ROMS_DIR", "/preferred-roms");
+        std::env::set_var("ROMM_DOWNLOAD_DIR", "/legacy-downloads");
+
+        let cfg = load_config().expect("config should load");
+        assert_eq!(cfg.download_dir, "/preferred-roms");
     }
 
     #[test]
