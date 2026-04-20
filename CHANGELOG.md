@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.23.0](https://github.com/patricksmill/romm-cli/compare/v0.22.0...v0.23.0) (2026-04-20)
+
+
+### Features
+
+* **config:** rename download directory to ROMs directory and enhance handling ([10c62c7](https://github.com/patricksmill/romm-cli/commit/10c62c7ef7a284b0136d7c3b229bf59579a50f33))
+* **cover:** enhance game detail view with cover image loading ([8ea7a0f](https://github.com/patricksmill/romm-cli/commit/8ea7a0f3bfedcfe4bb77fba674c8971ddcb4cc1c))
+
 ## [0.22.0](https://github.com/patricksmill/romm-cli/compare/v0.21.0...v0.22.0) (2026-04-19)
 
 
