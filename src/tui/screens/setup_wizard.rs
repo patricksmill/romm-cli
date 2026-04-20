@@ -937,10 +937,10 @@ impl SetupWizard {
 
         loop {
             terminal.draw(|f| {
-                let area = f.size();
+                let area = f.area();
                 self.render(f, area);
                 if let Some((x, y)) = self.cursor_pos(area) {
-                    f.set_cursor(x, y);
+                    f.set_cursor_position((x, y));
                 }
             })?;
 
@@ -959,7 +959,7 @@ impl SetupWizard {
 
                     if self.testing {
                         terminal.draw(|f| {
-                            let area = f.size();
+                            let area = f.area();
                             self.render(f, area);
                         })?;
                         let result = self.try_connect_and_persist(verbose).await;

@@ -13,9 +13,11 @@ Rust CLI and TUI for managing a game library through the [ROMM API](https://gith
 
 - **CLI and TUI**: Command-line interface for scripts plus an interactive terminal UI.
 - **Library browsing**: Search, filter, and inspect game metadata.
+- **Cover-first game detail view**: ROM detail screen uses a two-column layout with optional inline cover rendering.
 - **Background downloads**: Start downloads in the TUI and keep browsing while they run.
 - **Authentication**: Basic Auth, Bearer tokens, custom-header API keys, and Web UI pairing codes.
 - **Caching**: Game list caching for faster repeat loads.
+- **Library scan**: Trigger a server `scan_library` task after uploads (`romm-cli roms upload … --scan`) or on demand (`romm-cli scan`), with optional `--wait` until the job finishes.
 - **Cross-platform**: Windows, Linux, and macOS (including ARM).
 
 ---
@@ -106,9 +108,13 @@ romm-cli tui
 romm-tui
 ```
 
+Game detail (`Enter` on a selected game) now prefers a cover-first layout:
+- Inline cover rendering is attempted when terminal capabilities are detected (Kitty, iTerm2-compatible, or Sixel terminals).
+- If advanced terminal image protocols are unavailable (for example in Windows Terminal), the detail view uses an inline halfblocks fallback; if image loading fails, it falls back to readable text and keeps `o` to open the cover in a browser.
+
 ### CLI
 
-The CLI supports JSON output where applicable. Many commands have short aliases (e.g., `setup` for `init`, `call` for `api`, `p` for `platforms`, `r` for `roms`, `dl` for `download`).
+The CLI supports JSON output where applicable. Many commands have short aliases (e.g., `setup` for `init`, `call` for `api`, `p` for `platforms`, `r` for `roms`, `up` for `upload`, `dl` for `download`).
 
 ```bash
 # List platforms
@@ -116,6 +122,14 @@ romm-cli platforms
 
 # Search and print JSON
 romm-cli roms --search-term "zelda" --json
+
+# Upload a ROM (file or directory), then optionally rescan the library on the server
+romm-cli roms upload <PLATFORM_ID> path/to/rom.bin --scan
+romm-cli roms upload <PLATFORM_ID> ./folder --scan --wait
+
+# Trigger a full library scan (e.g. after uploads outside the CLI); optional --wait
+romm-cli scan
+romm-cli scan --wait --wait-timeout-secs 3600
 
 # Self-update
 romm-cli update
@@ -125,6 +139,8 @@ romm-cli cache path
 romm-cli cache info
 romm-cli cache clear
 ```
+
+After a chunked upload, RomM still needs a **library scan** before new games appear in search and the TUI. See [docs/scan-after-upload-plan.md](docs/scan-after-upload-plan.md) for batch uploads, `--wait`, JSON output, and cache behavior.
 
 ---
 

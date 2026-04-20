@@ -74,6 +74,11 @@ struct SearchLoadDone {
     result: Result<RomList, String>,
 }
 
+struct CoverLoadDone {
+    rom_id: u64,
+    result: Result<image::DynamicImage, String>,
+}
+
 /// Deferred primary ROM load: cache key, API request, expected count, context label, start time.
 type DeferredLoadRoms = (
     Option<RomCacheKey>,
@@ -158,6 +163,9 @@ pub struct App {
     search_load_rx: tokio::sync::mpsc::UnboundedReceiver<SearchLoadDone>,
     search_load_tx: tokio::sync::mpsc::UnboundedSender<SearchLoadDone>,
     search_load_task: Option<tokio::task::JoinHandle<()>>,
+    cover_load_rx: tokio::sync::mpsc::UnboundedReceiver<CoverLoadDone>,
+    cover_load_tx: tokio::sync::mpsc::UnboundedSender<CoverLoadDone>,
+    cover_load_task: Option<tokio::task::JoinHandle<()>>,
     /// Receives `Ok(())` when a background `scan_library` (with wait) finishes successfully.
     library_scan_rx: Option<tokio::sync::mpsc::UnboundedReceiver<Result<(), String>>>,
     library_scan_inflight: bool,
@@ -227,6 +235,7 @@ impl App {
         let (prefetch_tx, prefetch_rx) = tokio::sync::mpsc::unbounded_channel();
         let (rom_load_tx, rom_load_rx) = tokio::sync::mpsc::unbounded_channel();
         let (search_load_tx, search_load_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (cover_load_tx, cover_load_rx) = tokio::sync::mpsc::unbounded_channel();
         Self {
             screen: AppScreen::MainMenu(MainMenuScreen::new()),
             client,
@@ -254,6 +263,9 @@ impl App {
             search_load_rx,
             search_load_tx,
             search_load_task: None,
+            cover_load_rx,
+            cover_load_tx,
+            cover_load_task: None,
             library_scan_rx: None,
             library_scan_inflight: false,
             library_scan_pending_invalidate: None,
@@ -288,6 +300,7 @@ impl App {
         self.poll_rom_load_results();
         self.poll_collection_prefetch_results();
         self.poll_search_load_results();
+        self.poll_cover_load_results();
         self.poll_library_upload();
         self.poll_library_scan();
         self.drive_collection_prefetch_scheduler();
@@ -499,6 +512,66 @@ impl App {
                 Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => break,
             }
         }
+    }
+
+    fn spawn_cover_load_worker(&mut self, rom_id: u64, url: String) {
+        if let Some(task) = self.cover_load_task.take() {
+            task.abort();
+        }
+        let tx = self.cover_load_tx.clone();
+        self.cover_load_task = Some(tokio::spawn(async move {
+            let result = async {
+                let response = reqwest::get(&url).await.map_err(|e| e.to_string())?;
+                let status = response.status();
+                if !status.is_success() {
+                    return Err(format!("HTTP {}", status.as_u16()));
+                }
+                let bytes = response.bytes().await.map_err(|e| e.to_string())?;
+                image::load_from_memory(&bytes).map_err(|e| e.to_string())
+            }
+            .await;
+            let _ = tx.send(CoverLoadDone { rom_id, result });
+        }));
+    }
+
+    fn poll_cover_load_results(&mut self) {
+        loop {
+            match self.cover_load_rx.try_recv() {
+                Ok(done) => {
+                    if let AppScreen::GameDetail(detail) = &mut self.screen {
+                        if detail.rom.id != done.rom_id {
+                            continue;
+                        }
+                        match done.result {
+                            Ok(image) => detail.apply_cover_image(image),
+                            Err(err) => detail.apply_cover_error(format!(
+                                "Cover failed: {}",
+                                crate::tui::utils::truncate(&err, 120)
+                            )),
+                        }
+                    }
+                }
+                Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
+                Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => break,
+            }
+        }
+    }
+
+    fn maybe_start_game_detail_cover_load(&mut self) {
+        let (rom_id, url) = match &mut self.screen {
+            AppScreen::GameDetail(detail) => {
+                if !detail.should_request_cover_load() {
+                    return;
+                }
+                detail.set_cover_loading();
+                let Some(url) = detail.cover_last_url.clone() else {
+                    return;
+                };
+                (detail.rom.id, url)
+            }
+            _ => return,
+        };
+        self.spawn_cover_load_worker(rom_id, url);
     }
 
     fn poll_rom_load_results(&mut self) {
@@ -1219,6 +1292,7 @@ impl App {
                             GameDetailPrevious::Library(l),
                             self.downloads.shared(),
                         )));
+                        self.maybe_start_game_detail_cover_load();
                     }
                 }
             }
@@ -1294,6 +1368,7 @@ impl App {
                                 GameDetailPrevious::Search(s),
                                 self.downloads.shared(),
                             )));
+                            self.maybe_start_game_detail_cover_load();
                         }
                     }
                 } else {
@@ -1756,7 +1831,7 @@ impl App {
     // -----------------------------------------------------------------------
 
     fn render(&mut self, f: &mut ratatui::Frame) {
-        let area = f.size();
+        let area = f.area();
         if let Some(ref splash) = self.startup_splash {
             connected_splash::render(f, area, splash);
             return;
@@ -1766,26 +1841,26 @@ impl App {
             AppScreen::LibraryBrowse(lib) => {
                 lib.render(f, area);
                 if let Some((x, y)) = lib.upload_prompt_cursor(area) {
-                    f.set_cursor(x, y);
+                    f.set_cursor_position((x, y));
                 }
             }
             AppScreen::Search(search) => {
                 search.render(f, area);
                 if let Some((x, y)) = search.cursor_position(area) {
-                    f.set_cursor(x, y);
+                    f.set_cursor_position((x, y));
                 }
             }
             AppScreen::Settings(settings) => {
                 settings.render(f, area);
                 if let Some((x, y)) = settings.cursor_position(area) {
-                    f.set_cursor(x, y);
+                    f.set_cursor_position((x, y));
                 }
             }
             AppScreen::Browse(browse) => browse.render(f, area),
             AppScreen::Execute(execute) => {
                 execute.render(f, area);
                 if let Some((x, y)) = execute.cursor_position(area) {
-                    f.set_cursor(x, y);
+                    f.set_cursor_position((x, y));
                 }
             }
             AppScreen::Result(result) => result.render(f, area),
@@ -1795,7 +1870,7 @@ impl App {
             AppScreen::SetupWizard(wizard) => {
                 wizard.render(f, area);
                 if let Some((x, y)) = wizard.cursor_pos(area) {
-                    f.set_cursor(x, y);
+                    f.set_cursor_position((x, y));
                 }
             }
         }
@@ -1831,6 +1906,7 @@ mod tests {
     use crate::config::Config;
     use crate::tui::openapi::EndpointRegistry;
     use crate::tui::screens::library_browse::LibraryBrowseScreen;
+    use crate::tui::screens::{GameDetailPrevious, GameDetailScreen};
     use crate::types::Platform;
     use crossterm::event::{KeyEvent, KeyModifiers};
     use serde_json::json;
@@ -1887,6 +1963,32 @@ mod tests {
         app
     }
 
+    fn rom_fixture() -> crate::types::Rom {
+        serde_json::from_value(json!({
+            "id": 10,
+            "platform_id": 1,
+            "platform_slug": null,
+            "platform_fs_slug": null,
+            "platform_custom_name": null,
+            "platform_display_name": null,
+            "fs_name": "sample.zip",
+            "fs_name_no_tags": "sample",
+            "fs_name_no_ext": "sample",
+            "fs_extension": "zip",
+            "fs_path": "/sample.zip",
+            "fs_size_bytes": 100,
+            "name": "Sample",
+            "slug": null,
+            "summary": null,
+            "path_cover_small": null,
+            "path_cover_large": null,
+            "url_cover": null,
+            "is_unidentified": false,
+            "is_identified": true
+        }))
+        .expect("valid rom fixture")
+    }
+
     #[tokio::test]
     async fn list_move_to_zero_rom_selection_does_not_queue_deferred_load() {
         let mut app = app_with_library(vec![platform(1, "HasRoms", 5), platform(2, "Empty", 0)]);
@@ -1911,5 +2013,22 @@ mod tests {
     fn primary_rom_load_stale_gen_is_ignored() {
         assert!(!super::primary_rom_load_result_is_current(1, 2));
         assert!(super::primary_rom_load_result_is_current(3, 3));
+    }
+
+    #[tokio::test]
+    async fn game_detail_esc_returns_to_previous_library_screen() {
+        let mut app = app_with_library(vec![platform(1, "NES", 1)]);
+        let previous = LibraryBrowseScreen::new(vec![platform(1, "NES", 1)], vec![]);
+        let detail = GameDetailScreen::new(
+            rom_fixture(),
+            Vec::new(),
+            GameDetailPrevious::Library(previous),
+            app.downloads.shared(),
+        );
+        app.screen = AppScreen::GameDetail(Box::new(detail));
+
+        let quit = app.handle_key(KeyCode::Esc).await.expect("esc handled");
+        assert!(!quit);
+        assert!(matches!(app.screen, AppScreen::LibraryBrowse(_)));
     }
 }
