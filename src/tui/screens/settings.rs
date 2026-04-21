@@ -4,6 +4,7 @@ use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph};
 use ratatui::Frame;
 
 use crate::config::{disk_has_unresolved_keyring_sentinel, Config};
+use crate::tui::path_picker::{PathPicker, PathPickerMode};
 
 #[derive(PartialEq, Eq)]
 pub enum SettingsField {
@@ -26,6 +27,8 @@ pub struct SettingsScreen {
     pub editing: bool,
     pub edit_buffer: String,
     pub edit_cursor: usize,
+    /// ROMs directory browser (`None` when not choosing a folder).
+    pub path_picker: Option<PathPicker>,
     pub message: Option<(String, Color)>,
 }
 
@@ -65,6 +68,7 @@ impl SettingsScreen {
             editing: false,
             edit_buffer: String::new(),
             edit_cursor: 0,
+            path_picker: None,
             message: None,
         }
     }
@@ -96,13 +100,14 @@ impl SettingsScreen {
                 self.base_url = self.base_url.replace("https://", "http://");
                 self.message = Some(("Updated URL scheme (HTTP)".to_string(), Color::Green));
             }
+        } else if self.selected_index == 1 {
+            self.path_picker = Some(PathPicker::new(
+                PathPickerMode::Directory,
+                self.download_dir.as_str(),
+            ));
         } else {
             self.editing = true;
-            self.edit_buffer = if self.selected_index == 0 {
-                self.base_url.clone()
-            } else {
-                self.download_dir.clone()
-            };
+            self.edit_buffer = self.base_url.clone();
             self.edit_cursor = self.edit_buffer.len();
         }
     }
@@ -113,8 +118,6 @@ impl SettingsScreen {
         }
         if self.selected_index == 0 {
             self.base_url = self.edit_buffer.trim().to_string();
-        } else if self.selected_index == 1 {
-            self.download_dir = self.edit_buffer.trim().to_string();
         }
         self.editing = false;
         true
@@ -122,6 +125,7 @@ impl SettingsScreen {
 
     pub fn cancel_edit(&mut self) {
         self.editing = false;
+        self.path_picker = None;
         self.message = None;
     }
 
@@ -151,7 +155,39 @@ impl SettingsScreen {
         }
     }
 
-    pub fn render(&self, f: &mut Frame, area: Rect) {
+    pub fn render(&mut self, f: &mut Frame, area: Rect) {
+        if let Some(ref mut picker) = self.path_picker {
+            let chunks = Layout::default()
+                .constraints([
+                    Constraint::Length(4),
+                    Constraint::Min(12),
+                    Constraint::Length(3),
+                ])
+                .direction(ratatui::layout::Direction::Vertical)
+                .split(area);
+            let info = [
+                format!(
+                    "romm-cli: v{} | RomM server: {}",
+                    self.version, self.server_version
+                ),
+                format!("GitHub:   {}", self.github_url),
+                format!("Auth:     {}", self.auth_status),
+            ];
+            f.render_widget(
+                Paragraph::new(info.join("\n")).block(Block::default().borders(Borders::BOTTOM)),
+                chunks[0],
+            );
+            let hint = "Esc: cancel   Ctrl+Enter: apply typed path (creates folders)   ↑ list top: path   Tab: path/list";
+            picker.render(f, chunks[1], "Choose ROMs directory", hint);
+            f.render_widget(
+                Paragraph::new("ROMs directory picker — Esc returns without changing")
+                    .style(Style::default().fg(Color::Cyan))
+                    .block(Block::default().borders(Borders::ALL)),
+                chunks[2],
+            );
+            return;
+        }
+
         let chunks = Layout::default()
             .constraints([
                 Constraint::Length(4), // Header info
@@ -186,14 +222,7 @@ impl SettingsScreen {
                     &self.base_url
                 }
             )),
-            ListItem::new(format!(
-                "Roms Dir:     {}",
-                if self.editing && self.selected_index == 1 {
-                    &self.edit_buffer
-                } else {
-                    &self.download_dir
-                }
-            )),
+            ListItem::new(format!("Roms Dir:     {}", self.download_dir)),
             ListItem::new(format!(
                 "Use HTTPS:    {}",
                 if self.use_https { "[X] Yes" } else { "[ ] No" }
@@ -249,6 +278,18 @@ impl SettingsScreen {
     }
 
     pub fn cursor_position(&self, area: Rect) -> Option<(u16, u16)> {
+        if let Some(ref picker) = self.path_picker {
+            let chunks = Layout::default()
+                .constraints([
+                    Constraint::Length(4),
+                    Constraint::Min(12),
+                    Constraint::Length(3),
+                ])
+                .direction(ratatui::layout::Direction::Vertical)
+                .split(area);
+            return picker.cursor_position(chunks[1], "Choose ROMs directory");
+        }
+
         if !self.editing {
             return None;
         }

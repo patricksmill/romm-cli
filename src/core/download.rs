@@ -7,10 +7,10 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
-use anyhow::{anyhow, Context, Result};
 use crate::client::RommClient;
 use crate::core::utils;
 use crate::types::Rom;
+use anyhow::{anyhow, Context, Result};
 
 /// Directory for ROM storage (`ROMM_ROMS_DIR`, `ROMM_DOWNLOAD_DIR`, or configured path).
 pub fn resolve_download_directory(configured_download_dir: Option<&str>) -> Result<PathBuf> {
@@ -37,9 +37,12 @@ fn resolve_download_directory_from_inputs(
     configured_download_dir: Option<&str>,
     env_override: Option<&str>,
 ) -> Result<PathBuf> {
-    let raw = env_override.or(configured_download_dir).map(str::trim).ok_or_else(|| {
-        anyhow!("ROMs directory is not configured. Run setup to set a ROMs path.")
-    })?;
+    let raw = env_override
+        .or(configured_download_dir)
+        .map(str::trim)
+        .ok_or_else(|| {
+            anyhow!("ROMs directory is not configured. Run setup to set a ROMs path.")
+        })?;
 
     if raw.is_empty() {
         return Err(anyhow!("ROMs directory cannot be empty"));
@@ -61,8 +64,12 @@ fn resolve_download_directory_from_inputs(
         ));
     }
 
-    std::fs::create_dir_all(&normalized)
-        .with_context(|| format!("Could not create download directory {}", normalized.display()))?;
+    std::fs::create_dir_all(&normalized).with_context(|| {
+        format!(
+            "Could not create download directory {}",
+            normalized.display()
+        )
+    })?;
 
     let probe_name = format!(
         ".romm-write-test-{}",
@@ -76,12 +83,7 @@ fn resolve_download_directory_from_inputs(
         .write(true)
         .create_new(true)
         .open(&probe_path)
-        .with_context(|| {
-            format!(
-                "ROMs directory is not writable: {}",
-                normalized.display()
-            )
-        })?;
+        .with_context(|| format!("ROMs directory is not writable: {}", normalized.display()))?;
     drop(probe);
     let _ = std::fs::remove_file(&probe_path);
 
@@ -284,34 +286,32 @@ impl DownloadManager {
                 let _ = tokio::fs::remove_file(&temp_path).await;
             }
             match download_result {
-                Ok(()) => {
-                    match finalize_download(&temp_path, &final_path).await {
-                        Ok(FinalizeResult::Done) => {
-                            if let Ok(mut list) = jobs.lock() {
-                                if let Some(j) = list.iter_mut().find(|j| j.id == job_id) {
-                                    j.status = DownloadStatus::Done;
-                                    j.progress = 1.0;
-                                }
-                            }
-                        }
-                        Ok(FinalizeResult::SkippedAlreadyExists) => {
-                            if let Ok(mut list) = jobs.lock() {
-                                if let Some(j) = list.iter_mut().find(|j| j.id == job_id) {
-                                    j.status = DownloadStatus::SkippedAlreadyExists;
-                                    j.progress = 1.0;
-                                }
-                            }
-                        }
-                        Err(err) => {
-                            let _ = tokio::fs::remove_file(&temp_path).await;
-                            if let Ok(mut list) = jobs.lock() {
-                                if let Some(j) = list.iter_mut().find(|j| j.id == job_id) {
-                                    j.status = DownloadStatus::FinalizeFailed(err.to_string());
-                                }
+                Ok(()) => match finalize_download(&temp_path, &final_path).await {
+                    Ok(FinalizeResult::Done) => {
+                        if let Ok(mut list) = jobs.lock() {
+                            if let Some(j) = list.iter_mut().find(|j| j.id == job_id) {
+                                j.status = DownloadStatus::Done;
+                                j.progress = 1.0;
                             }
                         }
                     }
-                }
+                    Ok(FinalizeResult::SkippedAlreadyExists) => {
+                        if let Ok(mut list) = jobs.lock() {
+                            if let Some(j) = list.iter_mut().find(|j| j.id == job_id) {
+                                j.status = DownloadStatus::SkippedAlreadyExists;
+                                j.progress = 1.0;
+                            }
+                        }
+                    }
+                    Err(err) => {
+                        let _ = tokio::fs::remove_file(&temp_path).await;
+                        if let Ok(mut list) = jobs.lock() {
+                            if let Some(j) = list.iter_mut().find(|j| j.id == job_id) {
+                                j.status = DownloadStatus::FinalizeFailed(err.to_string());
+                            }
+                        }
+                    }
+                },
                 Err(e) => {
                     if let Ok(mut list) = jobs.lock() {
                         if let Some(j) = list.iter_mut().find(|j| j.id == job_id) {
@@ -340,21 +340,32 @@ async fn finalize_download(temp_path: &Path, final_path: &Path) -> Result<Finali
     match tokio::fs::rename(temp_path, final_path).await {
         Ok(()) => Ok(FinalizeResult::Done),
         Err(rename_err) if is_cross_device_rename_error(&rename_err) => {
-            tokio::fs::copy(temp_path, final_path).await.with_context(|| {
+            tokio::fs::copy(temp_path, final_path)
+                .await
+                .with_context(|| {
+                    format!(
+                        "Could not copy temp ROM {} to final destination {}",
+                        temp_path.display(),
+                        final_path.display()
+                    )
+                })?;
+            let file = tokio::fs::File::open(final_path).await.with_context(|| {
                 format!(
-                    "Could not copy temp ROM {} to final destination {}",
-                    temp_path.display(),
+                    "Could not open finalized ROM for sync: {}",
                     final_path.display()
                 )
             })?;
-            let file = tokio::fs::File::open(final_path).await.with_context(|| {
-                format!("Could not open finalized ROM for sync: {}", final_path.display())
-            })?;
             file.sync_all().await.with_context(|| {
-                format!("Could not sync finalized ROM to disk: {}", final_path.display())
+                format!(
+                    "Could not sync finalized ROM to disk: {}",
+                    final_path.display()
+                )
             })?;
             tokio::fs::remove_file(temp_path).await.with_context(|| {
-                format!("Could not remove temp ROM after copy: {}", temp_path.display())
+                format!(
+                    "Could not remove temp ROM after copy: {}",
+                    temp_path.display()
+                )
             })?;
             Ok(FinalizeResult::Done)
         }
@@ -394,9 +405,9 @@ fn final_download_path_for_rom(roms_dir: &Path, rom: &Rom) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::Rom;
     use std::io::Write;
     use std::time::{SystemTime, UNIX_EPOCH};
-    use crate::types::Rom;
 
     fn rom_fixture_with_platform(platform_fs_slug: Option<&str>, fs_name: &str) -> Rom {
         Rom {
@@ -501,8 +512,9 @@ mod tests {
         let configured_str = configured.to_string_lossy().to_string();
         let env_str = env_dir.to_string_lossy().to_string();
 
-        let resolved = resolve_download_directory_from_inputs(Some(&configured_str), Some(&env_str))
-            .expect("env override should be used");
+        let resolved =
+            resolve_download_directory_from_inputs(Some(&configured_str), Some(&env_str))
+                .expect("env override should be used");
 
         assert_eq!(resolved, env_dir);
         assert!(env_dir.is_dir(), "env directory should be created");
