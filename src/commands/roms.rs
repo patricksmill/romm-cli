@@ -168,7 +168,9 @@ pub async fn handle(cmd: RomsCommand, client: &RommClient, format: OutputFormat)
             wait,
             wait_timeout_secs,
         } => {
-            let resolved_platform_id = match resolve_platform_id(client, Some(platform.trim())).await? {
+            let resolved_platform_id = match resolve_platform_id(client, Some(platform.trim()))
+                .await?
+            {
                 Some(id) => id,
                 None => {
                     return Err(anyhow!(
@@ -237,7 +239,10 @@ pub async fn handle(cmd: RomsCommand, client: &RommClient, format: OutputFormat)
     Ok(())
 }
 
-async fn resolve_platform_id(client: &RommClient, platform_query: Option<&str>) -> Result<Option<u64>> {
+async fn resolve_platform_id(
+    client: &RommClient,
+    platform_query: Option<&str>,
+) -> Result<Option<u64>> {
     let Some(query) = platform_query.map(str::trim).filter(|q| !q.is_empty()) else {
         return Ok(None);
     };
@@ -298,14 +303,20 @@ mod tests {
 
     #[test]
     fn parse_roms_list_with_platform_filter() {
-        let cli = Cli::parse_from(["romm-cli", "roms", "list", "--platform", "3ds", "--limit", "10"]);
+        let cli = Cli::parse_from([
+            "romm-cli",
+            "roms",
+            "list",
+            "--platform",
+            "3ds",
+            "--limit",
+            "10",
+        ]);
         let Commands::Roms(cmd) = cli.command else {
             panic!("expected roms command");
         };
         let Some(RomsAction::List {
-            platform,
-            limit,
-            ..
+            platform, limit, ..
         }) = cmd.action
         else {
             panic!("expected roms list");
@@ -329,19 +340,15 @@ mod tests {
     #[test]
     fn parse_roms_upload_requires_platform() {
         let parsed = Cli::try_parse_from(["romm-cli", "roms", "upload", "foo.bin"]);
-        assert!(parsed.is_err(), "expected clap parse failure without --platform");
+        assert!(
+            parsed.is_err(),
+            "expected clap parse failure without --platform"
+        );
     }
 
     #[test]
     fn parse_roms_upload_with_platform_and_file() {
-        let cli = Cli::parse_from([
-            "romm-cli",
-            "roms",
-            "upload",
-            "--platform",
-            "3ds",
-            "foo.bin",
-        ]);
+        let cli = Cli::parse_from(["romm-cli", "roms", "upload", "--platform", "3ds", "foo.bin"]);
         let Commands::Roms(cmd) = cli.command else {
             panic!("expected roms command");
         };

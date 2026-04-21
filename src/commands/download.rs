@@ -7,7 +7,7 @@ use tokio::sync::Semaphore;
 
 use crate::client::RommClient;
 use crate::core::download::{download_directory, extract_zip_archive, unique_zip_path};
-use crate::core::interrupt::{is_cancelled_error, cancelled_error, InterruptContext};
+use crate::core::interrupt::{cancelled_error, is_cancelled_error, InterruptContext};
 use crate::core::utils;
 use crate::endpoints::roms::GetRoms;
 use crate::services::{PlatformService, RomService};
@@ -109,7 +109,7 @@ pub async fn handle(
     client: &RommClient,
     interrupt: Option<InterruptContext>,
 ) -> Result<()> {
-    let interrupt = interrupt.unwrap_or_else(InterruptContext::new);
+    let interrupt = interrupt.unwrap_or_default();
     let output_dir = cmd.output.unwrap_or_else(download_directory);
 
     // Ensure output directory exists.
@@ -225,7 +225,11 @@ pub async fn handle(
                         ));
                     } else if delete_zip_after_extract {
                         tokio::fs::remove_file(&save_path).await.map_err(|err| {
-                            anyhow!("failed to delete zip {:?} after extraction: {}", save_path, err)
+                            anyhow!(
+                                "failed to delete zip {:?} after extraction: {}",
+                                save_path,
+                                err
+                            )
                         })?;
                     }
                 }
@@ -267,7 +271,9 @@ pub async fn handle(
     } else {
         // ── Single ROM mode ────────────────────────────────────────────
         let rom_id = cmd.rom_id.ok_or_else(|| {
-            anyhow!("ROM ID is required (e.g. 'download 123' or 'download batch --search-term ...')")
+            anyhow!(
+                "ROM ID is required (e.g. 'download 123' or 'download batch --search-term ...')"
+            )
         })?;
 
         let save_path = output_dir.join(format!("rom_{rom_id}.zip"));
@@ -302,10 +308,9 @@ async fn resolve_platform_id(
 fn resolve_platform_query(query: &str, platforms: &[Platform]) -> Result<u64> {
     let normalized = query.trim().to_ascii_lowercase();
 
-    if let Some(platform) = platforms
-        .iter()
-        .find(|p| p.slug.eq_ignore_ascii_case(&normalized) || p.fs_slug.eq_ignore_ascii_case(&normalized))
-    {
+    if let Some(platform) = platforms.iter().find(|p| {
+        p.slug.eq_ignore_ascii_case(&normalized) || p.fs_slug.eq_ignore_ascii_case(&normalized)
+    }) {
         return Ok(platform.id);
     }
 
@@ -396,13 +401,7 @@ mod tests {
 
     #[test]
     fn parse_download_batch_extract_defaults() {
-        let cli = Cli::parse_from([
-            "romm-cli",
-            "download",
-            "batch",
-            "--search-term",
-            "Metroid",
-        ]);
+        let cli = Cli::parse_from(["romm-cli", "download", "batch", "--search-term", "Metroid"]);
 
         let Commands::Download(cmd) = cli.command else {
             panic!("expected download command");
@@ -450,7 +449,12 @@ mod tests {
     #[test]
     fn extraction_target_dir_platform_layout() {
         let dir = PathBuf::from("/tmp/out");
-        let target = extraction_target_dir(&dir, "Nintendo Switch", "Mario (USA)", ExtractLayout::Platform);
+        let target = extraction_target_dir(
+            &dir,
+            "Nintendo Switch",
+            "Mario (USA)",
+            ExtractLayout::Platform,
+        );
         assert_eq!(target, PathBuf::from("/tmp/out/Nintendo Switch"));
     }
 
@@ -463,14 +467,28 @@ mod tests {
 
     #[test]
     fn resolve_platform_query_matches_slug_first() {
-        let platforms = vec![platform_fixture(3, "3ds", "3ds", "Nintendo 3DS", None, None)];
+        let platforms = vec![platform_fixture(
+            3,
+            "3ds",
+            "3ds",
+            "Nintendo 3DS",
+            None,
+            None,
+        )];
         let id = resolve_platform_query("3ds", &platforms).expect("slug should resolve");
         assert_eq!(id, 3);
     }
 
     #[test]
     fn resolve_platform_query_matches_name_case_insensitive() {
-        let platforms = vec![platform_fixture(4, "nintendo-3ds", "3ds", "Nintendo 3DS", None, None)];
+        let platforms = vec![platform_fixture(
+            4,
+            "nintendo-3ds",
+            "3ds",
+            "Nintendo 3DS",
+            None,
+            None,
+        )];
         let id = resolve_platform_query("nintendo 3ds", &platforms).expect("name should resolve");
         assert_eq!(id, 4);
     }
@@ -490,7 +508,14 @@ mod tests {
 
     #[test]
     fn resolve_platform_query_errors_when_missing() {
-        let platforms = vec![platform_fixture(2, "gba", "gba", "Game Boy Advance", None, None)];
+        let platforms = vec![platform_fixture(
+            2,
+            "gba",
+            "gba",
+            "Game Boy Advance",
+            None,
+            None,
+        )];
         let err = resolve_platform_query("3ds", &platforms).expect_err("should not match");
         assert!(
             err.to_string().contains("No platform found"),

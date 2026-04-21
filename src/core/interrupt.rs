@@ -54,6 +54,12 @@ impl InterruptContext {
     }
 }
 
+impl Default for InterruptContext {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub fn cancelled_error() -> Error {
     Error::new(CancelledByUser)
 }
@@ -80,4 +86,3 @@ mod tests {
         assert!(ctx.is_cancelled());
     }
 }
-

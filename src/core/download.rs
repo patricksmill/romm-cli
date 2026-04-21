@@ -8,10 +8,10 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use crate::client::RommClient;
+use crate::core::interrupt::is_cancelled_error;
 use crate::core::utils;
 use crate::types::Rom;
 use anyhow::{anyhow, Context, Result};
-use crate::core::interrupt::is_cancelled_error;
 use std::fs::File;
 use zip::ZipArchive;
 
@@ -123,11 +123,14 @@ pub fn extract_zip_archive(zip_path: &Path, destination_dir: &Path) -> Result<()
 
     let file = File::open(&zip_path)
         .with_context(|| format!("Could not open zip archive {}", zip_path.display()))?;
-    let mut archive =
-        ZipArchive::new(file).with_context(|| format!("Invalid ZIP archive {}", zip_path.display()))?;
-    archive
-        .extract(&destination_dir)
-        .with_context(|| format!("Could not extract archive into {}", destination_dir.display()))?;
+    let mut archive = ZipArchive::new(file)
+        .with_context(|| format!("Invalid ZIP archive {}", zip_path.display()))?;
+    archive.extract(&destination_dir).with_context(|| {
+        format!(
+            "Could not extract archive into {}",
+            destination_dir.display()
+        )
+    })?;
     Ok(())
 }
 
@@ -610,7 +613,11 @@ mod tests {
         extract_zip_archive(&zip_path, &out_dir).unwrap();
 
         let extracted = out_dir.join("nested").join("game.rom");
-        assert!(extracted.exists(), "expected extracted file at {:?}", extracted);
+        assert!(
+            extracted.exists(),
+            "expected extracted file at {:?}",
+            extracted
+        );
         let data = std::fs::read(&extracted).unwrap();
         assert_eq!(data, b"rom-bytes");
 

@@ -18,7 +18,7 @@ fn github_release_asset_key() -> &'static str {
 
 /// Handle the `update` command.
 pub async fn handle(interrupt: Option<InterruptContext>) -> Result<()> {
-    let interrupt = interrupt.unwrap_or_else(InterruptContext::new);
+    let interrupt = interrupt.unwrap_or_default();
     let update_task = tokio::task::spawn_blocking(|| -> Result<String> {
         let status = self_update::backends::github::Update::configure()
             .repo_owner("patricksmill")
