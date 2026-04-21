@@ -2,7 +2,7 @@
 
 use anyhow::{anyhow, Context, Result};
 use crossterm::event::{
-    self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind,
+    self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyEventKind,
 };
 use crossterm::execute;
 use crossterm::terminal::{
@@ -23,6 +23,7 @@ use crate::config::{
 };
 use crate::core::download::validate_configured_download_directory;
 use crate::endpoints::client_tokens::ExchangeClientToken;
+use crate::tui::path_picker::{PathPicker, PathPickerEvent, PathPickerMode};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum AuthKind {
@@ -76,8 +77,7 @@ pub struct SetupWizard {
     auth_menu_selected: usize,
     url: String,
     url_cursor: usize,
-    download_dir: String,
-    dl_cursor: usize,
+    download_picker: PathPicker,
     username: String,
     user_cursor: usize,
     password: String,
@@ -111,8 +111,7 @@ impl SetupWizard {
             auth_menu_selected: 0,
             url: "https://".to_string(),
             url_cursor: "https://".len(),
-            download_dir: default_dl,
-            dl_cursor: 0,
+            download_picker: PathPicker::new(PathPickerMode::Directory, &default_dl),
             username: String::new(),
             user_cursor: 0,
             password: String::new(),
@@ -137,7 +136,9 @@ impl SetupWizard {
         let mut wizard = Self::new();
         wizard.step = Step::AuthMenu;
         wizard.url = config.base_url.clone();
-        wizard.download_dir = config.download_dir.clone();
+        wizard
+            .download_picker
+            .set_path_text(config.download_dir.clone());
         wizard.use_https = config.use_https;
 
         let disk = read_user_config_json_from_disk();
@@ -240,7 +241,9 @@ impl SetupWizard {
         if code.is_empty() {
             return Err(anyhow!("Pairing code cannot be empty"));
         }
-        let download_dir = validate_configured_download_directory(self.download_dir.trim())?
+        let download_dir = validate_configured_download_directory(
+            self.download_picker.path_trimmed().trim(),
+        )?
             .display()
             .to_string();
         let temp_config = Config {
@@ -269,7 +272,9 @@ impl SetupWizard {
         if base_url.is_empty() {
             return Err(anyhow!("Server URL cannot be empty"));
         }
-        let download_dir = validate_configured_download_directory(self.download_dir.trim())?
+        let download_dir = validate_configured_download_directory(
+            self.download_picker.path_trimmed().trim(),
+        )?
             .display()
             .to_string();
         let auth: Option<AuthConfig> = match self.auth_kind {
@@ -399,18 +404,9 @@ impl SetupWizard {
                 f.render_widget(p, main[1]);
             }
             Step::Download => {
-                let line = format!(
-                    "{}▏",
-                    self.download_dir
-                        .chars()
-                        .take(self.dl_cursor)
-                        .collect::<String>()
-                );
-                let rest: String = self.download_dir.chars().skip(self.dl_cursor).collect();
-                let text = format!("{line}{rest}");
-                let block = Block::default().title(title).borders(Borders::ALL);
-                let p = Paragraph::new(text).block(block);
-                f.render_widget(p, main[1]);
+                let footer = "↓/↑: list focus  ↑ at top: back to path  Ctrl+Enter: accept typed path (creates folders)  Tab: path/list  Esc: quit";
+                self.download_picker
+                    .render(f, main[1], title, footer);
             }
             Step::AuthMenu => {
                 let items: Vec<ListItem> = Self::auth_labels()
@@ -559,7 +555,7 @@ impl SetupWizard {
                 };
                 let mut lines = vec![
                     format!("Server: {url_line}"),
-                    format!("ROMs Dir: {}", self.download_dir.trim()),
+                    format!("ROMs Dir: {}", self.download_picker.path_trimmed()),
                     format!("Use HTTPS: {}", if self.use_https { "Yes" } else { "No" }),
                     format!("Auth: {auth_desc}"),
                     String::new(),
@@ -580,7 +576,7 @@ impl SetupWizard {
         let footer_keys = match self.step {
             Step::Url => "Enter: next   Backspace: delete   Esc: quit",
             Step::Https => "Space: toggle   Enter: next   Esc: quit",
-            Step::Download => "Enter: next   Backspace: delete   Esc: quit",
+            Step::Download => "Ctrl+Enter: next (creates path)   ↑ list top: path bar   Tab: path/list   Esc: quit",
             Step::AuthMenu => "↑/↓: choose   Enter: next   Esc: quit",
             Step::BasicUser | Step::BasicPass => {
                 "Type text   Tab: switch field   Enter: next step   Esc: quit"
@@ -609,10 +605,9 @@ impl SetupWizard {
                 let x = inner.x + 1 + self.url_cursor.min(self.url.len()) as u16;
                 Some((x, inner.y + 1))
             }
-            Step::Download => {
-                let x = inner.x + 1 + self.dl_cursor.min(self.download_dir.len()) as u16;
-                Some((x, inner.y + 1))
-            }
+            Step::Download => self
+                .download_picker
+                .cursor_position(inner, "Step 3/5 — ROMs directory"),
             Step::Bearer => {
                 let x = inner.x + 1 + self.bearer_cursor.min(self.bearer_token.len()) as u16;
                 Some((x, inner.y + 1))
@@ -654,19 +649,6 @@ impl SetupWizard {
         }
     }
 
-    fn add_char_dl(&mut self, c: char) {
-        let pos = self.dl_cursor.min(self.download_dir.len());
-        self.download_dir.insert(pos, c);
-        self.dl_cursor = pos + 1;
-    }
-
-    fn del_char_dl(&mut self) {
-        if self.dl_cursor > 0 && self.dl_cursor <= self.download_dir.len() {
-            self.download_dir.remove(self.dl_cursor - 1);
-            self.dl_cursor -= 1;
-        }
-    }
-
     fn advance_from_auth_menu(&mut self) {
         self.auth_kind = Self::auth_kind_from_index(self.auth_menu_selected);
         self.step = match self.auth_kind {
@@ -693,15 +675,8 @@ impl SetupWizard {
             }
             Step::Https => {
                 self.step = Step::Download;
-                self.dl_cursor = self.download_dir.len();
             }
-            Step::Download => {
-                if self.download_dir.trim().is_empty() {
-                    self.error = Some("ROMs directory path cannot be empty".to_string());
-                    return Ok(());
-                }
-                self.step = Step::AuthMenu;
-            }
+            Step::Download => {}
             Step::AuthMenu => self.advance_from_auth_menu(),
             Step::BasicUser => self.step = Step::BasicPass,
             Step::BasicPass => self.step = Step::Summary,
@@ -723,12 +698,12 @@ impl SetupWizard {
         let client = RommClient::new(&cfg, verbose)?;
         client.fetch_openapi_json().await?;
         let base = cfg.base_url.clone();
-        let download = self.download_dir.trim().to_string();
+        let download = self.download_picker.path_trimmed();
         persist_user_config(&base, &download, self.use_https, cfg.auth.clone())?;
         load_config()
     }
 
-    pub fn handle_key(&mut self, key: crossterm::event::KeyEvent) -> Result<bool> {
+    pub fn handle_key(&mut self, key: &KeyEvent) -> Result<bool> {
         if key.kind != KeyEventKind::Press {
             return Ok(false);
         }
@@ -762,19 +737,21 @@ impl SetupWizard {
                 KeyCode::Char(' ') => self.use_https = !self.use_https,
                 _ => {}
             },
-            Step::Download => match key.code {
-                KeyCode::Enter => {
-                    let _ = self.advance_step();
+            Step::Download => match self.download_picker.handle_key(key) {
+                PathPickerEvent::Confirmed(p) => {
+                    self.error = None;
+                    match validate_configured_download_directory(p.to_string_lossy().as_ref()) {
+                        Ok(canonical) => {
+                            self.download_picker
+                                .set_path_text(canonical.display().to_string());
+                            self.step = Step::AuthMenu;
+                        }
+                        Err(e) => {
+                            self.error = Some(format!("{e:#}"));
+                        }
+                    }
                 }
-                KeyCode::Char(c) => self.add_char_dl(c),
-                KeyCode::Backspace => self.del_char_dl(),
-                KeyCode::Left if self.dl_cursor > 0 => {
-                    self.dl_cursor -= 1;
-                }
-                KeyCode::Right if self.dl_cursor < self.download_dir.len() => {
-                    self.dl_cursor += 1;
-                }
-                _ => {}
+                PathPickerEvent::None => {}
             },
             Step::AuthMenu => match key.code {
                 KeyCode::Up | KeyCode::Char('k') if self.auth_menu_selected > 0 => {
@@ -953,7 +930,7 @@ impl SetupWizard {
 
             if event::poll(std::time::Duration::from_millis(100))? {
                 if let Event::Key(key) = event::read()? {
-                    if self.handle_key(key)? {
+                    if self.handle_key(&key)? {
                         disable_raw_mode()?;
                         execute!(
                             terminal.backend_mut(),
@@ -1012,8 +989,7 @@ mod tests {
             auth_menu_selected: 4,
             url: mock_uri.to_string(),
             url_cursor: mock_uri.len(),
-            download_dir: "/tmp/romm-dl-test".to_string(),
-            dl_cursor: 0,
+            download_picker: PathPicker::new(PathPickerMode::Directory, "/tmp/romm-dl-test"),
             username: String::new(),
             user_cursor: 0,
             password: String::new(),

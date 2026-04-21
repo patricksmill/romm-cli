@@ -12,7 +12,8 @@
 
 use anyhow::Result;
 use crossterm::event::{
-    self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind, KeyModifiers,
+    self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyEventKind,
+    KeyModifiers,
 };
 use crossterm::execute;
 use crossterm::terminal::{
@@ -200,7 +201,7 @@ impl App {
             {
                 false
             }
-            AppScreen::Settings(s) if s.editing => false,
+            AppScreen::Settings(s) if s.editing || s.path_picker.is_some() => false,
             _ => true,
         }
     }
@@ -846,7 +847,7 @@ impl App {
                         continue;
                     }
                     if key_event.kind == KeyEventKind::Press
-                        && self.handle_key(key_event.code).await?
+                        && self.handle_key_event(&key_event).await?
                     {
                         break;
                     }
@@ -955,9 +956,13 @@ impl App {
     // Key dispatch — one small method per screen
     // -----------------------------------------------------------------------
 
-    pub async fn handle_key(&mut self, key: KeyCode) -> Result<bool> {
+    pub async fn handle_key_event(&mut self, key: &KeyEvent) -> Result<bool> {
+        if key.kind != KeyEventKind::Press {
+            return Ok(false);
+        }
+
         if self.global_error.is_some() {
-            if key == KeyCode::Esc || key == KeyCode::Enter {
+            if key.code == KeyCode::Esc || key.code == KeyCode::Enter {
                 self.global_error = None;
             }
             return Ok(false);
@@ -970,7 +975,7 @@ impl App {
 
         if self.show_keyboard_help {
             if matches!(
-                key,
+                key.code,
                 KeyCode::Esc | KeyCode::Enter | KeyCode::F(1) | KeyCode::Char('?')
             ) {
                 self.show_keyboard_help = false;
@@ -978,17 +983,17 @@ impl App {
             return Ok(false);
         }
 
-        if key == KeyCode::F(1) {
+        if key.code == KeyCode::F(1) {
             self.show_keyboard_help = true;
             return Ok(false);
         }
-        if key == KeyCode::Char('?') && self.allows_global_question_help() {
+        if key.code == KeyCode::Char('?') && self.allows_global_question_help() {
             self.show_keyboard_help = true;
             return Ok(false);
         }
 
         // Global shortcut: 'd' toggles Download overlay (not on screens that need free typing / menus).
-        if key == KeyCode::Char('d') && !self.blocks_global_d_shortcut() {
+        if key.code == KeyCode::Char('d') && !self.blocks_global_d_shortcut() {
             self.toggle_download_screen();
             return Ok(false);
         }
@@ -1027,8 +1032,8 @@ impl App {
         }
     }
 
-    fn handle_download(&mut self, key: KeyCode) -> Result<bool> {
-        if key == KeyCode::Esc || key == KeyCode::Char('d') {
+    fn handle_download(&mut self, key: &KeyEvent) -> Result<bool> {
+        if key.code == KeyCode::Esc || key.code == KeyCode::Char('d') {
             self.screen = self
                 .screen_before_download
                 .take()
@@ -1039,12 +1044,12 @@ impl App {
 
     // -- Main menu ----------------------------------------------------------
 
-    async fn handle_main_menu(&mut self, key: KeyCode) -> Result<bool> {
+    async fn handle_main_menu(&mut self, key: &KeyEvent) -> Result<bool> {
         let menu = match &mut self.screen {
             AppScreen::MainMenu(m) => m,
             _ => return Ok(false),
         };
-        match key {
+        match key.code {
             KeyCode::Up | KeyCode::Char('k') => menu.previous(),
             KeyCode::Down | KeyCode::Char('j') => menu.next(),
             KeyCode::Enter => match menu.selected {
@@ -1106,26 +1111,26 @@ impl App {
 
     // -- Library browse -----------------------------------------------------
 
-    async fn handle_library_browse(&mut self, key: KeyCode) -> Result<bool> {
+    async fn handle_library_browse(&mut self, key: &KeyEvent) -> Result<bool> {
+        use super::path_picker::PathPickerEvent;
         use super::screens::library_browse::{LibrarySearchMode, LibraryViewMode};
 
         if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
             if lib.upload_prompt.is_some() {
                 if let Some(up) = lib.upload_prompt.as_mut() {
-                    match key {
-                        KeyCode::Esc => lib.close_upload_prompt(),
-                        KeyCode::Tab => up.scan_after = !up.scan_after,
-                        KeyCode::Left => up.cursor_left(),
-                        KeyCode::Right => up.cursor_right(),
-                        KeyCode::Backspace => up.delete_char(),
-                        KeyCode::Char(c) => up.add_char(c),
-                        KeyCode::Enter => {
-                            let path_trim = up.path.trim().to_string();
+                    if key.code == KeyCode::Esc {
+                        lib.close_upload_prompt();
+                        return Ok(false);
+                    }
+                    if key.modifiers.contains(KeyModifiers::CONTROL)
+                        && matches!(key.code, KeyCode::Char('s') | KeyCode::Char('S'))
+                    {
+                        up.scan_after = !up.scan_after;
+                        return Ok(false);
+                    }
+                    match up.picker.handle_key(key) {
+                        PathPickerEvent::Confirmed(path) => {
                             let scan_after = up.scan_after;
-                            if path_trim.is_empty() {
-                                return Ok(false);
-                            }
-                            let path = PathBuf::from(&path_trim);
                             if !Path::new(&path).is_file() {
                                 lib.set_metadata_footer(Some(format!(
                                     "Not a file: {}",
@@ -1142,7 +1147,7 @@ impl App {
                             lib.close_upload_prompt();
                             self.spawn_library_upload_worker(pid, path, scan_after);
                         }
-                        _ => {}
+                        PathPickerEvent::None => {}
                     }
                 }
                 return Ok(false);
@@ -1162,7 +1167,7 @@ impl App {
         if lib.view_mode == LibraryViewMode::List {
             if let Some(mode) = lib.list_search.mode {
                 let old_key = lib.cache_key();
-                match key {
+                match key.code {
                     KeyCode::Esc => lib.clear_list_search(),
                     KeyCode::Backspace => lib.delete_list_search_char(),
                     KeyCode::Char(c) => lib.add_list_search_char(c),
@@ -1191,7 +1196,7 @@ impl App {
         // Games pane: search typing bar
         if lib.view_mode == LibraryViewMode::Roms {
             if let Some(mode) = lib.rom_search.mode {
-                match key {
+                match key.code {
                     KeyCode::Esc => lib.clear_rom_search(),
                     KeyCode::Backspace => lib.delete_rom_search_char(),
                     KeyCode::Char(c) => lib.add_rom_search_char(c),
@@ -1203,7 +1208,7 @@ impl App {
             }
         }
 
-        match key {
+        match key.code {
             KeyCode::Up | KeyCode::Char('k') => {
                 if lib.view_mode == LibraryViewMode::List {
                     lib.list_previous();
@@ -1340,12 +1345,12 @@ impl App {
 
     // -- Search -------------------------------------------------------------
 
-    async fn handle_search(&mut self, key: KeyCode) -> Result<bool> {
+    async fn handle_search(&mut self, key: &KeyEvent) -> Result<bool> {
         let search = match &mut self.screen {
             AppScreen::Search(s) => s,
             _ => return Ok(false),
         };
-        match key {
+        match key.code {
             KeyCode::Backspace => search.delete_char(),
             KeyCode::Left => search.cursor_left(),
             KeyCode::Right => search.cursor_right(),
@@ -1456,14 +1461,44 @@ impl App {
         Ok(())
     }
 
-    async fn handle_settings(&mut self, key: KeyCode) -> Result<bool> {
+    async fn handle_settings(&mut self, key: &KeyEvent) -> Result<bool> {
+        use super::path_picker::PathPickerEvent;
+        use crate::core::download::validate_configured_download_directory;
+
         let settings = match &mut self.screen {
             AppScreen::Settings(s) => s,
             _ => return Ok(false),
         };
 
+        if let Some(ref mut picker) = settings.path_picker {
+            if key.code == KeyCode::Esc {
+                settings.path_picker = None;
+                return Ok(false);
+            }
+            match picker.handle_key(key) {
+                PathPickerEvent::Confirmed(p) => {
+                    match validate_configured_download_directory(p.to_string_lossy().as_ref()) {
+                        Ok(canonical) => {
+                            settings.download_dir = canonical.display().to_string();
+                            settings.path_picker = None;
+                            settings.message = Some((
+                                "ROMs directory updated (press S to save)".to_string(),
+                                Color::Green,
+                            ));
+                        }
+                        Err(e) => {
+                            settings.message =
+                                Some((format!("Invalid ROMs directory: {e:#}"), Color::Red));
+                        }
+                    }
+                }
+                PathPickerEvent::None => {}
+            }
+            return Ok(false);
+        }
+
         if settings.editing {
-            match key {
+            match key.code {
                 KeyCode::Enter => {
                     let idx = settings.selected_index;
                     settings.save_edit();
@@ -1481,7 +1516,7 @@ impl App {
             return Ok(false);
         }
 
-        match key {
+        match key.code {
             KeyCode::Up | KeyCode::Char('k') => settings.previous(),
             KeyCode::Down | KeyCode::Char('j') => settings.next(),
             KeyCode::Enter => {
@@ -1528,14 +1563,14 @@ impl App {
 
     // -- API Browse ---------------------------------------------------------
 
-    fn handle_browse(&mut self, key: KeyCode) -> Result<bool> {
+    fn handle_browse(&mut self, key: &KeyEvent) -> Result<bool> {
         use super::screens::browse::ViewMode;
 
         let browse = match &mut self.screen {
             AppScreen::Browse(b) => b,
             _ => return Ok(false),
         };
-        match key {
+        match key.code {
             KeyCode::Up | KeyCode::Char('k') => browse.previous(),
             KeyCode::Down | KeyCode::Char('j') => browse.next(),
             KeyCode::Left | KeyCode::Char('h') if browse.view_mode == ViewMode::Endpoints => {
@@ -1562,12 +1597,12 @@ impl App {
 
     // -- Execute endpoint ---------------------------------------------------
 
-    async fn handle_execute(&mut self, key: KeyCode) -> Result<bool> {
+    async fn handle_execute(&mut self, key: &KeyEvent) -> Result<bool> {
         let execute = match &mut self.screen {
             AppScreen::Execute(e) => e,
             _ => return Ok(false),
         };
-        match key {
+        match key.code {
             KeyCode::Tab => execute.next_field(),
             KeyCode::BackTab => execute.previous_field(),
             KeyCode::Char(c) => execute.add_char_to_focused(c),
@@ -1623,14 +1658,14 @@ impl App {
 
     // -- Result view --------------------------------------------------------
 
-    fn handle_result(&mut self, key: KeyCode) -> Result<bool> {
+    fn handle_result(&mut self, key: &KeyEvent) -> Result<bool> {
         use super::screens::result::ResultViewMode;
 
         let result = match &mut self.screen {
             AppScreen::Result(r) => r,
             _ => return Ok(false),
         };
-        match key {
+        match key.code {
             KeyCode::Up | KeyCode::Char('k') => {
                 if result.view_mode == ResultViewMode::Json {
                     result.scroll_up(1);
@@ -1690,12 +1725,12 @@ impl App {
 
     // -- Result detail ------------------------------------------------------
 
-    fn handle_result_detail(&mut self, key: KeyCode) -> Result<bool> {
+    fn handle_result_detail(&mut self, key: &KeyEvent) -> Result<bool> {
         let detail = match &mut self.screen {
             AppScreen::ResultDetail(d) => d,
             _ => return Ok(false),
         };
-        match key {
+        match key.code {
             KeyCode::Up | KeyCode::Char('k') => detail.scroll_up(1),
             KeyCode::Down | KeyCode::Char('j') => detail.scroll_down(1),
             KeyCode::PageUp => detail.scroll_up(10),
@@ -1717,7 +1752,7 @@ impl App {
 
     // -- Game detail --------------------------------------------------------
 
-    fn handle_game_detail(&mut self, key: KeyCode) -> Result<bool> {
+    fn handle_game_detail(&mut self, key: &KeyEvent) -> Result<bool> {
         let detail = match &mut self.screen {
             AppScreen::GameDetail(d) => d,
             _ => return Ok(false),
@@ -1748,7 +1783,7 @@ impl App {
             }
         }
 
-        match key {
+        match key.code {
             // Only start a download once per detail view and avoid
             // stacking multiple concurrent downloads for the same ROM.
             KeyCode::Enter if !detail.has_started_download => {
@@ -1787,15 +1822,13 @@ impl App {
 
     // -- Setup Wizard -------------------------------------------------------
 
-    async fn handle_setup_wizard(&mut self, key: KeyCode) -> Result<bool> {
+    async fn handle_setup_wizard(&mut self, key: &KeyEvent) -> Result<bool> {
         let wizard = match &mut self.screen {
             AppScreen::SetupWizard(w) => w,
             _ => return Ok(false),
         };
 
-        // Create a dummy event to pass to handle_key
-        let event = crossterm::event::KeyEvent::new(key, crossterm::event::KeyModifiers::empty());
-        if wizard.handle_key(event)? {
+        if wizard.handle_key(key)? {
             // Esc pressed
             self.screen = AppScreen::Settings(SettingsScreen::new(
                 &self.config,
@@ -2005,7 +2038,11 @@ mod tests {
     async fn list_move_to_zero_rom_selection_does_not_queue_deferred_load() {
         let mut app = app_with_library(vec![platform(1, "HasRoms", 5), platform(2, "Empty", 0)]);
 
-        assert!(!app.handle_key(KeyCode::Down).await.expect("key handled"));
+        assert!(
+            !app.handle_key_event(&KeyEvent::new(KeyCode::Down, KeyModifiers::empty()))
+                .await
+                .expect("key handled")
+        );
         assert!(
             app.deferred_load_roms.is_none(),
             "selection move to zero-rom platform should not queue deferred ROM load"
@@ -2039,7 +2076,10 @@ mod tests {
         );
         app.screen = AppScreen::GameDetail(Box::new(detail));
 
-        let quit = app.handle_key(KeyCode::Esc).await.expect("esc handled");
+        let quit = app
+            .handle_key_event(&KeyEvent::new(KeyCode::Esc, KeyModifiers::empty()))
+            .await
+            .expect("esc handled");
         assert!(!quit);
         assert!(matches!(app.screen, AppScreen::LibraryBrowse(_)));
     }

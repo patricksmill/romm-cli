@@ -119,10 +119,29 @@ impl GameDetailScreen {
     }
 
     pub fn apply_cover_image(&mut self, image: image::DynamicImage) {
-        let mut picker = Picker::halfblocks();
-        if let Some(protocol) = self.cover_protocol {
-            picker.set_protocol_type(protocol);
-        }
+        let picker = match self.cover_protocol {
+            None => Picker::halfblocks(),
+            Some(env_protocol) => match Picker::from_query_stdio() {
+                Ok(mut p) => {
+                    // ratatui-image ties pixel budget to protocol + font_size together. After
+                    // `from_query_stdio`, protocol and cell size both come from the terminal when
+                    // the query succeeds. Replacing the queried protocol with a different env-only
+                    // guess (e.g. host vs PTY layer disagree) mis-maps pixels to cells and clips or
+                    // gaps the image even when `Resize::Fit` is correct.
+                    if matches!(env_protocol, ProtocolType::Kitty) {
+                        p.set_protocol_type(ProtocolType::Kitty);
+                    } else if p.protocol_type() == ProtocolType::Halfblocks {
+                        p.set_protocol_type(env_protocol);
+                    }
+                    p
+                }
+                Err(_) => {
+                    let mut p = Picker::halfblocks();
+                    p.set_protocol_type(env_protocol);
+                    p
+                }
+            },
+        };
         self.cover_image = Some(picker.new_resize_protocol(image));
         self.cover_state = CoverState::Ready;
     }

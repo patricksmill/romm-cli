@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crossterm::event::KeyCode;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use romm_cli::client::RommClient;
 use romm_cli::config::Config;
 use romm_cli::core::utils;
@@ -44,7 +44,10 @@ async fn test_main_menu_api_error_shows_popup() {
     let mut app = App::new(client, config, EndpointRegistry::default(), None, None);
 
     // Simulate pressing Enter on Main Menu (Platforms)
-    let quit = app.handle_key(KeyCode::Enter).await.unwrap();
+    let quit = app
+        .handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()))
+        .await
+        .unwrap();
     assert!(!quit);
 
     // Library opens immediately; metadata refresh runs in background.
@@ -111,7 +114,10 @@ async fn test_main_menu_success_transitions_to_library() {
     let mut app = App::new(client, config, EndpointRegistry::default(), None, None);
 
     // Simulate pressing Enter on Main Menu (Platforms)
-    let quit = app.handle_key(KeyCode::Enter).await.unwrap();
+    let quit = app
+        .handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()))
+        .await
+        .unwrap();
     assert!(!quit);
 
     // Assert error is not set
@@ -135,11 +141,14 @@ async fn main_menu_fifth_item_is_exit() {
 
     // Move to the 5th menu row (0-based index 4).
     for _ in 0..4 {
-        assert!(!app.handle_key(KeyCode::Down).await.unwrap());
+        assert!(!app.handle_key_event(&KeyEvent::new(KeyCode::Down, KeyModifiers::empty())).await.unwrap());
     }
 
     // Without API (Expert) in the menu, the 5th item should be Exit.
-    let quit = app.handle_key(KeyCode::Enter).await.unwrap();
+    let quit = app
+        .handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()))
+        .await
+        .unwrap();
     assert!(quit, "expected Enter on 5th item to quit");
 }
 
@@ -160,7 +169,10 @@ async fn library_filter_mode_d_types_in_search_bar_not_downloads() {
     lib.enter_rom_search(LibrarySearchMode::Filter);
     app.screen = AppScreen::LibraryBrowse(lib);
 
-    let quit = app.handle_key(KeyCode::Char('d')).await.unwrap();
+    let quit = app
+        .handle_key_event(&KeyEvent::new(KeyCode::Char('d'), KeyModifiers::empty()))
+        .await
+        .unwrap();
     assert!(!quit);
     assert!(
         matches!(&app.screen, AppScreen::LibraryBrowse(l) if l.rom_search.query == "d" && l.rom_search.mode.is_some()),
@@ -222,13 +234,13 @@ async fn library_filter_enter_then_enter_opens_game_detail() {
     }
     app.screen = AppScreen::LibraryBrowse(lib);
 
-    assert!(!app.handle_key(KeyCode::Enter).await.unwrap());
+    assert!(!app.handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty())).await.unwrap());
     assert!(
         matches!(&app.screen, AppScreen::LibraryBrowse(l) if l.rom_search.filter_browsing && l.rom_search.mode.is_none()),
         "first Enter should commit filter browsing"
     );
 
-    assert!(!app.handle_key(KeyCode::Enter).await.unwrap());
+    assert!(!app.handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty())).await.unwrap());
     assert!(
         matches!(&app.screen, AppScreen::GameDetail(d) if d.rom.name == "alpha"),
         "second Enter should open the selected filtered game"
@@ -269,10 +281,10 @@ async fn game_detail_download_is_blocked_when_config_download_path_is_invalid() 
     lib.view_mode = LibraryViewMode::Roms;
     app.screen = AppScreen::LibraryBrowse(lib);
 
-    assert!(!app.handle_key(KeyCode::Enter).await.unwrap());
+    assert!(!app.handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty())).await.unwrap());
     assert!(matches!(&app.screen, AppScreen::GameDetail(_)));
 
-    assert!(!app.handle_key(KeyCode::Enter).await.unwrap());
+    assert!(!app.handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty())).await.unwrap());
     assert!(
         matches!(&app.screen, AppScreen::GameDetail(d) if d.message.as_deref().is_some_and(|m| m.contains("Download blocked"))),
         "invalid configured download path should block start with a user-facing message"
@@ -316,8 +328,8 @@ async fn game_detail_download_skips_when_rom_already_exists_in_console_folder() 
     lib.view_mode = LibraryViewMode::Roms;
     app.screen = AppScreen::LibraryBrowse(lib);
 
-    assert!(!app.handle_key(KeyCode::Enter).await.unwrap());
-    assert!(!app.handle_key(KeyCode::Enter).await.unwrap());
+    assert!(!app.handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty())).await.unwrap());
+    assert!(!app.handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty())).await.unwrap());
 
     let mut saw_skip = false;
     for _ in 0..50 {
