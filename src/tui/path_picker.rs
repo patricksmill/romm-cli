@@ -609,7 +609,7 @@ mod tests {
     #[test]
     fn resolve_browse_empty_uses_home_or_dot() {
         let r = resolve_browse_directory("");
-        assert!(r.exists() || r == PathBuf::from("."));
+        assert!(r.exists() || r == std::path::Path::new("."));
     }
 
     #[test]

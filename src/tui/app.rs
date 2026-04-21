@@ -1294,7 +1294,7 @@ impl App {
                         self.screen = AppScreen::GameDetail(Box::new(GameDetailScreen::new(
                             primary,
                             others,
-                            GameDetailPrevious::Library(l),
+                            GameDetailPrevious::Library(Box::new(l)),
                             self.downloads.shared(),
                         )));
                         self.maybe_start_game_detail_cover_load();
@@ -1809,7 +1809,7 @@ impl App {
                     std::mem::replace(&mut self.screen, AppScreen::MainMenu(MainMenuScreen::new()));
                 if let AppScreen::GameDetail(g) = prev {
                     self.screen = match g.previous {
-                        GameDetailPrevious::Library(l) => AppScreen::LibraryBrowse(l),
+                        GameDetailPrevious::Library(l) => AppScreen::LibraryBrowse(*l),
                         GameDetailPrevious::Search(s) => AppScreen::Search(s),
                     };
                 }
@@ -2070,7 +2070,7 @@ mod tests {
         let detail = GameDetailScreen::new(
             rom_fixture(),
             Vec::new(),
-            GameDetailPrevious::Library(previous),
+            GameDetailPrevious::Library(Box::new(previous)),
             app.downloads.shared(),
         );
         app.screen = AppScreen::GameDetail(Box::new(detail));

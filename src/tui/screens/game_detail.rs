@@ -17,7 +17,7 @@ use super::{LibraryBrowseScreen, SearchScreen};
 
 /// Previous screen when opening game detail (so Esc can return).
 pub enum GameDetailPrevious {
-    Library(LibraryBrowseScreen),
+    Library(Box<LibraryBrowseScreen>),
     Search(SearchScreen),
 }
 
