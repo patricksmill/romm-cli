@@ -11,6 +11,9 @@ use crate::client::RommClient;
 use crate::core::utils;
 use crate::types::Rom;
 use anyhow::{anyhow, Context, Result};
+use crate::core::interrupt::is_cancelled_error;
+use std::fs::File;
+use zip::ZipArchive;
 
 /// Directory for ROM storage (`ROMM_ROMS_DIR`, `ROMM_DOWNLOAD_DIR`, or configured path).
 pub fn resolve_download_directory(configured_download_dir: Option<&str>) -> Result<PathBuf> {
@@ -107,6 +110,27 @@ pub fn unique_zip_path(dir: &Path, stem: &str) -> PathBuf {
     }
 }
 
+/// Extract a ZIP archive into `destination_dir`.
+pub fn extract_zip_archive(zip_path: &Path, destination_dir: &Path) -> Result<()> {
+    let zip_path = zip_path.to_path_buf();
+    let destination_dir = destination_dir.to_path_buf();
+    std::fs::create_dir_all(&destination_dir).with_context(|| {
+        format!(
+            "Could not create extraction directory {}",
+            destination_dir.display()
+        )
+    })?;
+
+    let file = File::open(&zip_path)
+        .with_context(|| format!("Could not open zip archive {}", zip_path.display()))?;
+    let mut archive =
+        ZipArchive::new(file).with_context(|| format!("Invalid ZIP archive {}", zip_path.display()))?;
+    archive
+        .extract(&destination_dir)
+        .with_context(|| format!("Could not extract archive into {}", destination_dir.display()))?;
+    Ok(())
+}
+
 // ---------------------------------------------------------------------------
 // Job status / data
 // ---------------------------------------------------------------------------
@@ -117,6 +141,7 @@ pub enum DownloadStatus {
     Downloading,
     Done,
     SkippedAlreadyExists,
+    Cancelled,
     FinalizeFailed(String),
     Error(String),
 }
@@ -315,7 +340,11 @@ impl DownloadManager {
                 Err(e) => {
                     if let Ok(mut list) = jobs.lock() {
                         if let Some(j) = list.iter_mut().find(|j| j.id == job_id) {
-                            j.status = DownloadStatus::Error(e.to_string());
+                            if is_cancelled_error(&e) {
+                                j.status = DownloadStatus::Cancelled;
+                            } else {
+                                j.status = DownloadStatus::Error(e.to_string());
+                            }
                         }
                     }
                 }
@@ -408,6 +437,8 @@ mod tests {
     use crate::types::Rom;
     use std::io::Write;
     use std::time::{SystemTime, UNIX_EPOCH};
+    use zip::write::SimpleFileOptions;
+    use zip::ZipWriter;
 
     fn rom_fixture_with_platform(platform_fs_slug: Option<&str>, fs_name: &str) -> Rom {
         Rom {
@@ -554,6 +585,35 @@ mod tests {
         );
 
         let _ = std::fs::remove_file(&final_path);
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn extract_zip_archive_writes_files_to_destination() {
+        let ts = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let base = std::env::temp_dir().join(format!("romm-extract-{ts}"));
+        let zip_path = base.join("sample.zip");
+        let out_dir = base.join("out");
+        std::fs::create_dir_all(&base).unwrap();
+
+        let zip_file = std::fs::File::create(&zip_path).unwrap();
+        let mut writer = ZipWriter::new(zip_file);
+        writer
+            .start_file("nested/game.rom", SimpleFileOptions::default())
+            .unwrap();
+        writer.write_all(b"rom-bytes").unwrap();
+        writer.finish().unwrap();
+
+        extract_zip_archive(&zip_path, &out_dir).unwrap();
+
+        let extracted = out_dir.join("nested").join("game.rom");
+        assert!(extracted.exists(), "expected extracted file at {:?}", extracted);
+        let data = std::fs::read(&extracted).unwrap();
+        assert_eq!(data, b"rom-bytes");
+
         let _ = std::fs::remove_dir_all(&base);
     }
 }

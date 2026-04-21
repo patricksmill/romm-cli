@@ -6,6 +6,7 @@ use anyhow::Result;
 use clap::Args;
 
 use crate::client::RommClient;
+use crate::core::interrupt::InterruptContext;
 
 use super::library_scan::{run_scan_library_flow, ScanCacheInvalidate, ScanLibraryOptions};
 use super::OutputFormat;
@@ -21,7 +22,12 @@ pub struct ScanCommand {
     pub wait_timeout_secs: Option<u64>,
 }
 
-pub async fn handle(cmd: ScanCommand, client: &RommClient, format: OutputFormat) -> Result<()> {
+pub async fn handle(
+    cmd: ScanCommand,
+    client: &RommClient,
+    format: OutputFormat,
+    interrupt: Option<InterruptContext>,
+) -> Result<()> {
     let options = ScanLibraryOptions {
         wait: cmd.wait,
         wait_timeout: Duration::from_secs(cmd.wait_timeout_secs.unwrap_or(3600)),
@@ -31,5 +37,5 @@ pub async fn handle(cmd: ScanCommand, client: &RommClient, format: OutputFormat)
             ScanCacheInvalidate::None
         },
     };
-    run_scan_library_flow(client, options, format).await
+    run_scan_library_flow(client, options, format, interrupt.as_ref()).await
 }

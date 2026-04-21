@@ -2,6 +2,7 @@ use anyhow::{anyhow, Result};
 
 use crate::client::RommClient;
 use crate::commands::{api, cache, download, platforms, roms, scan, Commands, OutputFormat};
+use crate::core::interrupt::InterruptContext;
 
 /// Execute one non-TUI CLI command.
 pub async fn run(command: Commands, client: &RommClient, global_json: bool) -> Result<()> {
@@ -20,9 +21,13 @@ pub async fn run(command: Commands, client: &RommClient, global_json: bool) -> R
         }
         Commands::Scan(cmd) => {
             let format = OutputFormat::from_flags(global_json, false);
-            scan::handle(cmd, client, format).await
+            let interrupt = InterruptContext::new();
+            scan::handle(cmd, client, format, Some(interrupt)).await
         }
-        Commands::Download(cmd) => download::handle(cmd, client).await,
+        Commands::Download(cmd) => {
+            let interrupt = InterruptContext::new();
+            download::handle(cmd, client, Some(interrupt)).await
+        }
         Commands::Cache(cmd) => cache::handle(cmd),
         Commands::Init(_) => Err(anyhow!(
             "internal routing error: init command in CLI frontend"
@@ -30,6 +35,9 @@ pub async fn run(command: Commands, client: &RommClient, global_json: bool) -> R
         Commands::Tui => Err(anyhow!(
             "internal routing error: TUI command in CLI frontend"
         )),
-        Commands::Update => crate::commands::update::handle(),
+        Commands::Update => {
+            let interrupt = InterruptContext::new();
+            crate::commands::update::handle(Some(interrupt)).await
+        }
     }
 }

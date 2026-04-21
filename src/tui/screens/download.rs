@@ -66,6 +66,9 @@ impl DownloadScreen {
                             "Skipped (already exists)".into(),
                             Style::default().fg(Color::Yellow),
                         ),
+                        DownloadStatus::Cancelled => {
+                            ("Cancelled".into(), Style::default().fg(Color::Yellow))
+                        }
                         DownloadStatus::FinalizeFailed(msg) => (
                             format!("Finalize failed: {}", truncate(msg, 40)),
                             Style::default().fg(Color::Red),

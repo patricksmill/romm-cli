@@ -14,6 +14,7 @@ use std::time::Instant;
 use tokio::io::AsyncWriteExt as _;
 
 use crate::config::{normalize_romm_origin, AuthConfig, Config};
+use crate::core::interrupt::cancelled_error;
 use crate::endpoints::Endpoint;
 
 /// Default `User-Agent` for every request. The stock `reqwest` UA is sometimes blocked at the HTTP
@@ -417,6 +418,21 @@ impl RommClient {
     where
         F: FnMut(u64, u64) + Send,
     {
+        self.download_rom_with_cancel(rom_id, save_path, |_, _| false, &mut on_progress)
+            .await
+    }
+
+    pub async fn download_rom_with_cancel<F, C>(
+        &self,
+        rom_id: u64,
+        save_path: &Path,
+        mut is_cancelled: C,
+        on_progress: &mut F,
+    ) -> Result<()>
+    where
+        F: FnMut(u64, u64) + Send,
+        C: FnMut(u64, u64) -> bool + Send,
+    {
         let path = "/api/roms/download";
         let url = format!(
             "{}/{}",
@@ -496,7 +512,14 @@ impl RommClient {
             (0u64, total, file)
         };
 
+        if is_cancelled(received, total) {
+            return Err(cancelled_error());
+        }
+
         while let Some(chunk) = resp.chunk().await.map_err(|e| anyhow!("read chunk: {e}"))? {
+            if is_cancelled(received, total) {
+                return Err(cancelled_error());
+            }
             file.write_all(&chunk)
                 .await
                 .map_err(|e| anyhow!("write chunk {:?}: {e}", save_path))?;

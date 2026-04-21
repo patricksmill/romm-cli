@@ -209,7 +209,7 @@ pub async fn handle(cmd: RomsCommand, client: &RommClient, format: OutputFormat)
                             ScanCacheInvalidate::None
                         },
                     };
-                    run_scan_library_flow(client, options, format).await?;
+                    run_scan_library_flow(client, options, format, None).await?;
                 }
             }
         }

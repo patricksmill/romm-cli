@@ -326,6 +326,7 @@ impl App {
                     &client,
                     &start.task_id,
                     Duration::from_secs(3600),
+                    None,
                     |_| {},
                 )
                 .await?;
@@ -1768,6 +1769,7 @@ impl App {
                             j.status,
                             crate::core::download::DownloadStatus::Done
                                 | crate::core::download::DownloadStatus::SkippedAlreadyExists
+                                | crate::core::download::DownloadStatus::Cancelled
                                 | crate::core::download::DownloadStatus::FinalizeFailed(_)
                                 | crate::core::download::DownloadStatus::Error(_)
                         )

@@ -1,6 +1,8 @@
 use anyhow::Result;
 use self_update::cargo_crate_version;
 
+use crate::core::interrupt::{cancelled_error, InterruptContext};
+
 /// Substring inside each GitHub release archive name (`romm-cli-….tar.gz` / `.zip`).
 /// `self_update` matches on this; our assets use `macos-x86_64` etc., not the full Rust triple.
 fn github_release_asset_key() -> &'static str {
@@ -15,17 +17,27 @@ fn github_release_asset_key() -> &'static str {
 }
 
 /// Handle the `update` command.
-pub fn handle() -> Result<()> {
-    let status = self_update::backends::github::Update::configure()
-        .repo_owner("patricksmill")
-        .repo_name("romm-cli")
-        .bin_name("romm-cli")
-        .target(github_release_asset_key())
-        .show_download_progress(true)
-        .current_version(cargo_crate_version!())
-        .build()?
-        .update()?;
+pub async fn handle(interrupt: Option<InterruptContext>) -> Result<()> {
+    let interrupt = interrupt.unwrap_or_else(InterruptContext::new);
+    let update_task = tokio::task::spawn_blocking(|| -> Result<String> {
+        let status = self_update::backends::github::Update::configure()
+            .repo_owner("patricksmill")
+            .repo_name("romm-cli")
+            .bin_name("romm-cli")
+            .target(github_release_asset_key())
+            .show_download_progress(true)
+            .current_version(cargo_crate_version!())
+            .build()?
+            .update()?;
+        Ok(status.version().to_string())
+    });
 
-    println!("Update status: `{}`!", status.version());
+    let version = tokio::select! {
+        out = update_task => out
+            .map_err(|e| anyhow::anyhow!("update task failed: {e}"))??,
+        _ = interrupt.cancelled() => return Err(cancelled_error()),
+    };
+
+    println!("Update status: `{}`!", version);
     Ok(())
 }

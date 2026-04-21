@@ -181,6 +181,7 @@ impl GameDetailScreen {
                                     j.status,
                                     DownloadStatus::Done
                                         | DownloadStatus::SkippedAlreadyExists
+                                        | DownloadStatus::Cancelled
                                         | DownloadStatus::FinalizeFailed(_)
                                         | DownloadStatus::Error(_)
                                 )))
@@ -402,6 +403,10 @@ impl GameDetailScreen {
                 ),
                 DownloadStatus::SkippedAlreadyExists => (
                     "Already present (skipped)".to_string(),
+                    Style::default().fg(Color::Yellow),
+                ),
+                DownloadStatus::Cancelled => (
+                    "Download cancelled".to_string(),
                     Style::default().fg(Color::Yellow),
                 ),
                 DownloadStatus::FinalizeFailed(msg) => (
