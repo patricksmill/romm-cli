@@ -19,26 +19,18 @@ const DEFAULT_CONCURRENCY: usize = 4;
 /// Download a ROM to the local filesystem with a progress bar.
 #[derive(Args, Debug)]
 pub struct DownloadCommand {
+    /// ID of the ROM to download in single-ROM mode
+    pub rom_id: Option<u64>,
+
     #[command(subcommand)]
     pub action: Option<DownloadAction>,
-
-    /// ID of the ROM to download (legacy, use 'download one <id>' or positional)
-    pub rom_id: Option<u64>,
 
     /// Directory to save the ROM zip(s) to
     #[arg(short, long, global = true)]
     pub output: Option<PathBuf>,
 
-    /// Download all ROMs matching the given filters concurrently (legacy, use 'download batch')
-    #[arg(long, global = true)]
-    pub batch: bool,
-
-    /// Filter by platform ID
-    #[arg(long, global = true, conflicts_with = "platform")]
-    pub platform_id: Option<u64>,
-
     /// Filter by platform slug or title (e.g. "3ds")
-    #[arg(long, global = true, conflicts_with = "platform_id")]
+    #[arg(long, global = true)]
     pub platform: Option<String>,
 
     /// Filter by search term
@@ -48,10 +40,6 @@ pub struct DownloadCommand {
     /// Maximum concurrent downloads (default: 4)
     #[arg(long, default_value_t = DEFAULT_CONCURRENCY, global = true)]
     pub jobs: usize,
-
-    /// Resume interrupted downloads instead of re-downloading
-    #[arg(long, default_value_t = true, global = true)]
-    pub resume: bool,
 
     /// Extract each downloaded ZIP after download completes (batch mode only)
     #[arg(long, global = true)]
@@ -68,12 +56,6 @@ pub struct DownloadCommand {
 
 #[derive(Subcommand, Debug)]
 pub enum DownloadAction {
-    /// Download a single ROM by ID
-    #[command(visible_alias = "one")]
-    Id {
-        /// ID of the ROM
-        id: u64,
-    },
     /// Download multiple ROMs matching filters
     #[command(visible_alias = "all")]
     Batch,
@@ -136,17 +118,16 @@ pub async fn handle(
         .map_err(|e| anyhow!("create download dir {:?}: {e}", output_dir))?;
 
     // Determine if we are in batch mode.
-    // In order of priority: subcommand 'batch', then legacy '--batch' flag.
-    let is_batch = matches!(cmd.action, Some(DownloadAction::Batch)) || cmd.batch;
+    let is_batch = matches!(cmd.action, Some(DownloadAction::Batch));
 
     if is_batch {
         // ── Batch mode ─────────────────────────────────────────────────
-        if cmd.platform_id.is_none() && cmd.platform.is_none() && cmd.search_term.is_none() {
+        if cmd.platform.is_none() && cmd.search_term.is_none() {
             return Err(anyhow!(
-                "Batch download requires at least --platform-id, --platform, or --search-term to scope the download"
+                "Batch download requires at least --platform or --search-term to scope the download"
             ));
         }
-        let resolved_platform_id = resolve_platform_id(client, cmd.platform_id, cmd.platform.as_deref()).await?;
+        let resolved_platform_id = resolve_platform_id(client, cmd.platform.as_deref()).await?;
 
         let ep = GetRoms {
             search_term: cmd.search_term.clone(),
@@ -285,12 +266,9 @@ pub async fn handle(
         );
     } else {
         // ── Single ROM mode ────────────────────────────────────────────
-        let rom_id = if let Some(DownloadAction::Id { id }) = cmd.action {
-            id
-        } else {
-            cmd.rom_id
-                .ok_or_else(|| anyhow!("ROM ID is required (e.g. 'download 123' or 'download batch --search-term ...')"))?
-        };
+        let rom_id = cmd.rom_id.ok_or_else(|| {
+            anyhow!("ROM ID is required (e.g. 'download 123' or 'download batch --search-term ...')")
+        })?;
 
         let save_path = output_dir.join(format!("rom_{rom_id}.zip"));
 
@@ -311,12 +289,8 @@ pub async fn handle(
 
 async fn resolve_platform_id(
     client: &RommClient,
-    platform_id: Option<u64>,
     platform_query: Option<&str>,
 ) -> Result<Option<u64>> {
-    if let Some(id) = platform_id {
-        return Ok(Some(id));
-    }
     let Some(query) = platform_query.map(str::trim).filter(|q| !q.is_empty()) else {
         return Ok(None);
     };
@@ -361,7 +335,7 @@ fn resolve_platform_query(query: &str, platforms: &[Platform]) -> Result<u64> {
                 .collect::<Vec<_>>()
                 .join(", ");
             Err(anyhow!(
-                "Platform '{}' is ambiguous. Matches: {}. Use --platform-id to disambiguate.",
+                "Platform '{}' is ambiguous. Matches: {}. Please use a more specific --platform value.",
                 query,
                 names
             ))
@@ -457,11 +431,10 @@ mod tests {
         };
 
         assert_eq!(cmd.platform.as_deref(), Some("3ds"));
-        assert_eq!(cmd.platform_id, None);
     }
 
     #[test]
-    fn parse_download_batch_rejects_platform_and_platform_id_together() {
+    fn parse_download_batch_rejects_platform_id_flag() {
         let parsed = Cli::try_parse_from([
             "romm-cli",
             "download",

@@ -122,7 +122,7 @@ The CLI supports JSON output where applicable. Many commands have short aliases 
 romm-cli platforms
 
 # Search and print JSON
-romm-cli roms --search-term "zelda" --json
+romm-cli roms list --search-term "zelda" --json
 
 # Upload a ROM (file or directory), then optionally rescan the library on the server
 romm-cli roms upload <PLATFORM_ID> path/to/rom.bin --scan

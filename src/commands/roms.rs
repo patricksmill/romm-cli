@@ -12,40 +12,38 @@ use crate::commands::library_scan::{
 use crate::commands::print::print_roms_table;
 use crate::commands::OutputFormat;
 use crate::endpoints::roms::GetRoms;
-use crate::services::RomService;
+use crate::services::{PlatformService, RomService};
+use crate::types::Platform;
 
 /// CLI entrypoint for listing/searching ROMs via `/api/roms`.
 #[derive(Args, Debug)]
 pub struct RomsCommand {
-    #[command(subcommand)]
-    pub action: Option<RomsAction>,
-
-    /// Search term to filter roms
-    #[arg(long, global = true, visible_aliases = ["query", "q"])]
-    pub search_term: Option<String>,
-
-    /// Filter by platform ID
-    #[arg(long, global = true, visible_alias = "id")]
-    pub platform_id: Option<u64>,
-
-    /// Page size limit
-    #[arg(long, global = true)]
-    pub limit: Option<u32>,
-
-    /// Page offset
-    #[arg(long, global = true)]
-    pub offset: Option<u32>,
-
     /// Output as JSON (overrides global --json when set).
     #[arg(long, global = true)]
     pub json: bool,
+
+    #[command(subcommand)]
+    pub action: Option<RomsAction>,
 }
 
 #[derive(Subcommand, Debug)]
 pub enum RomsAction {
     /// List available ROMs (default)
     #[command(visible_alias = "ls")]
-    List,
+    List {
+        /// Search term to filter roms
+        #[arg(long, visible_aliases = ["query", "q"])]
+        search_term: Option<String>,
+        /// Filter by platform slug or title (e.g. "3ds")
+        #[arg(long)]
+        platform: Option<String>,
+        /// Page size limit
+        #[arg(long)]
+        limit: Option<u32>,
+        /// Page offset
+        #[arg(long)]
+        offset: Option<u32>,
+    },
     /// Get detailed information for a single ROM
     #[command(visible_alias = "info")]
     Get {
@@ -110,18 +108,29 @@ async fn upload_one(
 }
 
 pub async fn handle(cmd: RomsCommand, client: &RommClient, format: OutputFormat) -> Result<()> {
-    let action = cmd.action.unwrap_or(RomsAction::List);
+    let action = cmd.action.unwrap_or(RomsAction::List {
+        search_term: None,
+        platform: None,
+        limit: None,
+        offset: None,
+    });
 
     match action {
-        RomsAction::List => {
+        RomsAction::List {
+            search_term,
+            platform,
+            limit,
+            offset,
+        } => {
+            let resolved_platform_id = resolve_platform_id(client, platform.as_deref()).await?;
             let ep = GetRoms {
-                search_term: cmd.search_term.clone(),
-                platform_id: cmd.platform_id,
+                search_term,
+                platform_id: resolved_platform_id,
                 collection_id: None,
                 smart_collection_id: None,
                 virtual_collection_id: None,
-                limit: cmd.limit,
-                offset: cmd.offset,
+                limit,
+                offset,
             };
 
             let service = RomService::new(client);
@@ -216,4 +225,94 @@ pub async fn handle(cmd: RomsCommand, client: &RommClient, format: OutputFormat)
     }
 
     Ok(())
+}
+
+async fn resolve_platform_id(client: &RommClient, platform_query: Option<&str>) -> Result<Option<u64>> {
+    let Some(query) = platform_query.map(str::trim).filter(|q| !q.is_empty()) else {
+        return Ok(None);
+    };
+    let service = PlatformService::new(client);
+    let platforms = service.list_platforms().await?;
+    resolve_platform_query(query, &platforms).map(Some)
+}
+
+fn resolve_platform_query(query: &str, platforms: &[Platform]) -> Result<u64> {
+    let normalized = query.trim().to_ascii_lowercase();
+
+    if let Some(platform) = platforms.iter().find(|p| {
+        p.slug.eq_ignore_ascii_case(&normalized) || p.fs_slug.eq_ignore_ascii_case(&normalized)
+    }) {
+        return Ok(platform.id);
+    }
+
+    let exact_name_matches: Vec<&Platform> = platforms
+        .iter()
+        .filter(|p| {
+            p.name.eq_ignore_ascii_case(&normalized)
+                || p.display_name
+                    .as_deref()
+                    .is_some_and(|name| name.eq_ignore_ascii_case(&normalized))
+                || p.custom_name
+                    .as_deref()
+                    .is_some_and(|name| name.eq_ignore_ascii_case(&normalized))
+        })
+        .collect();
+
+    match exact_name_matches.len() {
+        1 => Ok(exact_name_matches[0].id),
+        0 => anyhow::bail!(
+            "No platform found for '{}'. Use 'romm-cli platforms list' to inspect available values.",
+            query
+        ),
+        _ => {
+            let names = exact_name_matches
+                .iter()
+                .map(|p| format!("{} ({})", p.name, p.id))
+                .collect::<Vec<_>>()
+                .join(", ");
+            anyhow::bail!(
+                "Platform '{}' is ambiguous. Matches: {}. Please use a more specific --platform value.",
+                query,
+                names
+            )
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    use crate::commands::{Cli, Commands};
+
+    #[test]
+    fn parse_roms_list_with_platform_filter() {
+        let cli = Cli::parse_from(["romm-cli", "roms", "list", "--platform", "3ds", "--limit", "10"]);
+        let Commands::Roms(cmd) = cli.command else {
+            panic!("expected roms command");
+        };
+        let Some(RomsAction::List {
+            platform,
+            limit,
+            ..
+        }) = cmd.action
+        else {
+            panic!("expected roms list");
+        };
+        assert_eq!(platform.as_deref(), Some("3ds"));
+        assert_eq!(limit, Some(10));
+    }
+
+    #[test]
+    fn parse_roms_get_rejects_list_only_filter() {
+        let parsed = Cli::try_parse_from(["romm-cli", "roms", "get", "1", "--platform", "3ds"]);
+        assert!(parsed.is_err(), "expected clap parse failure");
+    }
+
+    #[test]
+    fn parse_roms_list_rejects_platform_id_flag() {
+        let parsed = Cli::try_parse_from(["romm-cli", "roms", "list", "--platform-id", "3"]);
+        assert!(parsed.is_err(), "expected clap parse failure");
+    }
 }
