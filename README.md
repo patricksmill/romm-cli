@@ -156,26 +156,6 @@ After a chunked upload, RomM still needs a **library scan** before new games app
 
 ---
 
-## Troubleshooting connectivity
-
-If the RomM UI works in a browser but `curl` or `romm-cli` fail over HTTPS, run from a clone of this repo:
-
-```bash
-chmod +x scripts/check-romm-connectivity.sh
-./scripts/check-romm-connectivity.sh https://romm.example.com
-```
-
-Or with `API_BASE_URL` already set:
-
-```bash
-chmod +x scripts/check-romm-connectivity.sh
-API_BASE_URL=https://romm.example.com ./scripts/check-romm-connectivity.sh
-```
-
-The script compares DNS, **TCP HTTPS** (what romm-cli uses), IPv6, and **HTTP/3** when a suitable `curl` is installed (`brew install curl` on macOS; Apple’s `/usr/bin/curl` usually has no HTTP/3).
-
----
-
 ## Contributing
 
 Issues and pull requests are welcome. To build from source:
