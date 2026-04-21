@@ -577,7 +577,6 @@ mod tests {
         let previous = GameDetailPrevious::Search(SearchScreen::new());
         let downloads = Arc::new(Mutex::new(Vec::new()));
         let mut detail = GameDetailScreen::new(rom, Vec::new(), previous, downloads);
-        detail.cover_protocol = Some(ProtocolType::Iterm2);
         detail.set_cover_loading();
         assert_eq!(detail.cover_state, CoverState::Loading);
 
