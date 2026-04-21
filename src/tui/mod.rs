@@ -12,7 +12,6 @@
 
 pub mod app;
 pub mod keyboard_help;
-pub mod path_picker;
 pub mod openapi;
 pub mod openapi_sync;
 pub mod path_picker;
