@@ -125,8 +125,8 @@ romm-cli platforms
 romm-cli roms list --search-term "zelda" --json
 
 # Upload a ROM (file or directory), then optionally rescan the library on the server
-romm-cli roms upload <PLATFORM_ID> path/to/rom.bin --scan
-romm-cli roms upload <PLATFORM_ID> ./folder --scan --wait
+romm-cli roms upload --platform <slug-or-name> path/to/rom.bin --scan
+romm-cli roms upload --platform <slug-or-name> ./folder --scan --wait
 
 # Trigger a full library scan (e.g. after uploads outside the CLI); optional --wait
 romm-cli scan

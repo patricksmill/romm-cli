@@ -76,8 +76,8 @@ RomM may also set `manual_run=False` on the scheduled `scan_library` task in som
 ### Manual
 
 ```bash
-romm-cli roms upload 4 "path/to/rom.bin" --scan
-romm-cli roms upload 4 ./folder --scan --wait --wait-timeout-secs 7200
+romm-cli roms upload --platform gba "path/to/rom.bin" --scan
+romm-cli roms upload --platform gba ./folder --scan --wait --wait-timeout-secs 7200
 romm-cli scan --wait
 ```
 

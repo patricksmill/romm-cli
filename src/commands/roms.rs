@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use clap::{Args, Subcommand};
 use indicatif::{ProgressBar, ProgressStyle};
 
@@ -53,9 +53,10 @@ pub enum RomsAction {
     /// Upload a ROM file to a platform
     #[command(visible_alias = "up")]
     Upload {
-        /// The platform ID to upload to
-        platform_id: u64,
-        /// The file to upload
+        /// Platform slug or name (e.g. "3ds", "Nintendo 3DS")
+        #[arg(long)]
+        platform: String,
+        /// File or directory to upload
         file: PathBuf,
         /// Trigger a library scan after upload completes
         #[arg(short, long)]
@@ -162,11 +163,20 @@ pub async fn handle(cmd: RomsCommand, client: &RommClient, format: OutputFormat)
         }
         RomsAction::Upload {
             file,
-            platform_id,
+            platform,
             scan,
             wait,
             wait_timeout_secs,
         } => {
+            let resolved_platform_id = match resolve_platform_id(client, Some(platform.trim())).await? {
+                Some(id) => id,
+                None => {
+                    return Err(anyhow!(
+                        "`--platform` must not be empty (use a slug or name from `romm-cli platforms list`)"
+                    ));
+                }
+            };
+
             if !file.exists() {
                 anyhow::bail!("File or directory does not exist: {:?}", file);
             }
@@ -199,7 +209,7 @@ pub async fn handle(cmd: RomsCommand, client: &RommClient, format: OutputFormat)
             for path in files {
                 let pb = mp.add(ProgressBar::new(0));
                 pb.set_style(make_progress_style());
-                match upload_one(client, platform_id, path.clone(), pb).await {
+                match upload_one(client, resolved_platform_id, path.clone(), pb).await {
                     Ok(()) => successes += 1,
                     Err(e) => eprintln!("Error uploading {:?}: {}", path, e),
                 }
@@ -213,7 +223,7 @@ pub async fn handle(cmd: RomsCommand, client: &RommClient, format: OutputFormat)
                         wait,
                         wait_timeout: Duration::from_secs(wait_timeout_secs.unwrap_or(3600)),
                         cache_invalidate: if wait {
-                            ScanCacheInvalidate::Platform(platform_id)
+                            ScanCacheInvalidate::Platform(resolved_platform_id)
                         } else {
                             ScanCacheInvalidate::None
                         },
@@ -314,5 +324,31 @@ mod tests {
     fn parse_roms_list_rejects_platform_id_flag() {
         let parsed = Cli::try_parse_from(["romm-cli", "roms", "list", "--platform-id", "3"]);
         assert!(parsed.is_err(), "expected clap parse failure");
+    }
+
+    #[test]
+    fn parse_roms_upload_requires_platform() {
+        let parsed = Cli::try_parse_from(["romm-cli", "roms", "upload", "foo.bin"]);
+        assert!(parsed.is_err(), "expected clap parse failure without --platform");
+    }
+
+    #[test]
+    fn parse_roms_upload_with_platform_and_file() {
+        let cli = Cli::parse_from([
+            "romm-cli",
+            "roms",
+            "upload",
+            "--platform",
+            "3ds",
+            "foo.bin",
+        ]);
+        let Commands::Roms(cmd) = cli.command else {
+            panic!("expected roms command");
+        };
+        let Some(RomsAction::Upload { platform, file, .. }) = cmd.action else {
+            panic!("expected roms upload");
+        };
+        assert_eq!(platform, "3ds");
+        assert_eq!(file, PathBuf::from("foo.bin"));
     }
 }
