@@ -773,7 +773,12 @@ impl LibraryBrowseScreen {
         );
         f.render_widget(Paragraph::new(header), rows[0]);
         let footer = "Enter: open/select   Ctrl+Enter: confirm file   ↑ list top: path   Tab: path/list   Ctrl+s: rescan";
+<<<<<<< HEAD
         up.picker.render(f, rows[1], "Choose ROM file", footer);
+=======
+        up.picker
+            .render(f, rows[1], "Choose ROM file", footer);
+>>>>>>> f07149b5c51c9534a593c0cc1270183301cd63e5
     }
 
     /// Cursor for the upload path field (when [`Self::upload_prompt`] is open).

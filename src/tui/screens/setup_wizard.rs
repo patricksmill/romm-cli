@@ -241,10 +241,18 @@ impl SetupWizard {
         if code.is_empty() {
             return Err(anyhow!("Pairing code cannot be empty"));
         }
+<<<<<<< HEAD
         let download_dir =
             validate_configured_download_directory(self.download_picker.path_trimmed().trim())?
                 .display()
                 .to_string();
+=======
+        let download_dir = validate_configured_download_directory(
+            self.download_picker.path_trimmed().trim(),
+        )?
+            .display()
+            .to_string();
+>>>>>>> f07149b5c51c9534a593c0cc1270183301cd63e5
         let temp_config = Config {
             base_url: base_url.clone(),
             download_dir: download_dir.clone(),
@@ -271,10 +279,18 @@ impl SetupWizard {
         if base_url.is_empty() {
             return Err(anyhow!("Server URL cannot be empty"));
         }
+<<<<<<< HEAD
         let download_dir =
             validate_configured_download_directory(self.download_picker.path_trimmed().trim())?
                 .display()
                 .to_string();
+=======
+        let download_dir = validate_configured_download_directory(
+            self.download_picker.path_trimmed().trim(),
+        )?
+            .display()
+            .to_string();
+>>>>>>> f07149b5c51c9534a593c0cc1270183301cd63e5
         let auth: Option<AuthConfig> = match self.auth_kind {
             AuthKind::None => None,
             AuthKind::Basic => {
@@ -403,7 +419,12 @@ impl SetupWizard {
             }
             Step::Download => {
                 let footer = "↓/↑: list focus  ↑ at top: back to path  Ctrl+Enter: accept typed path (creates folders)  Tab: path/list  Esc: quit";
+<<<<<<< HEAD
                 self.download_picker.render(f, main[1], title, footer);
+=======
+                self.download_picker
+                    .render(f, main[1], title, footer);
+>>>>>>> f07149b5c51c9534a593c0cc1270183301cd63e5
             }
             Step::AuthMenu => {
                 let items: Vec<ListItem> = Self::auth_labels()

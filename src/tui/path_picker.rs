@@ -168,11 +168,7 @@ impl PathPicker {
             }
         }
         let n = self.entries.len();
-        let sel = self
-            .list_state
-            .selected()
-            .unwrap_or(0)
-            .min(n.saturating_sub(1));
+        let sel = self.list_state.selected().unwrap_or(0).min(n.saturating_sub(1));
         self.list_state.select(Some(sel));
     }
 
@@ -382,7 +378,11 @@ impl PathPicker {
         let inner = block.inner(area);
         f.render_widget(block, area);
 
-        let path_h = if self.io_error.is_some() { 2u16 } else { 1u16 };
+        let path_h = if self.io_error.is_some() {
+            2u16
+        } else {
+            1u16
+        };
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -424,13 +424,13 @@ impl PathPicker {
             );
         }
 
-        let list_block = Block::default().borders(Borders::ALL).border_style(
-            if self.focus == PathPickerFocus::List {
+        let list_block = Block::default()
+            .borders(Borders::ALL)
+            .border_style(if self.focus == PathPickerFocus::List {
                 Style::default().fg(Color::Yellow)
             } else {
                 Style::default()
-            },
-        );
+            });
         let list_inner = list_block.inner(chunks[1]);
         f.render_widget(list_block, chunks[1]);
 

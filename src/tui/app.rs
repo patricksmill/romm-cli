@@ -2038,10 +2038,11 @@ mod tests {
     async fn list_move_to_zero_rom_selection_does_not_queue_deferred_load() {
         let mut app = app_with_library(vec![platform(1, "HasRoms", 5), platform(2, "Empty", 0)]);
 
-        assert!(!app
-            .handle_key_event(&KeyEvent::new(KeyCode::Down, KeyModifiers::empty()))
-            .await
-            .expect("key handled"));
+        assert!(
+            !app.handle_key_event(&KeyEvent::new(KeyCode::Down, KeyModifiers::empty()))
+                .await
+                .expect("key handled")
+        );
         assert!(
             app.deferred_load_roms.is_none(),
             "selection move to zero-rom platform should not queue deferred ROM load"

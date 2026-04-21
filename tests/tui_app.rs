@@ -141,10 +141,14 @@ async fn main_menu_fifth_item_is_exit() {
 
     // Move to the 5th menu row (0-based index 4).
     for _ in 0..4 {
+<<<<<<< HEAD
         assert!(!app
             .handle_key_event(&KeyEvent::new(KeyCode::Down, KeyModifiers::empty()))
             .await
             .unwrap());
+=======
+        assert!(!app.handle_key_event(&KeyEvent::new(KeyCode::Down, KeyModifiers::empty())).await.unwrap());
+>>>>>>> f07149b5c51c9534a593c0cc1270183301cd63e5
     }
 
     // Without API (Expert) in the menu, the 5th item should be Exit.
@@ -237,19 +241,27 @@ async fn library_filter_enter_then_enter_opens_game_detail() {
     }
     app.screen = AppScreen::LibraryBrowse(lib);
 
+<<<<<<< HEAD
     assert!(!app
         .handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()))
         .await
         .unwrap());
+=======
+    assert!(!app.handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty())).await.unwrap());
+>>>>>>> f07149b5c51c9534a593c0cc1270183301cd63e5
     assert!(
         matches!(&app.screen, AppScreen::LibraryBrowse(l) if l.rom_search.filter_browsing && l.rom_search.mode.is_none()),
         "first Enter should commit filter browsing"
     );
 
+<<<<<<< HEAD
     assert!(!app
         .handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()))
         .await
         .unwrap());
+=======
+    assert!(!app.handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty())).await.unwrap());
+>>>>>>> f07149b5c51c9534a593c0cc1270183301cd63e5
     assert!(
         matches!(&app.screen, AppScreen::GameDetail(d) if d.rom.name == "alpha"),
         "second Enter should open the selected filtered game"
@@ -290,6 +302,7 @@ async fn game_detail_download_is_blocked_when_config_download_path_is_invalid() 
     lib.view_mode = LibraryViewMode::Roms;
     app.screen = AppScreen::LibraryBrowse(lib);
 
+<<<<<<< HEAD
     assert!(!app
         .handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()))
         .await
@@ -300,6 +313,12 @@ async fn game_detail_download_is_blocked_when_config_download_path_is_invalid() 
         .handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()))
         .await
         .unwrap());
+=======
+    assert!(!app.handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty())).await.unwrap());
+    assert!(matches!(&app.screen, AppScreen::GameDetail(_)));
+
+    assert!(!app.handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty())).await.unwrap());
+>>>>>>> f07149b5c51c9534a593c0cc1270183301cd63e5
     assert!(
         matches!(&app.screen, AppScreen::GameDetail(d) if d.message.as_deref().is_some_and(|m| m.contains("Download blocked"))),
         "invalid configured download path should block start with a user-facing message"
@@ -343,6 +362,7 @@ async fn game_detail_download_skips_when_rom_already_exists_in_console_folder() 
     lib.view_mode = LibraryViewMode::Roms;
     app.screen = AppScreen::LibraryBrowse(lib);
 
+<<<<<<< HEAD
     assert!(!app
         .handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()))
         .await
@@ -351,6 +371,10 @@ async fn game_detail_download_skips_when_rom_already_exists_in_console_folder() 
         .handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()))
         .await
         .unwrap());
+=======
+    assert!(!app.handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty())).await.unwrap());
+    assert!(!app.handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty())).await.unwrap());
+>>>>>>> f07149b5c51c9534a593c0cc1270183301cd63e5
 
     let mut saw_skip = false;
     for _ in 0..50 {
