@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.25.0](https://github.com/patricksmill/romm-cli/compare/v0.24.0...v0.25.0) (2026-04-21)
+
+
+### Features
+
+* **interrupt:** implement cancellation support for long-running tasks ([e3c9ad4](https://github.com/patricksmill/romm-cli/commit/e3c9ad4b406cad3dab1879aaef3a5e681d5ed182))
+
+
+### Bug Fixes
+
+* **cli:** fix testing to reflect using --platform instead of --platform-id ([f6ef5b4](https://github.com/patricksmill/romm-cli/commit/f6ef5b47618c2b66f442d4d552559c0428842b2b))
+* **interrupt:** ran cargo fmt and clippy ([7c404bb](https://github.com/patricksmill/romm-cli/commit/7c404bbaf60a2b466b5fc029566ffcd0c19226ad))
+* **tui:** remove unused cover_protocol from GameDetailScreen ([b7b7679](https://github.com/patricksmill/romm-cli/commit/b7b7679bc0ba899850b330cfd389ab2fafce4e11))
+
 ## [0.24.0](https://github.com/patricksmill/romm-cli/compare/v0.23.0...v0.24.0) (2026-04-21)
 
 
