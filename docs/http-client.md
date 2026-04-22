@@ -22,7 +22,7 @@ These types live under `src/endpoints/*`.
   - base URL (RomM **site** origin — same as in the browser; no `/api`. Paths already include `"/api/..."`.)
   - authentication config
   - `verbose` flag (when true, logs HTTP requests to stderr)
-- uses a custom `User-Agent` (`romm-cli/VERSION`) which can be overridden via the `ROMM_USER_AGENT` environment variable to bypass strict reverse proxies.
+- uses a custom `User-Agent` in the form `Mozilla/5.0 (compatible; romm-cli/<version>; +https://github.com/patricksmill/romm-cli)`, which can be overridden via the `ROMM_USER_AGENT` environment variable to bypass strict reverse proxies.
 - exposes:
   - `call<E: Endpoint>(&self, ep: &E)` – typed request/response
   - `request_json` – lower-level helper that returns `serde_json::Value`. It gracefully handles empty bodies (mapping them to `Value::Null`) and non-JSON text responses (wrapping them in `{"_non_json_body": "..."}`).

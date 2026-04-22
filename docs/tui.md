@@ -37,10 +37,13 @@ Each screen is its own struct under `src/tui/screens/`:
 - `GameDetailScreen` – detail view for a single ROM
 - `DownloadScreen` – overlay showing downloads
 - `SettingsScreen` – current config summary
-- `BrowseScreen` / `ExecuteScreen` / `ResultScreen` – API browser flow
+- `BrowseScreen` / `ExecuteScreen` / `ResultScreen` / `ResultDetailScreen` – API browser flow
+- `SetupWizard` – first-run / reconnect configuration flow
 
 The `AppScreen` enum in `tui::app` wraps these screen structs so that
-`App` only ever has one active screen at a time.
+`App` only ever has one active screen at a time. During startup, a
+`StartupSplash` overlay (`screens/connected_splash`) may render before the
+main menu appears.
 
 ## Layout and scrolling
 

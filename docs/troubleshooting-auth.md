@@ -4,7 +4,7 @@ This page explains common auth issues when using `romm-cli` on different machine
 
 ## How configuration is loaded
 
-1. **Environment variables** (highest priority) — `API_BASE_URL`, `ROMM_DOWNLOAD_DIR`, `API_USE_HTTPS`, and auth-related vars.
+1. **Environment variables** (highest priority) — `API_BASE_URL`, `ROMM_ROMS_DIR` (or legacy `ROMM_DOWNLOAD_DIR`), `API_USE_HTTPS`, and auth-related vars.
 2. **`config.json`** in the OS config directory — fills any field not set by the environment.
 3. **OS keyring** — replaces placeholder strings in memory, including the on-disk sentinel `<stored-in-keyring>` written when secrets were stored in the keyring.
 

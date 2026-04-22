@@ -22,6 +22,19 @@ Rust CLI and TUI for managing a game library through the [ROMM API](https://gith
 
 ---
 
+## Screenshots
+
+### Game details view
+
+![Game details view](docs/screenshots/GameDetailsView.webp)
+
+### Search view
+
+![Search view](docs/screenshots/SearchView.webp)
+
+
+---
+
 ## Getting started
 
 ### Install with Cargo
@@ -50,7 +63,7 @@ romm-cli init
 
 This sets `API_BASE_URL` and authentication. Configuration is stored as `config.json` under your OS config directory (for example `~/.config/romm-cli/config.json` on Unix, or `%APPDATA%\romm-cli\config.json` on Windows).
 
-`API_BASE_URL` should match the RomM **website** address from your browser (scheme, host, port only), for example `https://romm.example.com` or `http://my-server:1738`. Do **not** append `/api`; the client adds `/api/...` on every request. A trailing `/api` in the saved URL is stripped automatically.
+`API_BASE_URL` should match the RomM **website** address from your browser (scheme, host, port only), for example `https://romm.example.com` or `http://my-server:1738`.
 
 You can also set `API_BASE_URL` and auth-related variables in your **process environment**; env wins over `config.json` per field. The CLI does not auto-load a `.env` file.
 
@@ -83,7 +96,7 @@ Set these in your shell (or any tool that injects env vars into the process) for
 | Variable | Description |
 |----------|-------------|
 | `API_BASE_URL` | RomM site URL (browser address, no `/api`; e.g. `https://romm.example.com`) |
-| `ROMM_ROMS_DIR` | Preferred. Directory for stored ROMs (defaults to `Downloads/romm-cli`) |
+| `ROMM_ROMS_DIR` | Preferred. Directory for stored ROMs (defaults to a `romm-cli` folder under the OS download directory, e.g. `~/Downloads/romm-cli` on typical Unix setups) |
 | `ROMM_DOWNLOAD_DIR` | Legacy alias for `ROMM_ROMS_DIR` |
 | `API_USE_HTTPS` | Set to `false` to disable automatic upgrade to HTTPS (default: `true`) |
 | `API_USERNAME` / `API_PASSWORD` | Basic Auth credentials |
@@ -99,7 +112,19 @@ Set these in your shell (or any tool that injects env vars into the process) for
 
 ---
 
+## Further documentation
+
+- [Architecture](docs/architecture.md) — crate layout, layers, and TUI state machine.
+- [TUI internals](docs/tui.md) — event loop, screens, scrolling.
+- [HTTP client](docs/http-client.md) — `RommClient`, endpoints, streaming downloads.
+- [Troubleshooting authentication](docs/troubleshooting-auth.md) — keyring, Docker, CI, Windows.
+- [Post-upload library scan](docs/scan-after-upload-plan.md) — `--scan`, `scan --wait`, cache invalidation.
+
+---
+
 ## Usage
+
+Run `romm-cli --help` or `romm-cli <command> --help` for the full flag list (subcommands also support short aliases where configured).
 
 ### TUI
 
@@ -149,8 +174,10 @@ After a chunked upload, RomM still needs a **library scan** before new games app
 
 - **`src/frontend`**: Routing between CLI and TUI execution.
 - **`src/commands`**: CLI argument parsing and non-TUI command logic.
+- **`src/endpoints`**: Typed RomM API routes (`Endpoint` trait).
+- **`src/services`**: Thin helpers over endpoints (e.g. platform/ROM services).
 - **`src/tui`**: Terminal UI (`ratatui`, `crossterm`) and state machine (`AppScreen`).
-- **`src/core`**: Caching and background download handling.
+- **`src/core`**: ROM list cache, background downloads, and related utilities.
 - **`src/client.rs`**: HTTP client wrapper around `reqwest`.
 - **`src/config.rs`**: Layered environment loading and keyring integration.
 
@@ -175,3 +202,4 @@ This project is licensed under the [MIT License](LICENSE).
 ---
 
 *Creation assisted with AI; content reviewed by the maintainers.*
+

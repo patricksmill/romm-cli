@@ -36,7 +36,7 @@ From bottom to top:
 The CLI layer itself is split into:
 
 - `commands::mod` – top-level `Cli` and `Commands` enum plus `OutputFormat`.
-- `commands::platforms` / `commands::roms` / `commands::api` / `commands::download` / `commands::init` / `commands::update` – small modules that parse arguments, call into services, and print results.
+- `commands::platforms` / `commands::roms` / `commands::api` / `commands::download` / `commands::scan` / `commands::cache` / `commands::init` / `commands::update` – small modules that parse arguments, call into services, and print results. Library scan HTTP for both `scan` and upload-triggered scans lives in `commands::library_scan`.
 - `commands::print` – helpers for tabular text output.
 - `services` – `PlatformService` and `RomService` wrappers around endpoint calls.
 
