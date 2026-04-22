@@ -109,6 +109,7 @@ Set these in your shell (or any tool that injects env vars into the process) for
 | `ROMM_OPENAPI_PATH` | Optional. Override path for the downloaded OpenAPI cache (default: under the OS config dir). |
 | `ROMM_USER_AGENT` | Optional. Override the HTTP `User-Agent` (some proxies block non-browser defaults). |
 | `ROMM_VERBOSE` | Set to `1`/`true` to enable verbose mode for the standalone `romm-tui` binary (same as passing `--verbose` to `romm-cli`) |
+| `ROMM_CHECK_UPDATES` | Optional. Set to `false`/`0`/`no`/`off` to disable startup update checks and prompts in CLI/TUI. |
 
 ---
 
@@ -165,6 +166,8 @@ romm-cli cache path
 romm-cli cache info
 romm-cli cache clear
 ```
+
+On interactive startup, `romm-cli` and `romm-tui` check for newer releases and can prompt to update now, open the online changelog, or skip.
 
 After a chunked upload, RomM still needs a **library scan** before new games appear in search and the TUI. See [docs/scan-after-upload-plan.md](docs/scan-after-upload-plan.md) for batch uploads, `--wait`, JSON output, and cache behavior.
 

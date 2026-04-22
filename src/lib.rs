@@ -10,3 +10,4 @@ pub mod services;
 #[cfg(feature = "tui")]
 pub mod tui;
 pub mod types;
+pub mod update;

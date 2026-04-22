@@ -34,6 +34,7 @@ use crate::core::download::DownloadManager;
 use crate::core::startup_library_snapshot;
 use crate::endpoints::roms::GetRoms;
 use crate::types::{Collection, Platform, RomList};
+use crate::update::UpdateStatus;
 
 use super::keyboard_help;
 use super::openapi::{resolve_path_template, EndpointRegistry};
@@ -78,6 +79,10 @@ struct SearchLoadDone {
 struct CoverLoadDone {
     rom_id: u64,
     result: Result<image::DynamicImage, String>,
+}
+
+struct StartupUpdatePrompt {
+    status: UpdateStatus,
 }
 
 /// Deferred primary ROM load: cache key, API request, expected count, context label, start time.
@@ -147,6 +152,7 @@ pub struct App {
     startup_splash: Option<StartupSplash>,
     pub global_error: Option<String>,
     show_keyboard_help: bool,
+    startup_update_prompt: Option<StartupUpdatePrompt>,
     /// Receives completed background metadata refreshes for the library screen.
     library_metadata_rx: Option<tokio::sync::mpsc::UnboundedReceiver<LibraryMetadataRefreshDone>>,
     /// Incremented each time a new refresh is spawned; stale completions are ignored.
@@ -232,6 +238,7 @@ impl App {
         registry: EndpointRegistry,
         server_version: Option<String>,
         startup_splash: Option<StartupSplash>,
+        startup_update: Option<UpdateStatus>,
     ) -> Self {
         let (prefetch_tx, prefetch_rx) = tokio::sync::mpsc::unbounded_channel();
         let (rom_load_tx, rom_load_rx) = tokio::sync::mpsc::unbounded_channel();
@@ -250,6 +257,7 @@ impl App {
             startup_splash,
             global_error: None,
             show_keyboard_help: false,
+            startup_update_prompt: startup_update.map(|status| StartupUpdatePrompt { status }),
             library_metadata_rx: None,
             library_metadata_refresh_gen: 0,
             collection_prefetch_rx: prefetch_rx,
@@ -962,6 +970,10 @@ impl App {
             return Ok(false);
         }
 
+        if self.startup_update_prompt.is_some() {
+            return self.handle_startup_update_prompt(key).await;
+        }
+
         if self.global_error.is_some() {
             if key.code == KeyCode::Esc || key.code == KeyCode::Enter {
                 self.global_error = None;
@@ -1011,6 +1023,42 @@ impl App {
             AppScreen::GameDetail(_) => self.handle_game_detail(key),
             AppScreen::Download(_) => self.handle_download(key),
             AppScreen::SetupWizard(_) => self.handle_setup_wizard(key).await,
+        }
+    }
+
+    async fn handle_startup_update_prompt(&mut self, key: &KeyEvent) -> Result<bool> {
+        let Some(prompt) = &self.startup_update_prompt else {
+            return Ok(false);
+        };
+        match key.code {
+            KeyCode::Char('u') | KeyCode::Char('U') | KeyCode::Enter => {
+                match crate::update::apply_update(None).await {
+                    Ok(version) => {
+                        self.global_error = Some(format!(
+                            "Updated to {version}. Restart romm-cli to use the new version."
+                        ));
+                    }
+                    Err(err) => {
+                        self.global_error = Some(format!("Update failed: {err:#}"));
+                    }
+                }
+                self.startup_update_prompt = None;
+                Ok(false)
+            }
+            KeyCode::Char('c') | KeyCode::Char('C') => {
+                if let Err(err) = crate::update::open_changelog_in_browser() {
+                    self.global_error = Some(format!("Could not open changelog: {err:#}"));
+                } else {
+                    self.global_error = Some(format!("Opened changelog: {}", prompt.status.changelog_url));
+                }
+                Ok(false)
+            }
+            KeyCode::Esc | KeyCode::Char('s') | KeyCode::Char('S') | KeyCode::Char('q')
+            | KeyCode::Char('Q') => {
+                self.startup_update_prompt = None;
+                Ok(false)
+            }
+            _ => Ok(false),
         }
     }
 
@@ -1926,6 +1974,30 @@ impl App {
             keyboard_help::render_keyboard_help(f, area);
         }
 
+        if let Some(prompt) = &self.startup_update_prompt {
+            let popup_area = ratatui::layout::Rect {
+                x: area.width.saturating_sub(76) / 2,
+                y: area.height.saturating_sub(11) / 2,
+                width: 76.min(area.width),
+                height: 11.min(area.height),
+            };
+            f.render_widget(ratatui::widgets::Clear, popup_area);
+            let block = ratatui::widgets::Block::default()
+                .title("Update available")
+                .borders(ratatui::widgets::Borders::ALL);
+            let text = format!(
+                "Current: {}\nLatest: {}\n\n\
+                 U/Enter: update now\n\
+                 C: open changelog\n\
+                 S/Esc: skip",
+                prompt.status.current_version, prompt.status.latest_version
+            );
+            let paragraph = ratatui::widgets::Paragraph::new(text)
+                .block(block)
+                .wrap(ratatui::widgets::Wrap { trim: true });
+            f.render_widget(paragraph, popup_area);
+        }
+
         if let Some(ref err) = self.global_error {
             let popup_area = ratatui::layout::Rect {
                 x: area.width.saturating_sub(60) / 2,
@@ -1955,6 +2027,7 @@ mod tests {
     use crate::tui::screens::library_browse::LibraryBrowseScreen;
     use crate::tui::screens::{GameDetailPrevious, GameDetailScreen};
     use crate::types::Platform;
+    use crate::update::UpdateStatus;
     use crossterm::event::{KeyEvent, KeyModifiers};
     use serde_json::json;
 
@@ -2005,9 +2078,19 @@ mod tests {
             auth: None,
         };
         let client = RommClient::new(&config, false).expect("client");
-        let mut app = App::new(client, config, EndpointRegistry::default(), None, None);
+        let mut app = App::new(client, config, EndpointRegistry::default(), None, None, None);
         app.screen = AppScreen::LibraryBrowse(LibraryBrowseScreen::new(platforms, vec![]));
         app
+    }
+
+    fn update_status_fixture() -> UpdateStatus {
+        UpdateStatus {
+            current_version: "0.25.0".into(),
+            latest_version: "0.26.0".into(),
+            should_update: true,
+            release_url: "https://github.com/patricksmill/romm-cli/releases/tag/v0.26.0".into(),
+            changelog_url: "https://github.com/patricksmill/romm-cli/blob/main/CHANGELOG.md".into(),
+        }
     }
 
     fn rom_fixture() -> crate::types::Rom {
@@ -2083,5 +2166,31 @@ mod tests {
             .expect("esc handled");
         assert!(!quit);
         assert!(matches!(app.screen, AppScreen::LibraryBrowse(_)));
+    }
+
+    #[tokio::test]
+    async fn startup_update_prompt_skip_closes_prompt() {
+        let config = Config {
+            base_url: "http://127.0.0.1:9".into(),
+            download_dir: "/tmp".into(),
+            use_https: false,
+            auth: None,
+        };
+        let client = RommClient::new(&config, false).expect("client");
+        let mut app = App::new(
+            client,
+            config,
+            EndpointRegistry::default(),
+            None,
+            None,
+            Some(update_status_fixture()),
+        );
+        assert!(app.startup_update_prompt.is_some());
+        let quit = app
+            .handle_key_event(&KeyEvent::new(KeyCode::Esc, KeyModifiers::empty()))
+            .await
+            .expect("esc handled");
+        assert!(!quit);
+        assert!(app.startup_update_prompt.is_none());
     }
 }

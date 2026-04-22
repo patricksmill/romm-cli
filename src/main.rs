@@ -4,7 +4,9 @@ use anyhow::Result;
 use clap::Parser;
 use romm_cli::commands::init;
 use romm_cli::commands::{run, Cli, Commands};
-use romm_cli::config::load_config;
+use romm_cli::config::{load_config, should_check_updates};
+use std::io::{self, IsTerminal, Write};
+use std::time::Duration;
 use tracing_subscriber::{fmt, EnvFilter};
 
 #[tokio::main]
@@ -35,6 +37,8 @@ async fn run_app() -> Result<()> {
             .with_writer(std::io::stderr)
             .init();
     }
+
+    maybe_prompt_for_startup_update(&command).await?;
 
     match command {
         Commands::Init(cmd) => init::handle(cmd, verbose).await,
@@ -77,6 +81,68 @@ async fn run_app() -> Result<()> {
                 config,
             )
             .await
+        }
+    }
+}
+
+fn is_interactive_terminal() -> bool {
+    io::stdin().is_terminal() && io::stdout().is_terminal()
+}
+
+fn should_skip_startup_update_check(command: &Commands) -> bool {
+    matches!(command, Commands::Update)
+}
+
+fn read_update_choice() -> Result<String> {
+    print!(
+        "New romm-cli version is available.\n\
+         Choose: [u]pdate now, [c]hangelog, [s]kip (default: s): "
+    );
+    io::stdout().flush()?;
+    let mut choice = String::new();
+    io::stdin().read_line(&mut choice)?;
+    Ok(choice.trim().to_lowercase())
+}
+
+async fn maybe_prompt_for_startup_update(command: &Commands) -> Result<()> {
+    if should_skip_startup_update_check(command) || !should_check_updates() || !is_interactive_terminal()
+    {
+        return Ok(());
+    }
+
+    let check = match tokio::time::timeout(Duration::from_secs(2), romm_cli::update::check_for_update()).await {
+        Ok(Ok(status)) => status,
+        Ok(Err(_)) | Err(_) => return Ok(()),
+    };
+
+    if !check.should_update {
+        return Ok(());
+    }
+
+    loop {
+        println!(
+            "\nUpdate available: current {} -> latest {}",
+            check.current_version, check.latest_version
+        );
+        let choice = read_update_choice()?;
+        match choice.as_str() {
+            "u" | "update" => {
+                let version = romm_cli::update::apply_update(None).await?;
+                println!("Updated successfully to `{version}`.");
+                println!("Restart romm-cli to use the new version.");
+                return Ok(());
+            }
+            "c" | "changelog" => {
+                if let Err(err) = romm_cli::update::open_changelog_in_browser() {
+                    eprintln!("Could not open changelog: {err:#}");
+                } else {
+                    println!("Opened changelog: {}", check.changelog_url);
+                }
+            }
+            "" | "s" | "skip" => return Ok(()),
+            _ => {
+                eprintln!("Unrecognized choice. Enter u, c, or s.");
+            }
         }
     }
 }

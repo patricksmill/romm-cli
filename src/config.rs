@@ -200,6 +200,16 @@ fn env_nonempty(key: &str) -> Option<String> {
     std::env::var(key).ok().filter(|s| !s.trim().is_empty())
 }
 
+pub fn should_check_updates() -> bool {
+    match std::env::var("ROMM_CHECK_UPDATES") {
+        Ok(value) => {
+            let normalized = value.trim().to_ascii_lowercase();
+            !matches!(normalized.as_str(), "0" | "false" | "no" | "off")
+        }
+        Err(_) => true,
+    }
+}
+
 /// Max bytes read from bearer token files (`ROMM_TOKEN_FILE` / `API_TOKEN_FILE`).
 const MAX_TOKEN_FILE_BYTES: usize = 64 * 1024;
 
@@ -939,5 +949,23 @@ mod tests {
             }
             _ => panic!("expected basic password sentinel preserved"),
         }
+    }
+
+    #[test]
+    fn should_check_updates_defaults_true_and_honors_false_values() {
+        let _env = TestEnv::new();
+        std::env::remove_var("ROMM_CHECK_UPDATES");
+        assert!(should_check_updates());
+
+        for value in ["false", "FALSE", "0", "no", "off"] {
+            std::env::set_var("ROMM_CHECK_UPDATES", value);
+            assert!(
+                !should_check_updates(),
+                "expected ROMM_CHECK_UPDATES={value} to disable checks"
+            );
+        }
+
+        std::env::set_var("ROMM_CHECK_UPDATES", "true");
+        assert!(should_check_updates());
     }
 }

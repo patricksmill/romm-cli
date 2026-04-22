@@ -20,9 +20,10 @@ pub mod text_search;
 pub mod utils;
 
 use anyhow::Result;
+use std::time::Duration;
 
 use crate::client::RommClient;
-use crate::config::{openapi_cache_path, Config};
+use crate::config::{openapi_cache_path, should_check_updates, Config};
 
 use self::app::App;
 use self::openapi_sync::sync_openapi_registry;
@@ -66,9 +67,17 @@ async fn run_started(client: RommClient, config: Config, from_setup_wizard: bool
     install_panic_hook();
     let cache_path = openapi_cache_path()?;
     let (registry, server_version) = sync_openapi_registry(&client, &cache_path).await?;
+    let startup_update = if should_check_updates() {
+        match tokio::time::timeout(Duration::from_secs(2), crate::update::check_for_update()).await {
+            Ok(Ok(status)) if status.should_update => Some(status),
+            _ => None,
+        }
+    } else {
+        None
+    };
 
     let splash = startup_splash_for(from_setup_wizard, &config, &server_version);
-    let mut app = App::new(client, config, registry, server_version, splash);
+    let mut app = App::new(client, config, registry, server_version, splash, startup_update);
     app.run().await
 }
 
