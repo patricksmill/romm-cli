@@ -72,8 +72,15 @@ struct RomLoadDone {
     started: Instant,
 }
 
+enum SearchLoadEvent {
+    Batch(RomList),
+    Failed(String),
+    Complete,
+}
+
 struct SearchLoadDone {
-    result: Result<RomList, String>,
+    query: String,
+    event: SearchLoadEvent,
 }
 
 struct CoverLoadDone {
@@ -512,9 +519,17 @@ impl App {
             match self.search_load_rx.try_recv() {
                 Ok(done) => {
                     if let AppScreen::Search(ref mut search) = self.screen {
-                        search.loading = false;
-                        if let Ok(roms) = done.result {
-                            search.set_results(roms);
+                        match done.event {
+                            SearchLoadEvent::Batch(roms) => {
+                                search.set_results_for_query(done.query, roms);
+                            }
+                            SearchLoadEvent::Failed(err) => {
+                                search.loading = false;
+                                self.global_error = Some(err);
+                            }
+                            SearchLoadEvent::Complete => {
+                                search.loading = false;
+                            }
                         }
                     }
                 }
@@ -1426,8 +1441,9 @@ impl App {
                         }
                     }
                 } else {
+                    let query = search.query.clone();
                     let req = GetRoms {
-                        search_term: Some(search.query.clone()),
+                        search_term: Some(query.clone()),
                         limit: Some(50),
                         ..Default::default()
                     };
@@ -1438,8 +1454,53 @@ impl App {
                     let client = self.client.clone();
                     let tx = self.search_load_tx.clone();
                     self.search_load_task = Some(tokio::spawn(async move {
-                        let result = client.call(&req).await.map_err(|e| format!("{e:#}"));
-                        let _ = tx.send(SearchLoadDone { result });
+                        let mut req = req;
+                        let mut aggregated: Option<RomList> = None;
+
+                        loop {
+                            match client.call(&req).await {
+                                Ok(mut batch) => {
+                                    if let Some(ref mut all) = aggregated {
+                                        if batch.items.is_empty() {
+                                            break;
+                                        }
+                                        all.items.append(&mut batch.items);
+                                        let _ = tx.send(SearchLoadDone {
+                                            query: query.clone(),
+                                            event: SearchLoadEvent::Batch(all.clone()),
+                                        });
+                                        if all.items.len() as u64 >= all.total {
+                                            break;
+                                        }
+                                        req.offset = Some(all.items.len() as u32);
+                                    } else {
+                                        let loaded = batch.items.len() as u64;
+                                        let total = batch.total;
+                                        let _ = tx.send(SearchLoadDone {
+                                            query: query.clone(),
+                                            event: SearchLoadEvent::Batch(batch.clone()),
+                                        });
+                                        req.offset = Some(loaded as u32);
+                                        aggregated = Some(batch);
+                                        if loaded >= total {
+                                            break;
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    let _ = tx.send(SearchLoadDone {
+                                        query: query.clone(),
+                                        event: SearchLoadEvent::Failed(format!("{e:#}")),
+                                    });
+                                    return;
+                                }
+                            }
+                        }
+
+                        let _ = tx.send(SearchLoadDone {
+                            query,
+                            event: SearchLoadEvent::Complete,
+                        });
                     }));
                 }
             }
@@ -2025,7 +2086,7 @@ mod tests {
     use crate::config::Config;
     use crate::tui::openapi::EndpointRegistry;
     use crate::tui::screens::library_browse::LibraryBrowseScreen;
-    use crate::tui::screens::{GameDetailPrevious, GameDetailScreen};
+    use crate::tui::screens::{GameDetailPrevious, GameDetailScreen, SearchScreen};
     use crate::types::Platform;
     use crate::update::UpdateStatus;
     use crossterm::event::{KeyEvent, KeyModifiers};
@@ -2119,6 +2180,15 @@ mod tests {
         .expect("valid rom fixture")
     }
 
+    fn empty_rom_list_with_total(total: u64) -> RomList {
+        RomList {
+            items: vec![],
+            total,
+            limit: 50,
+            offset: 0,
+        }
+    }
+
     #[tokio::test]
     async fn list_move_to_zero_rom_selection_does_not_queue_deferred_load() {
         let mut app = app_with_library(vec![platform(1, "HasRoms", 5), platform(2, "Empty", 0)]);
@@ -2192,5 +2262,69 @@ mod tests {
             .expect("esc handled");
         assert!(!quit);
         assert!(app.startup_update_prompt.is_none());
+    }
+
+    #[test]
+    fn search_batch_updates_results_without_stopping_loading() {
+        let config = Config {
+            base_url: "http://127.0.0.1:9".into(),
+            download_dir: "/tmp".into(),
+            use_https: false,
+            auth: None,
+        };
+        let client = RommClient::new(&config, false).expect("client");
+        let mut app = App::new(client, config, EndpointRegistry::default(), None, None, None);
+        let mut search = SearchScreen::new();
+        search.loading = true;
+        app.screen = AppScreen::Search(search);
+
+        app.search_load_tx
+            .send(SearchLoadDone {
+                query: "zelda".to_string(),
+                event: SearchLoadEvent::Batch(empty_rom_list_with_total(120)),
+            })
+            .expect("send batch");
+
+        app.poll_search_load_results();
+
+        match &app.screen {
+            AppScreen::Search(search) => {
+                assert!(search.loading, "loading should continue after batch");
+                assert!(search.results.is_some(), "batch should populate results");
+                assert_eq!(search.last_searched_query.as_deref(), Some("zelda"));
+            }
+            _ => panic!("expected search screen"),
+        }
+    }
+
+    #[test]
+    fn search_complete_event_stops_loading() {
+        let config = Config {
+            base_url: "http://127.0.0.1:9".into(),
+            download_dir: "/tmp".into(),
+            use_https: false,
+            auth: None,
+        };
+        let client = RommClient::new(&config, false).expect("client");
+        let mut app = App::new(client, config, EndpointRegistry::default(), None, None, None);
+        let mut search = SearchScreen::new();
+        search.loading = true;
+        app.screen = AppScreen::Search(search);
+
+        app.search_load_tx
+            .send(SearchLoadDone {
+                query: "zelda".to_string(),
+                event: SearchLoadEvent::Complete,
+            })
+            .expect("send complete");
+
+        app.poll_search_load_results();
+
+        match &app.screen {
+            AppScreen::Search(search) => {
+                assert!(!search.loading, "loading should stop after completion");
+            }
+            _ => panic!("expected search screen"),
+        }
     }
 }

@@ -68,9 +68,13 @@ impl SearchScreen {
     }
 
     pub fn set_results(&mut self, results: RomList) {
+        self.set_results_for_query(self.query.clone(), results);
+    }
+
+    pub fn set_results_for_query(&mut self, query: String, results: RomList) {
         self.results = Some(results.clone());
         self.result_groups = Some(utils::group_roms_by_name(&results.items));
-        self.last_searched_query = Some(self.query.clone());
+        self.last_searched_query = Some(query);
         self.selected = 0;
         self.scroll_offset = 0;
     }
@@ -273,5 +277,14 @@ mod tests {
         s.set_results(empty_list());
         s.clear_results();
         assert!(s.last_searched_query.is_none());
+    }
+
+    #[test]
+    fn set_results_for_query_tracks_origin_query_not_live_input() {
+        let mut s = SearchScreen::new();
+        s.query = "mario".to_string();
+        s.set_results_for_query("zelda".to_string(), empty_list());
+        assert_eq!(s.last_searched_query.as_deref(), Some("zelda"));
+        assert!(!s.results_match_current_query());
     }
 }
