@@ -8,7 +8,8 @@ use crate::core::interrupt::{cancelled_error, InterruptContext};
 const REPO_OWNER: &str = "patricksmill";
 const REPO_NAME: &str = "romm-cli";
 const BIN_NAME: &str = "romm-cli";
-const GITHUB_LATEST_RELEASE_API: &str = "https://api.github.com/repos/patricksmill/romm-cli/releases/latest";
+const GITHUB_LATEST_RELEASE_API: &str =
+    "https://api.github.com/repos/patricksmill/romm-cli/releases/latest";
 const CHANGELOG_URL: &str = "https://github.com/patricksmill/romm-cli/blob/main/CHANGELOG.md";
 
 #[derive(Debug, Clone)]
@@ -99,7 +100,10 @@ pub async fn check_for_update() -> Result<UpdateStatus> {
     let current_version = cargo_crate_version!().to_string();
     let response = reqwest::Client::new()
         .get(GITHUB_LATEST_RELEASE_API)
-        .header(reqwest::header::USER_AGENT, format!("romm-cli/{current_version}"))
+        .header(
+            reqwest::header::USER_AGENT,
+            format!("romm-cli/{current_version}"),
+        )
         .send()
         .await
         .context("failed to query latest release")?

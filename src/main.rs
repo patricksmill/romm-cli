@@ -105,15 +105,20 @@ fn read_update_choice() -> Result<String> {
 }
 
 async fn maybe_prompt_for_startup_update(command: &Commands) -> Result<()> {
-    if should_skip_startup_update_check(command) || !should_check_updates() || !is_interactive_terminal()
+    if should_skip_startup_update_check(command)
+        || !should_check_updates()
+        || !is_interactive_terminal()
     {
         return Ok(());
     }
 
-    let check = match tokio::time::timeout(Duration::from_secs(2), romm_cli::update::check_for_update()).await {
-        Ok(Ok(status)) => status,
-        Ok(Err(_)) | Err(_) => return Ok(()),
-    };
+    let check =
+        match tokio::time::timeout(Duration::from_secs(2), romm_cli::update::check_for_update())
+            .await
+        {
+            Ok(Ok(status)) => status,
+            Ok(Err(_)) | Err(_) => return Ok(()),
+        };
 
     if !check.should_update {
         return Ok(());

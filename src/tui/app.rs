@@ -1064,11 +1064,15 @@ impl App {
                 if let Err(err) = crate::update::open_changelog_in_browser() {
                     self.global_error = Some(format!("Could not open changelog: {err:#}"));
                 } else {
-                    self.global_error = Some(format!("Opened changelog: {}", prompt.status.changelog_url));
+                    self.global_error =
+                        Some(format!("Opened changelog: {}", prompt.status.changelog_url));
                 }
                 Ok(false)
             }
-            KeyCode::Esc | KeyCode::Char('s') | KeyCode::Char('S') | KeyCode::Char('q')
+            KeyCode::Esc
+            | KeyCode::Char('s')
+            | KeyCode::Char('S')
+            | KeyCode::Char('q')
             | KeyCode::Char('Q') => {
                 self.startup_update_prompt = None;
                 Ok(false)
@@ -2139,7 +2143,14 @@ mod tests {
             auth: None,
         };
         let client = RommClient::new(&config, false).expect("client");
-        let mut app = App::new(client, config, EndpointRegistry::default(), None, None, None);
+        let mut app = App::new(
+            client,
+            config,
+            EndpointRegistry::default(),
+            None,
+            None,
+            None,
+        );
         app.screen = AppScreen::LibraryBrowse(LibraryBrowseScreen::new(platforms, vec![]));
         app
     }
@@ -2273,7 +2284,14 @@ mod tests {
             auth: None,
         };
         let client = RommClient::new(&config, false).expect("client");
-        let mut app = App::new(client, config, EndpointRegistry::default(), None, None, None);
+        let mut app = App::new(
+            client,
+            config,
+            EndpointRegistry::default(),
+            None,
+            None,
+            None,
+        );
         let mut search = SearchScreen::new();
         search.loading = true;
         app.screen = AppScreen::Search(search);
@@ -2306,7 +2324,14 @@ mod tests {
             auth: None,
         };
         let client = RommClient::new(&config, false).expect("client");
-        let mut app = App::new(client, config, EndpointRegistry::default(), None, None, None);
+        let mut app = App::new(
+            client,
+            config,
+            EndpointRegistry::default(),
+            None,
+            None,
+            None,
+        );
         let mut search = SearchScreen::new();
         search.loading = true;
         app.screen = AppScreen::Search(search);

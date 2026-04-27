@@ -41,7 +41,14 @@ async fn test_main_menu_api_error_shows_popup() {
         auth: None,
     };
     let client = RommClient::new(&config, false).unwrap();
-    let mut app = App::new(client, config, EndpointRegistry::default(), None, None, None);
+    let mut app = App::new(
+        client,
+        config,
+        EndpointRegistry::default(),
+        None,
+        None,
+        None,
+    );
 
     // Simulate pressing Enter on Main Menu (Platforms)
     let quit = app
@@ -111,7 +118,14 @@ async fn test_main_menu_success_transitions_to_library() {
         auth: None,
     };
     let client = RommClient::new(&config, false).unwrap();
-    let mut app = App::new(client, config, EndpointRegistry::default(), None, None, None);
+    let mut app = App::new(
+        client,
+        config,
+        EndpointRegistry::default(),
+        None,
+        None,
+        None,
+    );
 
     // Simulate pressing Enter on Main Menu (Platforms)
     let quit = app
@@ -137,7 +151,14 @@ async fn main_menu_fifth_item_is_exit() {
         auth: None,
     };
     let client = RommClient::new(&config, false).unwrap();
-    let mut app = App::new(client, config, EndpointRegistry::default(), None, None, None);
+    let mut app = App::new(
+        client,
+        config,
+        EndpointRegistry::default(),
+        None,
+        None,
+        None,
+    );
 
     // Move to the 5th menu row (0-based index 4).
     for _ in 0..4 {
@@ -165,7 +186,14 @@ async fn library_filter_mode_d_types_in_search_bar_not_downloads() {
         auth: None,
     };
     let client = RommClient::new(&config, false).unwrap();
-    let mut app = App::new(client, config, EndpointRegistry::default(), None, None, None);
+    let mut app = App::new(
+        client,
+        config,
+        EndpointRegistry::default(),
+        None,
+        None,
+        None,
+    );
 
     let mut lib = LibraryBrowseScreen::new(vec![], vec![]);
     lib.view_mode = LibraryViewMode::Roms;
@@ -217,7 +245,14 @@ async fn library_filter_enter_then_enter_opens_game_detail() {
         auth: None,
     };
     let client = RommClient::new(&config, false).unwrap();
-    let mut app = App::new(client, config, EndpointRegistry::default(), None, None, None);
+    let mut app = App::new(
+        client,
+        config,
+        EndpointRegistry::default(),
+        None,
+        None,
+        None,
+    );
 
     let items = vec![sample_rom(1, "alpha"), sample_rom(2, "beta")];
     let rom_list = RomList {
@@ -274,7 +309,14 @@ async fn game_detail_download_is_blocked_when_config_download_path_is_invalid() 
         auth: None,
     };
     let client = RommClient::new(&config, false).unwrap();
-    let mut app = App::new(client, config, EndpointRegistry::default(), None, None, None);
+    let mut app = App::new(
+        client,
+        config,
+        EndpointRegistry::default(),
+        None,
+        None,
+        None,
+    );
 
     let items = vec![sample_rom(1, "alpha")];
     let rom_list = RomList {
@@ -327,7 +369,14 @@ async fn game_detail_download_skips_when_rom_already_exists_in_console_folder() 
         auth: None,
     };
     let client = RommClient::new(&config, false).unwrap();
-    let mut app = App::new(client, config, EndpointRegistry::default(), None, None, None);
+    let mut app = App::new(
+        client,
+        config,
+        EndpointRegistry::default(),
+        None,
+        None,
+        None,
+    );
 
     let items = vec![sample_rom(1, "alpha")];
     let rom_list = RomList {

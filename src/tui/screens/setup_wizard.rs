@@ -1059,10 +1059,7 @@ mod tests {
             .expect("render setup wizard");
         let backend = terminal.backend();
         let buffer = backend.buffer();
-        let has_cursor_glyph = buffer
-            .content()
-            .iter()
-            .any(|cell| cell.symbol() == "▏");
+        let has_cursor_glyph = buffer.content().iter().any(|cell| cell.symbol() == "▏");
         assert!(
             !has_cursor_glyph,
             "password field should rely on terminal cursor, not inline glyph"
@@ -1085,10 +1082,7 @@ mod tests {
             .expect("render setup wizard");
         let backend = terminal.backend();
         let buffer = backend.buffer();
-        let has_cursor_glyph = buffer
-            .content()
-            .iter()
-            .any(|cell| cell.symbol() == "▏");
+        let has_cursor_glyph = buffer.content().iter().any(|cell| cell.symbol() == "▏");
         assert!(
             !has_cursor_glyph,
             "API key field should rely on terminal cursor, not inline glyph"
