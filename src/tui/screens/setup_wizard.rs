@@ -438,11 +438,7 @@ impl SetupWizard {
                 } else {
                     self.username.clone()
                 };
-                let pass_display: String = if self.step == Step::BasicPass {
-                    "•".repeat(self.password.len()) + "▏"
-                } else {
-                    "•".repeat(self.password.len())
-                };
+                let pass_display: String = "•".repeat(self.password.len());
                 let kr_hint = if self.step == Step::BasicPass
                     && self.password.is_empty()
                     && self.reuse_keyring_password
@@ -515,11 +511,7 @@ impl SetupWizard {
                 } else {
                     self.api_header.clone()
                 };
-                let key_line = if self.step == Step::ApiKey {
-                    "•".repeat(self.api_key.len()) + "▏"
-                } else {
-                    "•".repeat(self.api_key.len())
-                };
+                let key_line = "•".repeat(self.api_key.len());
                 let kr_hint = if self.step == Step::ApiKey
                     && self.api_key.is_empty()
                     && self.reuse_keyring_api_key
@@ -976,6 +968,8 @@ impl Default for SetupWizard {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -1047,6 +1041,57 @@ mod tests {
         assert_eq!(
             cfg.download_dir,
             expected_download_dir.display().to_string()
+        );
+    }
+
+    #[test]
+    fn hidden_password_field_does_not_render_inline_cursor_glyph() {
+        let mut wizard = SetupWizard::new();
+        wizard.step = Step::BasicPass;
+        wizard.password = "secret".to_string();
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).expect("create test terminal");
+        terminal
+            .draw(|frame| {
+                let area = frame.area();
+                wizard.render(frame, area);
+            })
+            .expect("render setup wizard");
+        let backend = terminal.backend();
+        let buffer = backend.buffer();
+        let has_cursor_glyph = buffer
+            .content()
+            .iter()
+            .any(|cell| cell.symbol() == "▏");
+        assert!(
+            !has_cursor_glyph,
+            "password field should rely on terminal cursor, not inline glyph"
+        );
+    }
+
+    #[test]
+    fn hidden_api_key_field_does_not_render_inline_cursor_glyph() {
+        let mut wizard = SetupWizard::new();
+        wizard.step = Step::ApiKey;
+        wizard.api_key = "secret-key".to_string();
+        wizard.api_key_cursor = wizard.api_key.len();
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).expect("create test terminal");
+        terminal
+            .draw(|frame| {
+                let area = frame.area();
+                wizard.render(frame, area);
+            })
+            .expect("render setup wizard");
+        let backend = terminal.backend();
+        let buffer = backend.buffer();
+        let has_cursor_glyph = buffer
+            .content()
+            .iter()
+            .any(|cell| cell.symbol() == "▏");
+        assert!(
+            !has_cursor_glyph,
+            "API key field should rely on terminal cursor, not inline glyph"
         );
     }
 }
