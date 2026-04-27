@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.26.0](https://github.com/patricksmill/romm-cli/compare/v0.25.0...v0.26.0) (2026-04-27)
+
+
+### Features
+
+* **search:** fix search when results should yield more than 50 results ([b2d93ad](https://github.com/patricksmill/romm-cli/commit/b2d93add4dc0fb4ce21a60916780863f4b3b127a))
+* **update:** add startup update checks and interactive prompt ([e601631](https://github.com/patricksmill/romm-cli/commit/e601631598ed9cf47f4d1abbc51d4fa9ec3d3706))
+
+
+### Bug Fixes
+
+* **setup_wizard:** Removed inline cursor glyph from password and API key fields in the setup wizard, ensuring they rely on the terminal cursor instead. ([34123e2](https://github.com/patricksmill/romm-cli/commit/34123e25a1eb5ca30de90b2ea2a00e4d038d116d))
+
 ## [Unreleased]
 
 ### Features
