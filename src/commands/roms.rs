@@ -14,13 +14,13 @@ use crate::commands::library_scan::{
 use crate::commands::print::print_roms_table;
 use crate::commands::OutputFormat;
 use crate::endpoints::roms::{
-    DeleteRomNote, DeleteRoms, GetRomByHash, GetRomByMetadataProvider, GetRomFilters, GetRoms,
-    GetRomNotes, GetSearchCover, GetSearchRoms, PostRomNote, PutRomNote, PutRomUserProps,
+    DeleteRomNote, DeleteRoms, GetRomByHash, GetRomByMetadataProvider, GetRomFilters, GetRomNotes,
+    GetRoms, GetSearchCover, GetSearchRoms, PostRomNote, PutRomNote, PutRomUserProps,
 };
+use crate::services::{self};
 use crate::services::{
     resolve_manual_collection_id, resolve_platform_ids, resolve_smart_collection_id, RomService,
 };
-use crate::services::{self};
 
 /// Optional tri-state: CLI passes `true` / `false` / `yes` / `no` / `1` / `0`.
 fn parse_opt_bool(label: &str, raw: &Option<String>) -> Result<Option<bool>> {
@@ -483,7 +483,9 @@ pub async fn handle(cmd: RomsCommand, client: &RommClient, format: OutputFormat)
             remove_last_played,
         }) => {
             if update_last_played && remove_last_played {
-                anyhow::bail!("--update-last-played and --remove-last-played are mutually exclusive.");
+                anyhow::bail!(
+                    "--update-last-played and --remove-last-played are mutually exclusive."
+                );
             }
             let mut body = json!({});
             let obj = body.as_object_mut().unwrap();
@@ -541,7 +543,12 @@ pub async fn handle(cmd: RomsCommand, client: &RommClient, format: OutputFormat)
         }
         Some(RomsAction::NotesAdd { rom_id, json: body }) => {
             let parsed: serde_json::Value = serde_json::from_str(&body)?;
-            let v = client.call(&PostRomNote { rom_id, body: parsed }).await?;
+            let v = client
+                .call(&PostRomNote {
+                    rom_id,
+                    body: parsed,
+                })
+                .await?;
             println!("{}", serde_json::to_string_pretty(&v)?);
         }
         Some(RomsAction::NotesUpdate {
@@ -594,7 +601,11 @@ pub async fn handle(cmd: RomsCommand, client: &RommClient, format: OutputFormat)
             wait,
             wait_timeout_secs,
         }) => {
-            let resolved_platform_id = match services::resolve_platform_id(client, Some(platform.trim())).await?
+            let resolved_platform_id = match services::resolve_platform_id(
+                client,
+                Some(platform.trim()),
+            )
+            .await?
             {
                 Some(id) => id,
                 None => {
@@ -674,14 +685,7 @@ mod tests {
 
     #[test]
     fn parse_roms_list_with_platform_filter() {
-        let cli = Cli::parse_from([
-            "romm-cli",
-            "roms",
-            "--platform",
-            "3ds",
-            "--limit",
-            "10",
-        ]);
+        let cli = Cli::parse_from(["romm-cli", "roms", "--platform", "3ds", "--limit", "10"]);
         let Commands::Roms(cmd) = cli.command else {
             panic!("expected roms command");
         };

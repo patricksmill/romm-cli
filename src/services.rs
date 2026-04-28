@@ -118,10 +118,7 @@ pub async fn resolve_platform_id(
 }
 
 /// Resolve several platform names/slugs to IDs (deduped, stable order).
-pub async fn resolve_platform_ids(
-    client: &RommClient,
-    names: &[String],
-) -> Result<Vec<u64>> {
+pub async fn resolve_platform_ids(client: &RommClient, names: &[String]) -> Result<Vec<u64>> {
     if names.is_empty() {
         return Ok(Vec::new());
     }
@@ -137,10 +134,7 @@ pub async fn resolve_platform_ids(
     Ok(out)
 }
 
-fn match_collections_by_name<'a>(
-    q: &str,
-    collections: &'a [Collection],
-) -> Vec<&'a Collection> {
+fn match_collections_by_name<'a>(q: &str, collections: &'a [Collection]) -> Vec<&'a Collection> {
     let n = q.trim().to_ascii_lowercase();
     collections
         .iter()

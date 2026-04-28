@@ -87,7 +87,7 @@ pub enum Commands {
     Platforms(platforms::PlatformsCommand),
     /// ROM-related commands
     #[command(visible_aliases = ["rom", "r"])]
-    Roms(roms::RomsCommand),
+    Roms(Box<roms::RomsCommand>),
     /// Trigger a full library scan on the server (`scan_library` task)
     Scan(scan::ScanCommand),
     /// Download a ROM

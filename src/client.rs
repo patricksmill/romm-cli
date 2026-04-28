@@ -733,7 +733,8 @@ impl RommClient {
 
     /// `GET /api/tasks/status` — active / queued / completed tasks.
     pub async fn get_tasks_queue_status(&self) -> Result<Value> {
-        self.request_json("GET", "/api/tasks/status", &[], None).await
+        self.request_json("GET", "/api/tasks/status", &[], None)
+            .await
     }
 
     /// `POST /api/saves` with multipart field `saveFile` (RomM FastAPI).
@@ -980,11 +981,7 @@ impl RommClient {
             .iter()
             .map(|(k, v)| (k.as_str(), v.as_str()))
             .collect();
-        let mut req = self
-            .http
-            .post(&url)
-            .headers(headers)
-            .query(&query_refs);
+        let mut req = self.http.post(&url).headers(headers).query(&query_refs);
         if let Some(b) = json_body {
             req = req.json(&b);
         }
@@ -1003,11 +1000,7 @@ impl RommClient {
     }
 
     /// `POST /api/roms/{id}/manuals` — raw file body with `x-upload-filename` header.
-    pub async fn upload_rom_manual(
-        &self,
-        rom_id: u64,
-        file_path: &Path,
-    ) -> Result<Value> {
+    pub async fn upload_rom_manual(&self, rom_id: u64, file_path: &Path) -> Result<Value> {
         let fname = file_path
             .file_name()
             .and_then(|n| n.to_str())

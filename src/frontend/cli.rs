@@ -17,7 +17,7 @@ pub async fn run(command: Commands, client: &RommClient, global_json: bool) -> R
         }
         Commands::Roms(cmd) => {
             let format = OutputFormat::from_flags(global_json, cmd.json);
-            roms::handle(cmd, client, format).await
+            roms::handle(*cmd, client, format).await
         }
         Commands::Scan(cmd) => {
             let format = OutputFormat::from_flags(global_json, false);
