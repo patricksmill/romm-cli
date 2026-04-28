@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.27.0](https://github.com/patricksmill/romm-cli/compare/v0.26.1...v0.27.0) (2026-04-28)
+
+
+### Features
+
+* **api:** add endpoints for tasks and system management, enhance ROM filtering options ([fcde4c8](https://github.com/patricksmill/romm-cli/commit/fcde4c857a7d2bb0a18cefa6cf5551f252b9859e))
+
 ## [0.26.1](https://github.com/patricksmill/romm-cli/compare/v0.26.0...v0.26.1) (2026-04-27)
 
 
