@@ -1,6 +1,7 @@
 use crate::types::{Collection, VirtualCollectionRow};
 
 use super::Endpoint;
+use serde_json::Value;
 
 /// RomM may return a bare array or a paged envelope; normalize with [`CollectionsList::into_vec`].
 #[derive(Debug, serde::Deserialize)]
@@ -96,6 +97,96 @@ impl Endpoint for ListVirtualCollections {
 
     fn query(&self) -> Vec<(String, String)> {
         vec![("type".into(), "all".into())]
+    }
+}
+
+/// `GET /api/collections/{id}`
+#[derive(Debug, Clone)]
+pub struct GetManualCollection {
+    pub id: u64,
+}
+
+impl Endpoint for GetManualCollection {
+    type Output = Value;
+
+    fn method(&self) -> &'static str {
+        "GET"
+    }
+
+    fn path(&self) -> String {
+        format!("/api/collections/{}", self.id)
+    }
+}
+
+/// `GET /api/collections/smart/{id}`
+#[derive(Debug, Clone)]
+pub struct GetSmartCollection {
+    pub id: u64,
+}
+
+impl Endpoint for GetSmartCollection {
+    type Output = Value;
+
+    fn method(&self) -> &'static str {
+        "GET"
+    }
+
+    fn path(&self) -> String {
+        format!("/api/collections/smart/{}", self.id)
+    }
+}
+
+/// `GET /api/collections/virtual/{id}`
+#[derive(Debug, Clone)]
+pub struct GetVirtualCollection {
+    pub id: String,
+}
+
+impl Endpoint for GetVirtualCollection {
+    type Output = Value;
+
+    fn method(&self) -> &'static str {
+        "GET"
+    }
+
+    fn path(&self) -> String {
+        format!("/api/collections/virtual/{}", self.id)
+    }
+}
+
+/// `DELETE /api/collections/{id}`
+#[derive(Debug, Clone)]
+pub struct DeleteManualCollection {
+    pub id: u64,
+}
+
+impl Endpoint for DeleteManualCollection {
+    type Output = Value;
+
+    fn method(&self) -> &'static str {
+        "DELETE"
+    }
+
+    fn path(&self) -> String {
+        format!("/api/collections/{}", self.id)
+    }
+}
+
+/// `DELETE /api/collections/smart/{id}`
+#[derive(Debug, Clone)]
+pub struct DeleteSmartCollection {
+    pub id: u64,
+}
+
+impl Endpoint for DeleteSmartCollection {
+    type Output = Value;
+
+    fn method(&self) -> &'static str {
+        "DELETE"
+    }
+
+    fn path(&self) -> String {
+        format!("/api/collections/smart/{}", self.id)
     }
 }
 

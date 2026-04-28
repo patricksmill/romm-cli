@@ -74,7 +74,7 @@ async fn roms_sends_platform_ids_query_param() {
         .env("API_USE_HTTPS", "false")
         .env("API_USERNAME", "u")
         .env("API_PASSWORD", "p")
-        .args(["roms", "list", "--platform", "play5"]);
+        .args(["roms", "--platform", "play5"]);
 
     cmd.assert().success();
     mock.assert();
@@ -102,7 +102,7 @@ async fn roms_sends_search_term_query_param() {
         .env("API_USE_HTTPS", "false")
         .env("API_USERNAME", "u")
         .env("API_PASSWORD", "p")
-        .args(["roms", "list", "--search-term", "zelda"]);
+        .args(["roms", "--search-term", "zelda"]);
 
     cmd.assert().success();
     mock.assert();

@@ -4,6 +4,8 @@ pub mod client_tokens;
 pub mod collections;
 pub mod platforms;
 pub mod roms;
+pub mod system;
+pub mod tasks;
 
 /// Generic description of a ROMM API endpoint.
 pub trait Endpoint {

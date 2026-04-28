@@ -137,6 +137,7 @@ pub async fn handle(
             virtual_collection_id: None,
             limit: Some(9999),
             offset: None,
+            ..Default::default()
         };
 
         let service = RomService::new(client);

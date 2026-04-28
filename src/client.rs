@@ -7,6 +7,7 @@
 use anyhow::{anyhow, Result};
 use base64::{engine::general_purpose, Engine as _};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
+use reqwest::multipart;
 use reqwest::{Client as HttpClient, Method};
 use serde_json::Value;
 use std::path::Path;
@@ -718,6 +719,333 @@ impl RommClient {
     pub async fn get_task_status(&self, task_id: &str) -> Result<Value> {
         let path = format!("/api/tasks/{}", task_id);
         self.request_json("GET", &path, &[], None).await
+    }
+
+    /// `POST /api/tasks/run` — enqueue all runnable tasks.
+    pub async fn run_all_tasks(&self) -> Result<Value> {
+        self.request_json("POST", "/api/tasks/run", &[], None).await
+    }
+
+    /// `GET /api/tasks` — list tasks.
+    pub async fn list_tasks(&self) -> Result<Value> {
+        self.request_json("GET", "/api/tasks", &[], None).await
+    }
+
+    /// `GET /api/tasks/status` — active / queued / completed tasks.
+    pub async fn get_tasks_queue_status(&self) -> Result<Value> {
+        self.request_json("GET", "/api/tasks/status", &[], None).await
+    }
+
+    /// `POST /api/saves` with multipart field `saveFile` (RomM FastAPI).
+    pub async fn upload_save_file(
+        &self,
+        rom_id: u64,
+        emulator: Option<&str>,
+        file_path: &Path,
+    ) -> Result<Value> {
+        let url = format!("{}/api/saves", self.base_url.trim_end_matches('/'));
+        let bytes = tokio::fs::read(file_path)
+            .await
+            .map_err(|e| anyhow!("read {}: {e}", file_path.display()))?;
+        let fname = file_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .ok_or_else(|| anyhow!("upload path must have a unicode filename"))?;
+        let part = multipart::Part::bytes(bytes).file_name(fname.to_string());
+        let form = multipart::Form::new().part("saveFile", part);
+        let mut query: Vec<(String, String)> = vec![("rom_id".into(), rom_id.to_string())];
+        if let Some(em) = emulator {
+            if !em.is_empty() {
+                query.push(("emulator".into(), em.to_string()));
+            }
+        }
+        let query_refs: Vec<(&str, &str)> = query
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect();
+        let headers = self.build_headers()?;
+        let t0 = Instant::now();
+        let resp = self
+            .http
+            .post(&url)
+            .headers(headers)
+            .query(&query_refs)
+            .multipart(form)
+            .send()
+            .await
+            .map_err(|e| anyhow!("save upload request: {e}"))?;
+        let status = resp.status();
+        if self.verbose {
+            tracing::info!(
+                "[romm-cli] POST /api/saves rom_id={rom_id} -> {} ({}ms)",
+                status.as_u16(),
+                t0.elapsed().as_millis()
+            );
+        }
+        if !status.is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(anyhow!(
+                "ROMM API error: {} {} - {}",
+                status.as_u16(),
+                status.canonical_reason().unwrap_or(""),
+                body
+            ));
+        }
+        let bytes = resp
+            .bytes()
+            .await
+            .map_err(|e| anyhow!("read save upload body: {e}"))?;
+        Ok(decode_json_response_body(&bytes))
+    }
+
+    /// `POST /api/states` with multipart field `stateFile`.
+    pub async fn upload_state_file(
+        &self,
+        rom_id: u64,
+        emulator: Option<&str>,
+        file_path: &Path,
+    ) -> Result<Value> {
+        let url = format!("{}/api/states", self.base_url.trim_end_matches('/'));
+        let bytes = tokio::fs::read(file_path)
+            .await
+            .map_err(|e| anyhow!("read {}: {e}", file_path.display()))?;
+        let fname = file_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .ok_or_else(|| anyhow!("upload path must have a unicode filename"))?;
+        let part = multipart::Part::bytes(bytes).file_name(fname.to_string());
+        let form = multipart::Form::new().part("stateFile", part);
+        let mut query: Vec<(String, String)> = vec![("rom_id".into(), rom_id.to_string())];
+        if let Some(em) = emulator {
+            if !em.is_empty() {
+                query.push(("emulator".into(), em.to_string()));
+            }
+        }
+        let query_refs: Vec<(&str, &str)> = query
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect();
+        let headers = self.build_headers()?;
+        let resp = self
+            .http
+            .post(&url)
+            .headers(headers)
+            .query(&query_refs)
+            .multipart(form)
+            .send()
+            .await
+            .map_err(|e| anyhow!("state upload request: {e}"))?;
+        let status = resp.status();
+        if !status.is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(anyhow!(
+                "ROMM API error: {} {} - {}",
+                status.as_u16(),
+                status.canonical_reason().unwrap_or(""),
+                body
+            ));
+        }
+        let bytes = resp
+            .bytes()
+            .await
+            .map_err(|e| anyhow!("read state upload body: {e}"))?;
+        Ok(decode_json_response_body(&bytes))
+    }
+
+    /// `POST /api/screenshots` with multipart field `screenshotFile`.
+    pub async fn upload_screenshot_file(&self, rom_id: u64, file_path: &Path) -> Result<Value> {
+        let url = format!("{}/api/screenshots", self.base_url.trim_end_matches('/'));
+        let bytes = tokio::fs::read(file_path)
+            .await
+            .map_err(|e| anyhow!("read {}: {e}", file_path.display()))?;
+        let fname = file_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .ok_or_else(|| anyhow!("upload path must have a unicode filename"))?;
+        let part = multipart::Part::bytes(bytes).file_name(fname.to_string());
+        let form = multipart::Form::new().part("screenshotFile", part);
+        let headers = self.build_headers()?;
+        let resp = self
+            .http
+            .post(&url)
+            .headers(headers)
+            .query(&[("rom_id", rom_id.to_string().as_str())])
+            .multipart(form)
+            .send()
+            .await
+            .map_err(|e| anyhow!("screenshot upload: {e}"))?;
+        let status = resp.status();
+        if !status.is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(anyhow!(
+                "ROMM API error: {} {} - {}",
+                status.as_u16(),
+                status.canonical_reason().unwrap_or(""),
+                body
+            ));
+        }
+        let bytes = resp
+            .bytes()
+            .await
+            .map_err(|e| anyhow!("read screenshot body: {e}"))?;
+        Ok(decode_json_response_body(&bytes))
+    }
+
+    /// `POST /api/firmware?platform_id=` with multipart `files` (single file supported).
+    pub async fn upload_firmware_file(&self, platform_id: u64, file_path: &Path) -> Result<Value> {
+        let url = format!("{}/api/firmware", self.base_url.trim_end_matches('/'));
+        let bytes = tokio::fs::read(file_path)
+            .await
+            .map_err(|e| anyhow!("read {}: {e}", file_path.display()))?;
+        let fname = file_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .ok_or_else(|| anyhow!("upload path must have a unicode filename"))?;
+        let part = multipart::Part::bytes(bytes).file_name(fname.to_string());
+        let form = multipart::Form::new().part("files", part);
+        let headers = self.build_headers()?;
+        let resp = self
+            .http
+            .post(&url)
+            .headers(headers)
+            .query(&[("platform_id", platform_id.to_string())])
+            .multipart(form)
+            .send()
+            .await
+            .map_err(|e| anyhow!("firmware upload: {e}"))?;
+        let status = resp.status();
+        if !status.is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(anyhow!(
+                "ROMM API error: {} {} - {}",
+                status.as_u16(),
+                status.canonical_reason().unwrap_or(""),
+                body
+            ));
+        }
+        let bytes = resp
+            .bytes()
+            .await
+            .map_err(|e| anyhow!("read firmware body: {e}"))?;
+        Ok(decode_json_response_body(&bytes))
+    }
+
+    /// Authenticated GET returning raw bytes (e.g. save/state/firmware file or gamelist export).
+    pub async fn get_bytes(&self, path: &str, query: &[(String, String)]) -> Result<Vec<u8>> {
+        let url = format!(
+            "{}/{}",
+            self.base_url.trim_end_matches('/'),
+            path.trim_start_matches('/')
+        );
+        let headers = self.build_headers()?;
+        let query_refs: Vec<(&str, &str)> = query
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect();
+        let resp = self
+            .http
+            .get(&url)
+            .headers(headers)
+            .query(&query_refs)
+            .send()
+            .await
+            .map_err(|e| anyhow!("GET {path}: {e}"))?;
+        let status = resp.status();
+        if !status.is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(anyhow!(
+                "ROMM API error: {} {} - {}",
+                status.as_u16(),
+                status.canonical_reason().unwrap_or(""),
+                body
+            ));
+        }
+        Ok(resp.bytes().await?.to_vec())
+    }
+
+    /// POST returning raw bytes (e.g. gamelist XML).
+    pub async fn post_bytes(
+        &self,
+        path: &str,
+        query: &[(String, String)],
+        json_body: Option<Value>,
+    ) -> Result<Vec<u8>> {
+        let url = format!(
+            "{}/{}",
+            self.base_url.trim_end_matches('/'),
+            path.trim_start_matches('/')
+        );
+        let headers = self.build_headers()?;
+        let query_refs: Vec<(&str, &str)> = query
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect();
+        let mut req = self
+            .http
+            .post(&url)
+            .headers(headers)
+            .query(&query_refs);
+        if let Some(b) = json_body {
+            req = req.json(&b);
+        }
+        let resp = req.send().await.map_err(|e| anyhow!("POST {path}: {e}"))?;
+        let status = resp.status();
+        if !status.is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(anyhow!(
+                "ROMM API error: {} {} - {}",
+                status.as_u16(),
+                status.canonical_reason().unwrap_or(""),
+                body
+            ));
+        }
+        Ok(resp.bytes().await?.to_vec())
+    }
+
+    /// `POST /api/roms/{id}/manuals` — raw file body with `x-upload-filename` header.
+    pub async fn upload_rom_manual(
+        &self,
+        rom_id: u64,
+        file_path: &Path,
+    ) -> Result<Value> {
+        let fname = file_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .ok_or_else(|| anyhow!("manual path must have a unicode filename"))?
+            .to_string();
+        let url = format!(
+            "{}/api/roms/{}/manuals",
+            self.base_url.trim_end_matches('/'),
+            rom_id
+        );
+        let bytes = tokio::fs::read(file_path)
+            .await
+            .map_err(|e| anyhow!("read {}: {e}", file_path.display()))?;
+        let mut headers = self.build_headers()?;
+        headers.insert(
+            reqwest::header::HeaderName::from_static("x-upload-filename"),
+            HeaderValue::from_str(&fname).map_err(|_| anyhow!("invalid x-upload-filename"))?,
+        );
+        let resp = self
+            .http
+            .post(&url)
+            .headers(headers)
+            .body(bytes)
+            .send()
+            .await
+            .map_err(|e| anyhow!("manual upload: {e}"))?;
+        let status = resp.status();
+        if !status.is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(anyhow!(
+                "ROMM API error: {} {} - {}",
+                status.as_u16(),
+                status.canonical_reason().unwrap_or(""),
+                body
+            ));
+        }
+        let out = resp.bytes().await?;
+        Ok(decode_json_response_body(&out))
     }
 }
 

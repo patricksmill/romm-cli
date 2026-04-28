@@ -336,7 +336,8 @@ impl App {
         let client = self.client.clone();
         tokio::spawn(async move {
             let result = async {
-                let start = crate::commands::library_scan::start_scan_library(&client).await?;
+                let start =
+                    crate::commands::library_scan::start_scan_library(&client, None).await?;
                 crate::commands::library_scan::wait_for_task_terminal(
                     &client,
                     &start.task_id,

@@ -31,6 +31,8 @@ pub struct ScanLibraryOptions {
     pub wait: bool,
     pub wait_timeout: Duration,
     pub cache_invalidate: ScanCacheInvalidate,
+    /// Optional `scan_library` task kwargs (e.g. `platform_slugs`).
+    pub task_kwargs: Option<Value>,
 }
 
 fn apply_cache_invalidate(inv: &ScanCacheInvalidate) {
@@ -54,10 +56,13 @@ pub struct ScanLibraryStart {
     pub raw: Value,
 }
 
-/// POST `scan_library` with no kwargs (RomM task accepts no `platform_id`; see docs).
-pub async fn start_scan_library(client: &RommClient) -> Result<ScanLibraryStart> {
+/// POST `scan_library` with optional task kwargs (e.g. `{"platform_slugs":["gba"]}`).
+pub async fn start_scan_library(
+    client: &RommClient,
+    kwargs: Option<serde_json::Value>,
+) -> Result<ScanLibraryStart> {
     let raw = client
-        .run_task(SCAN_LIBRARY_TASK_NAME, None)
+        .run_task(SCAN_LIBRARY_TASK_NAME, kwargs)
         .await
         .context("failed to start scan_library task")?;
     let task_id = raw
@@ -176,7 +181,7 @@ pub async fn run_scan_library_flow(
         OutputFormat::Json => {}
     }
 
-    let start = start_scan_library(client).await?;
+    let start = start_scan_library(client, options.task_kwargs.clone()).await?;
 
     match format {
         OutputFormat::Text => println!(
