@@ -1,3 +1,4 @@
+//! API endpoints for managing client tokens.
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 

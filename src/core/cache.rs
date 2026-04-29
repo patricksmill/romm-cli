@@ -3,6 +3,11 @@
 //! Stores `RomList` per platform/collection on disk as JSON. On load, entries
 //! are validated against the live `rom_count` from the API; stale entries are
 //! silently discarded so only changed platforms trigger a re-fetch.
+//!
+//! Disk-backed cache for ROM metadata and collection lists.
+//!
+//! This module provides a fast, persistent cache to reduce API calls
+//! and improve the responsiveness of the TUI and CLI.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

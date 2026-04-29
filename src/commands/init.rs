@@ -24,7 +24,7 @@ pub struct InitCommand {
     #[arg(long)]
     pub print_path: bool,
 
-    /// RomM origin URL (e.g. https://romm.example). If provided with a token, skips interactive prompts.
+    /// RomM origin URL (e.g. <https://romm.example>). If provided with a token, skips interactive prompts.
     #[arg(long)]
     pub url: Option<String>,
 

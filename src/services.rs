@@ -14,53 +14,64 @@ use crate::endpoints::{
 };
 use crate::types::{Collection, Platform, Rom, RomList};
 
-/// Service encapsulating platform-related operations.
+/// Service for interacting with platform-related API endpoints.
+///
+/// This service provides higher-level methods for listing and retrieving
+/// platforms, abstracting away the underlying endpoint definitions.
 pub struct PlatformService<'a> {
     client: &'a RommClient,
 }
 
 impl<'a> PlatformService<'a> {
+    /// Creates a new `PlatformService` using the provided client.
     pub fn new(client: &'a RommClient) -> Self {
         Self { client }
     }
 
-    /// List all platforms from the ROMM API.
+    /// Lists all platforms from the RomM API.
     pub async fn list_platforms(&self) -> Result<Vec<Platform>> {
         let platforms = self.client.call(&ListPlatforms).await?;
         Ok(platforms)
     }
 
-    /// Get a single platform by ID.
+    /// Retrieves a single platform by its unique identifier.
     pub async fn get_platform(&self, id: u64) -> Result<Platform> {
         let platform = self.client.call(&GetPlatform { id }).await?;
         Ok(platform)
     }
 }
 
-/// Service encapsulating ROM-related operations.
+/// Service for interacting with ROM-related API endpoints.
+///
+/// This service provides methods for searching and retrieving ROMs,
+/// abstracting away the underlying endpoint definitions.
 pub struct RomService<'a> {
     client: &'a RommClient,
 }
 
 impl<'a> RomService<'a> {
+    /// Creates a new `RomService` using the provided client.
     pub fn new(client: &'a RommClient) -> Self {
         Self { client }
     }
 
-    /// Search/list ROMs using a fully-configured `GetRoms` descriptor.
+    /// Searches or lists ROMs using the provided request descriptor.
     pub async fn search_roms(&self, ep: &GetRoms) -> Result<RomList> {
         let results = self.client.call(ep).await?;
         Ok(results)
     }
 
-    /// Get a single ROM by ID.
+    /// Retrieves a single ROM by its unique identifier.
     pub async fn get_rom(&self, id: u64) -> Result<Rom> {
         let rom = self.client.call(&GetRom { id }).await?;
         Ok(rom)
     }
 }
 
-/// Resolve a numeric platform ID, or match by slug / display name / custom name (same rules as the CLI).
+/// Resolves a platform ID from a string query by matching against slugs, names, and custom names.
+///
+/// This is used to handle platform lookups from CLI arguments where the user
+/// might provide a name or slug instead of a numeric ID.
 pub fn resolve_platform_id_from_list(query: &str, platforms: &[Platform]) -> Result<u64> {
     let normalized = query.trim().to_ascii_lowercase();
 
@@ -104,7 +115,9 @@ pub fn resolve_platform_id_from_list(query: &str, platforms: &[Platform]) -> Res
     }
 }
 
-/// Resolve optional platform slug/name to a single RomM `platform_ids` value.
+/// Resolves a platform query (slug or name) to a numeric ID.
+///
+/// If the query is empty or `None`, returns `Ok(None)`.
 pub async fn resolve_platform_id(
     client: &RommClient,
     platform_query: Option<&str>,
@@ -117,7 +130,7 @@ pub async fn resolve_platform_id(
     resolve_platform_id_from_list(query, &platforms).map(Some)
 }
 
-/// Resolve several platform names/slugs to IDs (deduped, stable order).
+/// Resolves multiple platform queries to a list of unique numeric IDs.
 pub async fn resolve_platform_ids(client: &RommClient, names: &[String]) -> Result<Vec<u64>> {
     if names.is_empty() {
         return Ok(Vec::new());
@@ -142,7 +155,7 @@ fn match_collections_by_name<'a>(q: &str, collections: &'a [Collection]) -> Vec<
         .collect()
 }
 
-/// Resolve manual collection by numeric id or exact name (manual collections only).
+/// Resolves a manual collection by ID or exact name.
 pub async fn resolve_manual_collection_id(
     client: &RommClient,
     query: Option<&str>,
@@ -169,7 +182,7 @@ pub async fn resolve_manual_collection_id(
     }
 }
 
-/// Resolve smart collection by numeric id or exact name.
+/// Resolves a smart collection by ID or exact name.
 pub async fn resolve_smart_collection_id(
     client: &RommClient,
     query: Option<&str>,

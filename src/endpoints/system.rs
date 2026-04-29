@@ -1,4 +1,4 @@
-//! System / auth helper endpoints (`/api/heartbeat`, `/api/stats`, `/api/users/me`).
+//! System and authentication helper endpoints (heartbeat, stats, profile).
 
 use serde_json::Value;
 

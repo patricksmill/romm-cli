@@ -1,3 +1,8 @@
+//! Platform-related API endpoints.
+//!
+//! Use these endpoints to list, retrieve, update, or delete gaming platforms
+//! in the RomM database.
+
 use crate::types::Platform;
 
 use super::Endpoint;

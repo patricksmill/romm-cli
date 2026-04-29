@@ -52,16 +52,39 @@ fn version_from_heartbeat_json(v: &Value) -> Option<String> {
 /// High-level HTTP client for the ROMM API.
 ///
 /// This type hides the details of `reqwest` and authentication headers
-/// behind a small, easy-to-mock interface that all frontends can share.
+/// behind a small interface that all frontends can share.
+///
+/// # Examples
+///
+/// ```no_run
+/// # use romm_cli::config::Config;
+/// # use romm_cli::client::RommClient;
+/// # async fn example() -> anyhow::Result<()> {
+/// let config = Config {
+///     base_url: "https://romm.example.com".to_string(),
+///     download_dir: "./downloads".to_string(),
+///     use_https: true,
+///     auth: None,
+/// };
+/// let client = RommClient::new(&config, false)?;
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Clone)]
 pub struct RommClient {
+    /// The underlying HTTP client.
     http: HttpClient,
+    /// The base URL of the RomM server.
     base_url: String,
+    /// Current authentication configuration.
     auth: Option<AuthConfig>,
+    /// Whether to log request details to stderr.
     verbose: bool,
 }
 
-/// Same as [`crate::config::normalize_romm_origin`]: browser-style origin for RomM (no `/api` suffix).
+/// Returns the browser-style origin for RomM (no `/api` suffix).
+///
+/// Same as [`crate::config::normalize_romm_origin`].
 pub fn api_root_url(base_url: &str) -> String {
     normalize_romm_origin(base_url)
 }
@@ -75,11 +98,10 @@ fn alternate_http_scheme_root(root: &str) -> Option<String> {
         })
 }
 
-/// Origin used to fetch `/openapi.json` (same as the RomM website). Normally equals
-/// [`normalize_romm_origin`] applied to `API_BASE_URL`.
+/// Resolves the origin used to fetch `/openapi.json`.
 ///
-/// Set `ROMM_OPENAPI_BASE_URL` only when that origin differs (wrong host in `API_BASE_URL`, split
-/// DNS, etc.).
+/// Normally equals [`normalize_romm_origin`] applied to `api_base_url`,
+/// but can be overridden by the `ROMM_OPENAPI_BASE_URL` environment variable.
 pub fn resolve_openapi_root(api_base_url: &str) -> String {
     if let Ok(s) = std::env::var("ROMM_OPENAPI_BASE_URL") {
         let t = s.trim();
@@ -90,9 +112,10 @@ pub fn resolve_openapi_root(api_base_url: &str) -> String {
     normalize_romm_origin(api_base_url)
 }
 
-/// URLs to try for the OpenAPI JSON document (scheme fallback and alternate paths).
+/// Returns a list of candidate URLs to try for the OpenAPI JSON document.
 ///
-/// `api_root` is an origin such as `https://example.com` (see [`resolve_openapi_root`]).
+/// This includes both HTTP/HTTPS schemes and common paths like `/openapi.json`
+/// and `/api/openapi.json`.
 pub fn openapi_spec_urls(api_root: &str) -> Vec<String> {
     let root = api_root.trim_end_matches('/').to_string();
     let mut roots = vec![root.clone()];
@@ -129,6 +152,7 @@ impl RommClient {
         })
     }
 
+    /// Returns true if verbose logging is enabled.
     pub fn verbose(&self) -> bool {
         self.verbose
     }
@@ -176,7 +200,10 @@ impl RommClient {
         Ok(headers)
     }
 
-    /// Call a typed endpoint using the low-level `request_json` primitive.
+    /// Executes a typed [`Endpoint`] and returns its deserialized output.
+    ///
+    /// This is the preferred way to interact with the API when a typed
+    /// endpoint definition exists.
     pub async fn call<E>(&self, ep: &E) -> anyhow::Result<E::Output>
     where
         E: Endpoint,
@@ -194,10 +221,9 @@ impl RommClient {
         Ok(output)
     }
 
-    /// Low-level helper that issues an HTTP request and returns raw JSON.
+    /// Low-level helper that issues an HTTP request and returns a raw JSON [`Value`].
     ///
-    /// Higher-level helpers (such as typed `Endpoint` implementations)
-    /// should prefer [`RommClient::call`] instead of using this directly.
+    /// Higher-level code should generally prefer [`RommClient::call`].
     pub async fn request_json(
         &self,
         method: &str,
@@ -402,14 +428,14 @@ impl RommClient {
             .map_err(|e| anyhow!("read OpenAPI body: {e}"))
     }
 
-    /// Download ROM(s) as a zip file to `save_path`, calling `on_progress(received, total)`.
-    /// Uses GET /api/roms/download?rom_ids={id}&filename=... per RomM OpenAPI.
+    /// Downloads a ROM (or multiple ROMs as a zip) to the specified path.
     ///
-    /// If `save_path` already exists on disk (e.g. from a previous interrupted
-    /// download), the client sends an HTTP `Range` header to resume from the
-    /// existing byte offset. The server may reply with `206 Partial Content`
-    /// (resume works) or `200 OK` (server doesn't support ranges — restart
-    /// from scratch).
+    /// This method supports resuming interrupted downloads by checking if the file
+    /// already exists and sending an HTTP `Range` header.
+    ///
+    /// # Progress
+    ///
+    /// The `on_progress` callback is called with `(received_bytes, total_bytes)`.
     pub async fn download_rom<F>(
         &self,
         rom_id: u64,
@@ -531,7 +557,10 @@ impl RommClient {
         Ok(())
     }
 
-    /// Upload a ROM file using the RomM chunked upload API.
+    /// Uploads a ROM file to the server using the RomM chunked upload API.
+    ///
+    /// This method splits the file into chunks (default 2MB) and uploads them
+    /// sequentially, providing progress updates via the `on_progress` callback.
     pub async fn upload_rom<F>(
         &self,
         platform_id: u64,
@@ -704,40 +733,46 @@ impl RommClient {
         Ok(())
     }
 
-    /// Trigger a server-side task by name (e.g. `"scan_library"`).
+    /// Triggers a server-side task by name (e.g., `"scan_library"`).
     ///
-    /// Sends `POST /api/tasks/run/{task_name}` with an optional JSON body
-    /// (`task_kwargs`). Returns the raw `TaskExecutionResponse` JSON.
+    /// # Arguments
+    ///
+    /// * `task_name` - The internal name of the task to run.
+    /// * `kwargs` - Optional JSON arguments to pass to the task.
     pub async fn run_task(&self, task_name: &str, kwargs: Option<Value>) -> Result<Value> {
         let path = format!("/api/tasks/run/{}", task_name);
         self.request_json("POST", &path, &[], kwargs).await
     }
 
-    /// Poll the status of a running task.
-    ///
-    /// Sends `GET /api/tasks/{task_id}`. Returns the raw status JSON.
+    /// Polls the status of a running task by its ID.
     pub async fn get_task_status(&self, task_id: &str) -> Result<Value> {
         let path = format!("/api/tasks/{}", task_id);
         self.request_json("GET", &path, &[], None).await
     }
 
-    /// `POST /api/tasks/run` — enqueue all runnable tasks.
+    /// Enqueues all runnable tasks on the server.
     pub async fn run_all_tasks(&self) -> Result<Value> {
         self.request_json("POST", "/api/tasks/run", &[], None).await
     }
 
-    /// `GET /api/tasks` — list tasks.
+    /// Lists all recent and active tasks.
     pub async fn list_tasks(&self) -> Result<Value> {
         self.request_json("GET", "/api/tasks", &[], None).await
     }
 
-    /// `GET /api/tasks/status` — active / queued / completed tasks.
+    /// Returns the current status of the task queue (active, queued, completed).
     pub async fn get_tasks_queue_status(&self) -> Result<Value> {
         self.request_json("GET", "/api/tasks/status", &[], None)
             .await
     }
 
-    /// `POST /api/saves` with multipart field `saveFile` (RomM FastAPI).
+    /// Uploads a game save file to the server.
+    ///
+    /// # Arguments
+    ///
+    /// * `rom_id` - ID of the ROM this save belongs to.
+    /// * `emulator` - Optional name of the emulator that generated the save.
+    /// * `file_path` - Local path to the save file.
     pub async fn upload_save_file(
         &self,
         rom_id: u64,

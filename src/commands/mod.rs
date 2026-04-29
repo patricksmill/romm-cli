@@ -22,17 +22,20 @@ pub mod roms;
 pub mod scan;
 pub mod update;
 
-/// How a command should format its output.
+/// Defines how a command should format its output for the user.
 #[derive(Clone, Copy, Debug)]
 pub enum OutputFormat {
-    /// Human-readable text (tables, aligned columns, etc.).
+    /// Human-readable text format, often with tables and aligned columns.
     Text,
-    /// Machine-friendly JSON (pretty-printed by default).
+    /// Machine-friendly JSON format, useful for scripting and integration.
     Json,
 }
 
 impl OutputFormat {
-    /// Resolve the effective output format from global and per-command flags.
+    /// Resolves the effective output format based on global and command-specific flags.
+    ///
+    /// If either the global `--json` flag or a local `--json` flag is set,
+    /// this returns [`OutputFormat::Json`].
     pub fn from_flags(global_json: bool, local_json: bool) -> Self {
         if global_json || local_json {
             OutputFormat::Json
@@ -44,9 +47,8 @@ impl OutputFormat {
 
 /// Top-level CLI entrypoint for `romm-cli`.
 ///
-/// This binary can be used both as:
-/// - a **TUI launcher** (`romm-cli tui`), and
-/// - a **scripting-friendly CLI** for platforms/ROMs/API calls.
+/// This structure defines the global flags and available subcommands
+/// for the `romm-cli` binary.
 #[derive(Parser, Debug)]
 #[command(
     name = "romm-cli",
@@ -56,7 +58,7 @@ impl OutputFormat {
     arg_required_else_help = true
 )]
 pub struct Cli {
-    /// Increase output verbosity
+    /// Increase output verbosity (logs requests to stderr).
     #[arg(short, long, global = true)]
     pub verbose: bool,
 
@@ -64,6 +66,7 @@ pub struct Cli {
     #[arg(long, global = true)]
     pub json: bool,
 
+    /// The subcommand to execute.
     #[command(subcommand)]
     pub command: Commands,
 }
@@ -71,37 +74,41 @@ pub struct Cli {
 /// All top-level commands supported by the CLI.
 #[derive(Subcommand, Debug)]
 pub enum Commands {
-    /// Create or update user config (~/.config/romm-cli/config.json or %APPDATA%\\romm-cli\\config.json)
+    /// Create or update user configuration.
     #[command(visible_alias = "setup")]
     Init(init::InitCommand),
-    /// Launch interactive TUI for exploring API endpoints
+    /// Launch the interactive Terminal User Interface (TUI).
     #[cfg(feature = "tui")]
     Tui,
-    /// Launch interactive TUI (stub for disabled feature)
+    /// Launch the interactive TUI (stub for disabled feature).
     #[cfg(not(feature = "tui"))]
     Tui,
-    /// Low-level access to any ROMM API endpoint
+    /// Low-level access to any RomM API endpoint.
     #[command(visible_alias = "call")]
     Api(api::ApiCommand),
-    /// Platform-related commands
+    /// Manage gaming platforms.
     #[command(visible_aliases = ["platform", "p", "plats"])]
     Platforms(platforms::PlatformsCommand),
-    /// ROM-related commands
+    /// Manage ROM files and metadata.
     #[command(visible_aliases = ["rom", "r"])]
     Roms(Box<roms::RomsCommand>),
-    /// Trigger a full library scan on the server (`scan_library` task)
+    /// Trigger a library scan on the RomM server.
     Scan(scan::ScanCommand),
-    /// Download a ROM
+    /// Download a ROM from the server.
     #[command(visible_aliases = ["dl", "get"])]
     Download(download::DownloadCommand),
-    /// Manage the persistent ROM cache
+    /// Manage the local persistent cache.
     Cache(cache::CacheCommand),
-    /// Manage authentication credentials stored in OS keyring/config.json
+    /// Manage authentication credentials.
     Auth(auth::AuthCommand),
-    /// Check for and install updates for romm-cli
+    /// Check for and install application updates.
     Update,
 }
 
+/// Main entrypoint for running a CLI command.
+///
+/// This function initializes the [`RommClient`] and dispatches the
+/// chosen command to its respective handler.
 pub async fn run(cli: Cli, config: Config) -> Result<()> {
     let client = RommClient::new(&config, cli.verbose)?;
 

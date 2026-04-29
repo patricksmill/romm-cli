@@ -1,7 +1,6 @@
-//! Frontend-agnostic core modules.
+//! Core application logic and shared utilities.
 //!
-//! This module groups reusable state and utilities that should be shared
-//! across CLI, TUI, and future GUI frontends.
+//! This module groups reusable state and utilities shared across all frontends.
 
 pub mod cache;
 pub mod download;

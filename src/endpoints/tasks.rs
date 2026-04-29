@@ -1,4 +1,4 @@
-//! Task runner endpoints (`/api/tasks`, `/api/tasks/run`, `/api/tasks/status`).
+//! Task runner endpoints (listing, running, and status).
 
 use serde_json::Value;
 

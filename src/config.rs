@@ -38,18 +38,43 @@ use serde::{Deserialize, Serialize};
 // Types
 // ---------------------------------------------------------------------------
 
+/// Supported authentication modes for the RomM API.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AuthConfig {
-    Basic { username: String, password: String },
-    Bearer { token: String },
-    ApiKey { header: String, key: String },
+    /// Basic authentication with username and password.
+    Basic {
+        /// The RomM username.
+        username: String,
+        /// The RomM password.
+        password: String,
+    },
+    /// Bearer token authentication (the standard for most API interactions).
+    Bearer {
+        /// The raw bearer token string.
+        token: String,
+    },
+    /// API Key authentication via a custom HTTP header.
+    ApiKey {
+        /// Name of the HTTP header (e.g., "X-Api-Key").
+        header: String,
+        /// The API key value.
+        key: String,
+    },
 }
 
+/// High-level configuration for the `romm-cli` application.
+///
+/// This struct holds the connection details and authentication settings
+/// required to communicate with a RomM server.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
+    /// The base URL (origin) of the RomM server (e.g., "<https://romm.example.com>").
     pub base_url: String,
+    /// Local directory where ROMs should be downloaded.
     pub download_dir: String,
+    /// Whether to force HTTPS for API calls.
     pub use_https: bool,
+    /// Active authentication configuration, if any.
     pub auth: Option<AuthConfig>,
 }
 
@@ -60,15 +85,20 @@ fn is_placeholder(value: &str) -> bool {
 /// Written to `config.json` when the real secret is stored in the OS keyring (`persist_user_config`).
 pub const KEYRING_SECRET_PLACEHOLDER: &str = "<stored-in-keyring>";
 
-/// True if `s` is the sentinel written to disk when the secret lives in the keyring.
+/// Returns true if `s` is the sentinel written to disk when the secret lives in the keyring.
 pub fn is_keyring_placeholder(s: &str) -> bool {
     s == KEYRING_SECRET_PLACEHOLDER
 }
 
-/// RomM site URL: the same origin you use in the browser (scheme, host, optional port).
+/// Normalizes a RomM site URL by trimming whitespace, trailing slashes, and removing the `/api` suffix.
 ///
-/// Trims whitespace and trailing `/`, and removes a trailing `/api` segment if present. HTTP
-/// calls use paths such as `/api/platforms`; they must not double up with `.../api/api/...`.
+/// # Examples
+///
+/// ```
+/// # use romm_cli::config::normalize_romm_origin;
+/// assert_eq!(normalize_romm_origin("http://localhost:8080/api/"), "http://localhost:8080");
+/// assert_eq!(normalize_romm_origin(" https://romm.example.com "), "https://romm.example.com");
+/// ```
 pub fn normalize_romm_origin(url: &str) -> String {
     let mut s = url.trim().trim_end_matches('/').to_string();
     if s.ends_with("/api") {
@@ -84,6 +114,9 @@ pub fn normalize_romm_origin(url: &str) -> String {
 const KEYRING_SERVICE: &str = "romm-cli";
 
 /// Store a secret in the OS keyring under the `romm-cli` service name.
+///
+/// This is used to securely persist passwords, tokens, and API keys without
+/// writing them in plaintext to `config.json`.
 pub fn keyring_store(key: &str, value: &str) -> Result<()> {
     let entry = keyring::Entry::new(KEYRING_SERVICE, key)
         .map_err(|e| anyhow!("keyring entry error: {e}"))?;
@@ -105,7 +138,9 @@ fn keyring_get_password_result(key: &str, result: keyring::Result<String>) -> Op
     }
 }
 
-/// Retrieve a secret from the OS keyring, returning `None` if not found or on error (after logging unexpected errors).
+/// Retrieve a secret from the OS keyring, returning `None` if not found or on error.
+///
+/// Unexpected errors are logged at the `warn` level.
 pub(crate) fn keyring_get(key: &str) -> Option<String> {
     let entry = match keyring::Entry::new(KEYRING_SERVICE, key) {
         Ok(e) => e,
@@ -117,7 +152,8 @@ pub(crate) fn keyring_get(key: &str) -> Option<String> {
     keyring_get_password_result(key, entry.get_password())
 }
 
-/// After a successful `set_password`, confirm read-back matches `expected`. If not, caller should keep plaintext in JSON.
+/// After a successful `set_password`, confirm read-back matches `expected`.
+/// If not, the caller should keep plaintext in JSON to avoid data loss.
 fn keyring_verify_read_back_matches(key: &str, expected: &str) -> bool {
     let entry = match keyring::Entry::new(KEYRING_SERVICE, key) {
         Ok(e) => e,
@@ -200,6 +236,10 @@ fn env_nonempty(key: &str) -> Option<String> {
     std::env::var(key).ok().filter(|s| !s.trim().is_empty())
 }
 
+/// Returns true if the application should check for updates on startup.
+///
+/// This is controlled by the `ROMM_CHECK_UPDATES` environment variable.
+/// Defaults to `true`.
 pub fn should_check_updates() -> bool {
     match std::env::var("ROMM_CHECK_UPDATES") {
         Ok(value) => {
@@ -258,11 +298,16 @@ pub fn disk_has_unresolved_keyring_sentinel(config: &Config) -> bool {
     }
 }
 
-/// Loads merged config from env, optional `config.json`, and the OS keyring.
+/// Loads the merged configuration from the process environment, `config.json`, and the OS keyring.
 ///
-/// Bearer token resolution order: `API_TOKEN`, then UTF-8 file at `ROMM_TOKEN_FILE` or `API_TOKEN_FILE`
-/// (max 64 KiB, trimmed), then JSON. If a token file path is set but the file is missing, empty, or
-/// too large, returns an error.
+/// This function handles the precedence of configuration sources:
+/// 1. Environment variables (highest priority).
+/// 2. `config.json` file.
+/// 3. OS Keyring (for secrets).
+///
+/// # Errors
+///
+/// Returns an error if `API_BASE_URL` is not set or if there are issues reading token files.
 pub fn load_config() -> Result<Config> {
     // 1. Load from JSON first (if it exists)
     let mut json_config = None;
@@ -438,15 +483,16 @@ pub fn load_config() -> Result<Config> {
     })
 }
 
-/// Write user-level `romm-cli/config.json` and store secrets in the OS keyring when possible
-/// (same layout as interactive `romm-cli init`).
+/// Persists the user configuration to `config.json` and stores secrets in the OS keyring.
 ///
-/// If a secret field is already [`KEYRING_SECRET_PLACEHOLDER`], it is written to JSON as-is and
-/// the keyring is not updated (avoids overwriting the vault with the literal sentinel string).
+/// This function will:
+/// 1. Create the configuration directory if it doesn't exist.
+/// 2. Store secrets (password, token, API key) in the OS keyring.
+/// 3. Write non-secret configuration to `config.json`.
+/// 4. On Unix, set file permissions to 0600 (owner read/write only).
 ///
-/// After a successful [`keyring_store`], the secret is read back from the keyring; only if it
-/// matches the stored value is JSON updated to the sentinel (otherwise plaintext is kept and a
-/// warning is logged).
+/// If a secret cannot be stored in the keyring, it is written in plaintext to `config.json`
+/// as a fallback, and a warning is logged.
 pub fn persist_user_config(
     base_url: &str,
     download_dir: &str,

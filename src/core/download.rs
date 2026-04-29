@@ -3,6 +3,11 @@
 //! `DownloadJob` holds per-download progress/status.
 //! `DownloadManager` owns the shared job list and spawns background tasks.
 
+//! ROM and save file download management.
+//!
+//! This module handles the logic for downloading files from the RomM server,
+//! including resume support and progress tracking.
+
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};

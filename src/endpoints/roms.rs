@@ -1,3 +1,8 @@
+//! ROM-related API endpoints.
+//!
+//! This module contains endpoint definitions for searching, retrieving,
+//! updating, and deleting ROMs, as well as managing ROM metadata and identification.
+
 use crate::types::RomList;
 
 use super::Endpoint;

@@ -10,10 +10,10 @@ pub struct ApiCommand {
     #[command(subcommand)]
     pub action: Option<ApiAction>,
 
-    /// HTTP method (legacy, use 'api call <method> <path>')
+    /// HTTP method (legacy, use 'api call `<method>` `<path>`')
     pub method: Option<String>,
 
-    /// API path (legacy, use 'api call <method> <path>')
+    /// API path (legacy, use 'api call `<method>` `<path>`')
     pub path: Option<String>,
 
     /// Query parameters as key=value, repeatable

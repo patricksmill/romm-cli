@@ -1,3 +1,8 @@
+//! Collection-related API endpoints.
+//!
+//! This module contains endpoint definitions for managing manual, smart,
+//! and virtual collections of ROMs.
+
 use crate::types::{Collection, VirtualCollectionRow};
 
 use super::Endpoint;

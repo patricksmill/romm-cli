@@ -63,11 +63,11 @@ pub enum DownloadAction {
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, ValueEnum)]
 pub enum ExtractLayout {
-    /// Extract to <output>/<platform_slug>/
+    /// Extract to `<output>/<platform_slug>/`
     Platform,
-    /// Extract to <output>/
+    /// Extract to `<output>/`
     Flat,
-    /// Extract to <output>/<platform_slug>/<rom_name>/
+    /// Extract to `<output>/<platform_slug>/<rom_name>/`
     Rom,
 }
 
