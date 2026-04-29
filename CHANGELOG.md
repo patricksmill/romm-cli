@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.28.0](https://github.com/patricksmill/romm-cli/compare/v0.27.0...v0.28.0) (2026-04-29)
+
+
+### Features
+
+* **auth:** add authentication command group to manage credentials ([72b9182](https://github.com/patricksmill/romm-cli/commit/72b9182b439f81e22fc58f67632a3486036a6695))
+
 ## [0.27.0](https://github.com/patricksmill/romm-cli/compare/v0.26.1...v0.27.0) (2026-04-28)
 
 
