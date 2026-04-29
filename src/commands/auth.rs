@@ -14,9 +14,9 @@ use std::io::Read;
 use crate::client::RommClient;
 use crate::commands::OutputFormat;
 use crate::config::{
-    disk_has_unresolved_keyring_sentinel, is_keyring_placeholder, load_config,
-    persist_user_config, read_user_config_json_from_disk, user_config_json_path, AuthConfig,
-    Config, KEYRING_SECRET_PLACEHOLDER,
+    disk_has_unresolved_keyring_sentinel, is_keyring_placeholder, load_config, persist_user_config,
+    read_user_config_json_from_disk, user_config_json_path, AuthConfig, Config,
+    KEYRING_SECRET_PLACEHOLDER,
 };
 use crate::endpoints::client_tokens::ExchangeClientToken;
 
@@ -77,7 +77,10 @@ pub struct AuthLoginCommand {
 }
 
 fn env_nonempty(key: &str) -> Option<String> {
-    std::env::var(key).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
+    std::env::var(key)
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
 }
 
 fn read_secret_from_path_or_stdin(path: &str) -> Result<String> {
@@ -87,8 +90,8 @@ fn read_secret_from_path_or_stdin(path: &str) -> Result<String> {
             .read_to_string(&mut content)
             .context("read secret from stdin")?;
     } else {
-        content = fs::read_to_string(path)
-            .with_context(|| format!("read secret from file {}", path))?;
+        content =
+            fs::read_to_string(path).with_context(|| format!("read secret from file {}", path))?;
     }
     let trimmed = content.trim();
     if trimmed.is_empty() {
@@ -109,12 +112,16 @@ fn preserve_non_auth_fields_for_persist() -> Result<(String, String, bool, std::
     let disk = disk_config_or_die()?;
     let config_path =
         user_config_json_path().ok_or_else(|| anyhow!("Could not resolve config path"))?;
-    Ok((disk.base_url, disk.download_dir, disk.use_https, config_path))
+    Ok((
+        disk.base_url,
+        disk.download_dir,
+        disk.use_https,
+        config_path,
+    ))
 }
 
 async fn persist_auth_from_login(auth: Option<AuthConfig>, client: &RommClient) -> Result<()> {
-    let (base_url, download_dir, use_https, config_path) =
-        preserve_non_auth_fields_for_persist()?;
+    let (base_url, download_dir, use_https, config_path) = preserve_non_auth_fields_for_persist()?;
 
     // Compute the human-readable auth mode before persisting, since `auth` is moved.
     let mode = match &auth {
@@ -150,7 +157,9 @@ async fn login_interactive(cmd: &AuthLoginCommand, client: &RommClient) -> Resul
         || cmd.api_key.is_some()
         || cmd.pairing_code.is_some();
     if has_flags {
-        return Err(anyhow!("internal error: interactive auth called with flags present"));
+        return Err(anyhow!(
+            "internal error: interactive auth called with flags present"
+        ));
     }
 
     let items = vec![
@@ -182,17 +191,16 @@ async fn login_interactive(cmd: &AuthLoginCommand, client: &RommClient) -> Resul
             let header: String = Input::new()
                 .with_prompt("Header name (e.g. X-API-Key)")
                 .interact_text()?;
-            let key = Password::new()
-                .with_prompt("API key value")
-                .interact()?;
+            let key = Password::new().with_prompt("API key value").interact()?;
             Ok(AuthConfig::ApiKey {
                 header: header.trim().to_string(),
                 key,
             })
         }
         3 => {
-            let code: String =
-                Input::new().with_prompt("8-character pairing code").interact_text()?;
+            let code: String = Input::new()
+                .with_prompt("8-character pairing code")
+                .interact_text()?;
 
             // Pairing-code exchange should not depend on the current auth mode
             // (because we are rotating it). Use an unauthenticated client.
@@ -277,7 +285,9 @@ pub async fn handle(cmd: AuthCommand, client: &RommClient, format: OutputFormat)
                 if login.token.is_some() || login.token_file.is_some() {
                     modes.push("bearer");
                 }
-                if login.username.is_some() || login.password.is_some() || login.password_file.is_some()
+                if login.username.is_some()
+                    || login.password.is_some()
+                    || login.password_file.is_some()
                 {
                     modes.push("basic");
                 }
@@ -315,7 +325,9 @@ pub async fn handle(cmd: AuthCommand, client: &RommClient, format: OutputFormat)
                 } else if login.token.is_some() || login.token_file.is_some() {
                     let token = match (login.token, login.token_file) {
                         (Some(_), Some(_)) => {
-                            return Err(anyhow!("Provide either --token or --token-file, not both"));
+                            return Err(anyhow!(
+                                "Provide either --token or --token-file, not both"
+                            ));
                         }
                         (Some(t), None) => t,
                         (None, Some(f)) => read_secret_from_path_or_stdin(&f)?,
@@ -342,10 +354,14 @@ pub async fn handle(cmd: AuthCommand, client: &RommClient, format: OutputFormat)
                         (Some(p), None) => p,
                         (None, Some(f)) => read_secret_from_path_or_stdin(&f)?,
                         (None, None) => {
-                            return Err(anyhow!("--password or --password-file is required for basic auth"))
+                            return Err(anyhow!(
+                                "--password or --password-file is required for basic auth"
+                            ))
                         }
                         (Some(_), Some(_)) => {
-                            return Err(anyhow!("Provide either --password or --password-file, not both"))
+                            return Err(anyhow!(
+                                "Provide either --password or --password-file, not both"
+                            ))
                         }
                     };
                     AuthConfig::Basic {
@@ -435,8 +451,8 @@ pub async fn handle(cmd: AuthCommand, client: &RommClient, format: OutputFormat)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use clap::Parser;
     use crate::commands::{Cli, Commands};
+    use clap::Parser;
 
     struct TestEnv {
         dir: std::path::PathBuf,
@@ -470,7 +486,7 @@ mod tests {
         fn drop(&mut self) {
             clear_env();
             let _ = std::fs::remove_dir_all(&self.dir);
-            let _ = std::env::remove_var("ROMM_TEST_CONFIG_DIR");
+            std::env::remove_var("ROMM_TEST_CONFIG_DIR");
         }
     }
 
@@ -567,7 +583,7 @@ mod tests {
         let saved = read_user_config_json_from_disk().unwrap();
         assert_eq!(saved.base_url, "https://disk.example");
         assert_eq!(saved.download_dir, "/disk/dl");
-        assert_eq!(saved.use_https, true);
+        assert!(saved.use_https);
         match saved.auth {
             Some(AuthConfig::Bearer { token }) => {
                 assert!(is_keyring_placeholder(&token));
@@ -604,8 +620,7 @@ mod tests {
         let saved = read_user_config_json_from_disk().unwrap();
         assert_eq!(saved.base_url, "https://disk.example");
         assert_eq!(saved.download_dir, "/disk/dl");
-        assert_eq!(saved.use_https, true);
+        assert!(saved.use_https);
         assert!(saved.auth.is_none());
     }
 }
-
