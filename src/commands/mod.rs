@@ -11,6 +11,7 @@ use crate::client::RommClient;
 use crate::config::Config;
 
 pub mod api;
+pub mod auth;
 pub mod cache;
 pub mod download;
 pub mod init;
@@ -95,6 +96,8 @@ pub enum Commands {
     Download(download::DownloadCommand),
     /// Manage the persistent ROM cache
     Cache(cache::CacheCommand),
+    /// Manage authentication credentials stored in OS keyring/config.json
+    Auth(auth::AuthCommand),
     /// Check for and install updates for romm-cli
     Update,
 }

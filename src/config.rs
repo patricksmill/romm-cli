@@ -527,9 +527,16 @@ pub fn persist_user_config(
 }
 
 #[cfg(test)]
+pub(crate) fn test_env_lock() -> &'static std::sync::Mutex<()> {
+    use std::sync::{Mutex, OnceLock};
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Mutex, MutexGuard, OnceLock};
+    use std::sync::MutexGuard;
 
     #[test]
     fn keyring_get_password_result_ok() {
@@ -547,11 +554,6 @@ mod tests {
         );
     }
 
-    fn env_lock() -> &'static Mutex<()> {
-        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        LOCK.get_or_init(|| Mutex::new(()))
-    }
-
     struct TestEnv {
         _guard: MutexGuard<'static, ()>,
         config_dir: PathBuf,
@@ -559,7 +561,9 @@ mod tests {
 
     impl TestEnv {
         fn new() -> Self {
-            let guard = env_lock().lock().expect("env lock");
+            let guard = super::test_env_lock()
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
             clear_auth_env();
 
             let ts = std::time::SystemTime::now()

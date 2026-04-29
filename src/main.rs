@@ -159,7 +159,7 @@ fn command_requires_config(command: &Commands) -> bool {
         | Commands::Roms(_)
         | Commands::Download(_)
         | Commands::Scan(_) => true,
-        Commands::Cache(_) | Commands::Update => false,
+        Commands::Cache(_) | Commands::Auth(_) | Commands::Update => false,
         Commands::Init(_) | Commands::Tui => false,
     }
 }

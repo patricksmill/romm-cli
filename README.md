@@ -165,6 +165,11 @@ romm-cli update
 romm-cli cache path
 romm-cli cache info
 romm-cli cache clear
+
+# Rotate credentials without re-entering ROM path/base URL
+romm-cli auth status
+romm-cli auth login --token-file ~/.romm-token
+romm-cli auth logout
 ```
 
 On interactive startup, `romm-cli` and `romm-tui` check for newer releases and can prompt to update now, open the online changelog, or skip.

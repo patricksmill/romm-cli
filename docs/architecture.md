@@ -26,14 +26,14 @@ From bottom to top:
   - `DownloadManager` – orchestrates background downloads and exposes a
     shared list of `DownloadJob`s.
 - **Frontends** (`src/frontend/`)
-  - **CLI** (`src/commands/*`) – one-shot commands for platforms/ROMs/API. The `frontend::cli` module routes parsed arguments to these handlers.
+  - **CLI** (`src/commands/*`) – one-shot commands for platforms/ROMs/API/auth. The `frontend::cli` module routes parsed arguments to these handlers.
   - **TUI** (`src/tui/*`) – an event loop and a set of screens that
     present and manipulate the underlying data.
 
 The CLI layer itself is split into:
 
 - `commands::mod` – top-level `Cli` and `Commands` enum plus `OutputFormat`.
-- `commands::platforms` / `commands::roms` / `commands::api` / `commands::download` / `commands::scan` / `commands::cache` / `commands::init` / `commands::update` – small modules that parse arguments, call into services, and print results. Library scan HTTP for both `scan` and upload-triggered scans lives in `commands::library_scan`.
+- `commands::platforms` / `commands::roms` / `commands::api` / `commands::auth` / `commands::download` / `commands::scan` / `commands::cache` / `commands::init` / `commands::update` – small modules that parse arguments, call into services, and print results. Library scan HTTP for both `scan` and upload-triggered scans lives in `commands::library_scan`.
 - `commands::print` – helpers for tabular text output.
 - `services` – `PlatformService` and `RomService` wrappers around endpoint calls, plus shared resolvers (platform and collection name/id helpers).
 
