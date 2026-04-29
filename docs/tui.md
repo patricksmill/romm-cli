@@ -17,15 +17,9 @@ The heart of the TUI lives in `tui::app::App::run`:
 
 ## Library startup (metadata snapshot)
 
-Choosing **Library** from the main menu loads a compact on-disk snapshot of
-platforms and merged collections (if present) so the list can render without
-waiting for the network. A background task then refetches the same endpoints,
-updates the UI when complete, and writes a fresh snapshot. Full ROM lists are
-still loaded on demand (and use the ROM list cache). Snapshot path defaults
-next to `ROMM_CACHE_PATH`; override with `ROMM_LIBRARY_METADATA_SNAPSHOT_PATH`.
+Choosing **Library** from the main menu loads a compact on-disk snapshot of platforms and merged collections (if present) so the list can render without waiting for the network. A background task then refetches the same endpoints, updates the UI when complete, and writes a fresh snapshot. Full ROM lists are still loaded on demand (and use the ROM list cache). Snapshot path defaults next to `ROMM_CACHE_PATH`; override with `ROMM_LIBRARY_METADATA_SNAPSHOT_PATH`.
 
-The TUI uses `crossterm` to manage the terminal and `ratatui` to build
-widgets.
+The TUI uses `crossterm` to manage the terminal and `ratatui` to build widgets.
 
 ## Screens
 
@@ -40,15 +34,11 @@ Each screen is its own struct under `src/tui/screens/`:
 - `BrowseScreen` / `ExecuteScreen` / `ResultScreen` / `ResultDetailScreen` – API browser flow
 - `SetupWizard` – first-run / reconnect configuration flow
 
-The `AppScreen` enum in `tui::app` wraps these screen structs so that
-`App` only ever has one active screen at a time. During startup, a
-`StartupSplash` overlay (`screens/connected_splash`) may render before the
-main menu appears.
+The `AppScreen` enum in `tui::app` wraps these screen structs so that `App` only ever has one active screen at a time. During startup, a `StartupSplash` overlay (`screens/connected_splash`) may render before the main menu appears.
 
 ## Layout and scrolling
 
-`ratatui::layout::Layout` is used extensively to divide the terminal
-into smaller `Rect`s:
+`ratatui::layout::Layout` is used extensively to divide the terminal into smaller `Rect`s:
 
 - A typical pattern is a vertical split into `main area + footer`.
 - Complex screens (like the library browser) then split the main area

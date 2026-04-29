@@ -4,15 +4,19 @@ This document focuses on how HTTP calls are structured.
 
 ## Endpoint trait
 
-Each ROMM API route is described by a small type implementing an
-`Endpoint` trait:
+Each ROMM API route is described by a small type implementing an `Endpoint` trait:
 
 - method (e.g. `"GET"`)
 - path (e.g. `"/api/platforms"`)
 - query params (`Vec<(String, String)>`)
 - optional JSON body
 
-These types live under `src/endpoints/*`.
+These types live under `src/endpoints/*`, grouped by API area:
+
+- `platforms`, `roms`, `collections` for core library operations
+- `client_tokens` for pairing-token APIs
+- `system` for health/profile/stat endpoints (`/api/heartbeat`, `/api/stats`, `/api/users/me`)
+- `tasks` for queue/task runner endpoints (`/api/tasks`, `/api/tasks/run`, `/api/tasks/status`)
 
 ## RommClient
 
@@ -36,8 +40,7 @@ The client includes logic to automatically discover and fetch the server's OpenA
 - **`openapi_spec_urls`**: Generates a list of fallback URLs to try (e.g., `https://.../openapi.json`, `http://.../openapi.json`, `.../api/openapi.json`).
 - **`fetch_openapi_json`**: Iterates through the fallback URLs until it successfully downloads the spec.
 
-The idea is that frontends never touch `reqwest` directly; they use
-`RommClient` and endpoint types instead.
+The idea is that frontends never touch `reqwest` directly; they use `RommClient` and endpoint types instead.
 
 ## Streaming downloads
 
