@@ -31,6 +31,7 @@ pub struct ResultDetailScreen {
     pub scroll: usize,
     pub scrollbar_state: ScrollbarState,
     pub message: Option<String>,
+    pub message_clear_at: Option<std::time::Instant>,
 }
 
 impl ResultScreen {
@@ -448,6 +449,7 @@ impl ResultDetailScreen {
             scroll: 0,
             scrollbar_state,
             message: None,
+            message_clear_at: None,
         }
     }
 
@@ -497,16 +499,35 @@ impl ResultDetailScreen {
             }
         };
         match open_in_browser(&url) {
-            Ok(_) => self.message = Some("Opened in browser".to_string()),
-            Err(e) => self.message = Some(format!("Failed to open: {}", e)),
+            Ok(_) => {
+                self.message = Some("Opened in browser".to_string());
+                self.message_clear_at =
+                    Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+            }
+            Err(e) => {
+                self.message = Some(format!("Failed to open: {}", e));
+                self.message_clear_at =
+                    Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
+            }
         }
     }
 
     pub fn clear_message(&mut self) {
         self.message = None;
+        self.message_clear_at = None;
     }
 
-    pub fn render(&self, f: &mut Frame, area: Rect) {
+    pub fn tick_message(&mut self) {
+        if let Some(clear_at) = self.message_clear_at {
+            if std::time::Instant::now() >= clear_at {
+                self.message = None;
+                self.message_clear_at = None;
+            }
+        }
+    }
+
+    pub fn render(&mut self, f: &mut Frame, area: Rect) {
+        self.tick_message();
         let chunks = Layout::default()
             .constraints([Constraint::Min(3), Constraint::Length(3)])
             .direction(ratatui::layout::Direction::Vertical)

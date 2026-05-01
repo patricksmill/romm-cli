@@ -7,6 +7,7 @@ use ratatui_image::picker::{Picker, ProtocolType};
 use ratatui_image::protocol::StatefulProtocol;
 use ratatui_image::{Resize, StatefulImage};
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 use crate::core::download::{DownloadJob, DownloadStatus};
 use crate::core::utils::format_size;
@@ -44,6 +45,7 @@ pub struct GameDetailScreen {
     pub previous: GameDetailPrevious,
     pub show_technical: bool,
     pub message: Option<String>,
+    pub message_clear_at: Option<Instant>,
     /// Shared download list — used to show inline progress for this ROM.
     pub downloads: Arc<Mutex<Vec<DownloadJob>>>,
     /// Whether a download has been started from this detail view.
@@ -77,6 +79,7 @@ impl GameDetailScreen {
             previous,
             show_technical: false,
             message: None,
+            message_clear_at: None,
             downloads,
             has_started_download: false,
             download_completion_acknowledged: false,
@@ -94,18 +97,40 @@ impl GameDetailScreen {
 
     pub fn open_cover(&mut self) {
         self.message = None;
+        self.message_clear_at = None;
         let url = self.rom.url_cover.as_deref().filter(|s| !s.is_empty());
         match url {
             Some(u) => match open_in_browser(u) {
-                Ok(_) => self.message = Some("Opened in browser".to_string()),
-                Err(e) => self.message = Some(format!("Failed: {}", e)),
+                Ok(_) => {
+                    self.message = Some("Opened in browser".to_string());
+                    self.message_clear_at =
+                        Some(Instant::now() + std::time::Duration::from_secs(3));
+                }
+                Err(e) => {
+                    self.message = Some(format!("Failed: {}", e));
+                    self.message_clear_at =
+                        Some(Instant::now() + std::time::Duration::from_secs(5));
+                }
             },
-            None => self.message = Some("No cover URL".to_string()),
+            None => {
+                self.message = Some("No cover URL".to_string());
+                self.message_clear_at = Some(Instant::now() + std::time::Duration::from_secs(3));
+            }
         }
     }
 
     pub fn clear_message(&mut self) {
         self.message = None;
+        self.message_clear_at = None;
+    }
+
+    pub fn tick_message(&mut self) {
+        if let Some(clear_at) = self.message_clear_at {
+            if Instant::now() >= clear_at {
+                self.message = None;
+                self.message_clear_at = None;
+            }
+        }
     }
 
     pub fn should_request_cover_load(&self) -> bool {
@@ -389,7 +414,8 @@ impl GameDetailScreen {
         f.render_widget(p, area);
     }
 
-    fn render_footer_panel(&self, f: &mut Frame, footer_area: Rect) {
+    fn render_footer_panel(&mut self, f: &mut Frame, footer_area: Rect) {
+        self.tick_message();
         // Footer: show progress bar if downloading, otherwise help text.
         if let Some(job) = self.active_download() {
             let (label, style) = match &job.status {
