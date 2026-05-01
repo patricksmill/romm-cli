@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.29.0](https://github.com/patricksmill/romm-cli/compare/v0.28.0...v0.29.0) (2026-05-01)
+
+
+### Features
+
+* **docs:** add more documentation to various parts of the source ([efdc6e3](https://github.com/patricksmill/romm-cli/commit/efdc6e3af51f9fa60d5a64f14ba2e2a3f70478b2))
+* **tests:** enhance setup wizard tests with unique download directory handling ([deae08a](https://github.com/patricksmill/romm-cli/commit/deae08abb0cf5863c65149647916aa1bb8724810))
+* **update:** enhance update mechanism with dynamic binary name resolution and add tests ([947db3f](https://github.com/patricksmill/romm-cli/commit/947db3f02176359b0be13a924e77b393391d999d))
+* **update:** improve binary name extraction from path for better compatibility ([deae08a](https://github.com/patricksmill/romm-cli/commit/deae08abb0cf5863c65149647916aa1bb8724810))
+
 ## [0.28.0](https://github.com/patricksmill/romm-cli/compare/v0.27.0...v0.28.0) (2026-04-29)
 
 
