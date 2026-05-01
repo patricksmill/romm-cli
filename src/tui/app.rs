@@ -1616,18 +1616,44 @@ impl App {
             return Ok(false);
         }
 
-        if settings.confirm_reset {
+        if settings.confirm.is_some() {
             match key.code {
                 KeyCode::Enter => {
-                    let _ = crate::config::reset_all_settings();
-                    settings.confirm_reset = false;
-                    settings.message = Some((
-                        "Settings deleted. Please restart romm-cli.".to_string(),
-                        Color::Yellow,
-                    ));
+                    match settings.confirm.take().unwrap() {
+                        super::screens::settings::SettingsConfirm::Reset => {
+                            let _ = crate::config::reset_all_settings();
+                            settings.message = Some((
+                                "Settings deleted. Please restart romm-cli.".to_string(),
+                                Color::Yellow,
+                            ));
+                        }
+                        super::screens::settings::SettingsConfirm::ClearCache => {
+                            match crate::core::cache::RomCache::clear_file() {
+                                Ok(true) => {
+                                    self.rom_cache = crate::core::cache::RomCache::load();
+                                    settings.message = Some((
+                                        "ROM cache cleared.".to_string(),
+                                        Color::Green,
+                                    ));
+                                }
+                                Ok(false) => {
+                                    settings.message = Some((
+                                        "ROM cache file does not exist.".to_string(),
+                                        Color::Yellow,
+                                    ));
+                                }
+                                Err(e) => {
+                                    settings.message = Some((
+                                        format!("Failed to clear cache: {e}"),
+                                        Color::Red,
+                                    ));
+                                }
+                            }
+                        }
+                    }
                 }
                 KeyCode::Esc => {
-                    settings.confirm_reset = false;
+                    settings.confirm = None;
                 }
                 _ => {}
             }
