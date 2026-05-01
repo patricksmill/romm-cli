@@ -903,9 +903,7 @@ impl LibraryBrowseScreen {
         } else if total_roms > 0 && (total_files as u64) < total_roms {
             format!(
                 "Games ({} of {}) — {} files",
-                total_files,
-                total_roms,
-                total_files
+                total_files, total_roms, total_files
             )
         } else {
             format!("Games ({}) — {} files", groups.len(), total_files)

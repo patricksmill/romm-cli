@@ -269,12 +269,16 @@ impl SettingsScreen {
         // -- Message Area --
         if let Some(confirm) = &self.confirm {
             let msg = match confirm {
-                SettingsConfirm::Reset => "Are you sure you want to delete all settings? (Enter: Yes, Esc: Cancel)",
-                SettingsConfirm::ClearCache => "Are you sure you want to clear the ROM cache? (Enter: Yes, Esc: Cancel)",
+                SettingsConfirm::Reset => {
+                    "Are you sure you want to delete all settings? (Enter: Yes, Esc: Cancel)"
+                }
+                SettingsConfirm::ClearCache => {
+                    "Are you sure you want to clear the ROM cache? (Enter: Yes, Esc: Cancel)"
+                }
             };
             f.render_widget(
                 Paragraph::new(msg)
-                .style(Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+                    .style(Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
                 chunks[2],
             );
         } else if let Some((msg, color)) = &self.message {
