@@ -27,11 +27,10 @@ use crate::tui::path_picker::{PathPicker, PathPickerEvent, PathPickerMode};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum AuthKind {
-    None,
+    Pairing,
     Basic,
     Bearer,
     ApiKey,
-    Pairing,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -107,7 +106,7 @@ impl SetupWizard {
             .to_string();
         Self {
             step: Step::Url,
-            auth_kind: AuthKind::None,
+            auth_kind: AuthKind::Pairing,
             auth_menu_selected: 0,
             url: "https://".to_string(),
             url_cursor: "https://".len(),
@@ -204,30 +203,28 @@ impl SetupWizard {
                 }
             }
             None => {
-                wizard.auth_kind = AuthKind::None;
+                wizard.auth_kind = AuthKind::Pairing;
                 wizard.auth_menu_selected = 0;
             }
         }
         wizard
     }
 
-    fn auth_labels() -> [&'static str; 5] {
+    fn auth_labels() -> [&'static str; 4] {
         [
-            "No authentication",
-            "Basic (username + password)",
-            "API Token (Bearer)",
+            "Pair with Web UI (8-character code) (Recommended)",
+            "Username + password",
+            "API Token",
             "API key in custom header",
-            "Pair with Web UI (8-character code)",
         ]
     }
 
     fn auth_kind_from_index(i: usize) -> AuthKind {
         match i {
+            0 => AuthKind::Pairing,
             1 => AuthKind::Basic,
             2 => AuthKind::Bearer,
-            3 => AuthKind::ApiKey,
-            4 => AuthKind::Pairing,
-            _ => AuthKind::None,
+            _ => AuthKind::ApiKey,
         }
     }
 
@@ -276,7 +273,6 @@ impl SetupWizard {
                 .display()
                 .to_string();
         let auth: Option<AuthConfig> = match self.auth_kind {
-            AuthKind::None => None,
             AuthKind::Basic => {
                 let u = self.username.trim();
                 if u.is_empty() {
@@ -365,14 +361,24 @@ impl SetupWizard {
                         Style::default().fg(Color::DarkGray),
                     )),
                     Line::from(Span::styled(
-                        "Same origin as in your browser (no trailing /api). Esc: quit",
+                        "Same origin as in your browser (no trailing /api).",
                         Style::default().fg(Color::DarkGray),
                     )),
                 ]);
                 f.render_widget(Paragraph::new(intro), main[0]);
             }
-            _ => {
-                let hint_top = "Same origin as in your browser (no trailing /api). Esc: quit";
+            step => {
+                let hint_top = match step {
+                    Step::Https => "HTTPS ensures your credentials are encrypted in transit. Only disable if necessary.",
+                    Step::Download => "Choose a directory to save ROMs. Make sure you have write permissions.",
+                    Step::AuthMenu => "Select how you authenticate with the RomM server.",
+                    Step::BasicUser | Step::BasicPass => "Enter the exact same username and password you use to log into the RomM web UI.",
+                    Step::Bearer => "To get an API token, go to the RomM web UI -> client API Tokens -> generate a new token.",
+                    Step::PairingCode => "Login to RomM in your browser, go to your profile menu -> Client API Tokens, and create a new token.",
+                    Step::ApiHeader | Step::ApiKey => "Use this only if you have a custom reverse proxy setup requiring specific headers (e.g., X-Api-Key). Otherwise, use API Token.",
+                    Step::Summary => "Review your configuration before testing the connection.",
+                    Step::Url => "",
+                };
                 let p = Paragraph::new(hint_top).style(Style::default().fg(Color::DarkGray));
                 f.render_widget(p, main[0]);
             }
@@ -402,8 +408,7 @@ impl SetupWizard {
                 f.render_widget(p, main[1]);
             }
             Step::Download => {
-                let footer = "↓/↑: list focus  ↑ at top: back to path  Ctrl+Enter: accept typed path (creates folders)  Tab: path/list  Esc: quit";
-                self.download_picker.render(f, main[1], title, footer);
+                self.download_picker.render(f, main[1], title, "");
             }
             Step::AuthMenu => {
                 let items: Vec<ListItem> = Self::auth_labels()
@@ -466,7 +471,11 @@ impl SetupWizard {
                         .skip(self.bearer_cursor)
                         .collect::<String>()
                 );
-                let mut bearer_text = Text::from(vec![Line::from(line)]);
+                let mut bearer_text = Text::from(vec![
+                    Line::from("API Token"),
+                    Line::from(""),
+                    Line::from(line),
+                ]);
                 if self.bearer_token.is_empty() && self.reuse_keyring_bearer {
                     bearer_text.push_line(Line::from(""));
                     bearer_text.push_line(Line::from(Span::styled(
@@ -490,7 +499,7 @@ impl SetupWizard {
                         .skip(self.pairing_cursor)
                         .collect::<String>()
                 );
-                let body = format!("Enter the 8-character code from the RomM web UI.\n\n{line}");
+                let body = format!("Enter the 8-character code provided.\n\n{line}");
                 let block = Block::default().title(title).borders(Borders::ALL);
                 let p = Paragraph::new(body).block(block);
                 f.render_widget(p, main[1]);
@@ -530,7 +539,6 @@ impl SetupWizard {
             Step::Summary => {
                 let url_line = normalize_romm_origin(self.url.trim());
                 let auth_desc = match self.auth_kind {
-                    AuthKind::None => "None",
                     AuthKind::Basic => "Basic",
                     AuthKind::Bearer => "API Token",
                     AuthKind::ApiKey => "API key header",
@@ -565,7 +573,7 @@ impl SetupWizard {
         let footer_keys = match self.step {
             Step::Url => "Enter: next   Backspace: delete   Esc: quit",
             Step::Https => "Space: toggle   Enter: next   Esc: quit",
-            Step::Download => "Ctrl+Enter: next (creates path)   ↑ list top: path bar   Tab: path/list   Esc: quit",
+            Step::Download => "Ctrl+Enter: next (creates path)   ↑ list top: path bar   ↓/↑: list focus   Tab: path/list   Esc: quit",
             Step::AuthMenu => "↑/↓: choose   Enter: next   Esc: quit",
             Step::BasicUser | Step::BasicPass => {
                 "Type text   Tab: switch field   Enter: next step   Esc: quit"
@@ -641,7 +649,6 @@ impl SetupWizard {
     fn advance_from_auth_menu(&mut self) {
         self.auth_kind = Self::auth_kind_from_index(self.auth_menu_selected);
         self.step = match self.auth_kind {
-            AuthKind::None => Step::Summary,
             AuthKind::Basic => Step::BasicUser,
             AuthKind::Bearer => Step::Bearer,
             AuthKind::ApiKey => Step::ApiHeader,
@@ -746,7 +753,7 @@ impl SetupWizard {
                 KeyCode::Up | KeyCode::Char('k') if self.auth_menu_selected > 0 => {
                     self.auth_menu_selected -= 1;
                 }
-                KeyCode::Down | KeyCode::Char('j') if self.auth_menu_selected < 4 => {
+                KeyCode::Down | KeyCode::Char('j') if self.auth_menu_selected < 3 => {
                     self.auth_menu_selected += 1;
                 }
                 KeyCode::Enter => {
@@ -953,8 +960,8 @@ impl SetupWizard {
         enable_raw_mode()?;
         let mut stdout = stdout();
         execute!(
-            stdout, 
-            EnterAlternateScreen, 
+            stdout,
+            EnterAlternateScreen,
             EnableMouseCapture,
             crossterm::event::EnableBracketedPaste
         )?;
