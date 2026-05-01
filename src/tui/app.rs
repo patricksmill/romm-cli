@@ -62,12 +62,18 @@ struct CollectionPrefetchDone {
     warning: Option<String>,
 }
 
+enum RomLoadEvent {
+    Batch(RomList),
+    Failed(String),
+    Complete,
+}
+
 /// Background primary ROM list fetch (deferred load path). Generation-guarded against stale completions.
 struct RomLoadDone {
     gen: u64,
     key: Option<RomCacheKey>,
     expected: u64,
-    result: Result<RomList, String>,
+    event: RomLoadEvent,
     context: &'static str,
     started: Instant,
 }
@@ -613,24 +619,27 @@ impl App {
                     let AppScreen::LibraryBrowse(ref mut lib) = self.screen else {
                         continue;
                     };
-                    match done.result {
-                        Ok(roms) => {
+                    match done.event {
+                        RomLoadEvent::Batch(roms) => {
                             if let Some(ref k) = done.key {
                                 self.rom_cache
                                     .insert(k.clone(), roms.clone(), done.expected);
                             }
                             lib.set_roms(roms);
                             tracing::debug!(
-                                "rom-list-render context={} latency_ms={}",
+                                "rom-list-render batch context={} latency_ms={}",
                                 done.context,
                                 done.started.elapsed().as_millis()
                             );
                         }
-                        Err(e) => {
+                        RomLoadEvent::Failed(e) => {
                             lib.set_metadata_footer(Some(format!("Could not load games: {e}")));
+                            lib.set_rom_loading(false);
+                        }
+                        RomLoadEvent::Complete => {
+                            lib.set_rom_loading(false);
                         }
                     }
-                    lib.set_rom_loading(false);
                 }
                 Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
                 Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => break,
@@ -936,14 +945,72 @@ impl App {
                 }
 
                 self.rom_load_task = Some(tokio::spawn(async move {
-                    let result = Self::fetch_roms_full(client, r)
-                        .await
-                        .map_err(|e| format!("{e:#}"));
+                    let mut req = r;
+                    let mut aggregated: Option<RomList> = None;
+
+                    loop {
+                        match client.call(&req).await {
+                            Ok(mut batch) => {
+                                if let Some(ref mut all) = aggregated {
+                                    if batch.items.is_empty() {
+                                        break;
+                                    }
+                                    all.items.append(&mut batch.items);
+                                    let _ = tx.send(RomLoadDone {
+                                        gen,
+                                        key: key.clone(),
+                                        expected,
+                                        event: RomLoadEvent::Batch(all.clone()),
+                                        context,
+                                        started,
+                                    });
+                                    if all.items.len() as u64 >= all.total {
+                                        break;
+                                    }
+                                    req.offset = Some(all.items.len() as u32);
+                                } else {
+                                    let loaded = batch.items.len() as u64;
+                                    let total = batch.total;
+                                    let _ = tx.send(RomLoadDone {
+                                        gen,
+                                        key: key.clone(),
+                                        expected,
+                                        event: RomLoadEvent::Batch(batch.clone()),
+                                        context,
+                                        started,
+                                    });
+                                    req.offset = Some(loaded as u32);
+                                    aggregated = Some(batch);
+                                    if loaded >= total {
+                                        break;
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                let _ = tx.send(RomLoadDone {
+                                    gen,
+                                    key: key.clone(),
+                                    expected,
+                                    event: RomLoadEvent::Failed(format!("{e:#}")),
+                                    context,
+                                    started,
+                                });
+                                return;
+                            }
+                        }
+                        // Cap at 20k
+                        if let Some(ref all) = aggregated {
+                            if all.items.len() >= 20000 {
+                                break;
+                            }
+                        }
+                    }
+
                     let _ = tx.send(RomLoadDone {
                         gen,
                         key,
                         expected,
-                        result,
+                        event: RomLoadEvent::Complete,
                         context,
                         started,
                     });
@@ -964,7 +1031,6 @@ impl App {
     // -----------------------------------------------------------------------
     // ROM fetch (used by background tasks and collection prefetch)
     // -----------------------------------------------------------------------
-
     async fn fetch_roms_full(client: RommClient, req: GetRoms) -> Result<RomList> {
         let mut roms = client.call(&req).await?;
         let total = roms.total;
@@ -980,6 +1046,7 @@ impl App {
         }
         Ok(roms)
     }
+
 
     // -----------------------------------------------------------------------
     // Key dispatch — one small method per screen

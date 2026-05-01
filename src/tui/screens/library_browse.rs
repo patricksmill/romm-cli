@@ -191,26 +191,26 @@ impl LibraryBrowseScreen {
         match subsection {
             LibrarySubsection::ByConsole => self.platforms.get(source_idx).map(|p| GetRoms {
                 platform_id: Some(p.id),
-                limit: Some(count as u32),
+                limit: Some(50),
                 ..Default::default()
             }),
             LibrarySubsection::ByCollection => self.collections.get(source_idx).map(|c| {
                 if c.is_virtual {
                     GetRoms {
                         virtual_collection_id: c.virtual_id.clone(),
-                        limit: Some(count as u32),
+                        limit: Some(50),
                         ..Default::default()
                     }
                 } else if c.is_smart {
                     GetRoms {
                         smart_collection_id: Some(c.id),
-                        limit: Some(count as u32),
+                        limit: Some(50),
                         ..Default::default()
                     }
                 } else {
                     GetRoms {
                         collection_id: Some(c.id),
-                        limit: Some(count as u32),
+                        limit: Some(50),
                         ..Default::default()
                     }
                 }
@@ -893,7 +893,7 @@ impl LibraryBrowseScreen {
 
         let total_files = self.roms.as_ref().map(|r| r.items.len()).unwrap_or(0);
         let total_roms = self.roms.as_ref().map(|r| r.total).unwrap_or(0);
-        let title = if self.rom_search.filter_browsing && !self.rom_search.query.is_empty() {
+        let mut title = if self.rom_search.filter_browsing && !self.rom_search.query.is_empty() {
             format!(
                 "Games (filtered: \"{}\") — {} — {} files",
                 self.rom_search.query,
@@ -910,6 +910,10 @@ impl LibraryBrowseScreen {
         } else {
             format!("Games ({}) — {} files", groups.len(), total_files)
         };
+
+        if self.rom_loading {
+            title.push_str(" [Loading...]");
+        }
         let widths = [Constraint::Percentage(100)];
         let table = Table::new(rows, widths)
             .header(header)
