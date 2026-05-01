@@ -49,7 +49,10 @@ The TUI is enabled by default. For a CLI-only build, use `--no-default-features`
 
 ### Binary releases
 
-Prebuilt binaries for Windows, Linux, and macOS are on the [Releases page](https://github.com/patricksmill/romm-cli/releases).
+Prebuilt binaries for Windows, Linux, and macOS are on the [Releases page](https://github.com/patricksmill/romm-cli/releases). Each archive includes:
+
+- `romm-cli`: the full command-line tool, including `romm-cli tui`.
+- `romm-tui`: a shortcut executable that opens the same TUI directly.
 
 ---
 
@@ -119,7 +122,7 @@ Set these in your shell (or any tool that injects env vars into the process) for
 - [TUI internals](docs/tui.md) — event loop, screens, scrolling.
 - [HTTP client](docs/http-client.md) — `RommClient`, endpoints, streaming downloads.
 - [Troubleshooting authentication](docs/troubleshooting-auth.md) — keyring, Docker, CI, Windows.
-- [Post-upload library scan](docs/scan-after-upload-plan.md) — `--scan`, `scan --wait`, cache invalidation.
+- [Post-upload library scan](docs/scan-after-upload.md) — `--scan`, `scan --wait`, cache invalidation.
 
 ---
 
@@ -174,7 +177,7 @@ romm-cli auth logout
 
 On interactive startup, `romm-cli` and `romm-tui` check for newer releases and can prompt to update now, open the online changelog, or skip.
 
-After a chunked upload, RomM still needs a **library scan** before new games appear in search and the TUI. See [docs/scan-after-upload-plan.md](docs/scan-after-upload-plan.md) for batch uploads, `--wait`, JSON output, and cache behavior.
+After a chunked upload, RomM still needs a **library scan** before new games appear in search and the TUI. See [docs/scan-after-upload.md](docs/scan-after-upload.md) for batch uploads, `--wait`, JSON output, and cache behavior.
 
 ---
 
@@ -210,4 +213,3 @@ This project is licensed under the [MIT License](LICENSE).
 ---
 
 *Creation assisted with AI; content reviewed by the maintainers.*
-

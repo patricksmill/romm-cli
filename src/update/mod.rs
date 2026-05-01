@@ -1,13 +1,14 @@
 use anyhow::{anyhow, Context, Result};
 use self_update::cargo_crate_version;
 use serde::Deserialize;
+use std::path::Path;
 use std::process::Command;
 
 use crate::core::interrupt::{cancelled_error, InterruptContext};
 
 const REPO_OWNER: &str = "patricksmill";
 const REPO_NAME: &str = "romm-cli";
-const BIN_NAME: &str = "romm-cli";
+const DEFAULT_BIN_NAME: &str = "romm-cli";
 const GITHUB_LATEST_RELEASE_API: &str =
     "https://api.github.com/repos/patricksmill/romm-cli/releases/latest";
 const CHANGELOG_URL: &str = "https://github.com/patricksmill/romm-cli/blob/main/CHANGELOG.md";
@@ -96,6 +97,19 @@ pub fn open_changelog_in_browser() -> Result<()> {
     open_url_in_browser(changelog_url())
 }
 
+fn binary_name_from_path(path: &Path) -> Option<String> {
+    path.file_stem()
+        .map(|stem| stem.to_string_lossy().into_owned())
+        .filter(|name| !name.is_empty())
+}
+
+fn current_binary_name() -> String {
+    std::env::current_exe()
+        .ok()
+        .and_then(|path| binary_name_from_path(&path))
+        .unwrap_or_else(|| DEFAULT_BIN_NAME.to_string())
+}
+
 pub async fn check_for_update() -> Result<UpdateStatus> {
     let current_version = cargo_crate_version!().to_string();
     let response = reqwest::Client::new()
@@ -127,11 +141,12 @@ pub async fn check_for_update() -> Result<UpdateStatus> {
 
 pub async fn apply_update(interrupt: Option<InterruptContext>) -> Result<String> {
     let interrupt = interrupt.unwrap_or_default();
-    let update_task = tokio::task::spawn_blocking(|| -> Result<String> {
+    let bin_name = current_binary_name();
+    let update_task = tokio::task::spawn_blocking(move || -> Result<String> {
         let status = self_update::backends::github::Update::configure()
             .repo_owner(REPO_OWNER)
             .repo_name(REPO_NAME)
-            .bin_name(BIN_NAME)
+            .bin_name(&bin_name)
             .target(github_release_asset_key())
             .show_download_progress(true)
             .current_version(cargo_crate_version!())
@@ -163,5 +178,18 @@ mod tests {
     #[test]
     fn version_compare_handles_v_prefix() {
         assert!(is_latest_newer("v1.2.4", "1.2.3"));
+    }
+
+    #[test]
+    fn binary_name_from_path_strips_windows_exe_extension() {
+        assert_eq!(
+            binary_name_from_path(Path::new(r"C:\tools\romm-tui.exe")).as_deref(),
+            Some("romm-tui")
+        );
+    }
+
+    #[test]
+    fn current_binary_name_is_available() {
+        assert!(!current_binary_name().is_empty());
     }
 }
