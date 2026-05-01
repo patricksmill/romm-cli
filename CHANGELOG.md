@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.30.0](https://github.com/patricksmill/romm-cli/compare/v0.29.0...v0.30.0) (2026-05-01)
+
+
+### Features
+
+* **settings:** iallow pasting into setup wizard, add reset feature to settings ([202c4a0](https://github.com/patricksmill/romm-cli/commit/202c4a0bb6705a532d63e8108207f93c50067309))
+* **setup_wizard:** add user hints to the setup prcoess, rearrange the authentication method list to have the easiest method (8 character pairing) on top. ([7b5fc47](https://github.com/patricksmill/romm-cli/commit/7b5fc47ceff13ec6a4c63fa531fa3e31959fd473))
+* **tui:** clear metadata footer and display tooltips after 3s, add help menu tooltip, fix cursor placement issue in settings when entering baseurl field ([7d8e230](https://github.com/patricksmill/romm-cli/commit/7d8e2300e5e68b7680148653c4d654a512af61ef))
+
+
+### Bug Fixes
+
+* cargo fmt and clippy ([bc0a636](https://github.com/patricksmill/romm-cli/commit/bc0a636dcfd7fffe143d6e938b5e82ba9cb6653e))
+
 ## [0.29.0](https://github.com/patricksmill/romm-cli/compare/v0.28.0...v0.29.0) (2026-05-01)
 
 
