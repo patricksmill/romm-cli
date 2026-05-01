@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.31.0](https://github.com/patricksmill/romm-cli/compare/v0.30.1...v0.31.0) (2026-05-01)
+
+
+### Features
+
+* **settings:** add "Delete Cache" option ([c6cbc43](https://github.com/patricksmill/romm-cli/commit/c6cbc439fa070d16b1e0c4a15b0e8668e05c3827))
+* **tui:** implement lazyloading for uncached game list scrolling ([4c09cff](https://github.com/patricksmill/romm-cli/commit/4c09cffcaa7726e956d0e24ab39df9e15b6cea42))
+
+
+### Bug Fixes
+
+* **formatting:** ran cargo fmt ([2ba7716](https://github.com/patricksmill/romm-cli/commit/2ba771654e16b9097e4a0173751115518246ef4a))
+* **tui:** retain cursor position when a list of roms is still being populated ([61af926](https://github.com/patricksmill/romm-cli/commit/61af926d0d11b090d520f9a5bef6ce0661b1a79b))
+* **tui:** show correct number of distinct roms in a given console count, instead of number of files ([29dbf1b](https://github.com/patricksmill/romm-cli/commit/29dbf1b58de600a29884c5e16bd247be1ab2e519))
+
 ## [0.30.1](https://github.com/patricksmill/romm-cli/compare/v0.30.0...v0.30.1) (2026-05-01)
 
 
