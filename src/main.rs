@@ -90,7 +90,8 @@ fn is_interactive_terminal() -> bool {
 }
 
 fn should_skip_startup_update_check(command: &Commands) -> bool {
-    matches!(command, Commands::Update)
+    // Skip for `update` (redundant) and `tui` (has its own graphical update prompt).
+    matches!(command, Commands::Update | Commands::Tui)
 }
 
 fn read_update_choice() -> Result<String> {
