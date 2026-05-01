@@ -572,6 +572,21 @@ pub fn persist_user_config(
     Ok(())
 }
 
+/// Deletes the config.json file and clears the secrets from the OS keyring.
+pub fn reset_all_settings() -> Result<()> {
+    if let Some(path) = user_config_json_path() {
+        if path.exists() {
+            let _ = std::fs::remove_file(&path);
+        }
+    }
+    for key in ["API_PASSWORD", "API_TOKEN", "API_KEY"] {
+        if let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, key) {
+            let _ = entry.delete_credential();
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 pub(crate) fn test_env_lock() -> &'static std::sync::Mutex<()> {
     use std::sync::{Mutex, OnceLock};

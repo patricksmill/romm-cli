@@ -25,6 +25,7 @@ pub struct SettingsScreen {
 
     pub selected_index: usize,
     pub editing: bool,
+    pub confirm_reset: bool,
     pub edit_buffer: String,
     pub edit_cursor: usize,
     /// ROMs directory browser (`None` when not choosing a folder).
@@ -66,6 +67,7 @@ impl SettingsScreen {
             github_url: "https://github.com/patricksmill/romm-cli".to_string(),
             selected_index: 0,
             editing: false,
+            confirm_reset: false,
             edit_buffer: String::new(),
             edit_cursor: 0,
             path_picker: None,
@@ -74,15 +76,15 @@ impl SettingsScreen {
     }
 
     pub fn next(&mut self) {
-        if !self.editing {
-            self.selected_index = (self.selected_index + 1) % 4;
+        if !self.editing && !self.confirm_reset {
+            self.selected_index = (self.selected_index + 1) % 5;
         }
     }
 
     pub fn previous(&mut self) {
-        if !self.editing {
+        if !self.editing && !self.confirm_reset {
             if self.selected_index == 0 {
-                self.selected_index = 3;
+                self.selected_index = 4;
             } else {
                 self.selected_index -= 1;
             }
@@ -90,7 +92,9 @@ impl SettingsScreen {
     }
 
     pub fn enter_edit(&mut self) {
-        if self.selected_index == 2 {
+        if self.selected_index == 4 {
+            self.confirm_reset = true;
+        } else if self.selected_index == 2 {
             // Toggle HTTPS directly and keep the Base URL scheme in sync.
             self.use_https = !self.use_https;
             if self.use_https && self.base_url.starts_with("http://") {
@@ -125,6 +129,7 @@ impl SettingsScreen {
 
     pub fn cancel_edit(&mut self) {
         self.editing = false;
+        self.confirm_reset = false;
         self.path_picker = None;
         self.message = None;
     }
@@ -231,6 +236,7 @@ impl SettingsScreen {
                 "Auth:         {} (Enter to change)",
                 self.auth_status
             )),
+            ListItem::new("Reset Configuration (Delete settings from disk & keyring)"),
         ];
 
         let mut state = ListState::default();
@@ -252,7 +258,13 @@ impl SettingsScreen {
         f.render_stateful_widget(list, chunks[1], &mut state);
 
         // -- Message Area --
-        if let Some((msg, color)) = &self.message {
+        if self.confirm_reset {
+            f.render_widget(
+                Paragraph::new("Are you sure you want to delete all settings? (Enter: Yes, Esc: Cancel)")
+                    .style(Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+                chunks[2],
+            );
+        } else if let Some((msg, color)) = &self.message {
             f.render_widget(
                 Paragraph::new(msg.as_str()).style(Style::default().fg(*color)),
                 chunks[2],
@@ -266,7 +278,9 @@ impl SettingsScreen {
         }
 
         // -- Footer Help --
-        let help = if self.editing {
+        let help = if self.confirm_reset {
+            "Enter: confirm reset   Esc: cancel"
+        } else if self.editing {
             "Backspace: delete   Arrows: move cursor   Enter: save   Esc: cancel"
         } else {
             "↑/↓: select   Enter: edit/toggle   S: save to disk   Esc: back"

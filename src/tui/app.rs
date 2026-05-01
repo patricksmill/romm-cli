@@ -1616,6 +1616,24 @@ impl App {
             return Ok(false);
         }
 
+        if settings.confirm_reset {
+            match key.code {
+                KeyCode::Enter => {
+                    let _ = crate::config::reset_all_settings();
+                    settings.confirm_reset = false;
+                    settings.message = Some((
+                        "Settings deleted. Please restart romm-cli.".to_string(),
+                        Color::Yellow,
+                    ));
+                }
+                KeyCode::Esc => {
+                    settings.confirm_reset = false;
+                }
+                _ => {}
+            }
+            return Ok(false);
+        }
+
         if settings.editing {
             match key.code {
                 KeyCode::Enter => {

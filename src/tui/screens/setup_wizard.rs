@@ -901,10 +901,63 @@ impl SetupWizard {
         Ok(false)
     }
 
+    pub fn handle_paste(&mut self, text: &str) {
+        // Remove any newlines or carriage returns that might break single-line fields
+        let clean_text = text.replace('\n', "").replace('\r', "");
+        if clean_text.is_empty() {
+            return;
+        }
+
+        match self.step {
+            Step::Url => {
+                let pos = self.url_cursor.min(self.url.len());
+                self.url.insert_str(pos, &clean_text);
+                self.url_cursor += clean_text.len();
+            }
+            Step::BasicUser => {
+                let pos = self.user_cursor.min(self.username.len());
+                self.username.insert_str(pos, &clean_text);
+                self.user_cursor += clean_text.len();
+            }
+            Step::BasicPass => {
+                self.reuse_keyring_password = false;
+                self.password.push_str(&clean_text);
+            }
+            Step::Bearer => {
+                self.reuse_keyring_bearer = false;
+                let pos = self.bearer_cursor.min(self.bearer_token.len());
+                self.bearer_token.insert_str(pos, &clean_text);
+                self.bearer_cursor += clean_text.len();
+            }
+            Step::PairingCode => {
+                let pos = self.pairing_cursor.min(self.pairing_code.len());
+                self.pairing_code.insert_str(pos, &clean_text);
+                self.pairing_cursor += clean_text.len();
+            }
+            Step::ApiHeader => {
+                let pos = self.header_cursor.min(self.api_header.len());
+                self.api_header.insert_str(pos, &clean_text);
+                self.header_cursor += clean_text.len();
+            }
+            Step::ApiKey => {
+                self.reuse_keyring_api_key = false;
+                let pos = self.api_key_cursor.min(self.api_key.len());
+                self.api_key.insert_str(pos, &clean_text);
+                self.api_key_cursor += clean_text.len();
+            }
+            _ => {}
+        }
+    }
+
     pub async fn run(mut self, verbose: bool) -> Result<Config> {
         enable_raw_mode()?;
         let mut stdout = stdout();
-        execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+        execute!(
+            stdout, 
+            EnterAlternateScreen, 
+            EnableMouseCapture,
+            crossterm::event::EnableBracketedPaste
+        )?;
         let backend = CrosstermBackend::new(stdout);
         let mut terminal = Terminal::new(backend)?;
 
@@ -918,39 +971,54 @@ impl SetupWizard {
             })?;
 
             if event::poll(std::time::Duration::from_millis(100))? {
-                if let Event::Key(key) = event::read()? {
-                    if self.handle_key(&key)? {
-                        disable_raw_mode()?;
-                        execute!(
-                            terminal.backend_mut(),
-                            LeaveAlternateScreen,
-                            DisableMouseCapture
-                        )?;
-                        terminal.show_cursor()?;
-                        return Err(anyhow!("setup cancelled"));
-                    }
+                let ev = event::read()?;
+                let mut should_exit = false;
 
-                    if self.testing {
-                        terminal.draw(|f| {
-                            let area = f.area();
-                            self.render(f, area);
-                        })?;
-                        let result = self.try_connect_and_persist(verbose).await;
-                        self.testing = false;
-                        match result {
-                            Ok(cfg) => {
-                                disable_raw_mode()?;
-                                execute!(
-                                    terminal.backend_mut(),
-                                    LeaveAlternateScreen,
-                                    DisableMouseCapture
-                                )?;
-                                terminal.show_cursor()?;
-                                return Ok(cfg);
-                            }
-                            Err(e) => {
-                                self.error = Some(format!("{e:#}"));
-                            }
+                match ev {
+                    Event::Key(key) => {
+                        if self.handle_key(&key)? {
+                            should_exit = true;
+                        }
+                    }
+                    Event::Paste(text) => {
+                        self.handle_paste(&text);
+                    }
+                    _ => {}
+                }
+
+                if should_exit {
+                    disable_raw_mode()?;
+                    execute!(
+                        terminal.backend_mut(),
+                        crossterm::event::DisableBracketedPaste,
+                        LeaveAlternateScreen,
+                        DisableMouseCapture
+                    )?;
+                    terminal.show_cursor()?;
+                    return Err(anyhow!("setup cancelled"));
+                }
+
+                if self.testing {
+                    terminal.draw(|f| {
+                        let area = f.area();
+                        self.render(f, area);
+                    })?;
+                    let result = self.try_connect_and_persist(verbose).await;
+                    self.testing = false;
+                    match result {
+                        Ok(cfg) => {
+                            disable_raw_mode()?;
+                            execute!(
+                                terminal.backend_mut(),
+                                crossterm::event::DisableBracketedPaste,
+                                LeaveAlternateScreen,
+                                DisableMouseCapture
+                            )?;
+                            terminal.show_cursor()?;
+                            return Ok(cfg);
+                        }
+                        Err(e) => {
+                            self.error = Some(format!("{e:#}"));
                         }
                     }
                 }
