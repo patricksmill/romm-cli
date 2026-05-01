@@ -306,9 +306,8 @@ impl SettingsScreen {
 
         let list_area = chunks[1];
         let y = list_area.y + 1 + self.selected_index as u16;
-        // Both branches were identical; keep the constant for cursor alignment.
-        let label_len = 17;
-        let x = list_area.x + 3 + label_len + self.edit_cursor as u16;
+        let label_len = 14; // "Base URL:     ".len()
+        let x = list_area.x + 1 /* border */ + 3 /* highlight symbol */ + label_len + self.edit_cursor as u16;
 
         Some((x, y))
     }

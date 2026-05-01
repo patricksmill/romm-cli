@@ -70,6 +70,8 @@ pub struct LibraryBrowseScreen {
     pub rom_search: SearchState,
     /// Non-blocking status from metadata refresh (API warnings, “updated”, etc.).
     pub metadata_footer: Option<String>,
+    /// When the footer should be automatically cleared.
+    pub metadata_footer_clear_at: Option<std::time::Instant>,
     /// True only while ROM data for the current selection is actively loading.
     pub rom_loading: bool,
     /// Modal path entry for uploading a ROM to the selected console (`None` when closed).
@@ -92,6 +94,7 @@ impl LibraryBrowseScreen {
             list_search: SearchState::new(),
             rom_search: SearchState::new(),
             metadata_footer: None,
+            metadata_footer_clear_at: None,
             rom_loading: false,
             upload_prompt: None,
         }
@@ -99,6 +102,21 @@ impl LibraryBrowseScreen {
 
     pub fn set_metadata_footer(&mut self, msg: Option<String>) {
         self.metadata_footer = msg;
+        self.metadata_footer_clear_at = None;
+    }
+
+    pub fn set_temporary_metadata_footer(&mut self, msg: String, duration: std::time::Duration) {
+        self.metadata_footer = Some(msg);
+        self.metadata_footer_clear_at = Some(std::time::Instant::now() + duration);
+    }
+
+    pub fn poll_footer_clear(&mut self) {
+        if let Some(clear_at) = self.metadata_footer_clear_at {
+            if std::time::Instant::now() >= clear_at {
+                self.metadata_footer = None;
+                self.metadata_footer_clear_at = None;
+            }
+        }
     }
 
     /// `Ctrl+u` upload path modal is open.
@@ -918,7 +936,7 @@ impl LibraryBrowseScreen {
                 } else if self.list_search.filter_browsing {
                     "↑↓: Navigate | Enter: Load games | Esc: clear filter"
                 } else {
-                    "t: Switch | ↑↓: Select | Ctrl+u: Upload | / f: Filter | Enter: Games | Esc: Menu"
+                    "t: Switch | ↑↓: Select | Ctrl+u: Upload | / f: Filter | Enter: Games | Shift+/: Help | Esc: Menu"
                 }
             }
             LibraryViewMode::Roms => {
@@ -927,7 +945,7 @@ impl LibraryBrowseScreen {
                 } else if self.rom_search.filter_browsing {
                     "←: Back to list | ↑↓: Navigate | Enter: Game detail | Esc: clear filter"
                 } else {
-                    "←: Back | ↑↓: Navigate | Ctrl+u: Upload | / f: Filter | Enter: Detail | Esc: Back"
+                    "←: Back | ↑↓: Navigate | Ctrl+u: Upload | / f: Filter | Enter: Detail | Shift+/: Help | Esc: Back"
                 }
             }
         };

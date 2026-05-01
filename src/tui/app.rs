@@ -320,6 +320,9 @@ impl App {
         self.poll_library_upload();
         self.poll_library_scan();
         self.drive_collection_prefetch_scheduler();
+        if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
+            lib.poll_footer_clear();
+        }
     }
 
     fn spawn_library_rescan_worker(&mut self, cache_on_success: ScanCacheInvalidate) {
@@ -669,9 +672,10 @@ impl App {
         let had_cached_lists = !lib.platforms.is_empty() || !lib.collections.is_empty();
         let live_empty = msg.collections.is_empty();
         if live_empty && had_cached_lists && !msg.warnings.is_empty() {
-            lib.set_metadata_footer(Some(
+            lib.set_temporary_metadata_footer(
                 "Could not refresh library metadata (keeping cached list).".into(),
-            ));
+                std::time::Duration::from_secs(3),
+            );
             self.force_rom_reload_after_metadata = false;
             return;
         }
@@ -692,7 +696,7 @@ impl App {
             if digest_changed {
                 Some("Collection metadata updated.".into())
             } else {
-                Some("Collection metadata already up to date.".into())
+                None
             }
         } else {
             let w = msg.warnings.join(" | ");
