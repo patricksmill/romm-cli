@@ -910,7 +910,7 @@ impl SetupWizard {
 
     pub fn handle_paste(&mut self, text: &str) {
         // Remove any newlines or carriage returns that might break single-line fields
-        let clean_text = text.replace('\n', "").replace('\r', "");
+        let clean_text = text.replace(['\n', '\r'], "");
         if clean_text.is_empty() {
             return;
         }
@@ -982,10 +982,8 @@ impl SetupWizard {
                 let mut should_exit = false;
 
                 match ev {
-                    Event::Key(key) => {
-                        if self.handle_key(&key)? {
-                            should_exit = true;
-                        }
+                    Event::Key(key) if self.handle_key(&key)? => {
+                        should_exit = true;
                     }
                     Event::Paste(text) => {
                         self.handle_paste(&text);

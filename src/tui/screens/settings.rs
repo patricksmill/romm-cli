@@ -260,8 +260,10 @@ impl SettingsScreen {
         // -- Message Area --
         if self.confirm_reset {
             f.render_widget(
-                Paragraph::new("Are you sure you want to delete all settings? (Enter: Yes, Esc: Cancel)")
-                    .style(Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+                Paragraph::new(
+                    "Are you sure you want to delete all settings? (Enter: Yes, Esc: Cancel)",
+                )
+                .style(Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
                 chunks[2],
             );
         } else if let Some((msg, color)) = &self.message {
