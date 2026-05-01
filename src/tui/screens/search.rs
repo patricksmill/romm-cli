@@ -72,17 +72,22 @@ impl SearchScreen {
     }
 
     pub fn set_results_for_query(&mut self, query: String, results: RomList) {
+        let query_changed = self.last_searched_query.as_ref() != Some(&query);
         self.results = Some(results.clone());
         self.result_groups = Some(utils::group_roms_by_name(&results.items));
         self.last_searched_query = Some(query);
-        self.selected = 0;
-        self.scroll_offset = 0;
+        if query_changed {
+            self.selected = 0;
+            self.scroll_offset = 0;
+        }
     }
 
     pub fn clear_results(&mut self) {
         self.results = None;
         self.result_groups = None;
         self.last_searched_query = None;
+        self.selected = 0;
+        self.scroll_offset = 0;
     }
 
     /// True when the on-screen results were fetched for the current `query` string.

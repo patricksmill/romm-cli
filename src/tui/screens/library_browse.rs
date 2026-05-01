@@ -459,6 +459,9 @@ impl LibraryBrowseScreen {
     pub fn clear_roms(&mut self) {
         self.roms = None;
         self.rom_groups = None;
+        self.rom_selected = 0;
+        self.scroll_offset = 0;
+        self.rom_search.clear();
     }
 
     pub fn set_rom_loading(&mut self, loading: bool) {
@@ -469,9 +472,6 @@ impl LibraryBrowseScreen {
         self.roms = Some(roms.clone());
         self.rom_groups = Some(utils::group_roms_by_name(&roms.items));
         self.rom_loading = false;
-        self.rom_selected = 0;
-        self.scroll_offset = 0;
-        self.rom_search.clear();
     }
 
     // -- List search --------------------------------------------------------
