@@ -98,8 +98,15 @@ pub fn open_changelog_in_browser() -> Result<()> {
 }
 
 fn binary_name_from_path(path: &Path) -> Option<String> {
-    path.file_stem()
-        .map(|stem| stem.to_string_lossy().into_owned())
+    let raw = path.as_os_str().to_string_lossy();
+    raw.rsplit(['/', '\\'])
+        .next()
+        .map(|name| {
+            name.strip_suffix(".exe")
+                .or_else(|| name.strip_suffix(".EXE"))
+                .unwrap_or(name)
+                .to_string()
+        })
         .filter(|name| !name.is_empty())
 }
 

@@ -970,17 +970,26 @@ mod tests {
     use super::*;
     use ratatui::backend::TestBackend;
     use ratatui::Terminal;
+    use std::path::PathBuf;
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
-    fn wizard_with_pairing(mock_uri: &str, code: &str) -> SetupWizard {
+    fn unique_test_download_dir() -> PathBuf {
+        let suffix = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        std::env::temp_dir().join(format!("romm-dl-test-{}-{suffix}", std::process::id()))
+    }
+
+    fn wizard_with_pairing(mock_uri: &str, code: &str, download_dir: &str) -> SetupWizard {
         SetupWizard {
             step: Step::PairingCode,
             auth_kind: AuthKind::Pairing,
             auth_menu_selected: 4,
             url: mock_uri.to_string(),
             url_cursor: mock_uri.len(),
-            download_picker: PathPicker::new(PathPickerMode::Directory, "/tmp/romm-dl-test"),
+            download_picker: PathPicker::new(PathPickerMode::Directory, download_dir),
             username: String::new(),
             user_cursor: 0,
             password: String::new(),
@@ -1023,7 +1032,9 @@ mod tests {
             .await;
 
         let uri = mock_server.uri();
-        let wizard = wizard_with_pairing(&uri, "ABCD1234");
+        let download_dir = unique_test_download_dir();
+        let download_dir = download_dir.to_string_lossy().into_owned();
+        let wizard = wizard_with_pairing(&uri, "ABCD1234", &download_dir);
         let cfg = wizard
             .pairing_config_from_exchange(false)
             .await
@@ -1036,8 +1047,7 @@ mod tests {
             _ => panic!("expected bearer auth after pairing exchange"),
         }
         assert_eq!(cfg.base_url, normalize_romm_origin(&uri));
-        let expected_download_dir =
-            validate_configured_download_directory("/tmp/romm-dl-test").unwrap();
+        let expected_download_dir = validate_configured_download_directory(&download_dir).unwrap();
         assert_eq!(
             cfg.download_dir,
             expected_download_dir.display().to_string()
