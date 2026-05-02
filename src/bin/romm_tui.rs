@@ -9,5 +9,5 @@ async fn main() -> Result<()> {
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .unwrap_or(false);
 
-    tui::run_interactive(verbose).await
+    tui::run_interactive(verbose, false).await
 }

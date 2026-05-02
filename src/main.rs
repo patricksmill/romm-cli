@@ -27,7 +27,7 @@ async fn run_app() -> Result<()> {
     let filter = EnvFilter::from_default_env();
 
     #[cfg(feature = "tui")]
-    let is_tui = matches!(command, Commands::Tui);
+    let is_tui = matches!(command, Commands::Tui { .. });
     #[cfg(not(feature = "tui"))]
     let is_tui = false;
 
@@ -43,14 +43,14 @@ async fn run_app() -> Result<()> {
     match command {
         Commands::Init(cmd) => init::handle(cmd, verbose).await,
         #[cfg(feature = "tui")]
-        Commands::Tui => {
+        Commands::Tui { mock_update } => {
             if verbose {
                 fmt()
                     .with_env_filter(filter)
                     .with_writer(std::io::stderr)
                     .init();
             }
-            romm_cli::frontend::tui::run_interactive(verbose).await
+            romm_cli::frontend::tui::run_interactive(verbose, mock_update).await
         }
         command => {
             if !command_requires_config(&command) {
@@ -91,7 +91,7 @@ fn is_interactive_terminal() -> bool {
 
 fn should_skip_startup_update_check(command: &Commands) -> bool {
     // Skip for `update` (redundant) and `tui` (has its own graphical update prompt).
-    matches!(command, Commands::Update | Commands::Tui)
+    matches!(command, Commands::Update | Commands::Tui { .. })
 }
 
 fn read_update_choice() -> Result<String> {
@@ -133,7 +133,7 @@ async fn maybe_prompt_for_startup_update(command: &Commands) -> Result<()> {
         let choice = read_update_choice()?;
         match choice.as_str() {
             "u" | "update" => {
-                let version = romm_cli::update::apply_update(None).await?;
+                let version = romm_cli::update::apply_update(None, true).await?;
                 println!("Updated successfully to `{version}`.");
                 println!("Restart romm-cli to use the new version.");
                 return Ok(());
@@ -161,6 +161,6 @@ fn command_requires_config(command: &Commands) -> bool {
         | Commands::Download(_)
         | Commands::Scan(_) => true,
         Commands::Cache(_) | Commands::Auth(_) | Commands::Update => false,
-        Commands::Init(_) | Commands::Tui => false,
+        Commands::Init(_) | Commands::Tui { .. } => false,
     }
 }

@@ -36,7 +36,7 @@ pub async fn run(command: Commands, client: &RommClient, global_json: bool) -> R
         Commands::Init(_) => Err(anyhow!(
             "internal routing error: init command in CLI frontend"
         )),
-        Commands::Tui => Err(anyhow!(
+        Commands::Tui { .. } => Err(anyhow!(
             "internal routing error: TUI command in CLI frontend"
         )),
         Commands::Update => {

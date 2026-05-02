@@ -96,6 +96,7 @@ struct CoverLoadDone {
 
 struct StartupUpdatePrompt {
     status: UpdateStatus,
+    updating: bool,
 }
 
 /// Deferred primary ROM load: cache key, API request, expected count, context label, start time.
@@ -270,7 +271,10 @@ impl App {
             startup_splash,
             global_error: None,
             show_keyboard_help: false,
-            startup_update_prompt: startup_update.map(|status| StartupUpdatePrompt { status }),
+            startup_update_prompt: startup_update.map(|status| StartupUpdatePrompt {
+                status,
+                updating: false,
+            }),
             library_metadata_rx: None,
             library_metadata_refresh_gen: 0,
             collection_prefetch_rx: prefetch_rx,
@@ -838,6 +842,31 @@ impl App {
             // appropriate screen type based on `self.screen`.
             terminal.draw(|f| self.render(f))?;
 
+            // If an update was triggered, execute it now (this will block the loop and show the "Updating..." message)
+            if let Some(ref mut prompt) = self.startup_update_prompt {
+                if prompt.updating {
+                    // Safety: Don't actually run self_update if this is a mock
+                    if prompt.status.latest_version == "9.9.9-mock" {
+                        tokio::time::sleep(std::time::Duration::from_secs(2)).await; // Simulate some work
+                        self.global_error = Some("Mock update successful! (No files were changed)".into());
+                        self.startup_update_prompt = None;
+                    } else {
+                        match crate::update::apply_update(None, false).await {
+                            Ok(version) => {
+                                self.global_error = Some(format!(
+                                    "Updated to {version}. Restart romm-cli to use the new version."
+                                ));
+                            }
+                            Err(err) => {
+                                self.global_error = Some(format!("Update failed: {err:#}"));
+                            }
+                        }
+                        self.startup_update_prompt = None;
+                    }
+                    continue;
+                }
+            }
+
             // Poll with a short timeout so the UI refreshes during downloads
             // even when the user is not pressing any keys.
             if event::poll(Duration::from_millis(100))? {
@@ -1113,23 +1142,19 @@ impl App {
     }
 
     async fn handle_startup_update_prompt(&mut self, key: &KeyEvent) -> Result<bool> {
-        let Some(prompt) = &self.startup_update_prompt else {
+        let Some(ref mut prompt) = self.startup_update_prompt else {
             return Ok(false);
         };
+        if prompt.updating {
+            return Ok(false); // Ignore keys while updating
+        }
+
         match key.code {
-            KeyCode::Char('u') | KeyCode::Char('U') | KeyCode::Enter => {
-                match crate::update::apply_update(None).await {
-                    Ok(version) => {
-                        self.global_error = Some(format!(
-                            "Updated to {version}. Restart romm-cli to use the new version."
-                        ));
-                    }
-                    Err(err) => {
-                        self.global_error = Some(format!("Update failed: {err:#}"));
-                    }
-                }
-                self.startup_update_prompt = None;
-                Ok(false)
+            KeyCode::Char('u') | KeyCode::Char('U') | KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Enter => {
+                prompt.updating = true;
+                // We need to return true to trigger a re-draw so the "Updating..." message shows up.
+                // But wait, the loop is in run().
+                return Ok(true);
             }
             KeyCode::Char('c') | KeyCode::Char('C') => {
                 if let Err(err) = crate::update::open_changelog_in_browser() {
@@ -1143,6 +1168,8 @@ impl App {
             KeyCode::Esc
             | KeyCode::Char('s')
             | KeyCode::Char('S')
+            | KeyCode::Char('n')
+            | KeyCode::Char('N')
             | KeyCode::Char('q')
             | KeyCode::Char('Q') => {
                 self.startup_update_prompt = None;
@@ -2149,27 +2176,59 @@ impl App {
         }
 
         if let Some(prompt) = &self.startup_update_prompt {
+            let popup_w = 44;
+            let popup_h = 10;
             let popup_area = ratatui::layout::Rect {
-                x: area.width.saturating_sub(76) / 2,
-                y: area.height.saturating_sub(11) / 2,
-                width: 76.min(area.width),
-                height: 11.min(area.height),
+                x: area.width.saturating_sub(popup_w) / 2,
+                y: area.height.saturating_sub(popup_h) / 2,
+                width: popup_w.min(area.width),
+                height: popup_h.min(area.height),
             };
             f.render_widget(ratatui::widgets::Clear, popup_area);
+
             let block = ratatui::widgets::Block::default()
-                .title("Update available")
-                .borders(ratatui::widgets::Borders::ALL);
-            let text = format!(
-                "Current: {}\nLatest: {}\n\n\
-                 U/Enter: update now\n\
-                 C: open changelog\n\
-                 S/Esc: skip",
-                prompt.status.current_version, prompt.status.latest_version
-            );
-            let paragraph = ratatui::widgets::Paragraph::new(text)
-                .block(block)
-                .wrap(ratatui::widgets::Wrap { trim: true });
-            f.render_widget(paragraph, popup_area);
+                .title(" Update Available ")
+                .title_alignment(ratatui::layout::Alignment::Center)
+                .borders(ratatui::widgets::Borders::ALL)
+                .border_style(ratatui::style::Style::default().fg(ratatui::style::Color::Cyan));
+
+            if prompt.updating {
+                let text = vec![
+                    ratatui::text::Line::from(""),
+                    ratatui::text::Line::from("Downloading and installing...").alignment(ratatui::layout::Alignment::Center),
+                    ratatui::text::Line::from("Please wait.").alignment(ratatui::layout::Alignment::Center),
+                    ratatui::text::Line::from(""),
+                    ratatui::text::Line::from("This may take a few moments.").alignment(ratatui::layout::Alignment::Center).style(ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray)),
+                ];
+                let paragraph = ratatui::widgets::Paragraph::new(text).block(block);
+                f.render_widget(paragraph, popup_area);
+            } else {
+                let text = vec![
+                    ratatui::text::Line::from(vec![
+                        ratatui::text::Span::raw("Current: "),
+                        ratatui::text::Span::styled(&prompt.status.current_version, ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray)),
+                    ]).alignment(ratatui::layout::Alignment::Center),
+                    ratatui::text::Line::from(vec![
+                        ratatui::text::Span::raw("Latest:  "),
+                        ratatui::text::Span::styled(&prompt.status.latest_version, ratatui::style::Style::default().fg(ratatui::style::Color::Green).add_modifier(ratatui::style::Modifier::BOLD)),
+                    ]).alignment(ratatui::layout::Alignment::Center),
+                    ratatui::text::Line::from(""),
+                    ratatui::text::Line::from("Would you like to update?").alignment(ratatui::layout::Alignment::Center),
+                    ratatui::text::Line::from(""),
+                    ratatui::text::Line::from(vec![
+                        ratatui::text::Span::styled("Y", ratatui::style::Style::default().fg(ratatui::style::Color::Yellow)),
+                        ratatui::text::Span::raw(": Yes (update)  "),
+                        ratatui::text::Span::styled("N", ratatui::style::Style::default().fg(ratatui::style::Color::Yellow)),
+                        ratatui::text::Span::raw(": No (skip)"),
+                    ]).alignment(ratatui::layout::Alignment::Center),
+                    ratatui::text::Line::from(vec![
+                        ratatui::text::Span::styled("C", ratatui::style::Style::default().fg(ratatui::style::Color::Yellow)),
+                        ratatui::text::Span::raw(": View changelog"),
+                    ]).alignment(ratatui::layout::Alignment::Center),
+                ];
+                let paragraph = ratatui::widgets::Paragraph::new(text).block(block);
+                f.render_widget(paragraph, popup_area);
+            }
         }
 
         if let Some(ref err) = self.global_error {
@@ -2294,6 +2353,9 @@ mod tests {
             "path_cover_small": null,
             "path_cover_large": null,
             "url_cover": null,
+            "has_manual": false,
+            "path_manual": null,
+            "url_manual": null,
             "is_unidentified": false,
             "is_identified": true
         }))

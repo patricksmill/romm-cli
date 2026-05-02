@@ -8,7 +8,7 @@ use anyhow::{anyhow, Result};
 use base64::{engine::general_purpose, Engine as _};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use reqwest::multipart;
-use reqwest::{Client as HttpClient, Method};
+use reqwest::{Client as HttpClient, Method, Url};
 use serde_json::Value;
 use std::path::Path;
 use std::time::Instant;
@@ -453,6 +453,50 @@ impl RommClient {
         &self,
         rom_id: u64,
         save_path: &Path,
+        is_cancelled: C,
+        on_progress: &mut F,
+    ) -> Result<()>
+    where
+        F: FnMut(u64, u64) + Send,
+        C: FnMut(u64, u64) -> bool + Send,
+    {
+        let filename = filename_hint(save_path);
+        let query = vec![
+            ("rom_ids".to_string(), rom_id.to_string()),
+            ("filename".to_string(), filename),
+        ];
+        self.download_url_with_query_with_cancel(
+            "/api/roms/download",
+            &query,
+            save_path,
+            is_cancelled,
+            on_progress,
+        )
+            .await
+    }
+
+    /// Downloads an arbitrary URL to `save_path`, supporting auth headers and resume.
+    pub async fn download_url_with_cancel<F, C>(
+        &self,
+        url: &str,
+        save_path: &Path,
+        is_cancelled: C,
+        on_progress: &mut F,
+    ) -> Result<()>
+    where
+        F: FnMut(u64, u64) + Send,
+        C: FnMut(u64, u64) -> bool + Send,
+    {
+        self.download_url_with_query_with_cancel(url, &[], save_path, is_cancelled, on_progress)
+            .await
+    }
+
+    /// Downloads an arbitrary URL and query to `save_path`, supporting auth headers and resume.
+    pub async fn download_url_with_query_with_cancel<F, C>(
+        &self,
+        url: &str,
+        query: &[(String, String)],
+        save_path: &Path,
         mut is_cancelled: C,
         on_progress: &mut F,
     ) -> Result<()>
@@ -460,18 +504,9 @@ impl RommClient {
         F: FnMut(u64, u64) + Send,
         C: FnMut(u64, u64) -> bool + Send,
     {
-        let path = "/api/roms/download";
-        let url = format!(
-            "{}/{}",
-            self.base_url.trim_end_matches('/'),
-            path.trim_start_matches('/')
-        );
+        let url = self.resolve_download_url(url)?;
+        let filename = filename_hint(save_path);
         let mut headers = self.build_headers()?;
-
-        let filename = save_path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("download.zip");
 
         // Check for an existing partial file to resume from.
         let existing_len = tokio::fs::metadata(save_path)
@@ -486,15 +521,18 @@ impl RommClient {
             }
         }
 
+        if let Some(parent) = save_path.parent() {
+            tokio::fs::create_dir_all(parent)
+                .await
+                .map_err(|e| anyhow!("create download parent dir {:?}: {e}", parent))?;
+        }
+
         let t0 = Instant::now();
         let mut resp = self
             .http
             .get(&url)
             .headers(headers)
-            .query(&[
-                ("rom_ids", rom_id.to_string()),
-                ("filename", filename.to_string()),
-            ])
+            .query(query)
             .send()
             .await
             .map_err(|e| anyhow!("download request error: {e}"))?;
@@ -502,8 +540,8 @@ impl RommClient {
         let status = resp.status();
         if self.verbose {
             tracing::info!(
-                "[romm-cli] GET /api/roms/download rom_id={} filename={:?} -> {} ({}ms)",
-                rom_id,
+                "[romm-cli] GET {} filename={:?} -> {} ({}ms)",
+                url,
                 filename,
                 status.as_u16(),
                 t0.elapsed().as_millis()
@@ -555,6 +593,23 @@ impl RommClient {
         }
 
         Ok(())
+    }
+
+    fn resolve_download_url(&self, url: &str) -> Result<String> {
+        let trimmed = url.trim();
+        if trimmed.is_empty() {
+            return Err(anyhow!("download URL cannot be empty"));
+        }
+        if let Ok(parsed) = Url::parse(trimmed) {
+            return Ok(parsed.to_string());
+        }
+
+        let base = Url::parse(&normalize_romm_origin(&self.base_url))
+            .map_err(|e| anyhow!("invalid RomM base URL: {e}"))?;
+        let joined = base
+            .join(trimmed)
+            .map_err(|e| anyhow!("could not resolve download URL {trimmed:?}: {e}"))?;
+        Ok(joined.to_string())
     }
 
     /// Uploads a ROM file to the server using the RomM chunked upload API.
@@ -1075,6 +1130,14 @@ impl RommClient {
         let out = resp.bytes().await?;
         Ok(decode_json_response_body(&out))
     }
+}
+
+fn filename_hint(save_path: &Path) -> String {
+    save_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("download.bin")
+        .to_string()
 }
 
 #[cfg(test)]

@@ -157,6 +157,9 @@ romm-cli roms list --search-term "zelda" --json
 romm-cli roms upload --platform <slug-or-name> path/to/rom.bin --scan
 romm-cli roms upload --platform <slug-or-name> ./folder --scan --wait
 
+# Download covers, manuals, and sibling updates/DLC for one game
+romm-cli download extras <rom-id>
+
 # Trigger a full library scan (e.g. after uploads outside the CLI); optional --wait
 romm-cli scan
 romm-cli scan --wait --wait-timeout-secs 3600

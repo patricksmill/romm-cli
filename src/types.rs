@@ -145,6 +145,12 @@ pub struct Rom {
     pub path_cover_large: Option<String>,
     /// Original URL of the cover image.
     pub url_cover: Option<String>,
+    /// True if the ROM has an associated manual.
+    pub has_manual: bool,
+    /// Path to the manual file.
+    pub path_manual: Option<String>,
+    /// Original URL of the manual file.
+    pub url_manual: Option<String>,
     /// True if the ROM is not yet fully identified.
     pub is_unidentified: bool,
     /// True if the ROM has been identified and linked to metadata.

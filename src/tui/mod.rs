@@ -63,13 +63,26 @@ fn startup_splash_for(
     None
 }
 
-async fn run_started(client: RommClient, config: Config, from_setup_wizard: bool) -> Result<()> {
+async fn run_started(
+    client: RommClient,
+    config: Config,
+    from_setup_wizard: bool,
+    mock_update: bool,
+) -> Result<()> {
     install_panic_hook();
     let cache_path = openapi_cache_path()?;
     let (registry, server_version) = sync_openapi_registry(&client, &cache_path).await?;
-    let startup_update = if should_check_updates() {
-        match tokio::time::timeout(Duration::from_secs(2), crate::update::check_for_update()).await
-        {
+
+    let startup_update = if mock_update {
+        Some(crate::update::UpdateStatus {
+            current_version: format!("{} (dev)", env!("CARGO_PKG_VERSION")),
+            latest_version: "9.9.9-mock".into(),
+            should_update: true,
+            release_url: "https://github.com/patricksmill/romm-cli".into(),
+            changelog_url: crate::update::changelog_url().to_string(),
+        })
+    } else if should_check_updates() {
+        match tokio::time::timeout(Duration::from_secs(2), crate::update::check_for_update()).await {
             Ok(Ok(status)) if status.should_update => Some(status),
             _ => None,
         }
@@ -90,16 +103,16 @@ async fn run_started(client: RommClient, config: Config, from_setup_wizard: bool
 }
 
 /// Launch the TUI when the caller already has a [`RommClient`] and [`Config`].
-pub async fn run(client: RommClient, config: Config) -> Result<()> {
-    run_started(client, config, false).await
+pub async fn run(client: RommClient, config: Config, mock_update: bool) -> Result<()> {
+    run_started(client, config, false, mock_update).await
 }
 
 /// Load config, run first-time setup in the terminal if `API_BASE_URL` is missing, then start the TUI.
-pub async fn run_interactive(verbose: bool) -> Result<()> {
+pub async fn run_interactive(verbose: bool, mock_update: bool) -> Result<()> {
     let (from_wizard, config) = match crate::config::load_config() {
         Ok(c) => (false, c),
         Err(_) => (true, SetupWizard::new().run(verbose).await?),
     };
     let client = RommClient::new(&config, verbose)?;
-    run_started(client, config, from_wizard).await
+    run_started(client, config, from_wizard, mock_update).await
 }

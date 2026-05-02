@@ -146,7 +146,10 @@ pub async fn check_for_update() -> Result<UpdateStatus> {
     })
 }
 
-pub async fn apply_update(interrupt: Option<InterruptContext>) -> Result<String> {
+pub async fn apply_update(
+    interrupt: Option<InterruptContext>,
+    show_progress: bool,
+) -> Result<String> {
     let interrupt = interrupt.unwrap_or_default();
     let bin_name = current_binary_name();
     let update_task = tokio::task::spawn_blocking(move || -> Result<String> {
@@ -155,7 +158,7 @@ pub async fn apply_update(interrupt: Option<InterruptContext>) -> Result<String>
             .repo_name(REPO_NAME)
             .bin_name(&bin_name)
             .target(github_release_asset_key())
-            .show_download_progress(true)
+            .show_download_progress(show_progress)
             .current_version(cargo_crate_version!())
             .build()?
             .update()?;

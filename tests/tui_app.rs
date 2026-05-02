@@ -231,6 +231,9 @@ fn sample_rom(id: u64, name: &str) -> Rom {
         path_cover_small: None,
         path_cover_large: None,
         url_cover: None,
+        has_manual: false,
+        path_manual: None,
+        url_manual: None,
         is_unidentified: false,
         is_identified: true,
     }

@@ -79,10 +79,17 @@ pub enum Commands {
     Init(init::InitCommand),
     /// Launch the interactive Terminal User Interface (TUI).
     #[cfg(feature = "tui")]
-    Tui,
+    Tui {
+        /// Force show a fake update prompt for UI testing.
+        #[arg(long)]
+        mock_update: bool,
+    },
     /// Launch the interactive TUI (stub for disabled feature).
     #[cfg(not(feature = "tui"))]
-    Tui,
+    Tui {
+        #[arg(long)]
+        mock_update: bool,
+    },
     /// Low-level access to any RomM API endpoint.
     #[command(visible_alias = "call")]
     Api(api::ApiCommand),
@@ -94,7 +101,7 @@ pub enum Commands {
     Roms(Box<roms::RomsCommand>),
     /// Trigger a library scan on the RomM server.
     Scan(scan::ScanCommand),
-    /// Download a ROM from the server.
+    /// Download a ROM or related extras from the server.
     #[command(visible_aliases = ["dl", "get"])]
     Download(download::DownloadCommand),
     /// Manage the local persistent cache.
@@ -117,11 +124,11 @@ pub async fn run(cli: Cli, config: Config) -> Result<()> {
             anyhow::bail!("internal error: init must be handled before load_config");
         }
         #[cfg(feature = "tui")]
-        Commands::Tui => {
+        Commands::Tui { .. } => {
             anyhow::bail!("internal error: TUI must be started via run_interactive from main");
         }
         #[cfg(not(feature = "tui"))]
-        Commands::Tui => anyhow::bail!("this feature requires the tui"),
+        Commands::Tui { .. } => anyhow::bail!("this feature requires the tui"),
         command => crate::frontend::cli::run(command, &client, cli.json).await?,
     }
 
