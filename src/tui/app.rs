@@ -28,7 +28,7 @@ use std::time::{Duration, Instant};
 
 use crate::client::RommClient;
 use crate::commands::library_scan::ScanCacheInvalidate;
-use crate::config::{auth_for_persist_merge, normalize_romm_origin, Config};
+use crate::config::{auth_for_persist_merge, normalize_romm_origin, Config, ExtrasDefaults};
 use crate::core::cache::{RomCache, RomCacheKey};
 use crate::core::download::DownloadManager;
 use crate::core::startup_library_snapshot;
@@ -41,9 +41,9 @@ use super::openapi::{resolve_path_template, EndpointRegistry};
 use super::screens::connected_splash::{self, StartupSplash};
 use super::screens::setup_wizard::SetupWizard;
 use super::screens::{
-    BrowseScreen, DownloadScreen, ExecuteScreen, GameDetailPrevious, GameDetailScreen,
-    LibraryBrowseScreen, MainMenuScreen, ResultDetailScreen, ResultScreen, SearchScreen,
-    SettingsScreen,
+    BrowseScreen, DownloadScreen, ExecuteScreen, ExtrasPickerScreen, GameDetailPrevious,
+    GameDetailScreen, LibraryBrowseScreen, MainMenuScreen, ResultDetailScreen, ResultScreen,
+    SearchScreen, SettingsScreen,
 };
 
 /// Result of a background library metadata refresh (generation-guarded).
@@ -131,6 +131,7 @@ pub enum AppScreen {
     Result(ResultScreen),
     ResultDetail(ResultDetailScreen),
     GameDetail(Box<GameDetailScreen>),
+    ExtrasPicker(Box<ExtrasPickerScreen>),
     Download(DownloadScreen),
     SetupWizard(Box<crate::tui::screens::setup_wizard::SetupWizard>),
 }
@@ -1136,6 +1137,7 @@ impl App {
             AppScreen::Result(_) => self.handle_result(key),
             AppScreen::ResultDetail(_) => self.handle_result_detail(key),
             AppScreen::GameDetail(_) => self.handle_game_detail(key),
+            AppScreen::ExtrasPicker(_) => self.handle_extras_picker(key),
             AppScreen::Download(_) => self.handle_download(key),
             AppScreen::SetupWizard(_) => self.handle_setup_wizard(key).await,
         }
@@ -1193,7 +1195,10 @@ impl App {
             }
             other => {
                 self.screen_before_download = Some(other);
-                self.screen = AppScreen::Download(DownloadScreen::new(self.downloads.shared()));
+                self.screen = AppScreen::Download(DownloadScreen::new(
+                    self.downloads.shared(),
+                    self.downloads.shared_extras(),
+                ));
             }
         }
     }
@@ -1258,7 +1263,10 @@ impl App {
                 1 => self.screen = AppScreen::Search(SearchScreen::new()),
                 2 => {
                     self.screen_before_download = Some(AppScreen::MainMenu(MainMenuScreen::new()));
-                    self.screen = AppScreen::Download(DownloadScreen::new(self.downloads.shared()));
+                    self.screen = AppScreen::Download(DownloadScreen::new(
+                    self.downloads.shared(),
+                    self.downloads.shared_extras(),
+                ));
                 }
                 3 => {
                     self.screen = AppScreen::Settings(SettingsScreen::new(
@@ -1646,6 +1654,7 @@ impl App {
             download_dir,
             use_https,
             auth,
+            extras_defaults: self.config.extras_defaults.clone(),
         };
         let client = match RommClient::new(&cfg, verbose) {
             Ok(c) => c,
@@ -1770,7 +1779,7 @@ impl App {
             KeyCode::Up | KeyCode::Char('k') => settings.previous(),
             KeyCode::Down | KeyCode::Char('j') => settings.next(),
             KeyCode::Enter => {
-                if settings.selected_index == 3 {
+                if settings.selected_index == 6 {
                     self.screen =
                         AppScreen::SetupWizard(Box::new(SetupWizard::new_auth_only(&self.config)));
                 } else {
@@ -1785,19 +1794,26 @@ impl App {
                 // Save to disk (accept both cases; footer shows "S:")
                 use crate::config::persist_user_config;
                 let auth = auth_for_persist_merge(self.config.auth.clone());
-                if let Err(e) = persist_user_config(
-                    &settings.base_url,
-                    &settings.download_dir,
-                    settings.use_https,
+                let cfg = Config {
+                    base_url: settings.base_url.clone(),
+                    download_dir: settings.download_dir.clone(),
+                    use_https: settings.use_https,
                     auth,
-                ) {
+                    extras_defaults: ExtrasDefaults {
+                        include_related_roms: settings.extras_include_related_roms,
+                        include_cover: settings.extras_include_cover,
+                        include_manual: settings.extras_include_manual,
+                    },
+                };
+                if let Err(e) = persist_user_config(&cfg) {
                     settings.message = Some((format!("Error saving: {e}"), Color::Red));
                 } else {
                     settings.message = Some(("Saved to config.json".to_string(), Color::Green));
                     // Update app state
-                    self.config.base_url = settings.base_url.clone();
-                    self.config.download_dir = settings.download_dir.clone();
-                    self.config.use_https = settings.use_https;
+                    self.config.base_url = cfg.base_url.clone();
+                    self.config.download_dir = cfg.download_dir.clone();
+                    self.config.use_https = cfg.use_https;
+                    self.config.extras_defaults = cfg.extras_defaults.clone();
                     // Re-create client to pick up new base URL
                     if let Ok(new_client) = RommClient::new(&self.config, self.client.verbose()) {
                         self.client = new_client;
@@ -2034,6 +2050,25 @@ impl App {
             }
         }
 
+        let wants_extras = matches!(key.code, KeyCode::Char('e') | KeyCode::Char('E'))
+            || (key.code == KeyCode::Enter && key.modifiers.contains(KeyModifiers::SHIFT));
+        if wants_extras {
+            if !detail.has_any_extras() {
+                detail.message = Some("No extras available for this ROM".to_string());
+                detail.message_clear_at = Some(Instant::now() + Duration::from_secs(3));
+                return Ok(false);
+            }
+            let prev =
+                std::mem::replace(&mut self.screen, AppScreen::MainMenu(MainMenuScreen::new()));
+            if let AppScreen::GameDetail(g) = prev {
+                self.screen = AppScreen::ExtrasPicker(Box::new(ExtrasPickerScreen::new(
+                    g,
+                    &self.config.extras_defaults,
+                )));
+            }
+            return Ok(false);
+        }
+
         match key.code {
             // Only start a download once per detail view and avoid
             // stacking multiple concurrent downloads for the same ROM.
@@ -2063,6 +2098,71 @@ impl App {
                         GameDetailPrevious::Library(l) => AppScreen::LibraryBrowse(*l),
                         GameDetailPrevious::Search(s) => AppScreen::Search(s),
                     };
+                }
+            }
+            KeyCode::Char('q') => return Ok(true),
+            _ => {}
+        }
+        Ok(false)
+    }
+
+    fn handle_extras_picker(&mut self, key: &KeyEvent) -> Result<bool> {
+        let picker = match &mut self.screen {
+            AppScreen::ExtrasPicker(p) => p,
+            _ => return Ok(false),
+        };
+        picker.tick_message();
+
+        match key.code {
+            KeyCode::Esc => {
+                let prev =
+                    std::mem::replace(&mut self.screen, AppScreen::MainMenu(MainMenuScreen::new()));
+                if let AppScreen::ExtrasPicker(p) = prev {
+                    self.screen = AppScreen::GameDetail(p.previous);
+                }
+            }
+            KeyCode::Up | KeyCode::Char('k') => picker.move_up(),
+            KeyCode::Down | KeyCode::Char('j') => picker.move_down(),
+            KeyCode::Char(' ') => picker.toggle_current(),
+            KeyCode::Char('a') | KeyCode::Char('A') => picker.toggle_all(),
+            KeyCode::Enter => {
+                if picker.selected_count() == 0 {
+                    picker.show_message(
+                        "Select at least one item (Space to toggle)",
+                        Duration::from_secs(2),
+                    );
+                    return Ok(false);
+                }
+                let targets = match picker
+                    .build_selected_targets(Some(self.config.download_dir.as_str()))
+                {
+                    Ok(t) => t,
+                    Err(e) => {
+                        picker.show_message(format!("{e:#}"), Duration::from_secs(4));
+                        return Ok(false);
+                    }
+                };
+                let rom = picker.rom.clone();
+                let prev =
+                    std::mem::replace(&mut self.screen, AppScreen::MainMenu(MainMenuScreen::new()));
+                if let AppScreen::ExtrasPicker(p) = prev {
+                    match self.downloads.start_extras_download(
+                        &rom,
+                        targets,
+                        self.client.clone(),
+                        Some(self.config.download_dir.as_str()),
+                    ) {
+                        Ok(()) => {
+                            self.screen = AppScreen::GameDetail(p.previous);
+                        }
+                        Err(e) => {
+                            let mut detail = *p.previous;
+                            detail.message = Some(format!("Extras: {e:#}"));
+                            detail.message_clear_at =
+                                Some(Instant::now() + Duration::from_secs(5));
+                            self.screen = AppScreen::GameDetail(Box::new(detail));
+                        }
+                    }
                 }
             }
             KeyCode::Char('q') => return Ok(true),
@@ -2162,6 +2262,7 @@ impl App {
             AppScreen::Result(result) => result.render(f, area),
             AppScreen::ResultDetail(detail) => detail.render(f, area),
             AppScreen::GameDetail(detail) => detail.render(f, area),
+            AppScreen::ExtrasPicker(picker) => picker.render(f, area),
             AppScreen::Download(d) => d.render(f, area),
             AppScreen::SetupWizard(wizard) => {
                 wizard.render(f, area);
@@ -2255,13 +2356,13 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::Config;
+    use crate::config::{Config, ExtrasDefaults};
     use crate::tui::openapi::EndpointRegistry;
     use crate::tui::screens::library_browse::LibraryBrowseScreen;
     use crate::tui::screens::{GameDetailPrevious, GameDetailScreen, SearchScreen};
     use crate::types::Platform;
     use crate::update::UpdateStatus;
-    use crossterm::event::{KeyEvent, KeyModifiers};
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
     use serde_json::json;
 
     fn platform(id: u64, name: &str, rom_count: u64) -> Platform {
@@ -2309,6 +2410,7 @@ mod tests {
             download_dir: "/tmp".into(),
             use_https: false,
             auth: None,
+            extras_defaults: ExtrasDefaults::default(),
         };
         let client = RommClient::new(&config, false).expect("client");
         let mut app = App::new(
@@ -2427,6 +2529,7 @@ mod tests {
             download_dir: "/tmp".into(),
             use_https: false,
             auth: None,
+            extras_defaults: ExtrasDefaults::default(),
         };
         let client = RommClient::new(&config, false).expect("client");
         let mut app = App::new(
@@ -2453,6 +2556,7 @@ mod tests {
             download_dir: "/tmp".into(),
             use_https: false,
             auth: None,
+            extras_defaults: ExtrasDefaults::default(),
         };
         let client = RommClient::new(&config, false).expect("client");
         let mut app = App::new(
@@ -2493,6 +2597,7 @@ mod tests {
             download_dir: "/tmp".into(),
             use_https: false,
             auth: None,
+            extras_defaults: ExtrasDefaults::default(),
         };
         let client = RommClient::new(&config, false).expect("client");
         let mut app = App::new(
@@ -2522,5 +2627,57 @@ mod tests {
             }
             _ => panic!("expected search screen"),
         }
+    }
+
+    #[tokio::test]
+    async fn pressing_e_with_no_extras_shows_toast_not_picker() {
+        let mut app = app_with_library(vec![platform(1, "NES", 1)]);
+        let previous = LibraryBrowseScreen::new(vec![platform(1, "NES", 1)], vec![]);
+        let detail = GameDetailScreen::new(
+            rom_fixture(),
+            Vec::new(),
+            GameDetailPrevious::Library(Box::new(previous)),
+            app.downloads.shared(),
+        );
+        app.screen = AppScreen::GameDetail(Box::new(detail));
+
+        app.handle_key_event(&KeyEvent::new(KeyCode::Char('e'), KeyModifiers::empty()))
+            .await
+            .expect("handled");
+
+        match &app.screen {
+            AppScreen::GameDetail(d) => {
+                assert!(
+                    d.message.as_deref().is_some_and(|m| m.contains("No extras")),
+                    "expected toast, got {:?}",
+                    d.message
+                );
+            }
+            _ => panic!("expected game detail"),
+        }
+    }
+
+    #[tokio::test]
+    async fn pressing_e_with_extras_opens_picker() {
+        let mut rom = rom_fixture();
+        rom.url_cover = Some("https://example.com/c.png".into());
+        let mut app = app_with_library(vec![platform(1, "NES", 1)]);
+        let previous = LibraryBrowseScreen::new(vec![platform(1, "NES", 1)], vec![]);
+        let detail = GameDetailScreen::new(
+            rom,
+            Vec::new(),
+            GameDetailPrevious::Library(Box::new(previous)),
+            app.downloads.shared(),
+        );
+        app.screen = AppScreen::GameDetail(Box::new(detail));
+
+        app.handle_key_event(&KeyEvent::new(KeyCode::Char('e'), KeyModifiers::empty()))
+            .await
+            .expect("handled");
+
+        assert!(
+            matches!(app.screen, AppScreen::ExtrasPicker(_)),
+            "expected extras picker"
+        );
     }
 }

@@ -108,20 +108,10 @@ fn disk_config_or_die() -> Result<Config> {
     })
 }
 
-fn preserve_non_auth_fields_for_persist() -> Result<(String, String, bool, std::path::PathBuf)> {
-    let disk = disk_config_or_die()?;
+async fn persist_auth_from_login(auth: Option<AuthConfig>, client: &RommClient) -> Result<()> {
+    let mut disk = disk_config_or_die()?;
     let config_path =
         user_config_json_path().ok_or_else(|| anyhow!("Could not resolve config path"))?;
-    Ok((
-        disk.base_url,
-        disk.download_dir,
-        disk.use_https,
-        config_path,
-    ))
-}
-
-async fn persist_auth_from_login(auth: Option<AuthConfig>, client: &RommClient) -> Result<()> {
-    let (base_url, download_dir, use_https, config_path) = preserve_non_auth_fields_for_persist()?;
 
     // Compute the human-readable auth mode before persisting, since `auth` is moved.
     let mode = match &auth {
@@ -131,7 +121,8 @@ async fn persist_auth_from_login(auth: Option<AuthConfig>, client: &RommClient) 
         Some(AuthConfig::ApiKey { .. }) => "api-key",
     };
 
-    persist_user_config(&base_url, &download_dir, use_https, auth)?;
+    disk.auth = auth;
+    persist_user_config(&disk)?;
 
     if config_path.exists() {
         println!("Auth updated: {mode} (wrote {})", config_path.display());
@@ -204,14 +195,9 @@ async fn login_interactive(cmd: &AuthLoginCommand, client: &RommClient) -> Resul
 
             // Pairing-code exchange should not depend on the current auth mode
             // (because we are rotating it). Use an unauthenticated client.
-            let disk = disk_config_or_die()?;
-            let temp_config = Config {
-                base_url: disk.base_url,
-                download_dir: disk.download_dir,
-                use_https: disk.use_https,
-                auth: None,
-            };
-            let unauth_client = RommClient::new(&temp_config, client.verbose())?;
+            let mut disk = disk_config_or_die()?;
+            disk.auth = None;
+            let unauth_client = RommClient::new(&disk, client.verbose())?;
 
             let endpoint = ExchangeClientToken { code };
             let response = unauth_client
@@ -306,14 +292,9 @@ pub async fn handle(cmd: AuthCommand, client: &RommClient, format: OutputFormat)
                 }
 
                 if let Some(code) = login.pairing_code {
-                    let disk = disk_config_or_die()?;
-                    let temp_config = Config {
-                        base_url: disk.base_url,
-                        download_dir: disk.download_dir,
-                        use_https: disk.use_https,
-                        auth: None,
-                    };
-                    let unauth_client = RommClient::new(&temp_config, client.verbose())?;
+                    let mut disk = disk_config_or_die()?;
+                    disk.auth = None;
+                    let unauth_client = RommClient::new(&disk, client.verbose())?;
                     let endpoint = ExchangeClientToken { code };
                     let response = unauth_client
                         .call(&endpoint)
@@ -516,6 +497,7 @@ mod tests {
             download_dir: "/disk/dl".to_string(),
             use_https: true,
             auth: disk_auth,
+            extras_defaults: crate::config::ExtrasDefaults::default(),
         };
         let content = serde_json::to_string_pretty(&cfg).unwrap();
         fs::write(path.join("config.json"), content).unwrap();
@@ -545,6 +527,7 @@ mod tests {
             download_dir: String::new(),
             use_https: true,
             auth: None,
+            extras_defaults: crate::config::ExtrasDefaults::default(),
         };
 
         assert!(disk_has_unresolved_keyring_sentinel(&effective));
@@ -570,6 +553,7 @@ mod tests {
                 download_dir: "/tmp".to_string(),
                 use_https: true,
                 auth: None,
+                extras_defaults: crate::config::ExtrasDefaults::default(),
             },
             false,
         )
@@ -608,6 +592,7 @@ mod tests {
                 download_dir: "/tmp".to_string(),
                 use_https: true,
                 auth: None,
+                extras_defaults: crate::config::ExtrasDefaults::default(),
             },
             false,
         )

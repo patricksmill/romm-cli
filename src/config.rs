@@ -62,6 +62,27 @@ pub enum AuthConfig {
     },
 }
 
+/// Default checked state for categories in the TUI extras picker (when each row exists).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ExtrasDefaults {
+    /// Pre-check related ROM rows (updates/DLC) when opening the extras picker.
+    pub include_related_roms: bool,
+    /// Pre-check cover when `url_cover` is set.
+    pub include_cover: bool,
+    /// Pre-check manual when `url_manual` is set.
+    pub include_manual: bool,
+}
+
+impl Default for ExtrasDefaults {
+    fn default() -> Self {
+        Self {
+            include_related_roms: true,
+            include_cover: true,
+            include_manual: true,
+        }
+    }
+}
+
 /// High-level configuration for the `romm-cli` application.
 ///
 /// This struct holds the connection details and authentication settings
@@ -76,6 +97,9 @@ pub struct Config {
     pub use_https: bool,
     /// Active authentication configuration, if any.
     pub auth: Option<AuthConfig>,
+    /// TUI extras picker: which categories start checked when rows exist.
+    #[serde(default)]
+    pub extras_defaults: ExtrasDefaults,
 }
 
 fn is_placeholder(value: &str) -> bool {
@@ -475,11 +499,17 @@ pub fn load_config() -> Result<Config> {
         None
     };
 
+    let extras_defaults = json_config
+        .as_ref()
+        .map(|c| c.extras_defaults.clone())
+        .unwrap_or_default();
+
     Ok(Config {
         base_url,
         download_dir,
         use_https,
         auth,
+        extras_defaults,
     })
 }
 
@@ -493,12 +523,7 @@ pub fn load_config() -> Result<Config> {
 ///
 /// If a secret cannot be stored in the keyring, it is written in plaintext to `config.json`
 /// as a fallback, and a warning is logged.
-pub fn persist_user_config(
-    base_url: &str,
-    download_dir: &str,
-    use_https: bool,
-    auth: Option<AuthConfig>,
-) -> Result<()> {
+pub fn persist_user_config(config: &Config) -> Result<()> {
     let Some(path) = user_config_json_path() else {
         return Err(anyhow!(
             "Could not determine config directory (no HOME / APPDATA?)."
@@ -509,12 +534,7 @@ pub fn persist_user_config(
         .ok_or_else(|| anyhow!("invalid config path"))?;
     std::fs::create_dir_all(dir).with_context(|| format!("create {}", dir.display()))?;
 
-    let mut config_to_save = Config {
-        base_url: base_url.to_string(),
-        download_dir: download_dir.to_string(),
-        use_https,
-        auth: auth.clone(),
-    };
+    let mut config_to_save = config.clone();
 
     match &mut config_to_save.auth {
         None => {}
@@ -778,6 +798,20 @@ mod tests {
     }
 
     #[test]
+    fn extras_defaults_default_to_all_true_when_missing_from_json() {
+        let config_json = r#"{
+            "base_url": "http://from-json-file.test",
+            "download_dir": "/tmp/downloads",
+            "use_https": false,
+            "auth": null
+        }"#;
+        let cfg: Config = serde_json::from_str(config_json).expect("deserialize legacy config");
+        assert!(cfg.extras_defaults.include_related_roms);
+        assert!(cfg.extras_defaults.include_cover);
+        assert!(cfg.extras_defaults.include_manual);
+    }
+
+    #[test]
     fn roms_dir_env_takes_precedence_over_legacy_download_dir_env() {
         let _env = TestEnv::new();
         std::env::set_var("API_BASE_URL", "http://example.test");
@@ -952,14 +986,15 @@ mod tests {
         let env = TestEnv::new();
         let path = env.config_dir.join("config.json");
 
-        persist_user_config(
-            "https://updated.example",
-            "/var/romm-dl",
-            true,
-            Some(AuthConfig::Bearer {
+        persist_user_config(&Config {
+            base_url: "https://updated.example".into(),
+            download_dir: "/var/romm-dl".into(),
+            use_https: true,
+            auth: Some(AuthConfig::Bearer {
                 token: KEYRING_SECRET_PLACEHOLDER.to_string(),
             }),
-        )
+            extras_defaults: ExtrasDefaults::default(),
+        })
         .expect("persist bearer sentinel");
 
         let cfg: Config = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
@@ -973,15 +1008,16 @@ mod tests {
             _ => panic!("expected bearer sentinel preserved in config.json"),
         }
 
-        persist_user_config(
-            "https://apikey.example",
-            "/dl",
-            false,
-            Some(AuthConfig::ApiKey {
+        persist_user_config(&Config {
+            base_url: "https://apikey.example".into(),
+            download_dir: "/dl".into(),
+            use_https: false,
+            auth: Some(AuthConfig::ApiKey {
                 header: "X-Api-Key".into(),
                 key: KEYRING_SECRET_PLACEHOLDER.to_string(),
             }),
-        )
+            extras_defaults: ExtrasDefaults::default(),
+        })
         .expect("persist api key sentinel");
 
         let cfg: Config = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
@@ -994,15 +1030,16 @@ mod tests {
             _ => panic!("expected api key sentinel preserved"),
         }
 
-        persist_user_config(
-            "https://basic.example",
-            "/dl",
-            true,
-            Some(AuthConfig::Basic {
+        persist_user_config(&Config {
+            base_url: "https://basic.example".into(),
+            download_dir: "/dl".into(),
+            use_https: true,
+            auth: Some(AuthConfig::Basic {
                 username: "alice".into(),
                 password: KEYRING_SECRET_PLACEHOLDER.to_string(),
             }),
-        )
+            extras_defaults: ExtrasDefaults::default(),
+        })
         .expect("persist basic password sentinel");
 
         let cfg: Config = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();

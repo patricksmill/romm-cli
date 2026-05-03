@@ -178,10 +178,29 @@ impl GameDetailScreen {
 
     fn footer_help_text(&self) -> &'static str {
         if self.show_technical {
-            "Enter: Download | o: Open cover | m: Hide technical | Esc: Back"
+            "Enter: Download | e: Extras | o: Open cover | m: Hide technical | Esc: Back"
         } else {
-            "Enter: Download | o: Open cover | m: More technical details | Esc: Back"
+            "Enter: Download | e: Extras | o: Open cover | m: More technical details | Esc: Back"
         }
+    }
+
+    /// True when the extras picker can offer at least one row.
+    pub fn has_any_extras(&self) -> bool {
+        !self.other_files.is_empty()
+            || self
+                .rom
+                .url_cover
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .is_some()
+            || self
+                .rom
+                .url_manual
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .is_some()
     }
 
     fn cover_pipeline_label(&self) -> &'static str {
@@ -547,6 +566,72 @@ mod tests {
         assert!(detail.should_request_cover_load());
         detail.set_cover_loading();
         assert_eq!(detail.cover_state, CoverState::Loading);
+    }
+
+    #[test]
+    fn has_any_extras_false_when_no_assets() {
+        let rom = crate::types::Rom {
+            id: 1,
+            platform_id: 1,
+            platform_slug: None,
+            platform_fs_slug: None,
+            platform_custom_name: None,
+            platform_display_name: None,
+            fs_name: "game.zip".to_string(),
+            fs_name_no_tags: "game".to_string(),
+            fs_name_no_ext: "game".to_string(),
+            fs_extension: "zip".to_string(),
+            fs_path: "/game.zip".to_string(),
+            fs_size_bytes: 10,
+            name: "game".to_string(),
+            slug: None,
+            summary: None,
+            path_cover_small: None,
+            path_cover_large: None,
+            url_cover: None,
+            has_manual: false,
+            path_manual: None,
+            url_manual: None,
+            is_unidentified: false,
+            is_identified: true,
+        };
+        let previous = GameDetailPrevious::Search(SearchScreen::new());
+        let downloads = Arc::new(Mutex::new(Vec::new()));
+        let detail = GameDetailScreen::new(rom, Vec::new(), previous, downloads);
+        assert!(!detail.has_any_extras());
+    }
+
+    #[test]
+    fn footer_help_text_mentions_extras_shortcut() {
+        let rom = crate::types::Rom {
+            id: 1,
+            platform_id: 1,
+            platform_slug: None,
+            platform_fs_slug: None,
+            platform_custom_name: None,
+            platform_display_name: None,
+            fs_name: "game.zip".to_string(),
+            fs_name_no_tags: "game".to_string(),
+            fs_name_no_ext: "game".to_string(),
+            fs_extension: "zip".to_string(),
+            fs_path: "/game.zip".to_string(),
+            fs_size_bytes: 10,
+            name: "game".to_string(),
+            slug: None,
+            summary: None,
+            path_cover_small: None,
+            path_cover_large: None,
+            url_cover: None,
+            has_manual: false,
+            path_manual: None,
+            url_manual: None,
+            is_unidentified: false,
+            is_identified: true,
+        };
+        let previous = GameDetailPrevious::Search(SearchScreen::new());
+        let downloads = Arc::new(Mutex::new(Vec::new()));
+        let detail = GameDetailScreen::new(rom, Vec::new(), previous, downloads);
+        assert!(detail.footer_help_text().contains("e: Extras"));
     }
 
     #[test]

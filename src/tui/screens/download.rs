@@ -4,20 +4,27 @@ use ratatui::widgets::{Block, Borders, Gauge, Paragraph};
 use ratatui::Frame;
 use std::sync::{Arc, Mutex};
 
-use crate::core::download::{DownloadJob, DownloadStatus};
+use crate::core::download::{DownloadJob, DownloadStatus, ExtrasJob, ExtrasJobStatus};
 use crate::tui::utils::truncate;
 
 /// Overlay screen listing active and completed downloads.
 ///
-/// This screen is read-only; it observes `DownloadJob`s produced by
+/// This screen is read-only; it observes `DownloadJob`s and composite `ExtrasJob`s from
 /// [`DownloadManager`](crate::core::download::DownloadManager).
 pub struct DownloadScreen {
     pub downloads: Arc<Mutex<Vec<DownloadJob>>>,
+    pub extras_jobs: Arc<Mutex<Vec<ExtrasJob>>>,
 }
 
 impl DownloadScreen {
-    pub fn new(downloads: Arc<Mutex<Vec<DownloadJob>>>) -> Self {
-        Self { downloads }
+    pub fn new(
+        downloads: Arc<Mutex<Vec<DownloadJob>>>,
+        extras_jobs: Arc<Mutex<Vec<ExtrasJob>>>,
+    ) -> Self {
+        Self {
+            downloads,
+            extras_jobs,
+        }
     }
 
     pub fn render(&self, f: &mut Frame, area: Rect) {
@@ -33,29 +40,41 @@ impl DownloadScreen {
                 Vec::new()
             }
         };
+        let extras = match self.extras_jobs.lock() {
+            Ok(guard) => guard.clone(),
+            Err(err) => {
+                eprintln!("warning: extras job list lock poisoned: {}", err);
+                Vec::new()
+            }
+        };
+
         let block = Block::default()
             .title("Downloads (d: close)")
             .borders(Borders::ALL);
 
-        if jobs.is_empty() {
-            let p =
-                Paragraph::new("No downloads. Press Enter on a game detail to start a download.")
-                    .block(block);
+        if jobs.is_empty() && extras.is_empty() {
+            let p = Paragraph::new(
+                "No downloads. Press Enter on a game detail for the ROM, or e for extras.",
+            )
+            .block(block);
             f.render_widget(p, chunks[0]);
         } else {
             let inner = block.inner(chunks[0]);
             let max_rows = inner.height as usize;
-            let visible: Vec<_> = jobs.iter().take(max_rows).collect();
-            let n = visible.len().max(1);
             let rows = Layout::default()
-                .constraints((0..n).map(|_| Constraint::Length(1)).collect::<Vec<_>>())
+                .constraints((0..max_rows.max(1)).map(|_| Constraint::Length(1)).collect::<Vec<_>>())
                 .direction(ratatui::layout::Direction::Vertical)
                 .split(inner);
 
             f.render_widget(block, chunks[0]);
 
-            for (i, job) in visible.iter().enumerate() {
-                if let Some(row_area) = rows.get(i) {
+            let mut row_i = 0usize;
+
+            for job in jobs.iter() {
+                if row_i >= max_rows {
+                    break;
+                }
+                if let Some(row_area) = rows.get(row_i) {
                     let percent = job.percent();
                     let (label, gauge_style) = match &job.status {
                         DownloadStatus::Downloading => {
@@ -107,6 +126,61 @@ impl DownloadScreen {
                         f.render_widget(gauge, gauge_area);
                     }
                 }
+                row_i += 1;
+            }
+
+            for job in extras.iter() {
+                if row_i >= max_rows {
+                    break;
+                }
+                if let Some(row_area) = rows.get(row_i) {
+                    let percent = job.percent();
+                    let (label, gauge_style) = match &job.status {
+                        ExtrasJobStatus::Running => (
+                            format!(
+                                "{}% {}/{}",
+                                percent, job.completed_items, job.total_items
+                            ),
+                            Style::default().fg(Color::Cyan),
+                        ),
+                        ExtrasJobStatus::Done => ("Done".into(), Style::default().fg(Color::Green)),
+                        ExtrasJobStatus::PartialFailure(n) => (
+                            format!("Partial ({n} failed)"),
+                            Style::default().fg(Color::Yellow),
+                        ),
+                        ExtrasJobStatus::AllFailed => {
+                            ("All failed".into(), Style::default().fg(Color::Red))
+                        },
+                    };
+                    let gauge = Gauge::default()
+                        .gauge_style(gauge_style)
+                        .percent(percent)
+                        .label(label);
+
+                    let line = format!(
+                        "Extras | {} | ",
+                        truncate(&job.name, 36),
+                    );
+                    let line_len = line.chars().count().min(row_area.width as usize) as u16;
+                    let line_area = Rect {
+                        x: row_area.x,
+                        y: row_area.y,
+                        width: line_len,
+                        height: 1,
+                    };
+                    let gauge_width = row_area.width.saturating_sub(line_len);
+                    let gauge_area = Rect {
+                        x: row_area.x + line_len,
+                        y: row_area.y,
+                        width: gauge_width,
+                        height: 1,
+                    };
+                    f.render_widget(Paragraph::new(line.as_str()), line_area);
+                    if gauge_width > 0 {
+                        f.render_widget(gauge, gauge_area);
+                    }
+                }
+                row_i += 1;
             }
         }
 

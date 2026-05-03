@@ -7,11 +7,12 @@ use tokio::sync::Semaphore;
 
 use crate::client::RommClient;
 use crate::core::download::{download_directory, extract_zip_archive, unique_zip_path};
+use crate::core::extras::{build_extras_targets, DownloadTarget};
+use crate::endpoints::roms::GetRoms;
 use crate::core::interrupt::{cancelled_error, is_cancelled_error, InterruptContext};
 use crate::core::utils;
-use crate::endpoints::roms::GetRoms;
 use crate::services::{PlatformService, RomService};
-use crate::types::{Platform, Rom};
+use crate::types::Platform;
 
 /// Maximum number of concurrent download connections.
 const DEFAULT_CONCURRENCY: usize = 4;
@@ -67,40 +68,6 @@ pub enum DownloadAction {
 pub struct DownloadExtrasCommand {
     /// ID of the ROM/game to download extras for
     pub rom_id: u64,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum DownloadAssetKind {
-    RomArchive,
-    Cover,
-    Manual,
-}
-
-impl DownloadAssetKind {
-    fn folder_name(self) -> &'static str {
-        match self {
-            DownloadAssetKind::RomArchive => "roms",
-            DownloadAssetKind::Cover => "covers",
-            DownloadAssetKind::Manual => "manuals",
-        }
-    }
-
-    fn label(self) -> &'static str {
-        match self {
-            DownloadAssetKind::RomArchive => "ROM archive",
-            DownloadAssetKind::Cover => "cover",
-            DownloadAssetKind::Manual => "manual",
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-struct DownloadTarget {
-    kind: DownloadAssetKind,
-    title: String,
-    source_url: String,
-    source_query: Vec<(String, String)>,
-    destination: PathBuf,
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, ValueEnum)]
@@ -450,151 +417,6 @@ async fn handle_extras(
     Ok(())
 }
 
-async fn build_extras_targets(
-    client: &RommClient,
-    rom_id: u64,
-    output_dir: &std::path::Path,
-) -> Result<Vec<DownloadTarget>> {
-    let service = RomService::new(client);
-    let rom = service.get_rom(rom_id).await?;
-    let extras_root = extras_root_dir(output_dir, &rom);
-
-    let mut targets = Vec::new();
-    targets.extend(build_related_rom_targets(client, &rom, &extras_root).await?);
-    if let Some(cover) = build_cover_target(&rom, &extras_root) {
-        targets.push(cover);
-    }
-    if let Some(manual) = build_manual_target(&rom, &extras_root) {
-        targets.push(manual);
-    }
-
-    Ok(targets)
-}
-
-async fn build_related_rom_targets(
-    client: &RommClient,
-    rom: &Rom,
-    extras_root: &std::path::Path,
-) -> Result<Vec<DownloadTarget>> {
-    let service = RomService::new(client);
-    let ep = GetRoms {
-        search_term: Some(rom.name.clone()),
-        platform_id: Some(rom.platform_id),
-        limit: Some(9999),
-        ..Default::default()
-    };
-    let results = service.search_roms(&ep).await?;
-    let groups = utils::group_roms_by_name(&results.items);
-    let Some(group) = groups.iter().find(|g| g.name == rom.name) else {
-        return Ok(Vec::new());
-    };
-
-    let mut targets = Vec::new();
-    let mut seen = std::collections::HashSet::new();
-    let mut push_rom = |candidate: &Rom| {
-        if candidate.id == rom.id || !seen.insert(candidate.id) {
-            return;
-        }
-        let name = sanitize_extra_file_name(&candidate.fs_name);
-        targets.push(DownloadTarget {
-            kind: DownloadAssetKind::RomArchive,
-            title: candidate.fs_name.clone(),
-            source_url: "/api/roms/download".to_string(),
-            source_query: vec![
-                ("rom_ids".into(), candidate.id.to_string()),
-                ("filename".into(), name.clone()),
-            ],
-            destination: extras_root
-                .join(DownloadAssetKind::RomArchive.folder_name())
-                .join(name),
-        });
-    };
-
-    push_rom(&group.primary);
-    for other in &group.others {
-        push_rom(other);
-    }
-    Ok(targets)
-}
-
-fn build_cover_target(rom: &Rom, extras_root: &std::path::Path) -> Option<DownloadTarget> {
-    let url = rom
-        .url_cover
-        .as_deref()
-        .map(str::trim)
-        .filter(|u| !u.is_empty())?;
-    let filename = filename_from_url(url, "cover");
-    Some(DownloadTarget {
-        kind: DownloadAssetKind::Cover,
-        title: rom.name.clone(),
-        source_url: url.to_string(),
-        source_query: Vec::new(),
-        destination: extras_root
-            .join(DownloadAssetKind::Cover.folder_name())
-            .join(filename),
-    })
-}
-
-fn build_manual_target(rom: &Rom, extras_root: &std::path::Path) -> Option<DownloadTarget> {
-    let url = rom
-        .url_manual
-        .as_deref()
-        .map(str::trim)
-        .filter(|u| !u.is_empty())?;
-    let filename = filename_from_url(url, "manual");
-    Some(DownloadTarget {
-        kind: DownloadAssetKind::Manual,
-        title: rom.name.clone(),
-        source_url: url.to_string(),
-        source_query: Vec::new(),
-        destination: extras_root
-            .join(DownloadAssetKind::Manual.folder_name())
-            .join(filename),
-    })
-}
-
-fn extras_root_dir(output_dir: &std::path::Path, rom: &Rom) -> PathBuf {
-    let platform_slug = rom
-        .platform_fs_slug
-        .clone()
-        .or_else(|| rom.platform_slug.clone())
-        .unwrap_or_else(|| format!("platform-{}", rom.platform_id));
-    let game_slug = sanitized_extra_game_name(&rom.name, rom.id);
-    output_dir.join(utils::sanitize_filename(&platform_slug)).join(game_slug).join("extras")
-}
-
-fn sanitized_extra_game_name(name: &str, rom_id: u64) -> String {
-    let sanitized = utils::sanitize_filename(name);
-    if sanitized.trim().is_empty() {
-        format!("rom-{rom_id}")
-    } else {
-        sanitized
-    }
-}
-
-fn sanitize_extra_file_name(name: &str) -> String {
-    let sanitized = utils::sanitize_filename(name);
-    if sanitized.trim().is_empty() {
-        "download.bin".to_string()
-    } else {
-        sanitized
-    }
-}
-
-fn filename_from_url(url: &str, fallback: &str) -> String {
-    let fallback = sanitize_extra_file_name(fallback);
-    reqwest::Url::parse(url)
-        .ok()
-        .and_then(|parsed| {
-            parsed
-                .path_segments()
-                .and_then(|mut segments| segments.next_back().map(str::to_string))
-        })
-        .map(|name| sanitize_extra_file_name(&name))
-        .filter(|name| !name.trim().is_empty())
-        .unwrap_or(fallback)
-}
-
 async fn resolve_platform_id(
     client: &RommClient,
     platform_query: Option<&str>,
@@ -782,25 +604,6 @@ mod tests {
     }
 
     #[test]
-    fn extras_root_dir_is_sanitized() {
-        let rom = rom_fixture(7, "Mario Kart", "Mario Kart [USA].zip");
-        let dir = extras_root_dir(PathBuf::from("/tmp/out").as_path(), &rom);
-        assert_eq!(
-            dir,
-            PathBuf::from("/tmp/out").join("Nintendo Switch").join("Mario Kart").join("extras")
-        );
-    }
-
-    #[test]
-    fn filename_from_url_uses_remote_leaf_or_fallback() {
-        assert_eq!(
-            filename_from_url("https://example.com/files/guide.pdf?download=1", "manual"),
-            "guide.pdf"
-        );
-        assert_eq!(filename_from_url("not-a-url", "manual"), "manual");
-    }
-
-    #[test]
     fn resolve_platform_query_matches_slug_first() {
         let platforms = vec![platform_fixture(
             3,
@@ -903,31 +706,4 @@ mod tests {
         }
     }
 
-    fn rom_fixture(id: u64, name: &str, fs_name: &str) -> Rom {
-        Rom {
-            id,
-            platform_id: 1,
-            platform_slug: Some("switch".to_string()),
-            platform_fs_slug: Some("Nintendo Switch".to_string()),
-            platform_custom_name: None,
-            platform_display_name: None,
-            fs_name: fs_name.to_string(),
-            fs_name_no_tags: name.to_string(),
-            fs_name_no_ext: name.to_string(),
-            fs_extension: "zip".to_string(),
-            fs_path: format!("/{id}.zip"),
-            fs_size_bytes: 1,
-            name: name.to_string(),
-            slug: None,
-            summary: None,
-            path_cover_small: None,
-            path_cover_large: None,
-            url_cover: None,
-            has_manual: false,
-            path_manual: None,
-            url_manual: None,
-            is_unidentified: false,
-            is_identified: true,
-        }
-    }
 }

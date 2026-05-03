@@ -12,6 +12,7 @@ use std::io::Read;
 use crate::client::RommClient;
 use crate::config::{
     normalize_romm_origin, persist_user_config, user_config_json_path, AuthConfig, Config,
+    ExtrasDefaults,
 };
 
 #[derive(Args, Debug, Clone)]
@@ -129,16 +130,17 @@ pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
             token: token.unwrap(),
         });
 
-        persist_user_config(&base_url, &download_dir, use_https, auth.clone())?;
+        let config = Config {
+            base_url,
+            download_dir,
+            use_https,
+            auth,
+            extras_defaults: ExtrasDefaults::default(),
+        };
+        persist_user_config(&config)?;
         println!("Wrote {}", path.display());
 
         if cmd.check {
-            let config = Config {
-                base_url,
-                download_dir,
-                use_https,
-                auth,
-            };
             let client = RommClient::new(&config, verbose)?;
             println!("Checking connection to {}...", config.base_url);
             client
@@ -263,6 +265,7 @@ pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
                 download_dir: download_dir.clone(),
                 use_https,
                 auth: None,
+                extras_defaults: ExtrasDefaults::default(),
             };
             let client = RommClient::new(&temp_config, verbose)?;
             let endpoint = crate::endpoints::client_tokens::ExchangeClientToken { code };
@@ -279,7 +282,14 @@ pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
         }
     };
 
-    persist_user_config(&base_url, &download_dir, use_https, auth)?;
+    let config = Config {
+        base_url,
+        download_dir,
+        use_https,
+        auth,
+        extras_defaults: ExtrasDefaults::default(),
+    };
+    persist_user_config(&config)?;
 
     println!("Wrote {}", path.display());
     println!("Secrets are stored in the OS keyring when available (see file comments if plaintext fallback was used).");

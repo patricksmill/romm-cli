@@ -65,6 +65,7 @@ fn version_from_heartbeat_json(v: &Value) -> Option<String> {
 ///     download_dir: "./downloads".to_string(),
 ///     use_https: true,
 ///     auth: None,
+///     extras_defaults: Default::default(),
 /// };
 /// let client = RommClient::new(&config, false)?;
 /// # Ok(())

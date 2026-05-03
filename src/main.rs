@@ -59,6 +59,7 @@ async fn run_app() -> Result<()> {
                     download_dir: String::new(),
                     use_https: true,
                     auth: None,
+                    extras_defaults: romm_cli::config::ExtrasDefaults::default(),
                 };
                 return run(
                     Cli {

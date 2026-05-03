@@ -19,11 +19,17 @@ use std::io::stdout;
 use crate::client::RommClient;
 use crate::config::{
     is_keyring_placeholder, load_config, normalize_romm_origin, persist_user_config,
-    read_user_config_json_from_disk, AuthConfig, Config,
+    read_user_config_json_from_disk, AuthConfig, Config, ExtrasDefaults,
 };
 use crate::core::download::validate_configured_download_directory;
 use crate::endpoints::client_tokens::ExchangeClientToken;
 use crate::tui::path_picker::{PathPicker, PathPickerEvent, PathPickerMode};
+
+fn extras_defaults_from_disk() -> ExtrasDefaults {
+    read_user_config_json_from_disk()
+        .map(|c| c.extras_defaults)
+        .unwrap_or_default()
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum AuthKind {
@@ -247,6 +253,7 @@ impl SetupWizard {
             download_dir: download_dir.clone(),
             use_https: self.use_https,
             auth: None,
+            extras_defaults: extras_defaults_from_disk(),
         };
         let client = RommClient::new(&temp_config, verbose)?;
         let response = client
@@ -260,6 +267,7 @@ impl SetupWizard {
             auth: Some(AuthConfig::Bearer {
                 token: response.raw_token,
             }),
+            extras_defaults: extras_defaults_from_disk(),
         })
     }
 
@@ -334,6 +342,7 @@ impl SetupWizard {
             download_dir,
             use_https: self.use_https,
             auth,
+            extras_defaults: extras_defaults_from_disk(),
         })
     }
 
@@ -693,9 +702,7 @@ impl SetupWizard {
         };
         let client = RommClient::new(&cfg, verbose)?;
         client.fetch_openapi_json().await?;
-        let base = cfg.base_url.clone();
-        let download = self.download_picker.path_trimmed();
-        persist_user_config(&base, &download, self.use_https, cfg.auth.clone())?;
+        persist_user_config(&cfg)?;
         load_config()
     }
 

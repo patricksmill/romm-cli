@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use romm_cli::client::RommClient;
-use romm_cli::config::Config;
+use romm_cli::config::{Config, ExtrasDefaults};
 use romm_cli::core::utils;
 use romm_cli::tui::app::{App, AppScreen};
 use romm_cli::tui::openapi::EndpointRegistry;
@@ -39,6 +39,7 @@ async fn test_main_menu_api_error_shows_popup() {
         download_dir: "/tmp".into(),
         use_https: false,
         auth: None,
+        extras_defaults: ExtrasDefaults::default(),
     };
     let client = RommClient::new(&config, false).unwrap();
     let mut app = App::new(
@@ -116,6 +117,7 @@ async fn test_main_menu_success_transitions_to_library() {
         download_dir: "/tmp".into(),
         use_https: false,
         auth: None,
+        extras_defaults: ExtrasDefaults::default(),
     };
     let client = RommClient::new(&config, false).unwrap();
     let mut app = App::new(
@@ -149,6 +151,7 @@ async fn main_menu_fifth_item_is_exit() {
         download_dir: "/tmp".into(),
         use_https: false,
         auth: None,
+        extras_defaults: ExtrasDefaults::default(),
     };
     let client = RommClient::new(&config, false).unwrap();
     let mut app = App::new(
@@ -184,6 +187,7 @@ async fn library_filter_mode_d_types_in_search_bar_not_downloads() {
         download_dir: "/tmp".into(),
         use_https: false,
         auth: None,
+        extras_defaults: ExtrasDefaults::default(),
     };
     let client = RommClient::new(&config, false).unwrap();
     let mut app = App::new(
@@ -246,6 +250,7 @@ async fn library_filter_enter_then_enter_opens_game_detail() {
         download_dir: "/tmp".into(),
         use_https: false,
         auth: None,
+        extras_defaults: ExtrasDefaults::default(),
     };
     let client = RommClient::new(&config, false).unwrap();
     let mut app = App::new(
@@ -310,6 +315,7 @@ async fn game_detail_download_is_blocked_when_config_download_path_is_invalid() 
         download_dir: invalid_target.to_string_lossy().to_string(),
         use_https: false,
         auth: None,
+        extras_defaults: ExtrasDefaults::default(),
     };
     let client = RommClient::new(&config, false).unwrap();
     let mut app = App::new(
@@ -370,6 +376,7 @@ async fn game_detail_download_skips_when_rom_already_exists_in_console_folder() 
         download_dir: roms_dir.to_string_lossy().to_string(),
         use_https: false,
         auth: None,
+        extras_defaults: ExtrasDefaults::default(),
     };
     let client = RommClient::new(&config, false).unwrap();
     let mut app = App::new(

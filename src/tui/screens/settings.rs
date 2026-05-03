@@ -24,6 +24,12 @@ pub struct SettingsScreen {
     pub base_url: String,
     pub download_dir: String,
     pub use_https: bool,
+    /// Default: pre-check related ROMs (updates/DLC) in TUI extras picker.
+    pub extras_include_related_roms: bool,
+    /// Default: pre-check cover in TUI extras picker when available.
+    pub extras_include_cover: bool,
+    /// Default: pre-check manual in TUI extras picker when available.
+    pub extras_include_manual: bool,
     pub auth_status: String,
     pub version: String,
     pub server_version: String,
@@ -67,6 +73,9 @@ impl SettingsScreen {
             base_url: config.base_url.clone(),
             download_dir: config.download_dir.clone(),
             use_https: config.use_https,
+            extras_include_related_roms: config.extras_defaults.include_related_roms,
+            extras_include_cover: config.extras_defaults.include_cover,
+            extras_include_manual: config.extras_defaults.include_manual,
             auth_status,
             version: env!("CARGO_PKG_VERSION").to_string(),
             server_version,
@@ -81,16 +90,18 @@ impl SettingsScreen {
         }
     }
 
+    const ROW_COUNT: usize = 9;
+
     pub fn next(&mut self) {
         if !self.editing && self.confirm.is_none() {
-            self.selected_index = (self.selected_index + 1) % 6;
+            self.selected_index = (self.selected_index + 1) % Self::ROW_COUNT;
         }
     }
 
     pub fn previous(&mut self) {
         if !self.editing && self.confirm.is_none() {
             if self.selected_index == 0 {
-                self.selected_index = 5;
+                self.selected_index = Self::ROW_COUNT - 1;
             } else {
                 self.selected_index -= 1;
             }
@@ -98,10 +109,37 @@ impl SettingsScreen {
     }
 
     pub fn enter_edit(&mut self) {
-        if self.selected_index == 5 {
+        if self.selected_index == 8 {
             self.confirm = Some(SettingsConfirm::Reset);
-        } else if self.selected_index == 4 {
+        } else if self.selected_index == 7 {
             self.confirm = Some(SettingsConfirm::ClearCache);
+        } else if self.selected_index == 5 {
+            self.extras_include_manual = !self.extras_include_manual;
+            self.message = Some((
+                format!(
+                    "Extras default (manual): {}",
+                    if self.extras_include_manual { "on" } else { "off" }
+                ),
+                Color::Green,
+            ));
+        } else if self.selected_index == 4 {
+            self.extras_include_cover = !self.extras_include_cover;
+            self.message = Some((
+                format!(
+                    "Extras default (cover): {}",
+                    if self.extras_include_cover { "on" } else { "off" }
+                ),
+                Color::Green,
+            ));
+        } else if self.selected_index == 3 {
+            self.extras_include_related_roms = !self.extras_include_related_roms;
+            self.message = Some((
+                format!(
+                    "Extras default (updates/DLC): {}",
+                    if self.extras_include_related_roms { "on" } else { "off" }
+                ),
+                Color::Green,
+            ));
         } else if self.selected_index == 2 {
             // Toggle HTTPS directly and keep the Base URL scheme in sync.
             self.use_https = !self.use_https;
@@ -239,6 +277,30 @@ impl SettingsScreen {
             ListItem::new(format!(
                 "Use HTTPS:    {}",
                 if self.use_https { "[X] Yes" } else { "[ ] No" }
+            )),
+            ListItem::new(format!(
+                "Extras: incl. updates/DLC (picker default): {}",
+                if self.extras_include_related_roms {
+                    "[X] Yes"
+                } else {
+                    "[ ] No"
+                }
+            )),
+            ListItem::new(format!(
+                "Extras: incl. cover (picker default):     {}",
+                if self.extras_include_cover {
+                    "[X] Yes"
+                } else {
+                    "[ ] No"
+                }
+            )),
+            ListItem::new(format!(
+                "Extras: incl. manual (picker default):   {}",
+                if self.extras_include_manual {
+                    "[X] Yes"
+                } else {
+                    "[ ] No"
+                }
             )),
             ListItem::new(format!(
                 "Auth:         {} (Enter to change)",

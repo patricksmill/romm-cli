@@ -13,6 +13,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use crate::client::RommClient;
+use crate::core::extras::{DownloadAssetKind, DownloadTarget};
 use crate::core::interrupt::is_cancelled_error;
 use crate::core::utils;
 use crate::types::Rom;
@@ -188,6 +189,82 @@ impl DownloadJob {
 }
 
 // ---------------------------------------------------------------------------
+// Extras (composite) jobs
+// ---------------------------------------------------------------------------
+
+/// Outcome of one item inside an [`ExtrasJob`].
+#[derive(Debug, Clone)]
+pub struct ExtrasItemResult {
+    pub title: String,
+    pub kind: DownloadAssetKind,
+    pub ok: bool,
+    pub error: Option<String>,
+}
+
+/// Terminal status for a composite extras download.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExtrasJobStatus {
+    Running,
+    Done,
+    /// Some items failed (`usize` = failure count).
+    PartialFailure(usize),
+    AllFailed,
+}
+
+/// One queued extras batch for a parent ROM (related files + cover + manual).
+#[derive(Debug, Clone)]
+pub struct ExtrasJob {
+    pub id: usize,
+    pub rom_id: u64,
+    pub name: String,
+    pub platform: String,
+    pub completed_items: usize,
+    pub total_items: usize,
+    pub status: ExtrasJobStatus,
+    pub item_results: Vec<ExtrasItemResult>,
+}
+
+static NEXT_EXTRAS_JOB_ID: AtomicUsize = AtomicUsize::new(0);
+
+impl ExtrasJob {
+    pub fn new(rom_id: u64, name: String, platform: String, total_items: usize) -> Self {
+        Self {
+            id: NEXT_EXTRAS_JOB_ID.fetch_add(1, Ordering::Relaxed),
+            rom_id,
+            name,
+            platform,
+            completed_items: 0,
+            total_items,
+            status: ExtrasJobStatus::Running,
+            item_results: Vec::new(),
+        }
+    }
+
+    /// Progress 0..=100 from completed item count only.
+    pub fn percent(&self) -> u16 {
+        if self.total_items == 0 {
+            return 100;
+        }
+        ((self.completed_items.saturating_mul(100)) / self.total_items).min(100) as u16
+    }
+}
+
+fn finalize_extras_job_status(results: &[ExtrasItemResult]) -> ExtrasJobStatus {
+    let n = results.len();
+    if n == 0 {
+        return ExtrasJobStatus::Done;
+    }
+    let failures = results.iter().filter(|r| !r.ok).count();
+    if failures == 0 {
+        ExtrasJobStatus::Done
+    } else if failures == n {
+        ExtrasJobStatus::AllFailed
+    } else {
+        ExtrasJobStatus::PartialFailure(failures)
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Manager
 // ---------------------------------------------------------------------------
 
@@ -197,6 +274,7 @@ impl DownloadJob {
 #[derive(Clone)]
 pub struct DownloadManager {
     jobs: Arc<Mutex<Vec<DownloadJob>>>,
+    extras_jobs: Arc<Mutex<Vec<ExtrasJob>>>,
 }
 
 impl Default for DownloadManager {
@@ -209,12 +287,18 @@ impl DownloadManager {
     pub fn new() -> Self {
         Self {
             jobs: Arc::new(Mutex::new(Vec::new())),
+            extras_jobs: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
     /// Shared handle for observers (TUI, GUI, tests) to inspect jobs.
     pub fn shared(&self) -> Arc<Mutex<Vec<DownloadJob>>> {
         self.jobs.clone()
+    }
+
+    /// Shared extras jobs (composite batches).
+    pub fn shared_extras(&self) -> Arc<Mutex<Vec<ExtrasJob>>> {
+        self.extras_jobs.clone()
     }
 
     /// Start downloading `rom` in the background; returns immediately.
@@ -360,6 +444,99 @@ impl DownloadManager {
         });
         Ok(())
     }
+
+    /// Download selected extras targets in the background as one composite job.
+    ///
+    /// Uses up to 4 concurrent URL downloads. Progress is item-count only (`ExtrasJob::percent`).
+    pub fn start_extras_download(
+        &self,
+        rom: &Rom,
+        selected: Vec<DownloadTarget>,
+        client: RommClient,
+        configured_download_dir: Option<&str>,
+    ) -> Result<()> {
+        if selected.is_empty() {
+            return Err(anyhow!("no extras targets selected"));
+        }
+
+        let _ = resolve_download_directory(configured_download_dir)?;
+
+        let platform = rom
+            .platform_display_name
+            .as_deref()
+            .or(rom.platform_custom_name.as_deref())
+            .unwrap_or("—")
+            .to_string();
+
+        let total_items = selected.len();
+        let job = ExtrasJob::new(rom.id, rom.name.clone(), platform, total_items);
+        let job_id = job.id;
+
+        match self.extras_jobs.lock() {
+            Ok(mut jobs) => jobs.push(job),
+            Err(err) => {
+                eprintln!("warning: extras job list lock poisoned: {}", err);
+                return Err(anyhow!("extras job list lock poisoned: {err}"));
+            }
+        }
+
+        let extras_jobs = self.extras_jobs.clone();
+        tokio::spawn(async move {
+            let semaphore = Arc::new(tokio::sync::Semaphore::new(4));
+            let mut handles = Vec::new();
+
+            for target in selected {
+                let permit = match semaphore.clone().acquire_owned().await {
+                    Ok(p) => p,
+                    Err(_) => break,
+                };
+                let client = client.clone();
+                let extras_jobs = extras_jobs.clone();
+                handles.push(tokio::spawn(async move {
+                    let mut on_progress = |_r: u64, _t: u64| {};
+                    let download_result = client
+                        .download_url_with_query_with_cancel(
+                            &target.source_url,
+                            &target.source_query,
+                            &target.destination,
+                            |_, _| false,
+                            &mut on_progress,
+                        )
+                        .await;
+
+                    drop(permit);
+
+                    let (ok, err) = match download_result {
+                        Ok(()) => (true, None),
+                        Err(e) => (false, Some(e.to_string())),
+                    };
+
+                    let item = ExtrasItemResult {
+                        title: target.title.clone(),
+                        kind: target.kind,
+                        ok,
+                        error: err,
+                    };
+
+                    if let Ok(mut list) = extras_jobs.lock() {
+                        if let Some(j) = list.iter_mut().find(|j| j.id == job_id) {
+                            j.completed_items = j.completed_items.saturating_add(1);
+                            j.item_results.push(item);
+                            if j.completed_items >= j.total_items {
+                                j.status = finalize_extras_job_status(&j.item_results);
+                            }
+                        }
+                    }
+                }));
+            }
+
+            for h in handles {
+                let _ = h.await;
+            }
+        });
+
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -474,6 +651,46 @@ mod tests {
             is_unidentified: false,
             is_identified: true,
         }
+    }
+
+    #[test]
+    fn extras_job_percent_tracks_completed_items() {
+        let mut j = ExtrasJob::new(1, "Zelda".into(), "NES".into(), 4);
+        assert_eq!(j.percent(), 0);
+        j.completed_items = 2;
+        assert_eq!(j.percent(), 50);
+        j.completed_items = 4;
+        assert_eq!(j.percent(), 100);
+    }
+
+    #[test]
+    fn finalize_extras_job_status_reflects_failures() {
+        use crate::core::extras::DownloadAssetKind;
+
+        let ok = ExtrasItemResult {
+            title: "a".into(),
+            kind: DownloadAssetKind::Cover,
+            ok: true,
+            error: None,
+        };
+        let bad = ExtrasItemResult {
+            title: "b".into(),
+            kind: DownloadAssetKind::Manual,
+            ok: false,
+            error: Some("e".into()),
+        };
+        assert_eq!(
+            super::finalize_extras_job_status(&[ok.clone(), ok.clone()]),
+            ExtrasJobStatus::Done
+        );
+        assert_eq!(
+            super::finalize_extras_job_status(&[bad.clone(), bad.clone()]),
+            ExtrasJobStatus::AllFailed
+        );
+        assert_eq!(
+            super::finalize_extras_job_status(&[ok, bad]),
+            ExtrasJobStatus::PartialFailure(1)
+        );
     }
 
     #[test]
