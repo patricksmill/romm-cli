@@ -1,4 +1,4 @@
-use crate::types::Rom;
+use crate::types::{Rom, RomFile, RomFileCategory};
 
 /// One game entry for list display: same `name` (base + updates/DLC) shown once.
 #[derive(Debug, Clone)]
@@ -59,6 +59,79 @@ pub fn format_size(bytes: u64) -> String {
     }
 }
 
+fn category_bucket_index(cat: Option<&RomFileCategory>) -> usize {
+    match cat {
+        Some(RomFileCategory::Game) => 0,
+        Some(RomFileCategory::Update) => 1,
+        Some(RomFileCategory::Dlc) => 2,
+        Some(RomFileCategory::Patch) => 3,
+        Some(RomFileCategory::Hack) => 4,
+        Some(RomFileCategory::Mod) => 5,
+        Some(RomFileCategory::Translation) => 6,
+        Some(RomFileCategory::Demo) => 7,
+        Some(RomFileCategory::Prototype) => 8,
+        Some(RomFileCategory::Cheat) => 9,
+        Some(RomFileCategory::Manual) => 10,
+        None => 11,
+    }
+}
+
+const CATEGORY_BUCKET_LABELS: [&str; 12] = [
+    "game",
+    "update",
+    "dlc",
+    "patch",
+    "hack",
+    "mod",
+    "translation",
+    "demo",
+    "prototype",
+    "cheat",
+    "manual",
+    "other",
+];
+
+/// Group a Rom's files by category and return ordered `(label, total_bytes)` pairs.
+///
+/// Order: game, update, dlc, patch, hack, mod, translation, demo, prototype, cheat, manual, other.
+/// Returns an empty vector when `files` is empty. Categories with zero total bytes are omitted.
+pub fn size_breakdown_by_category(files: &[RomFile]) -> Vec<(&'static str, u64)> {
+    if files.is_empty() {
+        return Vec::new();
+    }
+    let mut sums = [0u64; 12];
+    for f in files {
+        let i = category_bucket_index(f.category.as_ref());
+        sums[i] = sums[i].saturating_add(f.file_size_bytes);
+    }
+    let mut out = Vec::new();
+    for (i, label) in CATEGORY_BUCKET_LABELS.iter().enumerate() {
+        if sums[i] > 0 {
+            out.push((*label, sums[i]));
+        }
+    }
+    out
+}
+
+/// Human-readable total size, optionally with a per-category breakdown from `Rom::files`.
+///
+/// When `files` is empty, returns [`format_size`] of `total` only. When there is exactly one
+/// non-empty bucket and it is `game`, returns the total without a parenthetical (single base file).
+pub fn format_size_with_breakdown(total: u64, files: &[RomFile]) -> String {
+    let breakdown = size_breakdown_by_category(files);
+    if breakdown.is_empty() {
+        return format_size(total);
+    }
+    if breakdown.len() == 1 && breakdown[0].0 == "game" {
+        return format_size(total);
+    }
+    let parts: Vec<String> = breakdown
+        .iter()
+        .map(|(label, bytes)| format!("{} {}", label, format_size(*bytes)))
+        .collect();
+    format!("{} ({})", format_size(total), parts.join(" + "))
+}
+
 /// Make a filename safe for the local filesystem.
 pub fn sanitize_filename(name: &str) -> String {
     name.chars()
@@ -115,6 +188,7 @@ mod tests {
             url_manual: None,
             is_unidentified: false,
             is_identified: true,
+            files: Vec::new(),
         }
     }
 

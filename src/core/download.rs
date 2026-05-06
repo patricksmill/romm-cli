@@ -13,6 +13,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use crate::client::RommClient;
+use crate::core::extras::build_base_rom_file_targets;
 use crate::core::extras::{DownloadAssetKind, DownloadTarget};
 use crate::core::interrupt::is_cancelled_error;
 use crate::core::utils;
@@ -328,6 +329,7 @@ impl DownloadManager {
             .or_else(|| rom.platform_slug.clone())
             .unwrap_or_else(|| format!("platform-{}", rom.platform_id));
         let final_name = sanitized_final_filename(&rom.fs_name, rom.id);
+        let rom_for_targets = rom.clone();
         match self.jobs.lock() {
             Ok(mut jobs) => jobs.push(job),
             Err(err) => {
@@ -361,6 +363,58 @@ impl DownloadManager {
                             "Could not create console directory {}: {err}",
                             console_dir.display()
                         ));
+                    }
+                }
+                return;
+            }
+
+            let base_targets = build_base_rom_file_targets(&rom_for_targets, &save_dir);
+            if !base_targets.is_empty() {
+                let all_exist = base_targets.iter().all(|t| t.destination.exists());
+                if all_exist {
+                    if let Ok(mut list) = jobs.lock() {
+                        if let Some(j) = list.iter_mut().find(|j| j.id == job_id) {
+                            j.status = DownloadStatus::SkippedAlreadyExists;
+                            j.progress = 1.0;
+                        }
+                    }
+                    return;
+                }
+                let total_targets = base_targets.len() as f64;
+                for (idx, target) in base_targets.iter().enumerate() {
+                    let client = client.clone();
+                    let mut progress = {
+                        let jobs = jobs.clone();
+                        move |received: u64, total: u64| {
+                            let file_ratio = if total > 0 {
+                                received as f64 / total as f64
+                            } else {
+                                0.0
+                            };
+                            let total_ratio = ((idx as f64) + file_ratio) / total_targets;
+                            if let Ok(mut list) = jobs.lock() {
+                                if let Some(j) = list.iter_mut().find(|j| j.id == job_id) {
+                                    j.progress = total_ratio.min(1.0);
+                                }
+                            }
+                        }
+                    };
+                    if let Err(final_err) =
+                        download_target_with_fallback(&client, target, |_, _| false, &mut progress)
+                            .await
+                    {
+                        if let Ok(mut list) = jobs.lock() {
+                            if let Some(j) = list.iter_mut().find(|j| j.id == job_id) {
+                                j.status = DownloadStatus::Error(final_err.to_string());
+                            }
+                        }
+                        return;
+                    }
+                }
+                if let Ok(mut list) = jobs.lock() {
+                    if let Some(j) = list.iter_mut().find(|j| j.id == job_id) {
+                        j.status = DownloadStatus::Done;
+                        j.progress = 1.0;
                     }
                 }
                 return;
@@ -494,15 +548,13 @@ impl DownloadManager {
                 let extras_jobs = extras_jobs.clone();
                 handles.push(tokio::spawn(async move {
                     let mut on_progress = |_r: u64, _t: u64| {};
-                    let download_result = client
-                        .download_url_with_query_with_cancel(
-                            &target.source_url,
-                            &target.source_query,
-                            &target.destination,
-                            |_, _| false,
-                            &mut on_progress,
-                        )
-                        .await;
+                    let download_result = download_target_with_fallback(
+                        &client,
+                        &target,
+                        |_, _| false,
+                        &mut on_progress,
+                    )
+                    .await;
 
                     drop(permit);
 
@@ -537,6 +589,68 @@ impl DownloadManager {
 
         Ok(())
     }
+}
+
+async fn download_target_with_fallback<F, C>(
+    client: &RommClient,
+    target: &DownloadTarget,
+    mut is_cancelled: C,
+    on_progress: &mut F,
+) -> Result<()>
+where
+    F: FnMut(u64, u64) + Send,
+    C: FnMut(u64, u64) -> bool + Send,
+{
+    let urls = candidate_download_urls(target);
+    let mut last_err: Option<anyhow::Error> = None;
+    for url in urls {
+        match client
+            .download_url_with_query_with_cancel(
+                &url,
+                &target.source_query,
+                &target.destination,
+                &mut is_cancelled,
+                on_progress,
+            )
+            .await
+        {
+            Ok(()) => return Ok(()),
+            Err(err) => {
+                if !err.to_string().contains("404 Not Found") {
+                    return Err(err);
+                }
+                last_err = Some(err);
+            }
+        }
+    }
+    Err(last_err.unwrap_or_else(|| anyhow!("download failed without error details")))
+}
+
+fn candidate_download_urls(target: &DownloadTarget) -> Vec<String> {
+    let mut out = vec![target.source_url.clone()];
+    if let Some((file_id, file_name)) = parse_legacy_roms_files_path(&target.source_url) {
+        out.push(format!("/api/romsfiles/{file_id}/content/{file_name}"));
+    }
+    dedupe_preserve_order(out)
+}
+
+fn parse_legacy_roms_files_path(url: &str) -> Option<(String, String)> {
+    let prefix = "/api/roms/files/";
+    let marker = "/content/";
+    let rest = url.strip_prefix(prefix)?;
+    let (id, name) = rest.split_once(marker)?;
+    Some((id.to_string(), name.to_string()))
+}
+
+fn dedupe_preserve_order(urls: Vec<String>) -> Vec<String> {
+    let mut seen = std::collections::HashSet::new();
+    let mut out = Vec::new();
+    for u in urls {
+        if seen.insert(u.clone()) {
+            out.push(u);
+        }
+    }
+    out
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -650,6 +764,7 @@ mod tests {
             url_manual: None,
             is_unidentified: false,
             is_identified: true,
+            files: Vec::new(),
         }
     }
 
@@ -790,6 +905,41 @@ mod tests {
         let base = PathBuf::from("/roms");
         let out = final_download_path_for_rom(&base, &rom);
         assert_eq!(out, PathBuf::from("/roms/switch/Zelda _USA_.xci"));
+    }
+
+    #[test]
+    fn rom_file_download_candidates_use_official_romsfiles_endpoint() {
+        let target = DownloadTarget {
+            kind: DownloadAssetKind::RomFile,
+            title: "Update".into(),
+            source_url: "/api/romsfiles/11/content/update%2Ensp".into(),
+            source_query: Vec::new(),
+            destination: PathBuf::from("/tmp/update.nsp"),
+        };
+
+        assert_eq!(
+            candidate_download_urls(&target),
+            vec!["/api/romsfiles/11/content/update%2Ensp".to_string()]
+        );
+    }
+
+    #[test]
+    fn legacy_roms_files_candidate_falls_forward_to_romsfiles() {
+        let target = DownloadTarget {
+            kind: DownloadAssetKind::RomFile,
+            title: "Update".into(),
+            source_url: "/api/roms/files/11/content/update%2Ensp".into(),
+            source_query: Vec::new(),
+            destination: PathBuf::from("/tmp/update.nsp"),
+        };
+
+        assert_eq!(
+            candidate_download_urls(&target),
+            vec![
+                "/api/roms/files/11/content/update%2Ensp".to_string(),
+                "/api/romsfiles/11/content/update%2Ensp".to_string()
+            ]
+        );
     }
 
     #[tokio::test]

@@ -993,6 +993,7 @@ mod tests {
             url_manual: None,
             is_unidentified: false,
             is_identified: true,
+            files: Vec::new(),
         }
     }
 

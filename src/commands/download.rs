@@ -1,16 +1,21 @@
 use anyhow::{anyhow, Result};
 use clap::{Args, Subcommand, ValueEnum};
+use dialoguer::Confirm;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use std::io::{self, IsTerminal};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
 
 use crate::client::RommClient;
 use crate::core::download::{download_directory, extract_zip_archive, unique_zip_path};
-use crate::core::extras::{build_extras_targets, DownloadTarget};
-use crate::endpoints::roms::GetRoms;
+use crate::core::extras::{
+    build_base_rom_file_targets, build_extras_targets, build_update_dlc_file_targets_for_rom,
+    extras_root_dir, has_update_or_dlc_extras, DownloadTarget,
+};
 use crate::core::interrupt::{cancelled_error, is_cancelled_error, InterruptContext};
 use crate::core::utils;
+use crate::endpoints::roms::GetRoms;
 use crate::services::{PlatformService, RomService};
 use crate::types::Platform;
 
@@ -53,6 +58,18 @@ pub struct DownloadCommand {
     /// Delete ZIP files after successful extraction (batch mode only)
     #[arg(long, global = true)]
     pub delete_zip_after_extract: bool,
+
+    /// Include updates and DLC after downloading the base game (single-ROM mode)
+    #[arg(long, global = true)]
+    pub with_extras: bool,
+
+    /// Skip updates and DLC (single-ROM mode)
+    #[arg(long, global = true)]
+    pub no_extras: bool,
+
+    /// Assume yes for extras prompt (single-ROM mode)
+    #[arg(short = 'y', long, global = true)]
+    pub yes: bool,
 }
 
 #[derive(Subcommand, Debug, Clone)]
@@ -131,18 +148,67 @@ async fn download_target(
         }
     };
 
-    client
-        .download_url_with_query_with_cancel(
-            &target.source_url,
-            &target.source_query,
-            &target.destination,
-            |_, _| interrupt.is_cancelled(),
-            &mut progress,
-        )
-        .await?;
+    let urls = candidate_download_urls(target);
+    let mut last_err: Option<anyhow::Error> = None;
+    for url in urls {
+        match client
+            .download_url_with_query_with_cancel(
+                &url,
+                &target.source_query,
+                &target.destination,
+                |_, _| interrupt.is_cancelled(),
+                &mut progress,
+            )
+            .await
+        {
+            Ok(()) => {
+                last_err = None;
+                break;
+            }
+            Err(err) => {
+                if !err.to_string().contains("404 Not Found") {
+                    return Err(err);
+                }
+                last_err = Some(err);
+            }
+        }
+    }
+    if let Some(err) = last_err {
+        return Err(err);
+    }
 
     pb.finish_with_message(format!("✓ {}: {}", target.kind.label(), target.title));
     Ok(())
+}
+
+fn candidate_download_urls(target: &DownloadTarget) -> Vec<String> {
+    if target.kind != crate::core::extras::DownloadAssetKind::RomFile {
+        return vec![target.source_url.clone()];
+    }
+    let mut out = vec![target.source_url.clone()];
+    if let Some((file_id, file_name)) = parse_legacy_roms_files_path(&target.source_url) {
+        out.push(format!("/api/romsfiles/{file_id}/content/{file_name}"));
+    }
+    dedupe_preserve_order(out)
+}
+
+fn parse_legacy_roms_files_path(url: &str) -> Option<(String, String)> {
+    let prefix = "/api/roms/files/";
+    let marker = "/content/";
+    let rest = url.strip_prefix(prefix)?;
+    let (id, name) = rest.split_once(marker)?;
+    Some((id.to_string(), name.to_string()))
+}
+
+fn dedupe_preserve_order(urls: Vec<String>) -> Vec<String> {
+    let mut seen = std::collections::HashSet::new();
+    let mut out = Vec::new();
+    for u in urls {
+        if seen.insert(u.clone()) {
+            out.push(u);
+        }
+    }
+    out
 }
 
 pub async fn handle(
@@ -151,8 +217,14 @@ pub async fn handle(
     interrupt: Option<InterruptContext>,
 ) -> Result<()> {
     let interrupt = interrupt.unwrap_or_default();
-    let output_dir = cmd.output.unwrap_or_else(download_directory);
+    let output_dir = cmd.output.clone().unwrap_or_else(download_directory);
     let action = cmd.action.clone();
+
+    if cmd.with_extras && cmd.no_extras {
+        return Err(anyhow!(
+            "--with-extras and --no-extras are mutually exclusive"
+        ));
+    }
 
     // Ensure output directory exists.
     tokio::fs::create_dir_all(&output_dir)
@@ -322,19 +394,36 @@ pub async fn handle(
                 "ROM ID is required (e.g. 'download 123' or 'download batch --search-term ...')"
             )
         })?;
+        let service = RomService::new(client);
+        let rom = service.get_rom(rom_id).await?;
+        let base_targets = build_base_rom_file_targets(&rom, &output_dir);
 
-        let save_path = output_dir.join(format!("rom_{rom_id}.zip"));
-
-        let mp = MultiProgress::new();
-        let pb = mp.add(ProgressBar::new(0));
-        pb.set_style(make_progress_style());
-
-        if interrupt.is_cancelled() {
-            return Err(cancelled_error());
+        if !base_targets.is_empty() {
+            run_targets(base_targets, client, interrupt.clone(), 1).await?;
+            println!("Base game files downloaded.");
+        } else {
+            let save_path = output_dir.join(format!("rom_{rom_id}.zip"));
+            let mp = MultiProgress::new();
+            let pb = mp.add(ProgressBar::new(0));
+            pb.set_style(make_progress_style());
+            if interrupt.is_cancelled() {
+                return Err(cancelled_error());
+            }
+            download_one(client, rom_id, &format!("ROM {rom_id}"), &save_path, pb).await?;
+            println!("Saved to {:?}", save_path);
         }
-        download_one(client, rom_id, &format!("ROM {rom_id}"), &save_path, pb).await?;
 
-        println!("Saved to {:?}", save_path);
+        let should_prompt_extras = has_update_or_dlc_extras(&rom, &[]);
+        if should_prompt_extras {
+            let include_extras = resolve_include_extras_choice(&cmd)?;
+            if include_extras {
+                let extras_root = extras_root_dir(&output_dir, &rom);
+                let extras_targets = build_update_dlc_file_targets_for_rom(&rom, &extras_root);
+                if !extras_targets.is_empty() {
+                    run_targets(extras_targets, client, interrupt, cmd.jobs).await?;
+                }
+            }
+        }
     }
 
     Ok(())
@@ -348,14 +437,22 @@ async fn handle_extras(
     jobs: usize,
 ) -> Result<()> {
     let targets = build_extras_targets(client, cmd.rom_id, &output_dir).await?;
+    run_targets(targets, client, interrupt, jobs).await
+}
 
+async fn run_targets(
+    targets: Vec<DownloadTarget>,
+    client: &RommClient,
+    interrupt: InterruptContext,
+    jobs: usize,
+) -> Result<()> {
     if targets.is_empty() {
-        println!("No downloadable extras were found for ROM {}.", cmd.rom_id);
+        println!("No downloadable extras were found.");
         return Ok(());
     }
 
     println!(
-        "Found {} extra download(s). Starting download with {} concurrent connections...",
+        "Found {} download(s). Starting download with {} concurrent connections...",
         targets.len(),
         jobs
     );
@@ -410,11 +507,30 @@ async fn handle_extras(
     if interrupt.is_cancelled() {
         println!("\nInterrupted by user.");
     }
-    println!(
-        "\nExtras complete: {successes} succeeded, {failures} failed, {cancelled} cancelled."
-    );
+    println!("\nExtras complete: {successes} succeeded, {failures} failed, {cancelled} cancelled.");
 
     Ok(())
+}
+
+fn resolve_include_extras_choice(cmd: &DownloadCommand) -> Result<bool> {
+    if cmd.with_extras || cmd.yes {
+        return Ok(true);
+    }
+    if cmd.no_extras {
+        return Ok(false);
+    }
+    if !is_interactive_terminal() {
+        return Ok(false);
+    }
+    Confirm::new()
+        .with_prompt("Updates/DLC are available. Download them now as extras?")
+        .default(false)
+        .interact()
+        .map_err(|e| anyhow!("extras prompt failed: {e}"))
+}
+
+fn is_interactive_terminal() -> bool {
+    io::stdin().is_terminal() && io::stdout().is_terminal()
 }
 
 async fn resolve_platform_id(
@@ -585,6 +701,34 @@ mod tests {
     }
 
     #[test]
+    fn parse_download_single_with_extras_flags() {
+        let cli = Cli::parse_from(["romm-cli", "download", "42", "--with-extras", "--yes"]);
+        let Commands::Download(cmd) = cli.command else {
+            panic!("expected download command");
+        };
+        assert_eq!(cmd.rom_id, Some(42));
+        assert!(cmd.with_extras);
+        assert!(cmd.yes);
+        assert!(!cmd.no_extras);
+    }
+
+    #[test]
+    fn rom_file_download_candidates_use_official_romsfiles_endpoint() {
+        let target = DownloadTarget {
+            kind: crate::core::extras::DownloadAssetKind::RomFile,
+            title: "DLC".into(),
+            source_url: "/api/romsfiles/12/content/dlc%2Ensp".into(),
+            source_query: Vec::new(),
+            destination: PathBuf::from("/tmp/dlc.nsp"),
+        };
+
+        assert_eq!(
+            candidate_download_urls(&target),
+            vec!["/api/romsfiles/12/content/dlc%2Ensp".to_string()]
+        );
+    }
+
+    #[test]
     fn extraction_target_dir_platform_layout() {
         let dir = PathBuf::from("/tmp/out");
         let target = extraction_target_dir(
@@ -705,5 +849,4 @@ mod tests {
             display_name: display_name.map(ToString::to_string),
         }
     }
-
 }

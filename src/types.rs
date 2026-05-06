@@ -106,6 +106,35 @@ pub struct Platform {
     pub display_name: Option<String>,
 }
 
+/// Category of an internal file within a multi-file RomM ROM (see `Rom::files`).
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "lowercase")]
+pub enum RomFileCategory {
+    Game,
+    Dlc,
+    Hack,
+    Manual,
+    Patch,
+    Update,
+    Mod,
+    Demo,
+    Translation,
+    Prototype,
+    Cheat,
+}
+
+/// One file row under a RomM `Rom` (base game, update, DLC, etc.).
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct RomFile {
+    pub id: u64,
+    pub rom_id: u64,
+    pub file_name: String,
+    pub file_path: String,
+    pub file_size_bytes: u64,
+    #[serde(default)]
+    pub category: Option<RomFileCategory>,
+}
+
 /// Represents a single ROM file and its associated metadata.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Rom {
@@ -155,6 +184,9 @@ pub struct Rom {
     pub is_unidentified: bool,
     /// True if the ROM has been identified and linked to metadata.
     pub is_identified: bool,
+    /// Internal files for multi-part ROMs (Switch, PS3, etc.); empty for legacy single-file ROMs.
+    #[serde(default)]
+    pub files: Vec<RomFile>,
 }
 
 /// A paginated list of ROMs returned by the API.
@@ -216,4 +248,84 @@ pub struct Collection {
     pub is_virtual: bool,
     #[serde(default)]
     pub virtual_id: Option<String>,
+}
+
+#[cfg(test)]
+mod rom_files_serde_tests {
+    use super::{Rom, RomFile, RomFileCategory};
+    use serde_json::json;
+
+    fn minimal_rom_json() -> serde_json::Value {
+        json!({
+            "id": 1,
+            "platform_id": 2,
+            "platform_slug": null,
+            "platform_fs_slug": null,
+            "platform_custom_name": null,
+            "platform_display_name": null,
+            "fs_name": "game.nsp",
+            "fs_name_no_tags": "game",
+            "fs_name_no_ext": "game",
+            "fs_extension": "nsp",
+            "fs_path": "/game.nsp",
+            "fs_size_bytes": 100,
+            "name": "Game",
+            "slug": null,
+            "summary": null,
+            "path_cover_small": null,
+            "path_cover_large": null,
+            "url_cover": null,
+            "has_manual": false,
+            "path_manual": null,
+            "url_manual": null,
+            "is_unidentified": false,
+            "is_identified": true
+        })
+    }
+
+    #[test]
+    fn rom_deserializes_empty_files_when_field_missing() {
+        let rom: Rom = serde_json::from_value(minimal_rom_json()).expect("rom");
+        assert!(rom.files.is_empty());
+    }
+
+    #[test]
+    fn rom_deserializes_files_array() {
+        let mut v = minimal_rom_json();
+        v["files"] = json!([
+            {
+                "id": 10,
+                "rom_id": 1,
+                "file_name": "base.nsp",
+                "file_path": "/base.nsp",
+                "file_size_bytes": 60,
+                "category": "game"
+            },
+            {
+                "id": 11,
+                "rom_id": 1,
+                "file_name": "upd.nsp",
+                "file_path": "/upd.nsp",
+                "file_size_bytes": 40,
+                "category": "update"
+            }
+        ]);
+        let rom: Rom = serde_json::from_value(v).expect("rom");
+        assert_eq!(rom.files.len(), 2);
+        assert_eq!(rom.files[0].category, Some(RomFileCategory::Game));
+        assert_eq!(rom.files[1].category, Some(RomFileCategory::Update));
+    }
+
+    #[test]
+    fn rom_file_category_none_deserializes() {
+        let f: RomFile = serde_json::from_value(json!({
+            "id": 1,
+            "rom_id": 2,
+            "file_name": "x.bin",
+            "file_path": "/x.bin",
+            "file_size_bytes": 1
+        }))
+        .expect("romfile");
+        assert_eq!(f.category, None);
+    }
 }

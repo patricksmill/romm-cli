@@ -10,6 +10,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use crate::core::download::{DownloadJob, DownloadStatus};
+use crate::core::extras::collect_update_dlc_files;
 use crate::core::utils::format_size;
 use crate::tui::utils::{open_in_browser, truncate};
 use crate::types::Rom;
@@ -187,6 +188,7 @@ impl GameDetailScreen {
     /// True when the extras picker can offer at least one row.
     pub fn has_any_extras(&self) -> bool {
         !self.other_files.is_empty()
+            || !collect_update_dlc_files(&self.rom).is_empty()
             || self
                 .rom
                 .url_cover
@@ -558,6 +560,7 @@ mod tests {
             url_manual: None,
             is_unidentified: false,
             is_identified: true,
+            files: Vec::new(),
         };
         let previous = GameDetailPrevious::Search(SearchScreen::new());
         let downloads = Arc::new(Mutex::new(Vec::new()));
@@ -594,6 +597,7 @@ mod tests {
             url_manual: None,
             is_unidentified: false,
             is_identified: true,
+            files: Vec::new(),
         };
         let previous = GameDetailPrevious::Search(SearchScreen::new());
         let downloads = Arc::new(Mutex::new(Vec::new()));
@@ -627,6 +631,7 @@ mod tests {
             url_manual: None,
             is_unidentified: false,
             is_identified: true,
+            files: Vec::new(),
         };
         let previous = GameDetailPrevious::Search(SearchScreen::new());
         let downloads = Arc::new(Mutex::new(Vec::new()));
@@ -660,6 +665,7 @@ mod tests {
             url_manual: None,
             is_unidentified: false,
             is_identified: true,
+            files: Vec::new(),
         };
         let previous = GameDetailPrevious::Search(SearchScreen::new());
         let downloads = Arc::new(Mutex::new(Vec::new()));
@@ -698,6 +704,7 @@ mod tests {
             url_manual: None,
             is_unidentified: false,
             is_identified: true,
+            files: Vec::new(),
         };
         let previous = GameDetailPrevious::Search(SearchScreen::new());
         let downloads = Arc::new(Mutex::new(Vec::new()));

@@ -31,6 +31,7 @@ use crate::commands::library_scan::ScanCacheInvalidate;
 use crate::config::{auth_for_persist_merge, normalize_romm_origin, Config, ExtrasDefaults};
 use crate::core::cache::{RomCache, RomCacheKey};
 use crate::core::download::DownloadManager;
+use crate::core::extras::has_update_or_dlc_extras;
 use crate::core::startup_library_snapshot;
 use crate::endpoints::roms::GetRoms;
 use crate::types::{Collection, Platform, RomList};
@@ -849,7 +850,8 @@ impl App {
                     // Safety: Don't actually run self_update if this is a mock
                     if prompt.status.latest_version == "9.9.9-mock" {
                         tokio::time::sleep(std::time::Duration::from_secs(2)).await; // Simulate some work
-                        self.global_error = Some("Mock update successful! (No files were changed)".into());
+                        self.global_error =
+                            Some("Mock update successful! (No files were changed)".into());
                         self.startup_update_prompt = None;
                     } else {
                         match crate::update::apply_update(None, false).await {
@@ -1152,7 +1154,11 @@ impl App {
         }
 
         match key.code {
-            KeyCode::Char('u') | KeyCode::Char('U') | KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Enter => {
+            KeyCode::Char('u')
+            | KeyCode::Char('U')
+            | KeyCode::Char('y')
+            | KeyCode::Char('Y')
+            | KeyCode::Enter => {
                 prompt.updating = true;
                 // We need to return true to trigger a re-draw so the "Updating..." message shows up.
                 // But wait, the loop is in run().
@@ -1264,9 +1270,9 @@ impl App {
                 2 => {
                     self.screen_before_download = Some(AppScreen::MainMenu(MainMenuScreen::new()));
                     self.screen = AppScreen::Download(DownloadScreen::new(
-                    self.downloads.shared(),
-                    self.downloads.shared_extras(),
-                ));
+                        self.downloads.shared(),
+                        self.downloads.shared_extras(),
+                    ));
                 }
                 3 => {
                     self.screen = AppScreen::Settings(SettingsScreen::new(
@@ -2078,7 +2084,15 @@ impl App {
                     self.client.clone(),
                     Some(self.config.download_dir.as_str()),
                 ) {
-                    Ok(()) => detail.has_started_download = true,
+                    Ok(()) => {
+                        detail.has_started_download = true;
+                        if has_update_or_dlc_extras(&detail.rom, &detail.other_files) {
+                            detail.message = Some(
+                                "Updates/DLC available. Press e to download extras.".to_string(),
+                            );
+                            detail.message_clear_at = Some(Instant::now() + Duration::from_secs(5));
+                        }
+                    }
                     Err(err) => {
                         detail.has_started_download = false;
                         detail.message = Some(format!(
@@ -2133,15 +2147,14 @@ impl App {
                     );
                     return Ok(false);
                 }
-                let targets = match picker
-                    .build_selected_targets(Some(self.config.download_dir.as_str()))
-                {
-                    Ok(t) => t,
-                    Err(e) => {
-                        picker.show_message(format!("{e:#}"), Duration::from_secs(4));
-                        return Ok(false);
-                    }
-                };
+                let targets =
+                    match picker.build_selected_targets(Some(self.config.download_dir.as_str())) {
+                        Ok(t) => t,
+                        Err(e) => {
+                            picker.show_message(format!("{e:#}"), Duration::from_secs(4));
+                            return Ok(false);
+                        }
+                    };
                 let rom = picker.rom.clone();
                 let prev =
                     std::mem::replace(&mut self.screen, AppScreen::MainMenu(MainMenuScreen::new()));
@@ -2158,8 +2171,7 @@ impl App {
                         Err(e) => {
                             let mut detail = *p.previous;
                             detail.message = Some(format!("Extras: {e:#}"));
-                            detail.message_clear_at =
-                                Some(Instant::now() + Duration::from_secs(5));
+                            detail.message_clear_at = Some(Instant::now() + Duration::from_secs(5));
                             self.screen = AppScreen::GameDetail(Box::new(detail));
                         }
                     }
@@ -2296,10 +2308,16 @@ impl App {
             if prompt.updating {
                 let text = vec![
                     ratatui::text::Line::from(""),
-                    ratatui::text::Line::from("Downloading and installing...").alignment(ratatui::layout::Alignment::Center),
-                    ratatui::text::Line::from("Please wait.").alignment(ratatui::layout::Alignment::Center),
+                    ratatui::text::Line::from("Downloading and installing...")
+                        .alignment(ratatui::layout::Alignment::Center),
+                    ratatui::text::Line::from("Please wait.")
+                        .alignment(ratatui::layout::Alignment::Center),
                     ratatui::text::Line::from(""),
-                    ratatui::text::Line::from("This may take a few moments.").alignment(ratatui::layout::Alignment::Center).style(ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray)),
+                    ratatui::text::Line::from("This may take a few moments.")
+                        .alignment(ratatui::layout::Alignment::Center)
+                        .style(
+                            ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
+                        ),
                 ];
                 let paragraph = ratatui::widgets::Paragraph::new(text).block(block);
                 f.render_widget(paragraph, popup_area);
@@ -2307,25 +2325,47 @@ impl App {
                 let text = vec![
                     ratatui::text::Line::from(vec![
                         ratatui::text::Span::raw("Current: "),
-                        ratatui::text::Span::styled(&prompt.status.current_version, ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray)),
-                    ]).alignment(ratatui::layout::Alignment::Center),
+                        ratatui::text::Span::styled(
+                            &prompt.status.current_version,
+                            ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
+                        ),
+                    ])
+                    .alignment(ratatui::layout::Alignment::Center),
                     ratatui::text::Line::from(vec![
                         ratatui::text::Span::raw("Latest:  "),
-                        ratatui::text::Span::styled(&prompt.status.latest_version, ratatui::style::Style::default().fg(ratatui::style::Color::Green).add_modifier(ratatui::style::Modifier::BOLD)),
-                    ]).alignment(ratatui::layout::Alignment::Center),
+                        ratatui::text::Span::styled(
+                            &prompt.status.latest_version,
+                            ratatui::style::Style::default()
+                                .fg(ratatui::style::Color::Green)
+                                .add_modifier(ratatui::style::Modifier::BOLD),
+                        ),
+                    ])
+                    .alignment(ratatui::layout::Alignment::Center),
                     ratatui::text::Line::from(""),
-                    ratatui::text::Line::from("Would you like to update?").alignment(ratatui::layout::Alignment::Center),
+                    ratatui::text::Line::from("Would you like to update?")
+                        .alignment(ratatui::layout::Alignment::Center),
                     ratatui::text::Line::from(""),
                     ratatui::text::Line::from(vec![
-                        ratatui::text::Span::styled("Y", ratatui::style::Style::default().fg(ratatui::style::Color::Yellow)),
+                        ratatui::text::Span::styled(
+                            "Y",
+                            ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
+                        ),
                         ratatui::text::Span::raw(": Yes (update)  "),
-                        ratatui::text::Span::styled("N", ratatui::style::Style::default().fg(ratatui::style::Color::Yellow)),
+                        ratatui::text::Span::styled(
+                            "N",
+                            ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
+                        ),
                         ratatui::text::Span::raw(": No (skip)"),
-                    ]).alignment(ratatui::layout::Alignment::Center),
+                    ])
+                    .alignment(ratatui::layout::Alignment::Center),
                     ratatui::text::Line::from(vec![
-                        ratatui::text::Span::styled("C", ratatui::style::Style::default().fg(ratatui::style::Color::Yellow)),
+                        ratatui::text::Span::styled(
+                            "C",
+                            ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
+                        ),
                         ratatui::text::Span::raw(": View changelog"),
-                    ]).alignment(ratatui::layout::Alignment::Center),
+                    ])
+                    .alignment(ratatui::layout::Alignment::Center),
                 ];
                 let paragraph = ratatui::widgets::Paragraph::new(text).block(block);
                 f.render_widget(paragraph, popup_area);
@@ -2648,7 +2688,9 @@ mod tests {
         match &app.screen {
             AppScreen::GameDetail(d) => {
                 assert!(
-                    d.message.as_deref().is_some_and(|m| m.contains("No extras")),
+                    d.message
+                        .as_deref()
+                        .is_some_and(|m| m.contains("No extras")),
                     "expected toast, got {:?}",
                     d.message
                 );
