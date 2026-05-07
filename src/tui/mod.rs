@@ -82,7 +82,8 @@ async fn run_started(
             changelog_url: crate::update::changelog_url().to_string(),
         })
     } else if should_check_updates() {
-        match tokio::time::timeout(Duration::from_secs(2), crate::update::check_for_update()).await {
+        match tokio::time::timeout(Duration::from_secs(2), crate::update::check_for_update()).await
+        {
             Ok(Ok(status)) if status.should_update => Some(status),
             _ => None,
         }

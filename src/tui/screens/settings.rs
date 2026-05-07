@@ -118,7 +118,11 @@ impl SettingsScreen {
             self.message = Some((
                 format!(
                     "Extras default (manual): {}",
-                    if self.extras_include_manual { "on" } else { "off" }
+                    if self.extras_include_manual {
+                        "on"
+                    } else {
+                        "off"
+                    }
                 ),
                 Color::Green,
             ));
@@ -127,7 +131,11 @@ impl SettingsScreen {
             self.message = Some((
                 format!(
                     "Extras default (cover): {}",
-                    if self.extras_include_cover { "on" } else { "off" }
+                    if self.extras_include_cover {
+                        "on"
+                    } else {
+                        "off"
+                    }
                 ),
                 Color::Green,
             ));
@@ -136,7 +144,11 @@ impl SettingsScreen {
             self.message = Some((
                 format!(
                     "Extras default (updates/DLC): {}",
-                    if self.extras_include_related_roms { "on" } else { "off" }
+                    if self.extras_include_related_roms {
+                        "on"
+                    } else {
+                        "off"
+                    }
                 ),
                 Color::Green,
             ));

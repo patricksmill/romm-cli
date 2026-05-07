@@ -62,7 +62,11 @@ impl DownloadScreen {
             let inner = block.inner(chunks[0]);
             let max_rows = inner.height as usize;
             let rows = Layout::default()
-                .constraints((0..max_rows.max(1)).map(|_| Constraint::Length(1)).collect::<Vec<_>>())
+                .constraints(
+                    (0..max_rows.max(1))
+                        .map(|_| Constraint::Length(1))
+                        .collect::<Vec<_>>(),
+                )
                 .direction(ratatui::layout::Direction::Vertical)
                 .split(inner);
 
@@ -137,10 +141,7 @@ impl DownloadScreen {
                     let percent = job.percent();
                     let (label, gauge_style) = match &job.status {
                         ExtrasJobStatus::Running => (
-                            format!(
-                                "{}% {}/{}",
-                                percent, job.completed_items, job.total_items
-                            ),
+                            format!("{}% {}/{}", percent, job.completed_items, job.total_items),
                             Style::default().fg(Color::Cyan),
                         ),
                         ExtrasJobStatus::Done => ("Done".into(), Style::default().fg(Color::Green)),
@@ -150,17 +151,14 @@ impl DownloadScreen {
                         ),
                         ExtrasJobStatus::AllFailed => {
                             ("All failed".into(), Style::default().fg(Color::Red))
-                        },
+                        }
                     };
                     let gauge = Gauge::default()
                         .gauge_style(gauge_style)
                         .percent(percent)
                         .label(label);
 
-                    let line = format!(
-                        "Extras | {} | ",
-                        truncate(&job.name, 36),
-                    );
+                    let line = format!("Extras | {} | ", truncate(&job.name, 36),);
                     let line_len = line.chars().count().min(row_area.width as usize) as u16;
                     let line_area = Rect {
                         x: row_area.x,

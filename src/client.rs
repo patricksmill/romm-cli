@@ -473,7 +473,7 @@ impl RommClient {
             is_cancelled,
             on_progress,
         )
-            .await
+        .await
     }
 
     /// Downloads an arbitrary URL to `save_path`, supporting auth headers and resume.
