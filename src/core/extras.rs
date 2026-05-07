@@ -49,6 +49,7 @@ pub struct DownloadTarget {
     pub source_url: String,
     pub source_query: Vec<(String, String)>,
     pub destination: PathBuf,
+    pub expected_size_bytes: Option<u64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -69,7 +70,7 @@ pub async fn build_extras_targets(
     let extras_root = extras_root_dir(output_dir, &rom);
 
     let mut targets = Vec::new();
-    targets.extend(build_internal_extra_targets(&rom, &extras_root));
+    targets.extend(build_internal_extra_targets(&rom, output_dir));
     targets.extend(build_related_rom_targets(client, &rom, &extras_root).await?);
     if let Some(cover) = build_cover_target(&rom, &extras_root) {
         targets.push(cover);
@@ -101,8 +102,8 @@ pub fn build_base_rom_file_targets(rom: &Rom, output_dir: &Path) -> Vec<Download
         .collect()
 }
 
-pub fn build_update_dlc_file_targets_for_rom(rom: &Rom, extras_root: &Path) -> Vec<DownloadTarget> {
-    build_internal_extra_targets(rom, extras_root)
+pub fn build_update_dlc_file_targets_for_rom(rom: &Rom, output_dir: &Path) -> Vec<DownloadTarget> {
+    build_internal_extra_targets(rom, output_dir)
 }
 
 pub fn collect_update_dlc_files(rom: &Rom) -> Vec<RomFile> {
@@ -145,17 +146,17 @@ async fn build_related_rom_targets(
     Ok(targets)
 }
 
-fn build_internal_extra_targets(rom: &Rom, extras_root: &Path) -> Vec<DownloadTarget> {
+fn build_internal_extra_targets(rom: &Rom, output_dir: &Path) -> Vec<DownloadTarget> {
     let updates = internal_file_subset(rom, InternalRomFileGroup::Update);
     let dlc = internal_file_subset(rom, InternalRomFileGroup::Dlc);
     let mut out = Vec::with_capacity(updates.len() + dlc.len());
+    let platform_dir = platform_download_dir(output_dir, rom);
+    let game_dir = sanitized_extra_game_name(&rom.name, rom.id);
     for f in updates {
         out.push(internal_rom_file_target(
             rom,
             f,
-            &extras_root
-                .join(DownloadAssetKind::RomFile.folder_name())
-                .join("updates"),
+            &platform_dir.join("updates").join(&game_dir),
             InternalRomFileGroup::Update,
         ));
     }
@@ -163,9 +164,7 @@ fn build_internal_extra_targets(rom: &Rom, extras_root: &Path) -> Vec<DownloadTa
         out.push(internal_rom_file_target(
             rom,
             f,
-            &extras_root
-                .join(DownloadAssetKind::RomFile.folder_name())
-                .join("dlc"),
+            &platform_dir.join("dlc").join(&game_dir),
             InternalRomFileGroup::Dlc,
         ));
     }
@@ -190,6 +189,7 @@ pub fn related_rom_download_target(
         destination: extras_root
             .join(DownloadAssetKind::RomArchive.folder_name())
             .join(name),
+        expected_size_bytes: None,
     }
 }
 
@@ -200,7 +200,7 @@ fn internal_rom_file_target(
     group: InternalRomFileGroup,
 ) -> DownloadTarget {
     let encoded_name = utf8_percent_encode(&file.file_name, NON_ALPHANUMERIC).to_string();
-    let source_url = format!("/api/romsfiles/{}/content/{}", file.id, encoded_name);
+    let source_url = format!("/api/roms/{}/files/content/{}", file.id, encoded_name);
     let title = match group {
         InternalRomFileGroup::BaseGame => file.file_name.clone(),
         InternalRomFileGroup::Update => format!("Update: {}", file.file_name),
@@ -213,6 +213,7 @@ fn internal_rom_file_target(
         source_url,
         source_query: Vec::new(),
         destination: destination_dir.join(output_name),
+        expected_size_bytes: Some(file.file_size_bytes),
     }
 }
 
@@ -231,6 +232,7 @@ pub fn build_cover_target(rom: &Rom, extras_root: &Path) -> Option<DownloadTarge
         destination: extras_root
             .join(DownloadAssetKind::Cover.folder_name())
             .join(filename),
+        expected_size_bytes: None,
     })
 }
 
@@ -249,6 +251,7 @@ pub fn build_manual_target(rom: &Rom, extras_root: &Path) -> Option<DownloadTarg
         destination: extras_root
             .join(DownloadAssetKind::Manual.folder_name())
             .join(filename),
+        expected_size_bytes: None,
     })
 }
 
@@ -452,7 +455,7 @@ mod tests {
         assert_eq!(targets[0].kind, DownloadAssetKind::RomFile);
         assert_eq!(
             targets[0].source_url,
-            "/api/romsfiles/10/content/base%2Ensp"
+            "/api/roms/10/files/content/base%2Ensp"
         );
         assert!(targets[0].destination.ends_with("Nintendo Switch/base.nsp"));
     }
@@ -492,15 +495,21 @@ mod tests {
         assert!(base[0]
             .destination
             .ends_with("Nintendo Switch/Game Base.nsp"));
-        let extras = build_update_dlc_file_targets_for_rom(&rom, Path::new("/tmp/out/extras"));
+        let extras = build_update_dlc_file_targets_for_rom(&rom, Path::new("/tmp/out"));
         assert_eq!(extras.len(), 2);
         assert_eq!(
             extras[0].source_url,
-            "/api/romsfiles/10/content/Game%20%5Bv1%2E4%2E0%5D%20%5BUpdate%5D%2Ensp"
+            "/api/roms/10/files/content/Game%20%5Bv1%2E4%2E0%5D%20%5BUpdate%5D%2Ensp"
         );
+        assert!(extras[0]
+            .destination
+            .ends_with("Nintendo Switch/updates/Game/Game _v1.4.0_ _Update_.nsp"));
         assert_eq!(
             extras[1].source_url,
-            "/api/romsfiles/11/content/Game%20%5BDLC%5D%2Ensp"
+            "/api/roms/11/files/content/Game%20%5BDLC%5D%2Ensp"
         );
+        assert!(extras[1]
+            .destination
+            .ends_with("Nintendo Switch/dlc/Game/Game _DLC_.nsp"));
     }
 }

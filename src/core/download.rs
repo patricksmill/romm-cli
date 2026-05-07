@@ -399,6 +399,24 @@ impl DownloadManager {
                             }
                         }
                     };
+                    match prepare_download_target_destination(target).await {
+                        Ok(true) => {
+                            progress(
+                                target.expected_size_bytes.unwrap_or(0),
+                                target.expected_size_bytes.unwrap_or(0),
+                            );
+                            continue;
+                        }
+                        Ok(false) => {}
+                        Err(err) => {
+                            if let Ok(mut list) = jobs.lock() {
+                                if let Some(j) = list.iter_mut().find(|j| j.id == job_id) {
+                                    j.status = DownloadStatus::Error(err.to_string());
+                                }
+                            }
+                            return;
+                        }
+                    }
                     if let Err(final_err) =
                         download_target_with_fallback(&client, target, |_, _| false, &mut progress)
                             .await
@@ -548,13 +566,19 @@ impl DownloadManager {
                 let extras_jobs = extras_jobs.clone();
                 handles.push(tokio::spawn(async move {
                     let mut on_progress = |_r: u64, _t: u64| {};
-                    let download_result = download_target_with_fallback(
-                        &client,
-                        &target,
-                        |_, _| false,
-                        &mut on_progress,
-                    )
-                    .await;
+                    let download_result = match prepare_download_target_destination(&target).await {
+                        Ok(true) => Ok(()),
+                        Ok(false) => {
+                            download_target_with_fallback(
+                                &client,
+                                &target,
+                                |_, _| false,
+                                &mut on_progress,
+                            )
+                            .await
+                        }
+                        Err(err) => Err(err),
+                    };
 
                     drop(permit);
 
@@ -589,6 +613,36 @@ impl DownloadManager {
 
         Ok(())
     }
+}
+
+pub async fn prepare_download_target_destination(target: &DownloadTarget) -> Result<bool> {
+    let Some(expected_size) = target.expected_size_bytes else {
+        return Ok(false);
+    };
+    if expected_size == 0 {
+        return Ok(false);
+    }
+
+    let Ok(metadata) = tokio::fs::metadata(&target.destination).await else {
+        return Ok(false);
+    };
+    let current_size = metadata.len();
+    if current_size == expected_size {
+        return Ok(true);
+    }
+    if current_size > expected_size {
+        tokio::fs::remove_file(&target.destination)
+            .await
+            .with_context(|| {
+                format!(
+                    "remove oversized stale download {} ({} > {} bytes)",
+                    target.destination.display(),
+                    current_size,
+                    expected_size
+                )
+            })?;
+    }
+    Ok(false)
 }
 
 async fn download_target_with_fallback<F, C>(
@@ -628,10 +682,33 @@ where
 
 fn candidate_download_urls(target: &DownloadTarget) -> Vec<String> {
     let mut out = vec![target.source_url.clone()];
-    if let Some((file_id, file_name)) = parse_legacy_roms_files_path(&target.source_url) {
+    if let Some((file_id, file_name)) = parse_current_rom_file_content_path(&target.source_url) {
+        out.push(format!("/api/romsfiles/{file_id}/content/{file_name}"));
+        out.push(format!("/api/roms/files/{file_id}/content/{file_name}"));
+    } else if let Some((file_id, file_name)) = parse_romsfiles_path(&target.source_url) {
+        out.push(format!("/api/roms/{file_id}/files/content/{file_name}"));
+        out.push(format!("/api/roms/files/{file_id}/content/{file_name}"));
+    } else if let Some((file_id, file_name)) = parse_legacy_roms_files_path(&target.source_url) {
+        out.push(format!("/api/roms/{file_id}/files/content/{file_name}"));
         out.push(format!("/api/romsfiles/{file_id}/content/{file_name}"));
     }
     dedupe_preserve_order(out)
+}
+
+fn parse_current_rom_file_content_path(url: &str) -> Option<(String, String)> {
+    let prefix = "/api/roms/";
+    let marker = "/files/content/";
+    let rest = url.strip_prefix(prefix)?;
+    let (id, name) = rest.split_once(marker)?;
+    Some((id.to_string(), name.to_string()))
+}
+
+fn parse_romsfiles_path(url: &str) -> Option<(String, String)> {
+    let prefix = "/api/romsfiles/";
+    let marker = "/content/";
+    let rest = url.strip_prefix(prefix)?;
+    let (id, name) = rest.split_once(marker)?;
+    Some((id.to_string(), name.to_string()))
 }
 
 fn parse_legacy_roms_files_path(url: &str) -> Option<(String, String)> {
@@ -912,14 +989,40 @@ mod tests {
         let target = DownloadTarget {
             kind: DownloadAssetKind::RomFile,
             title: "Update".into(),
-            source_url: "/api/romsfiles/11/content/update%2Ensp".into(),
+            source_url: "/api/roms/11/files/content/update%2Ensp".into(),
             source_query: Vec::new(),
             destination: PathBuf::from("/tmp/update.nsp"),
+            expected_size_bytes: Some(11),
         };
 
         assert_eq!(
             candidate_download_urls(&target),
-            vec!["/api/romsfiles/11/content/update%2Ensp".to_string()]
+            vec![
+                "/api/roms/11/files/content/update%2Ensp".to_string(),
+                "/api/romsfiles/11/content/update%2Ensp".to_string(),
+                "/api/roms/files/11/content/update%2Ensp".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn romsfiles_candidate_falls_forward_to_current_official_path() {
+        let target = DownloadTarget {
+            kind: DownloadAssetKind::RomFile,
+            title: "Update".into(),
+            source_url: "/api/romsfiles/11/content/update%2Ensp".into(),
+            source_query: Vec::new(),
+            destination: PathBuf::from("/tmp/update.nsp"),
+            expected_size_bytes: Some(11),
+        };
+
+        assert_eq!(
+            candidate_download_urls(&target),
+            vec![
+                "/api/romsfiles/11/content/update%2Ensp".to_string(),
+                "/api/roms/11/files/content/update%2Ensp".to_string(),
+                "/api/roms/files/11/content/update%2Ensp".to_string()
+            ]
         );
     }
 
@@ -931,15 +1034,64 @@ mod tests {
             source_url: "/api/roms/files/11/content/update%2Ensp".into(),
             source_query: Vec::new(),
             destination: PathBuf::from("/tmp/update.nsp"),
+            expected_size_bytes: Some(11),
         };
 
         assert_eq!(
             candidate_download_urls(&target),
             vec![
                 "/api/roms/files/11/content/update%2Ensp".to_string(),
+                "/api/roms/11/files/content/update%2Ensp".to_string(),
                 "/api/romsfiles/11/content/update%2Ensp".to_string()
             ]
         );
+    }
+
+    #[tokio::test]
+    async fn prepare_target_removes_oversized_stale_rom_file() {
+        let ts = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("romm-oversized-target-{ts}.nsp"));
+        tokio::fs::write(&path, b"too-large").await.unwrap();
+
+        let target = DownloadTarget {
+            kind: DownloadAssetKind::RomFile,
+            title: "Base".into(),
+            source_url: "/api/roms/1/files/content/base.nsp".into(),
+            source_query: Vec::new(),
+            destination: path.clone(),
+            expected_size_bytes: Some(4),
+        };
+
+        let skip = prepare_download_target_destination(&target).await.unwrap();
+        assert!(!skip);
+        assert!(!path.exists());
+    }
+
+    #[tokio::test]
+    async fn prepare_target_skips_exact_size_rom_file() {
+        let ts = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("romm-exact-target-{ts}.nsp"));
+        tokio::fs::write(&path, b"done").await.unwrap();
+
+        let target = DownloadTarget {
+            kind: DownloadAssetKind::RomFile,
+            title: "Base".into(),
+            source_url: "/api/roms/1/files/content/base.nsp".into(),
+            source_query: Vec::new(),
+            destination: path.clone(),
+            expected_size_bytes: Some(4),
+        };
+
+        let skip = prepare_download_target_destination(&target).await.unwrap();
+        assert!(skip);
+        assert_eq!(tokio::fs::read(&path).await.unwrap(), b"done");
+        let _ = tokio::fs::remove_file(path).await;
     }
 
     #[tokio::test]

@@ -8,10 +8,12 @@ use std::sync::Arc;
 use tokio::sync::Semaphore;
 
 use crate::client::RommClient;
-use crate::core::download::{download_directory, extract_zip_archive, unique_zip_path};
+use crate::core::download::{
+    download_directory, extract_zip_archive, prepare_download_target_destination, unique_zip_path,
+};
 use crate::core::extras::{
     build_base_rom_file_targets, build_extras_targets, build_update_dlc_file_targets_for_rom,
-    extras_root_dir, has_update_or_dlc_extras, DownloadTarget,
+    has_update_or_dlc_extras, DownloadTarget,
 };
 use crate::core::interrupt::{cancelled_error, is_cancelled_error, InterruptContext};
 use crate::core::utils;
@@ -150,6 +152,13 @@ async fn download_target(
 
     let urls = candidate_download_urls(target);
     let mut last_err: Option<anyhow::Error> = None;
+    if prepare_download_target_destination(target).await? {
+        if let Some(expected_size) = target.expected_size_bytes {
+            progress(expected_size, expected_size);
+        }
+        pb.finish_with_message(format!("✓ {}: {}", target.kind.label(), target.title));
+        return Ok(());
+    }
     for url in urls {
         match client
             .download_url_with_query_with_cancel(
@@ -186,10 +195,33 @@ fn candidate_download_urls(target: &DownloadTarget) -> Vec<String> {
         return vec![target.source_url.clone()];
     }
     let mut out = vec![target.source_url.clone()];
-    if let Some((file_id, file_name)) = parse_legacy_roms_files_path(&target.source_url) {
+    if let Some((file_id, file_name)) = parse_current_rom_file_content_path(&target.source_url) {
+        out.push(format!("/api/romsfiles/{file_id}/content/{file_name}"));
+        out.push(format!("/api/roms/files/{file_id}/content/{file_name}"));
+    } else if let Some((file_id, file_name)) = parse_romsfiles_path(&target.source_url) {
+        out.push(format!("/api/roms/{file_id}/files/content/{file_name}"));
+        out.push(format!("/api/roms/files/{file_id}/content/{file_name}"));
+    } else if let Some((file_id, file_name)) = parse_legacy_roms_files_path(&target.source_url) {
+        out.push(format!("/api/roms/{file_id}/files/content/{file_name}"));
         out.push(format!("/api/romsfiles/{file_id}/content/{file_name}"));
     }
     dedupe_preserve_order(out)
+}
+
+fn parse_current_rom_file_content_path(url: &str) -> Option<(String, String)> {
+    let prefix = "/api/roms/";
+    let marker = "/files/content/";
+    let rest = url.strip_prefix(prefix)?;
+    let (id, name) = rest.split_once(marker)?;
+    Some((id.to_string(), name.to_string()))
+}
+
+fn parse_romsfiles_path(url: &str) -> Option<(String, String)> {
+    let prefix = "/api/romsfiles/";
+    let marker = "/content/";
+    let rest = url.strip_prefix(prefix)?;
+    let (id, name) = rest.split_once(marker)?;
+    Some((id.to_string(), name.to_string()))
 }
 
 fn parse_legacy_roms_files_path(url: &str) -> Option<(String, String)> {
@@ -399,7 +431,12 @@ pub async fn handle(
         let base_targets = build_base_rom_file_targets(&rom, &output_dir);
 
         if !base_targets.is_empty() {
-            run_targets(base_targets, client, interrupt.clone(), 1).await?;
+            let summary = run_targets(base_targets, client, interrupt.clone(), 1).await?;
+            if summary.failures > 0 || summary.cancelled > 0 || summary.successes == 0 {
+                return Err(anyhow!(
+                    "base game download failed; not prompting for updates/DLC"
+                ));
+            }
             println!("Base game files downloaded.");
         } else {
             let save_path = output_dir.join(format!("rom_{rom_id}.zip"));
@@ -417,8 +454,7 @@ pub async fn handle(
         if should_prompt_extras {
             let include_extras = resolve_include_extras_choice(&cmd)?;
             if include_extras {
-                let extras_root = extras_root_dir(&output_dir, &rom);
-                let extras_targets = build_update_dlc_file_targets_for_rom(&rom, &extras_root);
+                let extras_targets = build_update_dlc_file_targets_for_rom(&rom, &output_dir);
                 if !extras_targets.is_empty() {
                     run_targets(extras_targets, client, interrupt, cmd.jobs).await?;
                 }
@@ -437,7 +473,15 @@ async fn handle_extras(
     jobs: usize,
 ) -> Result<()> {
     let targets = build_extras_targets(client, cmd.rom_id, &output_dir).await?;
-    run_targets(targets, client, interrupt, jobs).await
+    run_targets(targets, client, interrupt, jobs).await?;
+    Ok(())
+}
+
+#[derive(Debug, Clone, Copy)]
+struct DownloadRunSummary {
+    successes: u32,
+    failures: u32,
+    cancelled: u32,
 }
 
 async fn run_targets(
@@ -445,10 +489,14 @@ async fn run_targets(
     client: &RommClient,
     interrupt: InterruptContext,
     jobs: usize,
-) -> Result<()> {
+) -> Result<DownloadRunSummary> {
     if targets.is_empty() {
         println!("No downloadable extras were found.");
-        return Ok(());
+        return Ok(DownloadRunSummary {
+            successes: 0,
+            failures: 0,
+            cancelled: 0,
+        });
     }
 
     println!(
@@ -507,9 +555,15 @@ async fn run_targets(
     if interrupt.is_cancelled() {
         println!("\nInterrupted by user.");
     }
-    println!("\nExtras complete: {successes} succeeded, {failures} failed, {cancelled} cancelled.");
+    println!(
+        "\nDownload complete: {successes} succeeded, {failures} failed, {cancelled} cancelled."
+    );
 
-    Ok(())
+    Ok(DownloadRunSummary {
+        successes,
+        failures,
+        cancelled,
+    })
 }
 
 fn resolve_include_extras_choice(cmd: &DownloadCommand) -> Result<bool> {
@@ -717,14 +771,19 @@ mod tests {
         let target = DownloadTarget {
             kind: crate::core::extras::DownloadAssetKind::RomFile,
             title: "DLC".into(),
-            source_url: "/api/romsfiles/12/content/dlc%2Ensp".into(),
+            source_url: "/api/roms/12/files/content/dlc%2Ensp".into(),
             source_query: Vec::new(),
             destination: PathBuf::from("/tmp/dlc.nsp"),
+            expected_size_bytes: Some(12),
         };
 
         assert_eq!(
             candidate_download_urls(&target),
-            vec!["/api/romsfiles/12/content/dlc%2Ensp".to_string()]
+            vec![
+                "/api/roms/12/files/content/dlc%2Ensp".to_string(),
+                "/api/romsfiles/12/content/dlc%2Ensp".to_string(),
+                "/api/roms/files/12/content/dlc%2Ensp".to_string()
+            ]
         );
     }
 

@@ -176,7 +176,7 @@ impl ExtrasPickerScreen {
         let out = resolve_download_directory(configured_download_dir)?;
         let root = extras_root_dir(&out, &self.rom);
         let mut targets = Vec::new();
-        let internal_targets = build_update_dlc_file_targets_for_rom(&self.rom, &root);
+        let internal_targets = build_update_dlc_file_targets_for_rom(&self.rom, &out);
 
         for item in &self.items {
             if !item.checked {
@@ -191,7 +191,9 @@ impl ExtrasPickerScreen {
                         .iter()
                         .find(|t| {
                             t.source_url
-                                .contains(&format!("/api/romsfiles/{}/", file.id))
+                                .contains(&format!("/api/roms/{}/files/", file.id))
+                                || t.source_url
+                                    .contains(&format!("/api/romsfiles/{}/", file.id))
                         })
                         .cloned()
                     {
