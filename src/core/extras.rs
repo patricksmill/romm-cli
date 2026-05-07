@@ -82,6 +82,22 @@ pub async fn build_extras_targets(
     Ok(targets)
 }
 
+/// Updates/DLC set for the normal single-ROM download follow-up prompt.
+pub async fn build_update_dlc_targets_for_rom(
+    client: &RommClient,
+    rom: &Rom,
+    output_dir: &Path,
+) -> Result<Vec<DownloadTarget>> {
+    let extras_root = extras_root_dir(output_dir, rom);
+    let related_rows = related_rom_rows(client, rom).await?;
+    Ok(build_update_dlc_targets_from_related_rows(
+        rom,
+        &related_rows,
+        output_dir,
+        &extras_root,
+    ))
+}
+
 pub fn has_update_or_dlc_extras(rom: &Rom, related_rows: &[Rom]) -> bool {
     !internal_file_subset(rom, InternalRomFileGroup::Update).is_empty()
         || !internal_file_subset(rom, InternalRomFileGroup::Dlc).is_empty()
@@ -117,6 +133,14 @@ async fn build_related_rom_targets(
     rom: &Rom,
     extras_root: &Path,
 ) -> Result<Vec<DownloadTarget>> {
+    let related_rows = related_rom_rows(client, rom).await?;
+    Ok(related_rows
+        .iter()
+        .map(|candidate| related_rom_download_target(rom, candidate, extras_root))
+        .collect())
+}
+
+async fn related_rom_rows(client: &RommClient, rom: &Rom) -> Result<Vec<Rom>> {
     let service = RomService::new(client);
     let ep = GetRoms {
         search_term: Some(rom.name.clone()),
@@ -130,20 +154,35 @@ async fn build_related_rom_targets(
         return Ok(Vec::new());
     };
 
-    let mut targets = Vec::new();
+    let mut rows = Vec::new();
     let mut seen = std::collections::HashSet::new();
     let mut push_rom = |candidate: &Rom| {
         if candidate.id == rom.id || !seen.insert(candidate.id) {
             return;
         }
-        targets.push(related_rom_download_target(rom, candidate, extras_root));
+        rows.push(candidate.clone());
     };
 
     push_rom(&group.primary);
     for other in &group.others {
         push_rom(other);
     }
-    Ok(targets)
+    Ok(rows)
+}
+
+pub fn build_update_dlc_targets_from_related_rows(
+    rom: &Rom,
+    related_rows: &[Rom],
+    output_dir: &Path,
+    extras_root: &Path,
+) -> Vec<DownloadTarget> {
+    let mut targets = build_internal_extra_targets(rom, output_dir);
+    targets.extend(
+        related_rows
+            .iter()
+            .map(|candidate| related_rom_download_target(rom, candidate, extras_root)),
+    );
+    targets
 }
 
 fn build_internal_extra_targets(rom: &Rom, output_dir: &Path) -> Vec<DownloadTarget> {
@@ -316,7 +355,7 @@ fn filename_has_token(name: &str, tokens: &[&str]) -> bool {
     let normalized = normalized.replace(['[', ']', '(', ')', '{', '}', '-', '_', '.'], " ");
     normalized
         .split_whitespace()
-        .any(|part| tokens.iter().any(|t| part == *t))
+        .any(|part| tokens.contains(&part))
 }
 
 fn sanitized_extra_game_name(name: &str, rom_id: u64) -> String {
@@ -511,5 +550,41 @@ mod tests {
         assert!(extras[1]
             .destination
             .ends_with("Nintendo Switch/dlc/Game/Game _DLC_.nsp"));
+    }
+
+    #[test]
+    fn update_dlc_targets_include_related_roms_but_not_cover_or_manual() {
+        let mut rom = rom_fixture(1, "Game", "pack.zip");
+        rom.url_cover = Some("https://example.com/cover.png".into());
+        rom.url_manual = Some("https://example.com/manual.pdf".into());
+        rom.files = vec![RomFile {
+            id: 10,
+            rom_id: 1,
+            file_name: "Game [Update].nsp".into(),
+            file_path: "/upd.nsp".into(),
+            file_size_bytes: 10,
+            category: Some(RomFileCategory::Update),
+        }];
+        let related = Rom {
+            id: 2,
+            fs_name: "Game DLC.zip".into(),
+            ..rom_fixture(2, "Game", "Game DLC.zip")
+        };
+        let extras_root = extras_root_dir(Path::new("/tmp/out"), &rom);
+
+        let targets = build_update_dlc_targets_from_related_rows(
+            &rom,
+            &[related],
+            Path::new("/tmp/out"),
+            &extras_root,
+        );
+
+        assert_eq!(targets.len(), 2);
+        assert!(targets.iter().any(|t| t.kind == DownloadAssetKind::RomFile));
+        assert!(targets
+            .iter()
+            .any(|t| t.kind == DownloadAssetKind::RomArchive));
+        assert!(!targets.iter().any(|t| t.kind == DownloadAssetKind::Cover));
+        assert!(!targets.iter().any(|t| t.kind == DownloadAssetKind::Manual));
     }
 }

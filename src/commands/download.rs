@@ -12,8 +12,8 @@ use crate::core::download::{
     download_directory, extract_zip_archive, prepare_download_target_destination, unique_zip_path,
 };
 use crate::core::extras::{
-    build_base_rom_file_targets, build_extras_targets, build_update_dlc_file_targets_for_rom,
-    has_update_or_dlc_extras, DownloadTarget,
+    build_base_rom_file_targets, build_extras_targets, build_update_dlc_targets_for_rom,
+    DownloadTarget,
 };
 use crate::core::interrupt::{cancelled_error, is_cancelled_error, InterruptContext};
 use crate::core::utils;
@@ -23,6 +23,17 @@ use crate::types::Platform;
 
 /// Maximum number of concurrent download connections.
 const DEFAULT_CONCURRENCY: usize = 4;
+
+fn parse_nonzero_usize(value: &str) -> std::result::Result<usize, String> {
+    let parsed = value
+        .parse::<usize>()
+        .map_err(|err| format!("invalid number: {err}"))?;
+    if parsed == 0 {
+        Err("must be at least 1".to_string())
+    } else {
+        Ok(parsed)
+    }
+}
 
 /// Download a ROM to the local filesystem with a progress bar.
 #[derive(Args, Debug)]
@@ -46,7 +57,7 @@ pub struct DownloadCommand {
     pub search_term: Option<String>,
 
     /// Maximum concurrent downloads (default: 4)
-    #[arg(long, default_value_t = DEFAULT_CONCURRENCY, global = true)]
+    #[arg(long, default_value_t = DEFAULT_CONCURRENCY, value_parser = parse_nonzero_usize, global = true)]
     pub jobs: usize,
 
     /// Extract each downloaded ZIP after download completes (batch mode only)
@@ -450,14 +461,11 @@ pub async fn handle(
             println!("Saved to {:?}", save_path);
         }
 
-        let should_prompt_extras = has_update_or_dlc_extras(&rom, &[]);
-        if should_prompt_extras {
+        let extras_targets = build_update_dlc_targets_for_rom(client, &rom, &output_dir).await?;
+        if !extras_targets.is_empty() {
             let include_extras = resolve_include_extras_choice(&cmd)?;
             if include_extras {
-                let extras_targets = build_update_dlc_file_targets_for_rom(&rom, &output_dir);
-                if !extras_targets.is_empty() {
-                    run_targets(extras_targets, client, interrupt, cmd.jobs).await?;
-                }
+                run_targets(extras_targets, client, interrupt, cmd.jobs).await?;
             }
         }
     }
@@ -752,6 +760,12 @@ mod tests {
             "3",
         ]);
         assert!(parsed.is_err(), "expected clap parse failure");
+    }
+
+    #[test]
+    fn parse_download_rejects_zero_jobs() {
+        let parsed = Cli::try_parse_from(["romm-cli", "download", "42", "--jobs", "0"]);
+        assert!(parsed.is_err(), "expected --jobs 0 to fail");
     }
 
     #[test]

@@ -175,10 +175,13 @@ pub struct Rom {
     /// Original URL of the cover image.
     pub url_cover: Option<String>,
     /// True if the ROM has an associated manual.
+    #[serde(default)]
     pub has_manual: bool,
     /// Path to the manual file.
+    #[serde(default)]
     pub path_manual: Option<String>,
     /// Original URL of the manual file.
+    #[serde(default)]
     pub url_manual: Option<String>,
     /// True if the ROM is not yet fully identified.
     pub is_unidentified: bool,
@@ -287,6 +290,20 @@ mod rom_files_serde_tests {
     fn rom_deserializes_empty_files_when_field_missing() {
         let rom: Rom = serde_json::from_value(minimal_rom_json()).expect("rom");
         assert!(rom.files.is_empty());
+    }
+
+    #[test]
+    fn rom_deserializes_when_manual_fields_missing() {
+        let mut v = minimal_rom_json();
+        let obj = v.as_object_mut().expect("object");
+        obj.remove("has_manual");
+        obj.remove("path_manual");
+        obj.remove("url_manual");
+
+        let rom: Rom = serde_json::from_value(v).expect("rom");
+        assert!(!rom.has_manual);
+        assert_eq!(rom.path_manual, None);
+        assert_eq!(rom.url_manual, None);
     }
 
     #[test]

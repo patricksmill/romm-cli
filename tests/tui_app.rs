@@ -240,6 +240,7 @@ fn sample_rom(id: u64, name: &str) -> Rom {
         url_manual: None,
         is_unidentified: false,
         is_identified: true,
+        files: Vec::new(),
     }
 }
 

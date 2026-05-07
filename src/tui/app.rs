@@ -1162,7 +1162,7 @@ impl App {
                 prompt.updating = true;
                 // We need to return true to trigger a re-draw so the "Updating..." message shows up.
                 // But wait, the loop is in run().
-                return Ok(true);
+                Ok(true)
             }
             KeyCode::Char('c') | KeyCode::Char('C') => {
                 if let Err(err) = crate::update::open_changelog_in_browser() {

@@ -370,16 +370,6 @@ impl DownloadManager {
 
             let base_targets = build_base_rom_file_targets(&rom_for_targets, &save_dir);
             if !base_targets.is_empty() {
-                let all_exist = base_targets.iter().all(|t| t.destination.exists());
-                if all_exist {
-                    if let Ok(mut list) = jobs.lock() {
-                        if let Some(j) = list.iter_mut().find(|j| j.id == job_id) {
-                            j.status = DownloadStatus::SkippedAlreadyExists;
-                            j.progress = 1.0;
-                        }
-                    }
-                    return;
-                }
                 let total_targets = base_targets.len() as f64;
                 for (idx, target) in base_targets.iter().enumerate() {
                     let client = client.clone();
@@ -1092,6 +1082,66 @@ mod tests {
         assert!(skip);
         assert_eq!(tokio::fs::read(&path).await.unwrap(), b"done");
         let _ = tokio::fs::remove_file(path).await;
+    }
+
+    #[tokio::test]
+    async fn base_target_prepare_skips_exact_size_file() {
+        let ts = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let base = std::env::temp_dir().join(format!("romm-base-exact-{ts}"));
+        let mut rom = rom_fixture_with_platform(Some("switch"), "pack.zip");
+        rom.files = vec![crate::types::RomFile {
+            id: 1,
+            rom_id: rom.id,
+            file_name: "base.nsp".into(),
+            file_path: "/base.nsp".into(),
+            file_size_bytes: 4,
+            category: Some(crate::types::RomFileCategory::Game),
+        }];
+        let target = build_base_rom_file_targets(&rom, &base).remove(0);
+        tokio::fs::create_dir_all(target.destination.parent().unwrap())
+            .await
+            .unwrap();
+        tokio::fs::write(&target.destination, b"done")
+            .await
+            .unwrap();
+
+        let skip = prepare_download_target_destination(&target).await.unwrap();
+        assert!(skip);
+        assert_eq!(tokio::fs::read(&target.destination).await.unwrap(), b"done");
+        let _ = tokio::fs::remove_dir_all(base).await;
+    }
+
+    #[tokio::test]
+    async fn base_target_prepare_removes_oversized_file() {
+        let ts = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let base = std::env::temp_dir().join(format!("romm-base-oversized-{ts}"));
+        let mut rom = rom_fixture_with_platform(Some("switch"), "pack.zip");
+        rom.files = vec![crate::types::RomFile {
+            id: 1,
+            rom_id: rom.id,
+            file_name: "base.nsp".into(),
+            file_path: "/base.nsp".into(),
+            file_size_bytes: 4,
+            category: Some(crate::types::RomFileCategory::Game),
+        }];
+        let target = build_base_rom_file_targets(&rom, &base).remove(0);
+        tokio::fs::create_dir_all(target.destination.parent().unwrap())
+            .await
+            .unwrap();
+        tokio::fs::write(&target.destination, b"too-large")
+            .await
+            .unwrap();
+
+        let skip = prepare_download_target_destination(&target).await.unwrap();
+        assert!(!skip);
+        assert!(!target.destination.exists());
+        let _ = tokio::fs::remove_dir_all(base).await;
     }
 
     #[tokio::test]

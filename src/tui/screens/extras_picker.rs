@@ -23,7 +23,7 @@ use super::game_detail::GameDetailScreen;
 /// What to download when this row is checked and confirmed.
 #[derive(Debug, Clone)]
 pub enum ExtrasTargetSeed {
-    RelatedRom(Rom),
+    RelatedRom(Box<Rom>),
     InternalRomFile(RomFile),
     Cover,
     Manual,
@@ -57,7 +57,7 @@ impl ExtrasPickerScreen {
                 label: other.fs_name.clone(),
                 sublabel: format!("Related ROM (id {})", other.id),
                 checked: defaults.include_related_roms,
-                seed: ExtrasTargetSeed::RelatedRom(other.clone()),
+                seed: ExtrasTargetSeed::RelatedRom(Box::new(other.clone())),
             });
         }
 
