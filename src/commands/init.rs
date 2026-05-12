@@ -136,6 +136,7 @@ pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
             use_https,
             auth,
             extras_defaults: ExtrasDefaults::default(),
+            save_sync: Default::default(),
         };
         persist_user_config(&config)?;
         println!("Wrote {}", path.display());
@@ -266,6 +267,7 @@ pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
                 use_https,
                 auth: None,
                 extras_defaults: ExtrasDefaults::default(),
+                save_sync: Default::default(),
             };
             let client = RommClient::new(&temp_config, verbose)?;
             let endpoint = crate::endpoints::client_tokens::ExchangeClientToken { code };
@@ -288,6 +290,7 @@ pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
         use_https,
         auth,
         extras_defaults: ExtrasDefaults::default(),
+        save_sync: Default::default(),
     };
     persist_user_config(&config)?;
 

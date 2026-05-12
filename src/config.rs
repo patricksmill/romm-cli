@@ -83,6 +83,17 @@ impl Default for ExtrasDefaults {
     }
 }
 
+/// Save sync preferences shared by CLI/TUI frontends.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct SaveSyncConfig {
+    /// Local folder used by TUI save download/sync flows.
+    #[serde(default)]
+    pub save_dir: Option<String>,
+    /// RomM sync device id used by manual push-pull.
+    #[serde(default)]
+    pub device_id: Option<String>,
+}
+
 /// High-level configuration for the `romm-cli` application.
 ///
 /// This struct holds the connection details and authentication settings
@@ -100,6 +111,20 @@ pub struct Config {
     /// TUI extras picker: which categories start checked when rows exist.
     #[serde(default)]
     pub extras_defaults: ExtrasDefaults,
+    /// TUI save-management settings.
+    #[serde(default)]
+    pub save_sync: SaveSyncConfig,
+}
+
+pub fn resolved_save_dir(config: &Config) -> PathBuf {
+    config
+        .save_sync
+        .save_dir
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(&config.download_dir).join("saves"))
 }
 
 fn is_placeholder(value: &str) -> bool {
@@ -503,6 +528,10 @@ pub fn load_config() -> Result<Config> {
         .as_ref()
         .map(|c| c.extras_defaults.clone())
         .unwrap_or_default();
+    let save_sync = json_config
+        .as_ref()
+        .map(|c| c.save_sync.clone())
+        .unwrap_or_default();
 
     Ok(Config {
         base_url,
@@ -510,6 +539,7 @@ pub fn load_config() -> Result<Config> {
         use_https,
         auth,
         extras_defaults,
+        save_sync,
     })
 }
 
@@ -812,6 +842,34 @@ mod tests {
     }
 
     #[test]
+    fn save_sync_defaults_when_missing_from_legacy_json() {
+        let config_json = r#"{
+            "base_url": "http://from-json-file.test",
+            "download_dir": "/tmp/downloads",
+            "use_https": false,
+            "auth": null
+        }"#;
+        let cfg: Config = serde_json::from_str(config_json).expect("deserialize legacy config");
+        assert_eq!(cfg.save_sync, SaveSyncConfig::default());
+    }
+
+    #[test]
+    fn resolved_save_dir_falls_back_to_download_dir_saves() {
+        let cfg = Config {
+            base_url: "http://example.test".into(),
+            download_dir: "/roms".into(),
+            use_https: false,
+            auth: None,
+            extras_defaults: ExtrasDefaults::default(),
+            save_sync: SaveSyncConfig::default(),
+        };
+        assert_eq!(
+            resolved_save_dir(&cfg),
+            PathBuf::from("/roms").join("saves")
+        );
+    }
+
+    #[test]
     fn roms_dir_env_takes_precedence_over_legacy_download_dir_env() {
         let _env = TestEnv::new();
         std::env::set_var("API_BASE_URL", "http://example.test");
@@ -994,6 +1052,7 @@ mod tests {
                 token: KEYRING_SECRET_PLACEHOLDER.to_string(),
             }),
             extras_defaults: ExtrasDefaults::default(),
+            save_sync: SaveSyncConfig::default(),
         })
         .expect("persist bearer sentinel");
 
@@ -1017,6 +1076,7 @@ mod tests {
                 key: KEYRING_SECRET_PLACEHOLDER.to_string(),
             }),
             extras_defaults: ExtrasDefaults::default(),
+            save_sync: SaveSyncConfig::default(),
         })
         .expect("persist api key sentinel");
 
@@ -1039,6 +1099,7 @@ mod tests {
                 password: KEYRING_SECRET_PLACEHOLDER.to_string(),
             }),
             extras_defaults: ExtrasDefaults::default(),
+            save_sync: SaveSyncConfig::default(),
         })
         .expect("persist basic password sentinel");
 

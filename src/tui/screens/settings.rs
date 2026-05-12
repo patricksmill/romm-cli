@@ -4,6 +4,7 @@ use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph};
 use ratatui::Frame;
 
 use crate::config::{disk_has_unresolved_keyring_sentinel, Config};
+use crate::endpoints::device::DeviceSchema;
 use crate::tui::path_picker::{PathPicker, PathPickerMode};
 
 #[derive(PartialEq, Eq)]
@@ -11,6 +12,12 @@ pub enum SettingsField {
     BaseUrl,
     DownloadDir,
     UseHttps,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum SettingsPickerKind {
+    RomsDir,
+    SaveDir,
 }
 
 #[derive(PartialEq, Eq)]
@@ -41,7 +48,15 @@ pub struct SettingsScreen {
     pub edit_buffer: String,
     pub edit_cursor: usize,
     /// ROMs directory browser (`None` when not choosing a folder).
-    pub path_picker: Option<PathPicker>,
+    pub path_picker: Option<(SettingsPickerKind, PathPicker)>,
+    pub save_dir: String,
+    pub sync_device_id: Option<String>,
+    pub devices: Vec<DeviceSchema>,
+    pub device_picker_open: bool,
+    pub device_picker_loading: bool,
+    pub device_picker_error: Option<String>,
+    pub device_selected_index: usize,
+    pub sync_inflight: bool,
     pub message: Option<(String, Color)>,
 }
 
@@ -72,6 +87,10 @@ impl SettingsScreen {
         Self {
             base_url: config.base_url.clone(),
             download_dir: config.download_dir.clone(),
+            save_dir: crate::config::resolved_save_dir(config)
+                .display()
+                .to_string(),
+            sync_device_id: config.save_sync.device_id.clone(),
             use_https: config.use_https,
             extras_include_related_roms: config.extras_defaults.include_related_roms,
             extras_include_cover: config.extras_defaults.include_cover,
@@ -86,11 +105,17 @@ impl SettingsScreen {
             edit_buffer: String::new(),
             edit_cursor: 0,
             path_picker: None,
+            devices: Vec::new(),
+            device_picker_open: false,
+            device_picker_loading: false,
+            device_picker_error: None,
+            device_selected_index: 0,
+            sync_inflight: false,
             message: None,
         }
     }
 
-    const ROW_COUNT: usize = 9;
+    const ROW_COUNT: usize = 12;
 
     pub fn next(&mut self) {
         if !self.editing && self.confirm.is_none() {
@@ -109,11 +134,18 @@ impl SettingsScreen {
     }
 
     pub fn enter_edit(&mut self) {
-        if self.selected_index == 8 {
+        if self.selected_index == 11 {
             self.confirm = Some(SettingsConfirm::Reset);
-        } else if self.selected_index == 7 {
+        } else if self.selected_index == 10 {
             self.confirm = Some(SettingsConfirm::ClearCache);
-        } else if self.selected_index == 5 {
+        } else if self.selected_index == 8 {
+            self.device_picker_open = true;
+            self.device_picker_loading = true;
+            self.device_picker_error = None;
+            self.message = Some(("Loading devices...".to_string(), Color::Yellow));
+        } else if self.selected_index == 9 {
+            self.message = Some(("Starting save sync...".to_string(), Color::Yellow));
+        } else if self.selected_index == 7 {
             self.extras_include_manual = !self.extras_include_manual;
             self.message = Some((
                 format!(
@@ -126,7 +158,7 @@ impl SettingsScreen {
                 ),
                 Color::Green,
             ));
-        } else if self.selected_index == 4 {
+        } else if self.selected_index == 6 {
             self.extras_include_cover = !self.extras_include_cover;
             self.message = Some((
                 format!(
@@ -139,7 +171,7 @@ impl SettingsScreen {
                 ),
                 Color::Green,
             ));
-        } else if self.selected_index == 3 {
+        } else if self.selected_index == 5 {
             self.extras_include_related_roms = !self.extras_include_related_roms;
             self.message = Some((
                 format!(
@@ -163,9 +195,14 @@ impl SettingsScreen {
                 self.message = Some(("Updated URL scheme (HTTP)".to_string(), Color::Green));
             }
         } else if self.selected_index == 1 {
-            self.path_picker = Some(PathPicker::new(
-                PathPickerMode::Directory,
-                self.download_dir.as_str(),
+            self.path_picker = Some((
+                SettingsPickerKind::RomsDir,
+                PathPicker::new(PathPickerMode::Directory, self.download_dir.as_str()),
+            ));
+        } else if self.selected_index == 3 {
+            self.path_picker = Some((
+                SettingsPickerKind::SaveDir,
+                PathPicker::new(PathPickerMode::Directory, self.save_dir.as_str()),
             ));
         } else {
             self.editing = true;
@@ -219,7 +256,7 @@ impl SettingsScreen {
     }
 
     pub fn render(&mut self, f: &mut Frame, area: Rect) {
-        if let Some(ref mut picker) = self.path_picker {
+        if let Some((kind, ref mut picker)) = self.path_picker {
             let chunks = Layout::default()
                 .constraints([
                     Constraint::Length(4),
@@ -240,14 +277,24 @@ impl SettingsScreen {
                 Paragraph::new(info.join("\n")).block(Block::default().borders(Borders::BOTTOM)),
                 chunks[0],
             );
-            let hint = "Esc: cancel   Ctrl+Enter: apply typed path (creates folders)   ↑ list top: path   Tab: path/list";
-            picker.render(f, chunks[1], "Choose ROMs directory", hint);
+            let hint =
+                "Esc: cancel   Ctrl+Enter: apply typed path (creates folders)   Tab: path/list";
+            let title = match kind {
+                SettingsPickerKind::RomsDir => "Choose ROMs directory",
+                SettingsPickerKind::SaveDir => "Choose save directory",
+            };
+            picker.render(f, chunks[1], title, hint);
             f.render_widget(
                 Paragraph::new("ROMs directory picker — Esc returns without changing")
                     .style(Style::default().fg(Color::Cyan))
                     .block(Block::default().borders(Borders::ALL)),
                 chunks[2],
             );
+            return;
+        }
+
+        if self.device_picker_open {
+            self.render_device_picker(f, area);
             return;
         }
 
@@ -290,6 +337,12 @@ impl SettingsScreen {
                 "Use HTTPS:    {}",
                 if self.use_https { "[X] Yes" } else { "[ ] No" }
             )),
+            ListItem::new(format!("Save Dir:     {}", self.save_dir)),
+            ListItem::new(format!(
+                "Sync Device:  {}",
+                self.sync_device_id.as_deref().unwrap_or("(not selected)")
+            )),
+            ListItem::new("Sync Saves Now"),
             ListItem::new(format!(
                 "Extras: incl. updates/DLC (picker default): {}",
                 if self.extras_include_related_roms {
@@ -383,7 +436,7 @@ impl SettingsScreen {
     }
 
     pub fn cursor_position(&self, area: Rect) -> Option<(u16, u16)> {
-        if let Some(ref picker) = self.path_picker {
+        if let Some((_, ref picker)) = self.path_picker {
             let chunks = Layout::default()
                 .constraints([
                     Constraint::Length(4),
@@ -415,5 +468,108 @@ impl SettingsScreen {
         let x = list_area.x + 1 /* border */ + 3 /* highlight symbol */ + label_len + self.edit_cursor as u16;
 
         Some((x, y))
+    }
+
+    pub fn set_devices(&mut self, devices: Vec<DeviceSchema>) {
+        self.devices = devices;
+        self.device_picker_loading = false;
+        self.device_picker_error = None;
+        self.device_selected_index = self
+            .sync_device_id
+            .as_ref()
+            .and_then(|id| self.devices.iter().position(|d| &d.id == id))
+            .unwrap_or(0)
+            .min(self.devices.len().saturating_sub(1));
+    }
+
+    pub fn set_device_error(&mut self, error: String) {
+        self.device_picker_loading = false;
+        self.device_picker_error = Some(error);
+    }
+
+    pub fn device_next(&mut self) {
+        if !self.devices.is_empty() {
+            self.device_selected_index =
+                (self.device_selected_index + 1).min(self.devices.len() - 1);
+        }
+    }
+
+    pub fn device_previous(&mut self) {
+        self.device_selected_index = self.device_selected_index.saturating_sub(1);
+    }
+
+    pub fn confirm_device(&mut self) {
+        if let Some(device) = self.devices.get(self.device_selected_index) {
+            self.sync_device_id = Some(device.id.clone());
+            self.device_picker_open = false;
+            self.message = Some((
+                "Sync device updated (press S to save)".to_string(),
+                Color::Green,
+            ));
+        }
+    }
+
+    fn render_device_picker(&mut self, f: &mut Frame, area: Rect) {
+        let chunks = Layout::default()
+            .constraints([
+                Constraint::Length(4),
+                Constraint::Min(10),
+                Constraint::Length(3),
+            ])
+            .direction(ratatui::layout::Direction::Vertical)
+            .split(area);
+        let info = [
+            format!(
+                "romm-cli: v{} | RomM server: {}",
+                self.version, self.server_version
+            ),
+            "Select the RomM sync device used for manual push-pull.".to_string(),
+        ];
+        f.render_widget(
+            Paragraph::new(info.join("\n")).block(Block::default().borders(Borders::BOTTOM)),
+            chunks[0],
+        );
+        if self.device_picker_loading {
+            f.render_widget(
+                Paragraph::new("Loading devices...")
+                    .block(Block::default().title(" Devices ").borders(Borders::ALL)),
+                chunks[1],
+            );
+        } else if let Some(error) = &self.device_picker_error {
+            f.render_widget(
+                Paragraph::new(format!("Could not load devices: {error}"))
+                    .style(Style::default().fg(Color::Red))
+                    .block(Block::default().title(" Devices ").borders(Borders::ALL)),
+                chunks[1],
+            );
+        } else {
+            let items: Vec<ListItem> = self
+                .devices
+                .iter()
+                .map(|d| {
+                    let name = d.name.as_deref().unwrap_or("(unnamed)");
+                    ListItem::new(format!("{name}  [{}]  mode={:?}", d.id, d.sync_mode))
+                })
+                .collect();
+            let mut state = ListState::default();
+            state.select(Some(self.device_selected_index));
+            f.render_stateful_widget(
+                List::new(items)
+                    .block(Block::default().title(" Devices ").borders(Borders::ALL))
+                    .highlight_symbol(">> ")
+                    .highlight_style(
+                        Style::default()
+                            .fg(Color::Yellow)
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                chunks[1],
+                &mut state,
+            );
+        }
+        f.render_widget(
+            Paragraph::new("Enter: choose   Esc: cancel   ↑/↓: select")
+                .block(Block::default().borders(Borders::ALL)),
+            chunks[2],
+        );
     }
 }

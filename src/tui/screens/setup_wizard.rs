@@ -254,6 +254,9 @@ impl SetupWizard {
             use_https: self.use_https,
             auth: None,
             extras_defaults: extras_defaults_from_disk(),
+            save_sync: read_user_config_json_from_disk()
+                .map(|c| c.save_sync)
+                .unwrap_or_default(),
         };
         let client = RommClient::new(&temp_config, verbose)?;
         let response = client
@@ -268,6 +271,9 @@ impl SetupWizard {
                 token: response.raw_token,
             }),
             extras_defaults: extras_defaults_from_disk(),
+            save_sync: read_user_config_json_from_disk()
+                .map(|c| c.save_sync)
+                .unwrap_or_default(),
         })
     }
 
@@ -343,6 +349,9 @@ impl SetupWizard {
             use_https: self.use_https,
             auth,
             extras_defaults: extras_defaults_from_disk(),
+            save_sync: read_user_config_json_from_disk()
+                .map(|c| c.save_sync)
+                .unwrap_or_default(),
         })
     }
 

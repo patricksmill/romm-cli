@@ -28,13 +28,18 @@ use std::time::{Duration, Instant};
 
 use crate::client::RommClient;
 use crate::commands::library_scan::ScanCacheInvalidate;
-use crate::config::{auth_for_persist_merge, normalize_romm_origin, Config, ExtrasDefaults};
+use crate::config::{
+    auth_for_persist_merge, normalize_romm_origin, resolved_save_dir, Config, ExtrasDefaults,
+    SaveSyncConfig,
+};
 use crate::core::cache::{RomCache, RomCacheKey};
 use crate::core::download::DownloadManager;
 use crate::core::extras::has_update_or_dlc_extras;
 use crate::core::startup_library_snapshot;
+use crate::endpoints::device::{DeviceSchema, ListDevices};
 use crate::endpoints::roms::GetRoms;
-use crate::types::{Collection, Platform, RomList};
+use crate::endpoints::sync::{SyncSessionSchema, TriggerPushPull};
+use crate::types::{Collection, Platform, RomList, SaveMetadata};
 use crate::update::UpdateStatus;
 
 use super::keyboard_help;
@@ -95,6 +100,29 @@ struct CoverLoadDone {
     result: Result<image::DynamicImage, String>,
 }
 
+struct SaveListDone {
+    rom_id: u64,
+    result: Result<Vec<SaveMetadata>, String>,
+}
+
+struct SaveUploadDone {
+    rom_id: u64,
+    result: Result<(), String>,
+}
+
+struct SaveDownloadDone {
+    rom_id: u64,
+    result: Result<PathBuf, String>,
+}
+
+struct DeviceListDone {
+    result: Result<Vec<DeviceSchema>, String>,
+}
+
+struct SyncPushPullDone {
+    result: Result<SyncSessionSchema, String>,
+}
+
 struct StartupUpdatePrompt {
     status: UpdateStatus,
     updating: bool,
@@ -112,6 +140,45 @@ type DeferredLoadRoms = (
 #[inline]
 fn primary_rom_load_result_is_current(done_gen: u64, current_gen: u64) -> bool {
     done_gen == current_gen
+}
+
+fn safe_path_segment(input: &str) -> String {
+    let cleaned: String = input
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || matches!(c, ' ' | '-' | '_' | '.') {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    let trimmed = cleaned.trim().trim_matches('.').trim();
+    if trimmed.is_empty() {
+        "game".to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+fn unique_save_path(dir: &Path, file_name: &str) -> PathBuf {
+    let safe_name = safe_path_segment(file_name);
+    let base = Path::new(&safe_name)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("save");
+    let ext = Path::new(&safe_name).extension().and_then(|s| s.to_str());
+    let mut candidate = dir.join(&safe_name);
+    let mut n = 1u32;
+    while candidate.exists() {
+        let name = match ext {
+            Some(ext) if !ext.is_empty() => format!("{base}-{n}.{ext}"),
+            _ => format!("{base}-{n}"),
+        };
+        candidate = dir.join(name);
+        n += 1;
+    }
+    candidate
 }
 
 // ---------------------------------------------------------------------------
@@ -201,6 +268,16 @@ pub struct App {
     library_upload_progress_rx: Option<tokio::sync::mpsc::UnboundedReceiver<(u64, u64)>>,
     library_upload_done_rx:
         Option<tokio::sync::mpsc::UnboundedReceiver<Result<LibraryUploadComplete, String>>>,
+    save_list_rx: tokio::sync::mpsc::UnboundedReceiver<SaveListDone>,
+    save_list_tx: tokio::sync::mpsc::UnboundedSender<SaveListDone>,
+    save_upload_rx: tokio::sync::mpsc::UnboundedReceiver<SaveUploadDone>,
+    save_upload_tx: tokio::sync::mpsc::UnboundedSender<SaveUploadDone>,
+    save_download_rx: tokio::sync::mpsc::UnboundedReceiver<SaveDownloadDone>,
+    save_download_tx: tokio::sync::mpsc::UnboundedSender<SaveDownloadDone>,
+    device_list_rx: tokio::sync::mpsc::UnboundedReceiver<DeviceListDone>,
+    device_list_tx: tokio::sync::mpsc::UnboundedSender<DeviceListDone>,
+    sync_push_pull_rx: tokio::sync::mpsc::UnboundedReceiver<SyncPushPullDone>,
+    sync_push_pull_tx: tokio::sync::mpsc::UnboundedSender<SyncPushPullDone>,
 }
 
 impl App {
@@ -260,6 +337,11 @@ impl App {
         let (rom_load_tx, rom_load_rx) = tokio::sync::mpsc::unbounded_channel();
         let (search_load_tx, search_load_rx) = tokio::sync::mpsc::unbounded_channel();
         let (cover_load_tx, cover_load_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (save_list_tx, save_list_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (save_upload_tx, save_upload_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (save_download_tx, save_download_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (device_list_tx, device_list_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (sync_push_pull_tx, sync_push_pull_rx) = tokio::sync::mpsc::unbounded_channel();
         Self {
             screen: AppScreen::MainMenu(MainMenuScreen::new()),
             client,
@@ -301,6 +383,16 @@ impl App {
             library_upload_inflight: false,
             library_upload_progress_rx: None,
             library_upload_done_rx: None,
+            save_list_rx,
+            save_list_tx,
+            save_upload_rx,
+            save_upload_tx,
+            save_download_rx,
+            save_download_tx,
+            device_list_rx,
+            device_list_tx,
+            sync_push_pull_rx,
+            sync_push_pull_tx,
         }
     }
 
@@ -329,6 +421,8 @@ impl App {
         self.poll_collection_prefetch_results();
         self.poll_search_load_results();
         self.poll_cover_load_results();
+        self.poll_save_results();
+        self.poll_settings_results();
         self.poll_library_upload();
         self.poll_library_scan();
         self.drive_collection_prefetch_scheduler();
@@ -613,6 +707,116 @@ impl App {
             _ => return,
         };
         self.spawn_cover_load_worker(rom_id, url);
+    }
+
+    fn spawn_save_list_worker(&mut self, rom_id: u64) {
+        if let AppScreen::GameDetail(detail) = &mut self.screen {
+            detail.set_saves_loading();
+        }
+        let client = self.client.clone();
+        let tx = self.save_list_tx.clone();
+        tokio::spawn(async move {
+            let result = async {
+                let value = client
+                    .request_json(
+                        "GET",
+                        "/api/saves",
+                        &[("rom_id".to_string(), rom_id.to_string())],
+                        None,
+                    )
+                    .await?;
+                SaveMetadata::from_api_value(value)
+            }
+            .await
+            .map_err(|e| format!("{e:#}"));
+            let _ = tx.send(SaveListDone { rom_id, result });
+        });
+    }
+
+    fn refresh_current_game_saves(&mut self) {
+        if let AppScreen::GameDetail(detail) = &self.screen {
+            self.spawn_save_list_worker(detail.rom.id);
+        }
+    }
+
+    fn poll_save_results(&mut self) {
+        while let Ok(done) = self.save_list_rx.try_recv() {
+            if let AppScreen::GameDetail(detail) = &mut self.screen {
+                if detail.rom.id == done.rom_id {
+                    match done.result {
+                        Ok(rows) => detail.apply_saves(rows),
+                        Err(e) => detail.apply_saves_error(e),
+                    }
+                }
+            }
+        }
+        while let Ok(done) = self.save_upload_rx.try_recv() {
+            if let AppScreen::GameDetail(detail) = &mut self.screen {
+                if detail.rom.id == done.rom_id {
+                    match done.result {
+                        Ok(()) => {
+                            detail.message = Some("Save uploaded. Refreshing saves...".into());
+                            detail.message_clear_at = Some(Instant::now() + Duration::from_secs(3));
+                            self.spawn_save_list_worker(done.rom_id);
+                        }
+                        Err(e) => {
+                            detail.message = Some(format!("Save upload failed: {e}"));
+                            detail.message_clear_at = Some(Instant::now() + Duration::from_secs(5));
+                        }
+                    }
+                }
+            }
+        }
+        while let Ok(done) = self.save_download_rx.try_recv() {
+            if let AppScreen::GameDetail(detail) = &mut self.screen {
+                if detail.rom.id == done.rom_id {
+                    match done.result {
+                        Ok(path) => {
+                            detail.message = Some(format!("Save downloaded: {}", path.display()));
+                            detail.message_clear_at = Some(Instant::now() + Duration::from_secs(5));
+                            self.spawn_save_list_worker(done.rom_id);
+                        }
+                        Err(e) => {
+                            detail.message = Some(format!("Save download failed: {e}"));
+                            detail.message_clear_at = Some(Instant::now() + Duration::from_secs(5));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn poll_settings_results(&mut self) {
+        while let Ok(done) = self.device_list_rx.try_recv() {
+            if let AppScreen::Settings(settings) = &mut self.screen {
+                match done.result {
+                    Ok(devices) => {
+                        settings.set_devices(devices);
+                        settings.message = None;
+                    }
+                    Err(e) => {
+                        settings.set_device_error(e.clone());
+                        settings.message = Some((format!("Device load failed: {e}"), Color::Red));
+                    }
+                }
+            }
+        }
+        while let Ok(done) = self.sync_push_pull_rx.try_recv() {
+            if let AppScreen::Settings(settings) = &mut self.screen {
+                settings.sync_inflight = false;
+                match done.result {
+                    Ok(session) => {
+                        settings.message = Some((
+                            format!("Sync session #{}: {}", session.id, session.status),
+                            Color::Green,
+                        ));
+                    }
+                    Err(e) => {
+                        settings.message = Some((format!("Sync failed: {e}"), Color::Red));
+                    }
+                }
+            }
+        }
     }
 
     fn poll_rom_load_results(&mut self) {
@@ -1478,6 +1682,7 @@ impl App {
                             self.downloads.shared(),
                         )));
                         self.maybe_start_game_detail_cover_load();
+                        self.refresh_current_game_saves();
                     }
                 }
             }
@@ -1554,6 +1759,7 @@ impl App {
                                 self.downloads.shared(),
                             )));
                             self.maybe_start_game_detail_cover_load();
+                            self.refresh_current_game_saves();
                         }
                     }
                 } else {
@@ -1661,6 +1867,7 @@ impl App {
             use_https,
             auth,
             extras_defaults: self.config.extras_defaults.clone(),
+            save_sync: self.config.save_sync.clone(),
         };
         let client = match RommClient::new(&cfg, verbose) {
             Ok(c) => c,
@@ -1697,7 +1904,7 @@ impl App {
             _ => return Ok(false),
         };
 
-        if let Some(ref mut picker) = settings.path_picker {
+        if let Some((kind, ref mut picker)) = settings.path_picker {
             if key.code == KeyCode::Esc {
                 settings.path_picker = None;
                 return Ok(false);
@@ -1706,12 +1913,20 @@ impl App {
                 PathPickerEvent::Confirmed(p) => {
                     match validate_configured_download_directory(p.to_string_lossy().as_ref()) {
                         Ok(canonical) => {
-                            settings.download_dir = canonical.display().to_string();
+                            if kind == super::screens::settings::SettingsPickerKind::RomsDir {
+                                settings.download_dir = canonical.display().to_string();
+                                settings.message = Some((
+                                    "ROMs directory updated (press S to save)".to_string(),
+                                    Color::Green,
+                                ));
+                            } else {
+                                settings.save_dir = canonical.display().to_string();
+                                settings.message = Some((
+                                    "Save directory updated (press S to save)".to_string(),
+                                    Color::Green,
+                                ));
+                            }
                             settings.path_picker = None;
-                            settings.message = Some((
-                                "ROMs directory updated (press S to save)".to_string(),
-                                Color::Green,
-                            ));
                         }
                         Err(e) => {
                             settings.message =
@@ -1720,6 +1935,20 @@ impl App {
                     }
                 }
                 PathPickerEvent::None => {}
+            }
+            return Ok(false);
+        }
+
+        if settings.device_picker_open {
+            match key.code {
+                KeyCode::Esc => {
+                    settings.device_picker_open = false;
+                    settings.device_picker_loading = false;
+                }
+                KeyCode::Up | KeyCode::Char('k') => settings.device_previous(),
+                KeyCode::Down | KeyCode::Char('j') => settings.device_next(),
+                KeyCode::Enter => settings.confirm_device(),
+                _ => {}
             }
             return Ok(false);
         }
@@ -1785,9 +2014,41 @@ impl App {
             KeyCode::Up | KeyCode::Char('k') => settings.previous(),
             KeyCode::Down | KeyCode::Char('j') => settings.next(),
             KeyCode::Enter => {
-                if settings.selected_index == 6 {
+                if settings.selected_index == 4 {
                     self.screen =
                         AppScreen::SetupWizard(Box::new(SetupWizard::new_auth_only(&self.config)));
+                } else if settings.selected_index == 8 {
+                    settings.enter_edit();
+                    let client = self.client.clone();
+                    let tx = self.device_list_tx.clone();
+                    tokio::spawn(async move {
+                        let result = client
+                            .call(&ListDevices)
+                            .await
+                            .map_err(|e| format!("{e:#}"));
+                        let _ = tx.send(DeviceListDone { result });
+                    });
+                } else if settings.selected_index == 9 {
+                    if settings.sync_inflight {
+                        return Ok(false);
+                    }
+                    let Some(device_id) = settings.sync_device_id.clone() else {
+                        settings.message =
+                            Some(("Choose a Sync Device first".to_string(), Color::Yellow));
+                        return Ok(false);
+                    };
+                    settings.sync_inflight = true;
+                    settings.message =
+                        Some(("Sync Saves Now running...".to_string(), Color::Yellow));
+                    let client = self.client.clone();
+                    let tx = self.sync_push_pull_tx.clone();
+                    tokio::spawn(async move {
+                        let result = client
+                            .call(&TriggerPushPull { device_id })
+                            .await
+                            .map_err(|e| format!("{e:#}"));
+                        let _ = tx.send(SyncPushPullDone { result });
+                    });
                 } else {
                     let toggle_https = settings.selected_index == 2;
                     settings.enter_edit();
@@ -1810,6 +2071,10 @@ impl App {
                         include_cover: settings.extras_include_cover,
                         include_manual: settings.extras_include_manual,
                     },
+                    save_sync: SaveSyncConfig {
+                        save_dir: Some(settings.save_dir.clone()),
+                        device_id: settings.sync_device_id.clone(),
+                    },
                 };
                 if let Err(e) = persist_user_config(&cfg) {
                     settings.message = Some((format!("Error saving: {e}"), Color::Red));
@@ -1820,6 +2085,7 @@ impl App {
                     self.config.download_dir = cfg.download_dir.clone();
                     self.config.use_https = cfg.use_https;
                     self.config.extras_defaults = cfg.extras_defaults.clone();
+                    self.config.save_sync = cfg.save_sync.clone();
                     // Re-create client to pick up new base URL
                     if let Ok(new_client) = RommClient::new(&self.config, self.client.verbose()) {
                         self.client = new_client;
@@ -2025,10 +2291,39 @@ impl App {
     // -- Game detail --------------------------------------------------------
 
     fn handle_game_detail(&mut self, key: &KeyEvent) -> Result<bool> {
+        use super::path_picker::PathPickerEvent;
         let detail = match &mut self.screen {
             AppScreen::GameDetail(d) => d,
             _ => return Ok(false),
         };
+
+        if let Some(picker) = detail.save_upload_picker.as_mut() {
+            if key.code == KeyCode::Esc {
+                detail.save_upload_picker = None;
+                detail.clear_message();
+                return Ok(false);
+            }
+            match picker.handle_key(key) {
+                PathPickerEvent::Confirmed(path) => {
+                    let rom_id = detail.rom.id;
+                    detail.save_upload_picker = None;
+                    detail.message = Some("Uploading save...".into());
+                    detail.message_clear_at = None;
+                    let client = self.client.clone();
+                    let tx = self.save_upload_tx.clone();
+                    tokio::spawn(async move {
+                        let result = client
+                            .upload_save_file(rom_id, None, &path)
+                            .await
+                            .map(|_| ())
+                            .map_err(|e| format!("{e:#}"));
+                        let _ = tx.send(SaveUploadDone { rom_id, result });
+                    });
+                }
+                PathPickerEvent::None => {}
+            }
+            return Ok(false);
+        }
 
         // Acknowledge download completion on any key press
         // (check if there's a completed/errored download for this ROM)
@@ -2076,6 +2371,41 @@ impl App {
         }
 
         match key.code {
+            KeyCode::Up | KeyCode::Char('k') => detail.save_selection_previous(),
+            KeyCode::Down | KeyCode::Char('j') => detail.save_selection_next(),
+            KeyCode::Char('u') => detail.open_save_upload_picker(),
+            KeyCode::Char('D') => {
+                let Some(save) = detail.selected_save().cloned() else {
+                    detail.message = Some("No save selected".into());
+                    detail.message_clear_at = Some(Instant::now() + Duration::from_secs(3));
+                    return Ok(false);
+                };
+                let rom_id = detail.rom.id;
+                let game_name = detail.rom.name.clone();
+                let save_dir = resolved_save_dir(&self.config);
+                detail.message = Some("Downloading save...".into());
+                detail.message_clear_at = None;
+                let client = self.client.clone();
+                let tx = self.save_download_tx.clone();
+                tokio::spawn(async move {
+                    let result = async {
+                        let bytes = client.download_save_content(save.id, None, None).await?;
+                        let target_dir = save_dir.join(safe_path_segment(&game_name));
+                        tokio::fs::create_dir_all(&target_dir).await?;
+                        let filename = if save.file_name.trim().is_empty() {
+                            format!("save-{}.sav", save.id)
+                        } else {
+                            save.file_name.clone()
+                        };
+                        let target = unique_save_path(&target_dir, &filename);
+                        tokio::fs::write(&target, bytes).await?;
+                        Ok::<PathBuf, anyhow::Error>(target)
+                    }
+                    .await
+                    .map_err(|e| format!("{e:#}"));
+                    let _ = tx.send(SaveDownloadDone { rom_id, result });
+                });
+            }
             // Only start a download once per detail view and avoid
             // stacking multiple concurrent downloads for the same ROM.
             KeyCode::Enter if !detail.has_started_download => {
@@ -2451,6 +2781,7 @@ mod tests {
             use_https: false,
             auth: None,
             extras_defaults: ExtrasDefaults::default(),
+            save_sync: Default::default(),
         };
         let client = RommClient::new(&config, false).expect("client");
         let mut app = App::new(
@@ -2570,6 +2901,7 @@ mod tests {
             use_https: false,
             auth: None,
             extras_defaults: ExtrasDefaults::default(),
+            save_sync: Default::default(),
         };
         let client = RommClient::new(&config, false).expect("client");
         let mut app = App::new(
@@ -2597,6 +2929,7 @@ mod tests {
             use_https: false,
             auth: None,
             extras_defaults: ExtrasDefaults::default(),
+            save_sync: Default::default(),
         };
         let client = RommClient::new(&config, false).expect("client");
         let mut app = App::new(
@@ -2638,6 +2971,7 @@ mod tests {
             use_https: false,
             auth: None,
             extras_defaults: ExtrasDefaults::default(),
+            save_sync: Default::default(),
         };
         let client = RommClient::new(&config, false).expect("client");
         let mut app = App::new(

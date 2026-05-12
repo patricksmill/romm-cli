@@ -12,8 +12,9 @@ use std::time::Instant;
 use crate::core::download::{DownloadJob, DownloadStatus};
 use crate::core::extras::collect_update_dlc_files;
 use crate::core::utils::format_size;
+use crate::tui::path_picker::{PathPicker, PathPickerMode};
 use crate::tui::utils::{open_in_browser, truncate};
-use crate::types::Rom;
+use crate::types::{Rom, SaveMetadata};
 
 use super::{LibraryBrowseScreen, SearchScreen};
 
@@ -38,6 +39,14 @@ pub enum CoverState {
     Failed(String),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SaveListState {
+    Idle,
+    Loading,
+    Loaded(Vec<SaveMetadata>),
+    Failed(String),
+}
+
 /// Detailed view for a single ROM (and its related files).
 pub struct GameDetailScreen {
     pub rom: Rom,
@@ -58,6 +67,9 @@ pub struct GameDetailScreen {
     pub cover_last_url: Option<String>,
     pub cover_protocol: Option<ProtocolType>,
     pub cover_image: Option<StatefulProtocol>,
+    pub saves_state: SaveListState,
+    pub selected_save_index: usize,
+    pub save_upload_picker: Option<PathPicker>,
 }
 
 impl GameDetailScreen {
@@ -89,6 +101,9 @@ impl GameDetailScreen {
             cover_last_url,
             cover_protocol,
             cover_image: None,
+            saves_state: SaveListState::Idle,
+            selected_save_index: 0,
+            save_upload_picker: None,
         }
     }
 
@@ -179,10 +194,48 @@ impl GameDetailScreen {
 
     fn footer_help_text(&self) -> &'static str {
         if self.show_technical {
-            "Enter: Download | e: Extras | o: Open cover | m: Hide technical | Esc: Back"
+            "Enter: Download ROM | e: Extras | u: Upload save | D: Download save | m: Hide technical | Esc: Back"
         } else {
-            "Enter: Download | e: Extras | o: Open cover | m: More technical details | Esc: Back"
+            "Enter: Download ROM | e: Extras | u: Upload save | D: Download save | m: More technical details | Esc: Back"
         }
+    }
+
+    pub fn set_saves_loading(&mut self) {
+        self.saves_state = SaveListState::Loading;
+    }
+
+    pub fn apply_saves(&mut self, saves: Vec<SaveMetadata>) {
+        self.selected_save_index = self.selected_save_index.min(saves.len().saturating_sub(1));
+        self.saves_state = SaveListState::Loaded(saves);
+    }
+
+    pub fn apply_saves_error(&mut self, error: String) {
+        self.saves_state = SaveListState::Failed(error);
+    }
+
+    pub fn selected_save(&self) -> Option<&SaveMetadata> {
+        match &self.saves_state {
+            SaveListState::Loaded(rows) => rows.get(self.selected_save_index),
+            _ => None,
+        }
+    }
+
+    pub fn save_selection_next(&mut self) {
+        if let SaveListState::Loaded(rows) = &self.saves_state {
+            if !rows.is_empty() {
+                self.selected_save_index = (self.selected_save_index + 1).min(rows.len() - 1);
+            }
+        }
+    }
+
+    pub fn save_selection_previous(&mut self) {
+        self.selected_save_index = self.selected_save_index.saturating_sub(1);
+    }
+
+    pub fn open_save_upload_picker(&mut self) {
+        self.save_upload_picker = Some(PathPicker::new(PathPickerMode::File, ""));
+        self.message = Some("Choose a save file to upload".to_string());
+        self.message_clear_at = None;
     }
 
     /// True when the extras picker can offer at least one row.
@@ -237,6 +290,15 @@ impl GameDetailScreen {
     }
 
     pub fn render(&mut self, f: &mut Frame, area: Rect) {
+        if let Some(picker) = self.save_upload_picker.as_mut() {
+            picker.render(
+                f,
+                area,
+                "Upload save file",
+                "Esc: cancel   Enter: choose file   Ctrl+Enter: apply typed file",
+            );
+            return;
+        }
         let chunks = Layout::default()
             .constraints([Constraint::Min(10), Constraint::Length(3)])
             .direction(Direction::Vertical)
@@ -428,6 +490,13 @@ impl GameDetailScreen {
             )));
         }
 
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::styled(
+            "Saves:",
+            Style::default().fg(Color::Cyan),
+        )));
+        lines.extend(save_lines(&self.saves_state, self.selected_save_index));
+
         let block = Block::default().title("Game detail").borders(Borders::ALL);
         let p = Paragraph::new(lines)
             .block(block)
@@ -476,6 +545,45 @@ impl GameDetailScreen {
             let footer = Paragraph::new(msg).block(Block::default().borders(Borders::ALL));
             f.render_widget(footer, footer_area);
         }
+    }
+}
+
+pub fn save_lines(state: &SaveListState, selected_index: usize) -> Vec<Line<'static>> {
+    match state {
+        SaveListState::Idle => vec![Line::from("  Loading soon...")],
+        SaveListState::Loading => vec![Line::from("  Loading remote saves...")],
+        SaveListState::Failed(e) => vec![Line::from(format!("  Error: {}", truncate(e, 90)))],
+        SaveListState::Loaded(rows) if rows.is_empty() => vec![Line::from("  No remote saves")],
+        SaveListState::Loaded(rows) => rows
+            .iter()
+            .enumerate()
+            .take(8)
+            .map(|(i, save)| {
+                let marker = if i == selected_index { "> " } else { "  " };
+                let mut parts = vec![save.file_name.clone()];
+                if let Some(emulator) = save.emulator.as_deref().filter(|s| !s.is_empty()) {
+                    parts.push(format!("emu={emulator}"));
+                }
+                if let Some(slot) = save.slot.as_deref().filter(|s| !s.is_empty()) {
+                    parts.push(format!("slot={slot}"));
+                }
+                if let Some(size) = save.size_bytes {
+                    parts.push(format_size(size));
+                }
+                if let Some(updated) = save.updated_at.as_deref().filter(|s| !s.is_empty()) {
+                    parts.push(updated.to_string());
+                }
+                if let Some(hash) = save.hash.as_deref().filter(|s| !s.is_empty()) {
+                    parts.push(format!("hash={}", truncate(hash, 12)));
+                }
+                if let Some(device) = save.device_name.as_deref().filter(|s| !s.is_empty()) {
+                    parts.push(format!("device={device}"));
+                } else if let Some(device) = save.device_id.as_deref().filter(|s| !s.is_empty()) {
+                    parts.push(format!("device={device}"));
+                }
+                Line::from(format!("{marker}{}", truncate(&parts.join(" | "), 120)))
+            })
+            .collect(),
     }
 }
 
@@ -718,5 +826,34 @@ mod tests {
 
         detail.apply_cover_error("oops".to_string());
         assert_eq!(detail.cover_state, CoverState::Failed("oops".to_string()));
+    }
+
+    #[test]
+    fn save_list_formatting_handles_states() {
+        assert!(save_lines(&SaveListState::Loading, 0)[0]
+            .to_string()
+            .contains("Loading"));
+        assert!(save_lines(&SaveListState::Failed("boom".into()), 0)[0]
+            .to_string()
+            .contains("Error"));
+        assert!(save_lines(&SaveListState::Loaded(vec![]), 0)[0]
+            .to_string()
+            .contains("No remote saves"));
+
+        let rows = vec![SaveMetadata {
+            id: 7,
+            file_name: "game.sav".into(),
+            emulator: Some("duckstation".into()),
+            slot: Some("1".into()),
+            updated_at: Some("2026-05-12T00:00:00Z".into()),
+            hash: Some("abcdef1234567890".into()),
+            size_bytes: Some(1024),
+            device_id: Some("dev1".into()),
+            device_name: None,
+        }];
+        let line = save_lines(&SaveListState::Loaded(rows), 0)[0].to_string();
+        assert!(line.contains("> game.sav"));
+        assert!(line.contains("emu=duckstation"));
+        assert!(line.contains("slot=1"));
     }
 }

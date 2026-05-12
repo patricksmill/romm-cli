@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 /// Represents a firmware file associated with a platform.
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -203,6 +204,39 @@ pub struct RomList {
     pub limit: u64,
     /// Number of items skipped from the beginning.
     pub offset: u64,
+}
+
+/// Save metadata returned by RomM `/api/saves`.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+pub struct SaveMetadata {
+    pub id: u64,
+    #[serde(default, alias = "filename", alias = "name")]
+    pub file_name: String,
+    #[serde(default)]
+    pub emulator: Option<String>,
+    #[serde(default)]
+    pub slot: Option<String>,
+    #[serde(default, alias = "updated")]
+    pub updated_at: Option<String>,
+    #[serde(default, alias = "sha256", alias = "content_hash")]
+    pub hash: Option<String>,
+    #[serde(default, alias = "file_size_bytes", alias = "size")]
+    pub size_bytes: Option<u64>,
+    #[serde(default)]
+    pub device_id: Option<String>,
+    #[serde(default)]
+    pub device_name: Option<String>,
+}
+
+impl SaveMetadata {
+    pub fn from_api_value(value: Value) -> anyhow::Result<Vec<Self>> {
+        let rows = value
+            .get("items")
+            .or_else(|| value.get("saves"))
+            .cloned()
+            .unwrap_or(value);
+        Ok(serde_json::from_value(rows)?)
+    }
 }
 
 /// Response row from [`GET /api/collections/virtual`](crate::endpoints::collections::ListVirtualCollections).

@@ -40,6 +40,7 @@ async fn test_main_menu_api_error_shows_popup() {
         use_https: false,
         auth: None,
         extras_defaults: ExtrasDefaults::default(),
+        save_sync: Default::default(),
     };
     let client = RommClient::new(&config, false).unwrap();
     let mut app = App::new(
@@ -118,6 +119,7 @@ async fn test_main_menu_success_transitions_to_library() {
         use_https: false,
         auth: None,
         extras_defaults: ExtrasDefaults::default(),
+        save_sync: Default::default(),
     };
     let client = RommClient::new(&config, false).unwrap();
     let mut app = App::new(
@@ -152,6 +154,7 @@ async fn main_menu_fifth_item_is_exit() {
         use_https: false,
         auth: None,
         extras_defaults: ExtrasDefaults::default(),
+        save_sync: Default::default(),
     };
     let client = RommClient::new(&config, false).unwrap();
     let mut app = App::new(
@@ -188,6 +191,7 @@ async fn library_filter_mode_d_types_in_search_bar_not_downloads() {
         use_https: false,
         auth: None,
         extras_defaults: ExtrasDefaults::default(),
+        save_sync: Default::default(),
     };
     let client = RommClient::new(&config, false).unwrap();
     let mut app = App::new(
@@ -252,6 +256,7 @@ async fn library_filter_enter_then_enter_opens_game_detail() {
         use_https: false,
         auth: None,
         extras_defaults: ExtrasDefaults::default(),
+        save_sync: Default::default(),
     };
     let client = RommClient::new(&config, false).unwrap();
     let mut app = App::new(
@@ -317,6 +322,7 @@ async fn game_detail_download_is_blocked_when_config_download_path_is_invalid() 
         use_https: false,
         auth: None,
         extras_defaults: ExtrasDefaults::default(),
+        save_sync: Default::default(),
     };
     let client = RommClient::new(&config, false).unwrap();
     let mut app = App::new(
@@ -378,6 +384,7 @@ async fn game_detail_download_skips_when_rom_already_exists_in_console_folder() 
         use_https: false,
         auth: None,
         extras_defaults: ExtrasDefaults::default(),
+        save_sync: Default::default(),
     };
     let client = RommClient::new(&config, false).unwrap();
     let mut app = App::new(

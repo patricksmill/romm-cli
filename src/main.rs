@@ -60,6 +60,7 @@ async fn run_app() -> Result<()> {
                     use_https: true,
                     auth: None,
                     extras_defaults: romm_cli::config::ExtrasDefaults::default(),
+                    save_sync: Default::default(),
                 };
                 return run(
                     Cli {

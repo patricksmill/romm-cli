@@ -498,6 +498,7 @@ mod tests {
             use_https: true,
             auth: disk_auth,
             extras_defaults: crate::config::ExtrasDefaults::default(),
+            save_sync: Default::default(),
         };
         let content = serde_json::to_string_pretty(&cfg).unwrap();
         fs::write(path.join("config.json"), content).unwrap();
@@ -528,6 +529,7 @@ mod tests {
             use_https: true,
             auth: None,
             extras_defaults: crate::config::ExtrasDefaults::default(),
+            save_sync: Default::default(),
         };
 
         assert!(disk_has_unresolved_keyring_sentinel(&effective));
@@ -554,6 +556,7 @@ mod tests {
                 use_https: true,
                 auth: None,
                 extras_defaults: crate::config::ExtrasDefaults::default(),
+                save_sync: Default::default(),
             },
             false,
         )
@@ -593,6 +596,7 @@ mod tests {
                 use_https: true,
                 auth: None,
                 extras_defaults: crate::config::ExtrasDefaults::default(),
+                save_sync: Default::default(),
             },
             false,
         )
