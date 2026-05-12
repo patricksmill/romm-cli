@@ -76,6 +76,7 @@ fn version_from_heartbeat_json(v: &Value) -> Option<String> {
 ///     use_https: true,
 ///     auth: None,
 ///     extras_defaults: Default::default(),
+///     save_sync: Default::default(),
 /// };
 /// let client = RommClient::new(&config, false)?;
 /// # Ok(())

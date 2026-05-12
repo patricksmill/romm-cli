@@ -45,6 +45,7 @@ use crate::update::UpdateStatus;
 use super::keyboard_help;
 use super::openapi::{resolve_path_template, EndpointRegistry};
 use super::screens::connected_splash::{self, StartupSplash};
+use super::screens::settings::SettingsRow;
 use super::screens::setup_wizard::SetupWizard;
 use super::screens::{
     BrowseScreen, DownloadScreen, ExecuteScreen, ExtrasPickerScreen, GameDetailPrevious,
@@ -1994,9 +1995,9 @@ impl App {
         if settings.editing {
             match key.code {
                 KeyCode::Enter => {
-                    let idx = settings.selected_index;
+                    let row = settings.selected_row();
                     settings.save_edit();
-                    if idx == 0 {
+                    if row == SettingsRow::BaseUrl {
                         self.refresh_settings_server_version().await?;
                     }
                 }
@@ -2013,11 +2014,14 @@ impl App {
         match key.code {
             KeyCode::Up | KeyCode::Char('k') => settings.previous(),
             KeyCode::Down | KeyCode::Char('j') => settings.next(),
+            KeyCode::Right | KeyCode::Char('l') | KeyCode::Tab => settings.next_tab(),
+            KeyCode::Left | KeyCode::Char('h') | KeyCode::BackTab => settings.previous_tab(),
             KeyCode::Enter => {
-                if settings.selected_index == 4 {
+                let row = settings.selected_row();
+                if row == SettingsRow::Auth {
                     self.screen =
                         AppScreen::SetupWizard(Box::new(SetupWizard::new_auth_only(&self.config)));
-                } else if settings.selected_index == 8 {
+                } else if row == SettingsRow::SyncDevice {
                     settings.enter_edit();
                     let client = self.client.clone();
                     let tx = self.device_list_tx.clone();
@@ -2028,7 +2032,7 @@ impl App {
                             .map_err(|e| format!("{e:#}"));
                         let _ = tx.send(DeviceListDone { result });
                     });
-                } else if settings.selected_index == 9 {
+                } else if row == SettingsRow::SyncNow {
                     if settings.sync_inflight {
                         return Ok(false);
                     }
@@ -2050,7 +2054,7 @@ impl App {
                         let _ = tx.send(SyncPushPullDone { result });
                     });
                 } else {
-                    let toggle_https = settings.selected_index == 2;
+                    let toggle_https = row == SettingsRow::UseHttps;
                     settings.enter_edit();
                     if toggle_https {
                         self.refresh_settings_server_version().await?;

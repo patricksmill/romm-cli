@@ -46,8 +46,10 @@ Downloads overlay
   Esc / d            Close
 
 Settings
+  Tab / Shift+Tab,
+  Left / h, Right / l Switch tab
   Up / k, Down / j   Move
-  Enter              Edit Base URL, browse ROMs dir, toggle HTTPS, or open auth wizard
+  Enter              Edit/toggle selected setting, open pickers, or open auth wizard
   s                  Save config to disk
   Esc                Main menu
   q                  Quit

@@ -1,18 +1,95 @@
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
-use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Tabs};
 use ratatui::Frame;
 
 use crate::config::{disk_has_unresolved_keyring_sentinel, Config};
 use crate::endpoints::device::DeviceSchema;
 use crate::tui::path_picker::{PathPicker, PathPickerMode};
 
-#[derive(PartialEq, Eq)]
-pub enum SettingsField {
-    BaseUrl,
-    DownloadDir,
-    UseHttps,
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SettingsTab {
+    Connection,
+    Saves,
+    Extras,
+    AuthMaintenance,
 }
+
+impl SettingsTab {
+    pub const ALL: [SettingsTab; 4] = [
+        SettingsTab::Connection,
+        SettingsTab::Saves,
+        SettingsTab::Extras,
+        SettingsTab::AuthMaintenance,
+    ];
+
+    pub const COUNT: usize = Self::ALL.len();
+
+    pub fn index(self) -> usize {
+        match self {
+            SettingsTab::Connection => 0,
+            SettingsTab::Saves => 1,
+            SettingsTab::Extras => 2,
+            SettingsTab::AuthMaintenance => 3,
+        }
+    }
+
+    fn title(self) -> &'static str {
+        match self {
+            SettingsTab::Connection => "Connection",
+            SettingsTab::Saves => "Saves",
+            SettingsTab::Extras => "Extras",
+            SettingsTab::AuthMaintenance => "Auth/Maint",
+        }
+    }
+
+    pub fn rows(self) -> &'static [SettingsRow] {
+        match self {
+            SettingsTab::Connection => &CONNECTION_ROWS,
+            SettingsTab::Saves => &SAVES_ROWS,
+            SettingsTab::Extras => &EXTRAS_ROWS,
+            SettingsTab::AuthMaintenance => &AUTH_MAINT_ROWS,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SettingsRow {
+    BaseUrl,
+    RomsDir,
+    UseHttps,
+    SaveDir,
+    SyncDevice,
+    SyncNow,
+    ExtrasRelatedRoms,
+    ExtrasCover,
+    ExtrasManual,
+    Auth,
+    ClearCache,
+    ResetConfiguration,
+}
+
+const CONNECTION_ROWS: [SettingsRow; 3] = [
+    SettingsRow::BaseUrl,
+    SettingsRow::RomsDir,
+    SettingsRow::UseHttps,
+];
+const SAVES_ROWS: [SettingsRow; 3] = [
+    SettingsRow::SaveDir,
+    SettingsRow::SyncDevice,
+    SettingsRow::SyncNow,
+];
+const EXTRAS_ROWS: [SettingsRow; 3] = [
+    SettingsRow::ExtrasRelatedRoms,
+    SettingsRow::ExtrasCover,
+    SettingsRow::ExtrasManual,
+];
+const AUTH_MAINT_ROWS: [SettingsRow; 3] = [
+    SettingsRow::Auth,
+    SettingsRow::ClearCache,
+    SettingsRow::ResetConfiguration,
+];
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum SettingsPickerKind {
@@ -20,7 +97,7 @@ pub enum SettingsPickerKind {
     SaveDir,
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum SettingsConfirm {
     Reset,
     ClearCache,
@@ -42,7 +119,8 @@ pub struct SettingsScreen {
     pub server_version: String,
     pub github_url: String,
 
-    pub selected_index: usize,
+    pub selected_tab: SettingsTab,
+    selected_indices: [usize; SettingsTab::COUNT],
     pub editing: bool,
     pub confirm: Option<SettingsConfirm>,
     pub edit_buffer: String,
@@ -99,7 +177,8 @@ impl SettingsScreen {
             version: env!("CARGO_PKG_VERSION").to_string(),
             server_version,
             github_url: "https://github.com/patricksmill/romm-cli".to_string(),
-            selected_index: 0,
+            selected_tab: SettingsTab::Connection,
+            selected_indices: [0; SettingsTab::COUNT],
             editing: false,
             confirm: None,
             edit_buffer: String::new(),
@@ -115,99 +194,149 @@ impl SettingsScreen {
         }
     }
 
-    const ROW_COUNT: usize = 12;
+    pub fn selected_row_index(&self) -> usize {
+        let rows = self.selected_tab.rows();
+        self.selected_indices[self.selected_tab.index()].min(rows.len().saturating_sub(1))
+    }
+
+    fn set_selected_row_index(&mut self, index: usize) {
+        let max = self.selected_tab.rows().len().saturating_sub(1);
+        self.selected_indices[self.selected_tab.index()] = index.min(max);
+    }
+
+    pub fn selected_row(&self) -> SettingsRow {
+        self.selected_tab.rows()[self.selected_row_index()]
+    }
+
+    pub fn active_rows(&self) -> &'static [SettingsRow] {
+        self.selected_tab.rows()
+    }
+
+    pub fn next_tab(&mut self) {
+        if self.editing || self.confirm.is_some() {
+            return;
+        }
+        let next = (self.selected_tab.index() + 1) % SettingsTab::COUNT;
+        self.selected_tab = SettingsTab::ALL[next];
+        self.set_selected_row_index(self.selected_row_index());
+    }
+
+    pub fn previous_tab(&mut self) {
+        if self.editing || self.confirm.is_some() {
+            return;
+        }
+        let previous = (self.selected_tab.index() + SettingsTab::COUNT - 1) % SettingsTab::COUNT;
+        self.selected_tab = SettingsTab::ALL[previous];
+        self.set_selected_row_index(self.selected_row_index());
+    }
 
     pub fn next(&mut self) {
         if !self.editing && self.confirm.is_none() {
-            self.selected_index = (self.selected_index + 1) % Self::ROW_COUNT;
+            let len = self.selected_tab.rows().len();
+            if len > 0 {
+                self.set_selected_row_index((self.selected_row_index() + 1) % len);
+            }
         }
     }
 
     pub fn previous(&mut self) {
         if !self.editing && self.confirm.is_none() {
-            if self.selected_index == 0 {
-                self.selected_index = Self::ROW_COUNT - 1;
+            let len = self.selected_tab.rows().len();
+            if len == 0 {
+                return;
+            }
+            if self.selected_row_index() == 0 {
+                self.set_selected_row_index(len - 1);
             } else {
-                self.selected_index -= 1;
+                self.set_selected_row_index(self.selected_row_index() - 1);
             }
         }
     }
 
     pub fn enter_edit(&mut self) {
-        if self.selected_index == 11 {
-            self.confirm = Some(SettingsConfirm::Reset);
-        } else if self.selected_index == 10 {
-            self.confirm = Some(SettingsConfirm::ClearCache);
-        } else if self.selected_index == 8 {
-            self.device_picker_open = true;
-            self.device_picker_loading = true;
-            self.device_picker_error = None;
-            self.message = Some(("Loading devices...".to_string(), Color::Yellow));
-        } else if self.selected_index == 9 {
-            self.message = Some(("Starting save sync...".to_string(), Color::Yellow));
-        } else if self.selected_index == 7 {
-            self.extras_include_manual = !self.extras_include_manual;
-            self.message = Some((
-                format!(
-                    "Extras default (manual): {}",
-                    if self.extras_include_manual {
-                        "on"
-                    } else {
-                        "off"
-                    }
-                ),
-                Color::Green,
-            ));
-        } else if self.selected_index == 6 {
-            self.extras_include_cover = !self.extras_include_cover;
-            self.message = Some((
-                format!(
-                    "Extras default (cover): {}",
-                    if self.extras_include_cover {
-                        "on"
-                    } else {
-                        "off"
-                    }
-                ),
-                Color::Green,
-            ));
-        } else if self.selected_index == 5 {
-            self.extras_include_related_roms = !self.extras_include_related_roms;
-            self.message = Some((
-                format!(
-                    "Extras default (updates/DLC): {}",
-                    if self.extras_include_related_roms {
-                        "on"
-                    } else {
-                        "off"
-                    }
-                ),
-                Color::Green,
-            ));
-        } else if self.selected_index == 2 {
-            // Toggle HTTPS directly and keep the Base URL scheme in sync.
-            self.use_https = !self.use_https;
-            if self.use_https && self.base_url.starts_with("http://") {
-                self.base_url = self.base_url.replace("http://", "https://");
-                self.message = Some(("Updated URL scheme (HTTPS)".to_string(), Color::Green));
-            } else if !self.use_https && self.base_url.starts_with("https://") {
-                self.base_url = self.base_url.replace("https://", "http://");
-                self.message = Some(("Updated URL scheme (HTTP)".to_string(), Color::Green));
+        match self.selected_row() {
+            SettingsRow::ResetConfiguration => self.confirm = Some(SettingsConfirm::Reset),
+            SettingsRow::ClearCache => self.confirm = Some(SettingsConfirm::ClearCache),
+            SettingsRow::SyncDevice => {
+                self.device_picker_open = true;
+                self.device_picker_loading = true;
+                self.device_picker_error = None;
+                self.message = Some(("Loading devices...".to_string(), Color::Yellow));
             }
-        } else if self.selected_index == 1 {
-            self.path_picker = Some((
-                SettingsPickerKind::RomsDir,
-                PathPicker::new(PathPickerMode::Directory, self.download_dir.as_str()),
-            ));
-        } else if self.selected_index == 3 {
-            self.path_picker = Some((
-                SettingsPickerKind::SaveDir,
-                PathPicker::new(PathPickerMode::Directory, self.save_dir.as_str()),
-            ));
-        } else {
-            self.editing = true;
-            self.edit_buffer = self.base_url.clone();
-            self.edit_cursor = self.edit_buffer.len();
+            SettingsRow::SyncNow => {
+                self.message = Some(("Starting save sync...".to_string(), Color::Yellow));
+            }
+            SettingsRow::ExtrasManual => {
+                self.extras_include_manual = !self.extras_include_manual;
+                self.message = Some((
+                    format!(
+                        "Extras default (manual): {}",
+                        if self.extras_include_manual {
+                            "on"
+                        } else {
+                            "off"
+                        }
+                    ),
+                    Color::Green,
+                ));
+            }
+            SettingsRow::ExtrasCover => {
+                self.extras_include_cover = !self.extras_include_cover;
+                self.message = Some((
+                    format!(
+                        "Extras default (cover): {}",
+                        if self.extras_include_cover {
+                            "on"
+                        } else {
+                            "off"
+                        }
+                    ),
+                    Color::Green,
+                ));
+            }
+            SettingsRow::ExtrasRelatedRoms => {
+                self.extras_include_related_roms = !self.extras_include_related_roms;
+                self.message = Some((
+                    format!(
+                        "Extras default (updates/DLC): {}",
+                        if self.extras_include_related_roms {
+                            "on"
+                        } else {
+                            "off"
+                        }
+                    ),
+                    Color::Green,
+                ));
+            }
+            SettingsRow::UseHttps => {
+                // Toggle HTTPS directly and keep the Base URL scheme in sync.
+                self.use_https = !self.use_https;
+                if self.use_https && self.base_url.starts_with("http://") {
+                    self.base_url = self.base_url.replace("http://", "https://");
+                    self.message = Some(("Updated URL scheme (HTTPS)".to_string(), Color::Green));
+                } else if !self.use_https && self.base_url.starts_with("https://") {
+                    self.base_url = self.base_url.replace("https://", "http://");
+                    self.message = Some(("Updated URL scheme (HTTP)".to_string(), Color::Green));
+                }
+            }
+            SettingsRow::RomsDir => {
+                self.path_picker = Some((
+                    SettingsPickerKind::RomsDir,
+                    PathPicker::new(PathPickerMode::Directory, self.download_dir.as_str()),
+                ));
+            }
+            SettingsRow::SaveDir => {
+                self.path_picker = Some((
+                    SettingsPickerKind::SaveDir,
+                    PathPicker::new(PathPickerMode::Directory, self.save_dir.as_str()),
+                ));
+            }
+            SettingsRow::BaseUrl => {
+                self.editing = true;
+                self.edit_buffer = self.base_url.clone();
+                self.edit_cursor = self.edit_buffer.len();
+            }
+            SettingsRow::Auth => {}
         }
     }
 
@@ -215,7 +344,7 @@ impl SettingsScreen {
         if !self.editing {
             return true; // UseHttps toggle is "saved" immediately in memory
         }
-        if self.selected_index == 0 {
+        if self.selected_row() == SettingsRow::BaseUrl {
             self.base_url = self.edit_buffer.trim().to_string();
         }
         self.editing = false;
@@ -301,6 +430,7 @@ impl SettingsScreen {
         let chunks = Layout::default()
             .constraints([
                 Constraint::Length(4), // Header info
+                Constraint::Length(3), // Settings tabs
                 Constraint::Min(10),   // Editable list
                 Constraint::Length(3), // Message/Hint
                 Constraint::Length(3), // Footer help
@@ -322,66 +452,37 @@ impl SettingsScreen {
             chunks[0],
         );
 
+        // -- Tabs --
+        let titles = SettingsTab::ALL
+            .iter()
+            .map(|tab| Line::from(Span::raw(tab.title())))
+            .collect::<Vec<_>>();
+        let tabs = Tabs::new(titles)
+            .select(self.selected_tab.index())
+            .block(Block::default().borders(Borders::ALL))
+            .style(Style::default().fg(Color::Gray))
+            .highlight_style(
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            );
+        f.render_widget(tabs, chunks[1]);
+
         // -- Editable List --
-        let items = [
-            ListItem::new(format!(
-                "Base URL:     {}",
-                if self.editing && self.selected_index == 0 {
-                    &self.edit_buffer
-                } else {
-                    &self.base_url
-                }
-            )),
-            ListItem::new(format!("Roms Dir:     {}", self.download_dir)),
-            ListItem::new(format!(
-                "Use HTTPS:    {}",
-                if self.use_https { "[X] Yes" } else { "[ ] No" }
-            )),
-            ListItem::new(format!("Save Dir:     {}", self.save_dir)),
-            ListItem::new(format!(
-                "Sync Device:  {}",
-                self.sync_device_id.as_deref().unwrap_or("(not selected)")
-            )),
-            ListItem::new("Sync Saves Now"),
-            ListItem::new(format!(
-                "Extras: incl. updates/DLC (picker default): {}",
-                if self.extras_include_related_roms {
-                    "[X] Yes"
-                } else {
-                    "[ ] No"
-                }
-            )),
-            ListItem::new(format!(
-                "Extras: incl. cover (picker default):     {}",
-                if self.extras_include_cover {
-                    "[X] Yes"
-                } else {
-                    "[ ] No"
-                }
-            )),
-            ListItem::new(format!(
-                "Extras: incl. manual (picker default):   {}",
-                if self.extras_include_manual {
-                    "[X] Yes"
-                } else {
-                    "[ ] No"
-                }
-            )),
-            ListItem::new(format!(
-                "Auth:         {} (Enter to change)",
-                self.auth_status
-            )),
-            ListItem::new("Clear Cache (Remove cached ROM data)"),
-            ListItem::new("Reset Configuration (Delete settings from disk & keyring)"),
-        ];
+        let items = self
+            .active_rows()
+            .iter()
+            .copied()
+            .map(|row| self.render_row_item(row))
+            .collect::<Vec<_>>();
 
         let mut state = ListState::default();
-        state.select(Some(self.selected_index));
+        state.select(Some(self.selected_row_index()));
 
         let list = List::new(items)
             .block(
                 Block::default()
-                    .title(" Configuration ")
+                    .title(format!(" {} ", self.selected_tab.title()))
                     .borders(Borders::ALL),
             )
             .highlight_style(
@@ -391,7 +492,7 @@ impl SettingsScreen {
             )
             .highlight_symbol(">> ");
 
-        f.render_stateful_widget(list, chunks[1], &mut state);
+        f.render_stateful_widget(list, chunks[2], &mut state);
 
         // -- Message Area --
         if let Some(confirm) = &self.confirm {
@@ -406,18 +507,18 @@ impl SettingsScreen {
             f.render_widget(
                 Paragraph::new(msg)
                     .style(Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
-                chunks[2],
+                chunks[3],
             );
         } else if let Some((msg, color)) = &self.message {
             f.render_widget(
                 Paragraph::new(msg.as_str()).style(Style::default().fg(*color)),
-                chunks[2],
+                chunks[3],
             );
         } else if self.editing {
             f.render_widget(
                 Paragraph::new("Editing... Enter: save   Esc: cancel")
                     .style(Style::default().fg(Color::Cyan)),
-                chunks[2],
+                chunks[3],
             );
         }
 
@@ -427,16 +528,72 @@ impl SettingsScreen {
         } else if self.editing {
             "Backspace: delete   Arrows: move cursor   Enter: save   Esc: cancel"
         } else {
-            "↑/↓: select   Enter: edit/toggle   S: save to disk   Esc: back"
+            "Tab/←/→: tabs   ↑/↓: select   Enter: edit/toggle   S: save to disk   Esc: back"
         };
         f.render_widget(
             Paragraph::new(help).block(Block::default().borders(Borders::ALL)),
-            chunks[3],
+            chunks[4],
         );
     }
 
+    fn render_row_item(&self, row: SettingsRow) -> ListItem<'static> {
+        match row {
+            SettingsRow::BaseUrl => ListItem::new(format!(
+                "Base URL:     {}",
+                if self.editing && self.selected_row() == SettingsRow::BaseUrl {
+                    &self.edit_buffer
+                } else {
+                    &self.base_url
+                }
+            )),
+            SettingsRow::RomsDir => ListItem::new(format!("Roms Dir:     {}", self.download_dir)),
+            SettingsRow::UseHttps => ListItem::new(format!(
+                "Use HTTPS:    {}",
+                if self.use_https { "[X] Yes" } else { "[ ] No" }
+            )),
+            SettingsRow::SaveDir => ListItem::new(format!("Save Dir:     {}", self.save_dir)),
+            SettingsRow::SyncDevice => ListItem::new(format!(
+                "Sync Device:  {}",
+                self.sync_device_id.as_deref().unwrap_or("(not selected)")
+            )),
+            SettingsRow::SyncNow => ListItem::new("Sync Saves Now"),
+            SettingsRow::ExtrasRelatedRoms => ListItem::new(format!(
+                "Incl. updates/DLC (picker default): {}",
+                if self.extras_include_related_roms {
+                    "[X] Yes"
+                } else {
+                    "[ ] No"
+                }
+            )),
+            SettingsRow::ExtrasCover => ListItem::new(format!(
+                "Incl. cover (picker default):       {}",
+                if self.extras_include_cover {
+                    "[X] Yes"
+                } else {
+                    "[ ] No"
+                }
+            )),
+            SettingsRow::ExtrasManual => ListItem::new(format!(
+                "Incl. manual (picker default):      {}",
+                if self.extras_include_manual {
+                    "[X] Yes"
+                } else {
+                    "[ ] No"
+                }
+            )),
+            SettingsRow::Auth => ListItem::new(format!(
+                "Auth:         {} (Enter to change)",
+                self.auth_status
+            )),
+            SettingsRow::ClearCache => ListItem::new("Clear Cache (Remove cached ROM data)"),
+            SettingsRow::ResetConfiguration => {
+                ListItem::new("Reset Configuration (Delete settings from disk & keyring)")
+            }
+        }
+    }
+
     pub fn cursor_position(&self, area: Rect) -> Option<(u16, u16)> {
-        if let Some((_, ref picker)) = self.path_picker {
+        if let Some((kind, ref picker)) = self.path_picker {
             let chunks = Layout::default()
                 .constraints([
                     Constraint::Length(4),
@@ -445,16 +602,21 @@ impl SettingsScreen {
                 ])
                 .direction(ratatui::layout::Direction::Vertical)
                 .split(area);
-            return picker.cursor_position(chunks[1], "Choose ROMs directory");
+            let title = match kind {
+                SettingsPickerKind::RomsDir => "Choose ROMs directory",
+                SettingsPickerKind::SaveDir => "Choose save directory",
+            };
+            return picker.cursor_position(chunks[1], title);
         }
 
-        if !self.editing {
+        if !self.editing || self.selected_row() != SettingsRow::BaseUrl {
             return None;
         }
 
         let chunks = Layout::default()
             .constraints([
                 Constraint::Length(4),
+                Constraint::Length(3),
                 Constraint::Min(10),
                 Constraint::Length(3),
                 Constraint::Length(3),
@@ -462,8 +624,8 @@ impl SettingsScreen {
             .direction(ratatui::layout::Direction::Vertical)
             .split(area);
 
-        let list_area = chunks[1];
-        let y = list_area.y + 1 + self.selected_index as u16;
+        let list_area = chunks[2];
+        let y = list_area.y + 1 + self.selected_row_index() as u16;
         let label_len = 14; // "Base URL:     ".len()
         let x = list_area.x + 1 /* border */ + 3 /* highlight symbol */ + label_len + self.edit_cursor as u16;
 
@@ -571,5 +733,161 @@ impl SettingsScreen {
                 .block(Block::default().borders(Borders::ALL)),
             chunks[2],
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::{ExtrasDefaults, SaveSyncConfig};
+
+    fn test_config() -> Config {
+        Config {
+            base_url: "https://romm.example.com".to_string(),
+            download_dir: "C:\\roms".to_string(),
+            use_https: true,
+            auth: None,
+            extras_defaults: ExtrasDefaults::default(),
+            save_sync: SaveSyncConfig {
+                save_dir: Some("C:\\saves".to_string()),
+                device_id: None,
+            },
+        }
+    }
+
+    fn screen() -> SettingsScreen {
+        SettingsScreen::new(&test_config(), Some("1.0.0"))
+    }
+
+    #[test]
+    fn tabs_expose_expected_rows() {
+        assert_eq!(
+            SettingsTab::Connection.rows(),
+            &[
+                SettingsRow::BaseUrl,
+                SettingsRow::RomsDir,
+                SettingsRow::UseHttps
+            ]
+        );
+        assert_eq!(
+            SettingsTab::Saves.rows(),
+            &[
+                SettingsRow::SaveDir,
+                SettingsRow::SyncDevice,
+                SettingsRow::SyncNow
+            ]
+        );
+        assert_eq!(
+            SettingsTab::Extras.rows(),
+            &[
+                SettingsRow::ExtrasRelatedRoms,
+                SettingsRow::ExtrasCover,
+                SettingsRow::ExtrasManual
+            ]
+        );
+        assert_eq!(
+            SettingsTab::AuthMaintenance.rows(),
+            &[
+                SettingsRow::Auth,
+                SettingsRow::ClearCache,
+                SettingsRow::ResetConfiguration
+            ]
+        );
+    }
+
+    #[test]
+    fn row_navigation_wraps_within_active_tab() {
+        let mut s = screen();
+
+        assert_eq!(s.selected_row(), SettingsRow::BaseUrl);
+        s.previous();
+        assert_eq!(s.selected_row(), SettingsRow::UseHttps);
+        s.next();
+        assert_eq!(s.selected_row(), SettingsRow::BaseUrl);
+    }
+
+    #[test]
+    fn tab_navigation_preserves_per_tab_selection() {
+        let mut s = screen();
+
+        s.next();
+        s.next();
+        assert_eq!(s.selected_row(), SettingsRow::UseHttps);
+
+        s.next_tab();
+        assert_eq!(s.selected_tab, SettingsTab::Saves);
+        assert_eq!(s.selected_row(), SettingsRow::SaveDir);
+
+        s.next();
+        assert_eq!(s.selected_row(), SettingsRow::SyncDevice);
+
+        s.previous_tab();
+        assert_eq!(s.selected_tab, SettingsTab::Connection);
+        assert_eq!(s.selected_row(), SettingsRow::UseHttps);
+
+        s.next_tab();
+        assert_eq!(s.selected_tab, SettingsTab::Saves);
+        assert_eq!(s.selected_row(), SettingsRow::SyncDevice);
+    }
+
+    #[test]
+    fn activation_rows_resolve_to_expected_intents() {
+        let mut s = screen();
+
+        s.selected_tab = SettingsTab::AuthMaintenance;
+        assert_eq!(s.selected_row(), SettingsRow::Auth);
+
+        s.next();
+        assert_eq!(s.selected_row(), SettingsRow::ClearCache);
+        s.enter_edit();
+        assert_eq!(s.confirm, Some(SettingsConfirm::ClearCache));
+
+        s.cancel_edit();
+        s.next();
+        assert_eq!(s.selected_row(), SettingsRow::ResetConfiguration);
+        s.enter_edit();
+        assert_eq!(s.confirm, Some(SettingsConfirm::Reset));
+    }
+
+    #[test]
+    fn save_action_rows_trigger_matching_state() {
+        let mut s = screen();
+        s.selected_tab = SettingsTab::Saves;
+
+        s.next();
+        assert_eq!(s.selected_row(), SettingsRow::SyncDevice);
+        s.enter_edit();
+        assert!(s.device_picker_open);
+        assert!(s.device_picker_loading);
+
+        s.device_picker_open = false;
+        s.device_picker_loading = false;
+        s.next();
+        assert_eq!(s.selected_row(), SettingsRow::SyncNow);
+        s.enter_edit();
+        assert_eq!(
+            s.message.as_ref().map(|(msg, _)| msg.as_str()),
+            Some("Starting save sync...")
+        );
+    }
+
+    #[test]
+    fn extras_rows_toggle_matching_defaults() {
+        let mut s = screen();
+        s.selected_tab = SettingsTab::Extras;
+
+        s.enter_edit();
+        assert!(!s.extras_include_related_roms);
+        assert!(s.extras_include_cover);
+        assert!(s.extras_include_manual);
+
+        s.next();
+        s.enter_edit();
+        assert!(!s.extras_include_cover);
+        assert!(s.extras_include_manual);
+
+        s.next();
+        s.enter_edit();
+        assert!(!s.extras_include_manual);
     }
 }
