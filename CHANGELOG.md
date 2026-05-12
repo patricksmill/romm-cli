@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.33.0](https://github.com/patricksmill/romm-cli/compare/v0.32.0...v0.33.0) (2026-05-12)
+
+
+### Features
+
+* add device management and sync endpoints ([4431e4f](https://github.com/patricksmill/romm-cli/commit/4431e4fe6d1f99329b5ea4c74add9d8f99f70512))
+* add OpenAPI parsing and endpoint registry for compatibility checks ([5b25da3](https://github.com/patricksmill/romm-cli/commit/5b25da3cf817a3937d394226d82bbf7f36fff52e))
+* add save sync functionality to TUI and CLI ([fff28f4](https://github.com/patricksmill/romm-cli/commit/fff28f45dbeb33cec1a61da99a4371429758b448))
+* enhance settings screen with tab navigation and save sync options ([ca44184](https://github.com/patricksmill/romm-cli/commit/ca44184a6c3cb52648844a14a2ebc1abad3e2cd6))
+* implement save sync compatibility checks and enhance error handling for unsupported endpoints ([5b25da3](https://github.com/patricksmill/romm-cli/commit/5b25da3cf817a3937d394226d82bbf7f36fff52e))
+
 ## [0.32.0](https://github.com/patricksmill/romm-cli/compare/v0.31.0...v0.32.0) (2026-05-07)
 
 
