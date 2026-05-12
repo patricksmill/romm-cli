@@ -21,6 +21,8 @@ use crate::endpoints::sync::{
     CompleteSyncSession, GetSyncSession, ListSyncSessions, NegotiateSync, SyncNegotiateResponse,
     TriggerPushPull,
 };
+use crate::feature_compat::{save_sync_compatibility, SAVE_SYNC_UNSUPPORTED_MESSAGE};
+use crate::openapi::EndpointRegistry;
 
 #[derive(Args, Debug)]
 pub struct SyncCommand {
@@ -199,6 +201,8 @@ struct RunCounts {
 }
 
 pub async fn handle(cmd: SyncCommand, client: &RommClient, format: OutputFormat) -> Result<()> {
+    preflight_save_sync_compatibility(client, format).await?;
+
     match cmd.action {
         SyncAction::Device(device_cmd) => handle_device(device_cmd, client, format).await,
         SyncAction::Plan(args) => handle_plan(args, client, format).await,
@@ -209,6 +213,49 @@ pub async fn handle(cmd: SyncCommand, client: &RommClient, format: OutputFormat)
             print_output(format, &out)
         }
     }
+}
+
+async fn preflight_save_sync_compatibility(
+    client: &RommClient,
+    format: OutputFormat,
+) -> Result<()> {
+    let openapi = match client.fetch_openapi_json().await {
+        Ok(body) => body,
+        Err(e) => {
+            tracing::warn!("Skipping save-sync compatibility preflight: {e:#}");
+            return Ok(());
+        }
+    };
+    let registry = match EndpointRegistry::from_openapi_json(&openapi) {
+        Ok(registry) => registry,
+        Err(e) => {
+            tracing::warn!(
+                "Skipping save-sync compatibility preflight; OpenAPI parse failed: {e:#}"
+            );
+            return Ok(());
+        }
+    };
+    let compat = save_sync_compatibility(&registry);
+    if compat.supported {
+        return Ok(());
+    }
+
+    if matches!(format, OutputFormat::Json) {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({
+                "error": "save_sync_unsupported",
+                "message": SAVE_SYNC_UNSUPPORTED_MESSAGE,
+                "missing_endpoints": compat
+                    .missing
+                    .iter()
+                    .map(|ep| ep.label())
+                    .collect::<Vec<_>>()
+            }))?
+        );
+    }
+
+    anyhow::bail!("{}", compat.unsupported_message())
 }
 
 async fn handle_device(

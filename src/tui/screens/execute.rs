@@ -2,7 +2,7 @@ use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 
-use crate::tui::openapi::ApiEndpoint;
+use crate::openapi::ApiEndpoint;
 
 /// Screen for editing path/query/body parameters and executing a single endpoint.
 pub struct ExecuteScreen {

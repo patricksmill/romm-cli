@@ -6,6 +6,7 @@ use ratatui::Frame;
 
 use crate::config::{disk_has_unresolved_keyring_sentinel, Config};
 use crate::endpoints::device::DeviceSchema;
+use crate::feature_compat::SaveSyncCompatibility;
 use crate::tui::path_picker::{PathPicker, PathPickerMode};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -136,10 +137,15 @@ pub struct SettingsScreen {
     pub device_selected_index: usize,
     pub sync_inflight: bool,
     pub message: Option<(String, Color)>,
+    pub save_sync_compat: SaveSyncCompatibility,
 }
 
 impl SettingsScreen {
-    pub fn new(config: &Config, romm_server_version: Option<&str>) -> Self {
+    pub fn new(
+        config: &Config,
+        romm_server_version: Option<&str>,
+        save_sync_compat: SaveSyncCompatibility,
+    ) -> Self {
         let auth_status = match &config.auth {
             Some(crate::config::AuthConfig::Basic { username, .. }) => {
                 format!("Basic (user: {})", username)
@@ -191,7 +197,16 @@ impl SettingsScreen {
             device_selected_index: 0,
             sync_inflight: false,
             message: None,
+            save_sync_compat,
         }
+    }
+
+    pub fn save_sync_supported(&self) -> bool {
+        self.save_sync_compat.supported
+    }
+
+    pub fn set_save_sync_unsupported_message(&mut self) {
+        self.message = Some((self.save_sync_compat.unsupported_message(), Color::Yellow));
     }
 
     pub fn selected_row_index(&self) -> usize {
@@ -258,12 +273,20 @@ impl SettingsScreen {
             SettingsRow::ResetConfiguration => self.confirm = Some(SettingsConfirm::Reset),
             SettingsRow::ClearCache => self.confirm = Some(SettingsConfirm::ClearCache),
             SettingsRow::SyncDevice => {
+                if !self.save_sync_supported() {
+                    self.set_save_sync_unsupported_message();
+                    return;
+                }
                 self.device_picker_open = true;
                 self.device_picker_loading = true;
                 self.device_picker_error = None;
                 self.message = Some(("Loading devices...".to_string(), Color::Yellow));
             }
             SettingsRow::SyncNow => {
+                if !self.save_sync_supported() {
+                    self.set_save_sync_unsupported_message();
+                    return;
+                }
                 self.message = Some(("Starting save sync...".to_string(), Color::Yellow));
             }
             SettingsRow::ExtrasManual => {
@@ -537,58 +560,72 @@ impl SettingsScreen {
     }
 
     fn render_row_item(&self, row: SettingsRow) -> ListItem<'static> {
+        let label = self.row_label(row);
         match row {
-            SettingsRow::BaseUrl => ListItem::new(format!(
+            SettingsRow::SyncDevice | SettingsRow::SyncNow if !self.save_sync_supported() => {
+                ListItem::new(label).style(Style::default().fg(Color::DarkGray))
+            }
+            _ => ListItem::new(label),
+        }
+    }
+
+    fn row_label(&self, row: SettingsRow) -> String {
+        let label = match row {
+            SettingsRow::BaseUrl => format!(
                 "Base URL:     {}",
                 if self.editing && self.selected_row() == SettingsRow::BaseUrl {
                     &self.edit_buffer
                 } else {
                     &self.base_url
                 }
-            )),
-            SettingsRow::RomsDir => ListItem::new(format!("Roms Dir:     {}", self.download_dir)),
-            SettingsRow::UseHttps => ListItem::new(format!(
+            ),
+            SettingsRow::RomsDir => format!("Roms Dir:     {}", self.download_dir),
+            SettingsRow::UseHttps => format!(
                 "Use HTTPS:    {}",
                 if self.use_https { "[X] Yes" } else { "[ ] No" }
-            )),
-            SettingsRow::SaveDir => ListItem::new(format!("Save Dir:     {}", self.save_dir)),
-            SettingsRow::SyncDevice => ListItem::new(format!(
+            ),
+            SettingsRow::SaveDir => format!("Save Dir:     {}", self.save_dir),
+            SettingsRow::SyncDevice => format!(
                 "Sync Device:  {}",
                 self.sync_device_id.as_deref().unwrap_or("(not selected)")
-            )),
-            SettingsRow::SyncNow => ListItem::new("Sync Saves Now"),
-            SettingsRow::ExtrasRelatedRoms => ListItem::new(format!(
+            ),
+            SettingsRow::SyncNow => "Sync Saves Now".to_string(),
+            SettingsRow::ExtrasRelatedRoms => format!(
                 "Incl. updates/DLC (picker default): {}",
                 if self.extras_include_related_roms {
                     "[X] Yes"
                 } else {
                     "[ ] No"
                 }
-            )),
-            SettingsRow::ExtrasCover => ListItem::new(format!(
+            ),
+            SettingsRow::ExtrasCover => format!(
                 "Incl. cover (picker default):       {}",
                 if self.extras_include_cover {
                     "[X] Yes"
                 } else {
                     "[ ] No"
                 }
-            )),
-            SettingsRow::ExtrasManual => ListItem::new(format!(
+            ),
+            SettingsRow::ExtrasManual => format!(
                 "Incl. manual (picker default):      {}",
                 if self.extras_include_manual {
                     "[X] Yes"
                 } else {
                     "[ ] No"
                 }
-            )),
-            SettingsRow::Auth => ListItem::new(format!(
-                "Auth:         {} (Enter to change)",
-                self.auth_status
-            )),
-            SettingsRow::ClearCache => ListItem::new("Clear Cache (Remove cached ROM data)"),
+            ),
+            SettingsRow::Auth => format!("Auth:         {} (Enter to change)", self.auth_status),
+            SettingsRow::ClearCache => "Clear Cache (Remove cached ROM data)".to_string(),
             SettingsRow::ResetConfiguration => {
-                ListItem::new("Reset Configuration (Delete settings from disk & keyring)")
+                "Reset Configuration (Delete settings from disk & keyring)".to_string()
             }
+        };
+        if matches!(row, SettingsRow::SyncDevice | SettingsRow::SyncNow)
+            && !self.save_sync_supported()
+        {
+            format!("{label} (requires newer RomM server)")
+        } else {
+            label
         }
     }
 
@@ -740,6 +777,10 @@ impl SettingsScreen {
 mod tests {
     use super::*;
     use crate::config::{ExtrasDefaults, SaveSyncConfig};
+    use crate::feature_compat::{
+        supported_save_sync_compatibility, FeatureCompatibility, RequiredEndpoint,
+        SAVE_SYNC_FEATURE, SAVE_SYNC_UNSUPPORTED_MESSAGE,
+    };
 
     fn test_config() -> Config {
         Config {
@@ -756,7 +797,27 @@ mod tests {
     }
 
     fn screen() -> SettingsScreen {
-        SettingsScreen::new(&test_config(), Some("1.0.0"))
+        SettingsScreen::new(
+            &test_config(),
+            Some("1.0.0"),
+            supported_save_sync_compatibility(),
+        )
+    }
+
+    fn unsupported_screen() -> SettingsScreen {
+        SettingsScreen::new(
+            &test_config(),
+            Some("1.0.0"),
+            FeatureCompatibility::from_registry(
+                SAVE_SYNC_FEATURE,
+                SAVE_SYNC_UNSUPPORTED_MESSAGE,
+                &[RequiredEndpoint {
+                    method: "GET",
+                    path: "/api/devices",
+                }],
+                &crate::openapi::EndpointRegistry::default(),
+            ),
+        )
     }
 
     #[test]
@@ -889,5 +950,44 @@ mod tests {
         s.next();
         s.enter_edit();
         assert!(!s.extras_include_manual);
+    }
+
+    #[test]
+    fn unsupported_save_sync_rows_do_not_open_device_picker_or_start_sync() {
+        let mut s = unsupported_screen();
+        s.selected_tab = SettingsTab::Saves;
+
+        s.next();
+        assert_eq!(s.selected_row(), SettingsRow::SyncDevice);
+        s.enter_edit();
+        assert!(!s.device_picker_open);
+        assert_eq!(
+            s.message.as_ref().map(|(msg, _)| msg.as_str()),
+            Some(
+                "This RomM server does not expose save-sync endpoints; upgrade RomM to use romm-cli sync. Missing endpoint(s): GET /api/devices"
+            )
+        );
+
+        s.next();
+        assert_eq!(s.selected_row(), SettingsRow::SyncNow);
+        s.enter_edit();
+        assert!(!s.sync_inflight);
+        assert!(s
+            .message
+            .as_ref()
+            .map(|(msg, _)| msg.contains(SAVE_SYNC_UNSUPPORTED_MESSAGE))
+            .unwrap_or(false));
+    }
+
+    #[test]
+    fn unsupported_save_sync_rows_render_requires_newer_server_annotation() {
+        let s = unsupported_screen();
+
+        assert!(s
+            .row_label(SettingsRow::SyncDevice)
+            .contains("requires newer RomM server"));
+        assert!(s
+            .row_label(SettingsRow::SyncNow)
+            .contains("requires newer RomM server"));
     }
 }

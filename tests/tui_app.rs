@@ -4,8 +4,8 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use romm_cli::client::RommClient;
 use romm_cli::config::{Config, ExtrasDefaults};
 use romm_cli::core::utils;
+use romm_cli::openapi::EndpointRegistry;
 use romm_cli::tui::app::{App, AppScreen};
-use romm_cli::tui::openapi::EndpointRegistry;
 use romm_cli::tui::screens::library_browse::{
     LibraryBrowseScreen, LibrarySearchMode, LibraryViewMode,
 };

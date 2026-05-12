@@ -6,7 +6,7 @@ use serde_json::Value;
 use std::path::Path;
 
 use crate::client::RommClient;
-use crate::tui::openapi::EndpointRegistry;
+use crate::openapi::EndpointRegistry;
 
 /// OpenAPI document baked into the binary (same as `openapi.json` in the crate root at build time).
 const EMBEDDED_OPENAPI_JSON: &str =

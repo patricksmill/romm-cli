@@ -43,7 +43,6 @@ use crate::types::{Collection, Platform, RomList, SaveMetadata};
 use crate::update::UpdateStatus;
 
 use super::keyboard_help;
-use super::openapi::{resolve_path_template, EndpointRegistry};
 use super::screens::connected_splash::{self, StartupSplash};
 use super::screens::settings::SettingsRow;
 use super::screens::setup_wizard::SetupWizard;
@@ -52,6 +51,8 @@ use super::screens::{
     GameDetailScreen, LibraryBrowseScreen, MainMenuScreen, ResultDetailScreen, ResultScreen,
     SearchScreen, SettingsScreen,
 };
+use crate::feature_compat::{save_sync_compatibility, SaveSyncCompatibility};
+use crate::openapi::{resolve_path_template, EndpointRegistry};
 
 /// Result of a background library metadata refresh (generation-guarded).
 struct LibraryMetadataRefreshDone {
@@ -226,6 +227,7 @@ pub struct App {
     registry: EndpointRegistry,
     /// RomM server version from `GET /api/heartbeat` (`SYSTEM.VERSION`), if available.
     server_version: Option<String>,
+    save_sync_compat: SaveSyncCompatibility,
     rom_cache: RomCache,
     downloads: DownloadManager,
     /// Screen to restore when closing the Download overlay.
@@ -343,12 +345,14 @@ impl App {
         let (save_download_tx, save_download_rx) = tokio::sync::mpsc::unbounded_channel();
         let (device_list_tx, device_list_rx) = tokio::sync::mpsc::unbounded_channel();
         let (sync_push_pull_tx, sync_push_pull_rx) = tokio::sync::mpsc::unbounded_channel();
+        let save_sync_compat = save_sync_compatibility(&registry);
         Self {
             screen: AppScreen::MainMenu(MainMenuScreen::new()),
             client,
             config,
             registry,
             server_version,
+            save_sync_compat,
             rom_cache: RomCache::load(),
             downloads: DownloadManager::new(),
             screen_before_download: None,
@@ -1483,6 +1487,7 @@ impl App {
                     self.screen = AppScreen::Settings(SettingsScreen::new(
                         &self.config,
                         self.server_version.as_deref(),
+                        self.save_sync_compat.clone(),
                     ))
                 }
                 4 => return Ok(true),
@@ -2022,6 +2027,10 @@ impl App {
                     self.screen =
                         AppScreen::SetupWizard(Box::new(SetupWizard::new_auth_only(&self.config)));
                 } else if row == SettingsRow::SyncDevice {
+                    if !settings.save_sync_supported() {
+                        settings.set_save_sync_unsupported_message();
+                        return Ok(false);
+                    }
                     settings.enter_edit();
                     let client = self.client.clone();
                     let tx = self.device_list_tx.clone();
@@ -2033,6 +2042,10 @@ impl App {
                         let _ = tx.send(DeviceListDone { result });
                     });
                 } else if row == SettingsRow::SyncNow {
+                    if !settings.save_sync_supported() {
+                        settings.set_save_sync_unsupported_message();
+                        return Ok(false);
+                    }
                     if settings.sync_inflight {
                         return Ok(false);
                     }
@@ -2530,6 +2543,7 @@ impl App {
             self.screen = AppScreen::Settings(SettingsScreen::new(
                 &self.config,
                 self.server_version.as_deref(),
+                self.save_sync_compat.clone(),
             ));
             return Ok(false);
         }
@@ -2544,8 +2558,11 @@ impl App {
                     if let Ok(new_client) = RommClient::new(&self.config, self.client.verbose()) {
                         self.client = new_client;
                     }
-                    let mut settings =
-                        SettingsScreen::new(&self.config, self.server_version.as_deref());
+                    let mut settings = SettingsScreen::new(
+                        &self.config,
+                        self.server_version.as_deref(),
+                        self.save_sync_compat.clone(),
+                    );
                     if auth_ok {
                         settings.message = Some((
                             "Authentication updated successfully".to_string(),
@@ -2731,7 +2748,7 @@ impl App {
 mod tests {
     use super::*;
     use crate::config::{Config, ExtrasDefaults};
-    use crate::tui::openapi::EndpointRegistry;
+    use crate::openapi::EndpointRegistry;
     use crate::tui::screens::library_browse::LibraryBrowseScreen;
     use crate::tui::screens::{GameDetailPrevious, GameDetailScreen, SearchScreen};
     use crate::types::Platform;

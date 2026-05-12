@@ -2,7 +2,7 @@ use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState};
 use ratatui::Frame;
 
-use crate::tui::openapi::{ApiEndpoint, EndpointRegistry};
+use crate::openapi::{ApiEndpoint, EndpointRegistry};
 use std::collections::HashMap;
 
 /// Logical grouping of API endpoints (by tag or path prefix).

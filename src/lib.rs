@@ -41,8 +41,12 @@ pub mod config;
 pub mod core;
 /// Type-safe API endpoint definitions.
 pub mod endpoints;
+/// Feature compatibility helpers based on OpenAPI endpoint availability.
+pub mod feature_compat;
 /// Frontend-specific logic (shared between CLI and TUI).
 pub mod frontend;
+/// OpenAPI parsing and endpoint lookup helpers.
+pub mod openapi;
 /// High-level service objects for common operations.
 pub mod services;
 /// TUI implementation (requires the `tui` feature).

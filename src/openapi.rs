@@ -1,4 +1,4 @@
-//! Parse a subset of OpenAPI 3.x JSON into a flat endpoint list for the TUI expert browser.
+//! Parse a subset of OpenAPI 3.x JSON into a flat endpoint list.
 //!
 //! Inline `parameters` only; `$ref` on parameters is not resolved.
 
@@ -258,6 +258,12 @@ impl EndpointRegistry {
         Self::from_openapi_json(&content)
     }
 
+    pub fn has_endpoint(&self, method: &str, path: &str) -> bool {
+        self.endpoints
+            .iter()
+            .any(|ep| ep.method.eq_ignore_ascii_case(method) && ep.path == path)
+    }
+
     #[allow(dead_code)]
     pub fn get_by_tag(&self, tag: &str) -> Vec<&ApiEndpoint> {
         self.endpoints
@@ -369,6 +375,27 @@ mod tests {
             Some("op")
         );
         assert!(reg.endpoints[0].query_params[0].required);
+    }
+
+    #[test]
+    fn has_endpoint_matches_exact_path_and_case_insensitive_method() {
+        let json = r#"{
+            "openapi": "3.0.0",
+            "paths": {
+                "/api/devices": {
+                    "get": { "responses": { "200": { "description": "ok" } } }
+                },
+                "/api/sync/devices/{device_id}/push-pull": {
+                    "post": { "responses": { "200": { "description": "ok" } } }
+                }
+            }
+        }"#;
+
+        let reg = EndpointRegistry::from_openapi_json(json).expect("parse");
+        assert!(reg.has_endpoint("GET", "/api/devices"));
+        assert!(reg.has_endpoint("post", "/api/sync/devices/{device_id}/push-pull"));
+        assert!(!reg.has_endpoint("POST", "/api/devices"));
+        assert!(!reg.has_endpoint("POST", "/api/sync/devices/1/push-pull"));
     }
 
     #[test]

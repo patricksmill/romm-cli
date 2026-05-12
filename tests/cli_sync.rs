@@ -22,6 +22,68 @@ fn write_manifest(dir: &std::path::Path, rows_json_fragment: &str) -> std::path:
 }
 
 #[tokio::test]
+async fn sync_device_list_fails_early_when_openapi_lacks_save_sync_endpoints() {
+    let server = MockServer::start_async().await;
+    let _openapi = server
+        .mock_async(|when, then| {
+            when.method(GET).path("/openapi.json");
+            then.status(200)
+                .header("content-type", "application/json")
+                .body(r#"{"openapi":"3.0.0","paths":{"/api/heartbeat":{"get":{"responses":{"200":{"description":"ok"}}}}}}"#);
+        })
+        .await;
+    let devices = server
+        .mock_async(|when, then| {
+            when.method(GET).path("/api/devices");
+            then.status(200)
+                .header("content-type", "application/json")
+                .body("[]");
+        })
+        .await;
+
+    let mut cmd = Command::cargo_bin("romm-cli").expect("binary");
+    cmd.env("API_BASE_URL", server.base_url())
+        .env("API_USE_HTTPS", "false")
+        .args(["sync", "device", "list"]);
+
+    cmd.assert().failure().stderr(predicates::str::contains(
+        "This RomM server does not expose save-sync endpoints",
+    ));
+    assert_eq!(devices.hits_async().await, 0);
+}
+
+#[tokio::test]
+async fn sync_push_pull_fails_early_when_openapi_lacks_save_sync_endpoints() {
+    let server = MockServer::start_async().await;
+    let _openapi = server
+        .mock_async(|when, then| {
+            when.method(GET).path("/openapi.json");
+            then.status(200)
+                .header("content-type", "application/json")
+                .body(r#"{"openapi":"3.0.0","paths":{}}"#);
+        })
+        .await;
+    let push_pull = server
+        .mock_async(|when, then| {
+            when.method(POST).path("/api/sync/devices/dev-1/push-pull");
+            then.status(200)
+                .header("content-type", "application/json")
+                .body("{}");
+        })
+        .await;
+
+    let mut cmd = Command::cargo_bin("romm-cli").expect("binary");
+    cmd.env("API_BASE_URL", server.base_url())
+        .env("API_USE_HTTPS", "false")
+        .args(["sync", "push-pull", "dev-1"]);
+
+    cmd.assert().failure().stderr(predicates::str::contains(
+        "This RomM server does not expose save-sync endpoints",
+    ));
+    assert_eq!(push_pull.hits_async().await, 0);
+}
+
+#[tokio::test]
 async fn sync_plan_prints_negotiate_response() {
     let server = MockServer::start_async().await;
     let work = temp_dir("plan");
