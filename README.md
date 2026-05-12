@@ -18,6 +18,7 @@ Rust CLI and TUI for managing a game library through the [ROMM API](https://gith
 - **Authentication**: Basic Auth, Bearer tokens, custom-header API keys, and Web UI pairing codes.
 - **Caching**: Game list caching for faster repeat loads.
 - **Library scan**: Trigger a server `scan_library` task after uploads (`romm-cli roms upload … --scan`) or on demand (`romm-cli scan`), with optional `--wait` until the job finishes.
+- **Save sync (API mode)**: Run one-shot sync planning/execution from a local manifest (`romm-cli sync plan` / `romm-cli sync run`), including device registration and session inspection.
 - **Cross-platform**: Windows, Linux, and macOS (including ARM).
 
 ---
@@ -121,6 +122,7 @@ Set these in your shell (or any tool that injects env vars into the process) for
 - [Architecture](docs/architecture.md) — crate layout, layers, and TUI state machine.
 - [TUI internals](docs/tui.md) — event loop, screens, scrolling.
 - [HTTP client](docs/http-client.md) — `RommClient`, endpoints, streaming downloads.
+- [Save sync](docs/save-sync.md) — manifest format, `sync` subcommands, conflict handling, and session lifecycle.
 - [Troubleshooting authentication](docs/troubleshooting-auth.md) — keyring, Docker, CI, Windows.
 - [Post-upload library scan](docs/scan-after-upload.md) — `--scan`, `scan --wait`, cache invalidation.
 
@@ -164,6 +166,11 @@ romm-cli download extras <rom-id>
 romm-cli scan
 romm-cli scan --wait --wait-timeout-secs 3600
 
+# Save sync (RomM 4.9.0-alpha.2+): plan from manifest, then execute
+romm-cli sync device register --name "My Handheld" --sync-mode api
+romm-cli sync plan --device-id <device-id> --manifest ./sync-manifest.json
+romm-cli sync run --device-id <device-id> --manifest ./sync-manifest.json
+
 # Self-update
 romm-cli update
 
@@ -181,6 +188,8 @@ romm-cli auth logout
 On interactive startup, `romm-cli` and `romm-tui` check for newer releases and can prompt to update now, open the online changelog, or skip.
 
 After a chunked upload, RomM still needs a **library scan** before new games appear in search and the TUI. See [docs/scan-after-upload.md](docs/scan-after-upload.md) for batch uploads, `--wait`, JSON output, and cache behavior.
+
+Save sync commands use RomM sync endpoints introduced in the `4.9.0-alpha.2` pre-release. For details and the full manifest schema, see [docs/save-sync.md](docs/save-sync.md).
 
 ---
 

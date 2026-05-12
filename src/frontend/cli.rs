@@ -1,7 +1,9 @@
 use anyhow::{anyhow, Result};
 
 use crate::client::RommClient;
-use crate::commands::{api, auth, cache, download, platforms, roms, scan, Commands, OutputFormat};
+use crate::commands::{
+    api, auth, cache, download, platforms, roms, scan, sync, Commands, OutputFormat,
+};
 use crate::core::interrupt::InterruptContext;
 
 /// Execute one non-TUI CLI command.
@@ -23,6 +25,10 @@ pub async fn run(command: Commands, client: &RommClient, global_json: bool) -> R
             let format = OutputFormat::from_flags(global_json, false);
             let interrupt = InterruptContext::new();
             scan::handle(cmd, client, format, Some(interrupt)).await
+        }
+        Commands::Sync(cmd) => {
+            let format = OutputFormat::from_flags(global_json, cmd.json);
+            sync::handle(cmd, client, format).await
         }
         Commands::Download(cmd) => {
             let interrupt = InterruptContext::new();

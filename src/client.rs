@@ -18,6 +18,16 @@ use crate::config::{normalize_romm_origin, AuthConfig, Config};
 use crate::core::interrupt::cancelled_error;
 use crate::endpoints::Endpoint;
 
+/// Optional query fields for save uploads used in sync flows.
+#[derive(Debug, Clone, Default)]
+pub struct SaveUploadOptions<'a> {
+    pub emulator: Option<&'a str>,
+    pub slot: Option<&'a str>,
+    pub device_id: Option<&'a str>,
+    pub session_id: Option<u64>,
+    pub overwrite: bool,
+}
+
 /// Default `User-Agent` for every request. The stock `reqwest` UA is sometimes blocked at the HTTP
 /// layer (403, etc.) by reverse proxies; override with env `ROMM_USER_AGENT` if needed.
 fn http_user_agent() -> String {
@@ -835,6 +845,21 @@ impl RommClient {
         emulator: Option<&str>,
         file_path: &Path,
     ) -> Result<Value> {
+        let options = SaveUploadOptions {
+            emulator,
+            ..Default::default()
+        };
+        self.upload_save_file_with_options(rom_id, file_path, &options)
+            .await
+    }
+
+    /// Uploads a game save file with sync-specific options.
+    pub async fn upload_save_file_with_options(
+        &self,
+        rom_id: u64,
+        file_path: &Path,
+        options: &SaveUploadOptions<'_>,
+    ) -> Result<Value> {
         let url = format!("{}/api/saves", self.base_url.trim_end_matches('/'));
         let bytes = tokio::fs::read(file_path)
             .await
@@ -846,10 +871,26 @@ impl RommClient {
         let part = multipart::Part::bytes(bytes).file_name(fname.to_string());
         let form = multipart::Form::new().part("saveFile", part);
         let mut query: Vec<(String, String)> = vec![("rom_id".into(), rom_id.to_string())];
-        if let Some(em) = emulator {
+        if let Some(em) = options.emulator {
             if !em.is_empty() {
                 query.push(("emulator".into(), em.to_string()));
             }
+        }
+        if let Some(slot) = options.slot {
+            if !slot.is_empty() {
+                query.push(("slot".into(), slot.to_string()));
+            }
+        }
+        if let Some(device_id) = options.device_id {
+            if !device_id.is_empty() {
+                query.push(("device_id".into(), device_id.to_string()));
+            }
+        }
+        if let Some(session_id) = options.session_id {
+            query.push(("session_id".into(), session_id.to_string()));
+        }
+        if options.overwrite {
+            query.push(("overwrite".into(), "true".into()));
         }
         let query_refs: Vec<(&str, &str)> = query
             .iter()
@@ -888,6 +929,26 @@ impl RommClient {
             .await
             .map_err(|e| anyhow!("read save upload body: {e}"))?;
         Ok(decode_json_response_body(&bytes))
+    }
+
+    /// Downloads save content from `GET /api/saves/{id}/content`.
+    pub async fn download_save_content(
+        &self,
+        save_id: u64,
+        device_id: Option<&str>,
+        session_id: Option<u64>,
+    ) -> Result<Vec<u8>> {
+        let path = format!("/api/saves/{save_id}/content");
+        let mut query = Vec::new();
+        if let Some(device_id) = device_id {
+            if !device_id.is_empty() {
+                query.push(("device_id".to_string(), device_id.to_string()));
+            }
+        }
+        if let Some(session_id) = session_id {
+            query.push(("session_id".to_string(), session_id.to_string()));
+        }
+        self.get_bytes(&path, &query).await
     }
 
     /// `POST /api/states` with multipart field `stateFile`.

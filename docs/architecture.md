@@ -15,7 +15,7 @@ From bottom to top:
   - `endpoints/*` – implementations of the `Endpoint` trait describing
     the HTTP method, path, query params, and optional body for each
     ROMM API endpoint. Endpoint modules are organized by API area
-    (`platforms`, `roms`, `collections`, `client_tokens`, `system`, `tasks`).
+    (`platforms`, `roms`, `collections`, `client_tokens`, `device`, `saves`, `sync`, `system`, `tasks`).
 - **Core services** (`src/core/`, `src/client.rs`, `src/config.rs`)
   - `Config` / `AuthConfig` – decide how to talk to ROMM (base URL and
     authentication mode).
@@ -33,7 +33,7 @@ From bottom to top:
 The CLI layer itself is split into:
 
 - `commands::mod` – top-level `Cli` and `Commands` enum plus `OutputFormat`.
-- `commands::platforms` / `commands::roms` / `commands::api` / `commands::auth` / `commands::download` / `commands::scan` / `commands::cache` / `commands::init` / `commands::update` – small modules that parse arguments, call into services, and print results. Library scan HTTP for both `scan` and upload-triggered scans lives in `commands::library_scan`.
+- `commands::platforms` / `commands::roms` / `commands::api` / `commands::auth` / `commands::download` / `commands::scan` / `commands::sync` / `commands::cache` / `commands::init` / `commands::update` – small modules that parse arguments, call into services, and print results. Library scan HTTP for both `scan` and upload-triggered scans lives in `commands::library_scan`.
 - `commands::print` – helpers for tabular text output.
 - `services` – `PlatformService` and `RomService` wrappers around endpoint calls, plus shared resolvers (platform and collection name/id helpers).
 
@@ -70,4 +70,3 @@ This pattern works well in Rust because:
 - Ownership is explicit (you often move a screen out of the enum, mutate it, then put it back).
 
 You could also model screens as trait objects, but the enum-based approach keeps everything static and easy to follow for learners.
-

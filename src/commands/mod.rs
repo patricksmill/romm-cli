@@ -20,6 +20,7 @@ pub mod platforms;
 pub mod print;
 pub mod roms;
 pub mod scan;
+pub mod sync;
 pub mod update;
 
 /// Defines how a command should format its output for the user.
@@ -101,6 +102,8 @@ pub enum Commands {
     Roms(Box<roms::RomsCommand>),
     /// Trigger a library scan on the RomM server.
     Scan(scan::ScanCommand),
+    /// Save-sync workflows (device registration, planning, and execution).
+    Sync(sync::SyncCommand),
     /// Download a ROM or related extras from the server.
     #[command(visible_aliases = ["dl", "get"])]
     Download(download::DownloadCommand),

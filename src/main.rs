@@ -160,7 +160,8 @@ fn command_requires_config(command: &Commands) -> bool {
         | Commands::Platforms(_)
         | Commands::Roms(_)
         | Commands::Download(_)
-        | Commands::Scan(_) => true,
+        | Commands::Scan(_)
+        | Commands::Sync(_) => true,
         Commands::Cache(_) | Commands::Auth(_) | Commands::Update => false,
         Commands::Init(_) | Commands::Tui { .. } => false,
     }

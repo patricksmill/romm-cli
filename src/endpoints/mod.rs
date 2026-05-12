@@ -2,8 +2,11 @@ use serde_json::Value;
 
 pub mod client_tokens;
 pub mod collections;
+pub mod device;
 pub mod platforms;
 pub mod roms;
+pub mod saves;
+pub mod sync;
 pub mod system;
 pub mod tasks;
 

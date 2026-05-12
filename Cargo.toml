@@ -42,6 +42,8 @@ unicode-normalization = { version = "0.1", optional = true }
 ratatui-image = { version = "10.0.6", optional = true, default-features = false, features = ["crossterm", "image-defaults"] }
 image = { version = "0.25.10", optional = true }
 zip = "8.5.1"
+md5 = "0.7"
+time = { version = "0.3", features = ["formatting"] }
 
 [features]
 default = ["tui"]

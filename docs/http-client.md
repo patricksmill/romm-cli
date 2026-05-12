@@ -15,6 +15,7 @@ These types live under `src/endpoints/*`, grouped by API area:
 
 - `platforms`, `roms`, `collections` for core library operations
 - `client_tokens` for pairing-token APIs
+- `device`, `saves`, `sync` for save-sync lifecycle (device registration, negotiation, session completion, save content transfer)
 - `system` for health/profile/stat endpoints (`/api/heartbeat`, `/api/stats`, `/api/users/me`)
 - `tasks` for queue/task runner endpoints (`/api/tasks`, `/api/tasks/run`, `/api/tasks/status`)
 
@@ -31,6 +32,8 @@ These types live under `src/endpoints/*`, grouped by API area:
   - `call<E: Endpoint>(&self, ep: &E)` – typed request/response
   - `request_json` – lower-level helper that returns `serde_json::Value`. It gracefully handles empty bodies (mapping them to `Value::Null`) and non-JSON text responses (wrapping them in `{"_non_json_body": "..."}`).
   - `download_rom` – specialized streaming download with a progress callback
+  - `upload_save_file_with_options` – save upload with sync-aware query fields (`device_id`, `session_id`, `slot`, `overwrite`)
+  - `download_save_content` – helper for `GET /api/saves/{id}/content` (used by `sync run` download operations)
   - `fetch_openapi_json` – fetches the OpenAPI spec from the server
 
 ### OpenAPI Helpers
