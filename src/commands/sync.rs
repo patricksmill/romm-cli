@@ -636,7 +636,7 @@ fn compute_file_hash(path: &Path) -> Result<String> {
         }
         ctx.consume(&buf[..n]);
     }
-    Ok(format!("{:x}", ctx.compute()))
+    Ok(format!("{:x}", ctx.finalize()))
 }
 
 fn compute_zip_hash(path: &Path) -> Result<String> {
@@ -664,7 +664,7 @@ fn compute_zip_hash(path: &Path) -> Result<String> {
             }
             ctx.consume(&buf[..n]);
         }
-        row_hashes.insert(name, format!("{:x}", ctx.compute()));
+        row_hashes.insert(name, format!("{:x}", ctx.finalize()));
     }
     let combined = row_hashes
         .into_iter()
