@@ -31,6 +31,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use anyhow::{anyhow, Context, Result};
+use keyring_core::{Entry, Error as KeyringError, Result as KeyringResult};
 
 use serde::{Deserialize, Serialize};
 
@@ -167,7 +168,7 @@ const KEYRING_SERVICE: &str = "romm-cli";
 /// This is used to securely persist passwords, tokens, and API keys without
 /// writing them in plaintext to `config.json`.
 pub fn keyring_store(key: &str, value: &str) -> Result<()> {
-    let entry = keyring::Entry::new(KEYRING_SERVICE, key)
+    let entry = Entry::new(KEYRING_SERVICE, key)
         .map_err(|e| anyhow!("keyring entry error: {e}"))?;
     entry
         .set_password(value)
@@ -176,10 +177,10 @@ pub fn keyring_store(key: &str, value: &str) -> Result<()> {
 
 /// Map `get_password` result: [`keyring::Error::NoEntry`] is normal when no credential exists (no log).
 /// Other errors are logged (never logs secret bytes).
-fn keyring_get_password_result(key: &str, result: keyring::Result<String>) -> Option<String> {
+fn keyring_get_password_result(key: &str, result: KeyringResult<String>) -> Option<String> {
     match result {
         Ok(s) => Some(s),
-        Err(keyring::Error::NoEntry) => None,
+        Err(KeyringError::NoEntry) => None,
         Err(e) => {
             tracing::warn!("keyring get_password for key {key}: {e}");
             None
@@ -191,7 +192,7 @@ fn keyring_get_password_result(key: &str, result: keyring::Result<String>) -> Op
 ///
 /// Unexpected errors are logged at the `warn` level.
 pub(crate) fn keyring_get(key: &str) -> Option<String> {
-    let entry = match keyring::Entry::new(KEYRING_SERVICE, key) {
+    let entry = match Entry::new(KEYRING_SERVICE, key) {
         Ok(e) => e,
         Err(e) => {
             tracing::warn!("keyring Entry::new for key {key}: {e}");
@@ -204,7 +205,7 @@ pub(crate) fn keyring_get(key: &str) -> Option<String> {
 /// After a successful `set_password`, confirm read-back matches `expected`.
 /// If not, the caller should keep plaintext in JSON to avoid data loss.
 fn keyring_verify_read_back_matches(key: &str, expected: &str) -> bool {
-    let entry = match keyring::Entry::new(KEYRING_SERVICE, key) {
+    let entry = match Entry::new(KEYRING_SERVICE, key) {
         Ok(e) => e,
         Err(e) => {
             tracing::warn!(
@@ -630,7 +631,7 @@ pub fn reset_all_settings() -> Result<()> {
         }
     }
     for key in ["API_PASSWORD", "API_TOKEN", "API_KEY"] {
-        if let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, key) {
+        if let Ok(entry) = Entry::new(KEYRING_SERVICE, key) {
             let _ = entry.delete_credential();
         }
     }
@@ -660,7 +661,7 @@ mod tests {
     #[test]
     fn keyring_get_password_result_no_entry_is_none() {
         assert_eq!(
-            super::keyring_get_password_result("API_TOKEN", Err(keyring::Error::NoEntry)),
+            super::keyring_get_password_result("API_TOKEN", Err(KeyringError::NoEntry)),
             None
         );
     }
