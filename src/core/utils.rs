@@ -1,6 +1,6 @@
 use crate::types::{Rom, RomFile, RomFileCategory};
 
-/// One game entry for list display: same `name` (base + updates/DLC) shown once.
+/// One game entry for list display: same `name` on the same platform (base + updates/DLC) shown once.
 #[derive(Debug, Clone)]
 pub struct RomGroup {
     pub name: String,
@@ -8,19 +8,19 @@ pub struct RomGroup {
     pub others: Vec<Rom>,
 }
 
-/// Group ROMs by game name; primary is the "base" file (prefer over
+/// Group ROMs by game name and platform; primary is the "base" file (prefer over
 /// `"[Update]"` / `"[DLC]"` tags in `fs_name` when present).
 pub fn group_roms_by_name(items: &[Rom]) -> Vec<RomGroup> {
     use std::collections::HashMap;
-    let mut by_name: HashMap<String, Vec<Rom>> = HashMap::new();
+    let mut by_group: HashMap<(String, u64), Vec<Rom>> = HashMap::new();
     for rom in items {
-        by_name
-            .entry(rom.name.clone())
+        by_group
+            .entry((rom.name.clone(), rom.platform_id))
             .or_default()
             .push(rom.clone());
     }
-    let mut groups = Vec::with_capacity(by_name.len());
-    for (name, mut roms) in by_name {
+    let mut groups = Vec::with_capacity(by_group.len());
+    for ((name, _platform_id), mut roms) in by_group {
         roms.sort_by(|a, b| {
             let a_extra = a.fs_name.to_lowercase().contains("[update]")
                 || a.fs_name.to_lowercase().contains("[dlc]");
@@ -39,7 +39,11 @@ pub fn group_roms_by_name(items: &[Rom]) -> Vec<RomGroup> {
             others: roms,
         });
     }
-    groups.sort_by(|a, b| a.name.cmp(&b.name));
+    groups.sort_by(|a, b| {
+        a.name
+            .cmp(&b.name)
+            .then_with(|| a.primary.platform_id.cmp(&b.primary.platform_id))
+    });
     groups
 }
 
@@ -163,10 +167,10 @@ mod tests {
     use super::*;
     use crate::types::Rom;
 
-    fn rom(id: u64, name: &str, fs_name: &str) -> Rom {
+    fn rom(id: u64, platform_id: u64, name: &str, fs_name: &str) -> Rom {
         Rom {
             id,
-            platform_id: 1,
+            platform_id,
             platform_slug: None,
             platform_fs_slug: None,
             platform_custom_name: Some("NES".to_string()),
@@ -195,10 +199,10 @@ mod tests {
     #[test]
     fn group_roms_prefers_base_file_as_primary() {
         let input = vec![
-            rom(1, "Game A", "Game A [Update].zip"),
-            rom(2, "Game A", "Game A [DLC].zip"),
-            rom(3, "Game A", "Game A.zip"),
-            rom(4, "Game B", "Game B.zip"),
+            rom(1, 1, "Game A", "Game A [Update].zip"),
+            rom(2, 1, "Game A", "Game A [DLC].zip"),
+            rom(3, 1, "Game A", "Game A.zip"),
+            rom(4, 1, "Game B", "Game B.zip"),
         ];
 
         let groups = group_roms_by_name(&input);
@@ -207,5 +211,23 @@ mod tests {
         let game_a = groups.iter().find(|g| g.name == "Game A").expect("group");
         assert_eq!(game_a.primary.fs_name, "Game A.zip");
         assert_eq!(game_a.others.len(), 2);
+    }
+
+    #[test]
+    fn group_roms_separates_same_title_by_platform() {
+        let input = vec![
+            rom(1, 1, "Paper Mario: The Thousand-Year Door", "Paper Mario.zip"),
+            rom(
+                2,
+                2,
+                "Paper Mario: The Thousand-Year Door",
+                "Paper Mario (Switch).zip",
+            ),
+        ];
+
+        let groups = group_roms_by_name(&input);
+        assert_eq!(groups.len(), 2);
+        assert_eq!(groups[0].primary.platform_id, 1);
+        assert_eq!(groups[1].primary.platform_id, 2);
     }
 }
