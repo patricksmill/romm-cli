@@ -216,7 +216,12 @@ mod tests {
     #[test]
     fn group_roms_separates_same_title_by_platform() {
         let input = vec![
-            rom(1, 1, "Paper Mario: The Thousand-Year Door", "Paper Mario.zip"),
+            rom(
+                1,
+                1,
+                "Paper Mario: The Thousand-Year Door",
+                "Paper Mario.zip",
+            ),
             rom(
                 2,
                 2,

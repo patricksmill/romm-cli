@@ -168,8 +168,8 @@ const KEYRING_SERVICE: &str = "romm-cli";
 /// This is used to securely persist passwords, tokens, and API keys without
 /// writing them in plaintext to `config.json`.
 pub fn keyring_store(key: &str, value: &str) -> Result<()> {
-    let entry = Entry::new(KEYRING_SERVICE, key)
-        .map_err(|e| anyhow!("keyring entry error: {e}"))?;
+    let entry =
+        Entry::new(KEYRING_SERVICE, key).map_err(|e| anyhow!("keyring entry error: {e}"))?;
     entry
         .set_password(value)
         .map_err(|e| anyhow!("keyring set error: {e}"))
