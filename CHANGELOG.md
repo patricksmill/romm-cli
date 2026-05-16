@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.33.1](https://github.com/patricksmill/romm-cli/compare/v0.33.0...v0.33.1) (2026-05-16)
+
+
+### Bug Fixes
+
+* **hash:** update hash computation to use finalize method ([beb23f4](https://github.com/patricksmill/romm-cli/commit/beb23f4cbde5f07f857a302155786ff4fbbf0064))
+* **search:** fix games with the same name as games in other consoles not showing up ([1f8e717](https://github.com/patricksmill/romm-cli/commit/1f8e7172d865d2e4462210477d54c89f0f346ede))
+
 ## [0.33.0](https://github.com/patricksmill/romm-cli/compare/v0.32.0...v0.33.0) (2026-05-12)
 
 
