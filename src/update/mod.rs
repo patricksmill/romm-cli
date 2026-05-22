@@ -90,9 +90,7 @@ pub fn github_release_asset_key() -> Result<&'static str> {
         ("linux", "x86_64") => Ok("linux-x86_64"),
         ("linux", "aarch64") => Ok("linux-aarch64"),
         ("windows", "x86_64") => Ok("windows-x86_64"),
-        (os, arch) => Err(anyhow!(
-            "unsupported platform for self-update: {os}-{arch}"
-        )),
+        (os, arch) => Err(anyhow!("unsupported platform for self-update: {os}-{arch}")),
     }
 }
 
@@ -278,9 +276,7 @@ fn verify_archive_checksum(
         .ok_or_else(|| anyhow!("checksums.txt has no entry for `{archive_name}`"))?;
     let actual = sha256_hex_file(archive_path)?;
     if &actual != expected {
-        bail!(
-            "checksum mismatch for `{archive_name}`: expected {expected}, got {actual}"
-        );
+        bail!("checksum mismatch for `{archive_name}`: expected {expected}, got {actual}");
     }
     Ok(())
 }
@@ -341,11 +337,7 @@ async fn download_url_to_file(
 
     let mut downloaded = 0u64;
     let mut response = response;
-    while let Some(chunk) = response
-        .chunk()
-        .await
-        .context("read download chunk")?
-    {
+    while let Some(chunk) = response.chunk().await.context("read download chunk")? {
         if interrupt.is_cancelled() {
             return Err(cancelled_error());
         }
@@ -402,8 +394,7 @@ fn install_extracted_binaries(extract_dir: &Path, running_bin_stem: &str) -> Res
         bail!("extracted archive did not contain `{running_bin_stem}`");
     };
 
-    self_update::self_replace::self_replace(new_running)
-        .context("replace running executable")?;
+    self_update::self_replace::self_replace(new_running).context("replace running executable")?;
 
     Ok(())
 }
@@ -585,7 +576,10 @@ mod tests {
     #[test]
     fn github_release_asset_key_supports_windows() {
         if std::env::consts::OS == "windows" && std::env::consts::ARCH == "x86_64" {
-            assert_eq!(github_release_asset_key().expect("target"), "windows-x86_64");
+            assert_eq!(
+                github_release_asset_key().expect("target"),
+                "windows-x86_64"
+            );
         }
     }
 }
