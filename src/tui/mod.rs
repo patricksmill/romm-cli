@@ -76,6 +76,7 @@ async fn run_started(
         Some(crate::update::UpdateStatus {
             current_version: format!("{} (dev)", env!("CARGO_PKG_VERSION")),
             latest_version: "9.9.9-mock".into(),
+            release_tag: "v9.9.9-mock".into(),
             should_update: true,
             release_url: "https://github.com/patricksmill/romm-cli".into(),
             changelog_url: crate::update::changelog_url().to_string(),

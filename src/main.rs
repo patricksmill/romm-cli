@@ -135,9 +135,21 @@ async fn maybe_prompt_for_startup_update(command: &Commands) -> Result<()> {
         let choice = read_update_choice()?;
         match choice.as_str() {
             "u" | "update" => {
-                let version = romm_cli::update::apply_update(None, true).await?;
-                println!("Updated successfully to `{version}`.");
-                println!("Restart romm-cli to use the new version.");
+                let options = romm_cli::update::ApplyUpdateOptions {
+                    show_progress: true,
+                    show_output: true,
+                    no_confirm: true,
+                    target_version_tag: Some(check.release_tag.clone()),
+                };
+                match romm_cli::update::apply_update(None, options).await? {
+                    romm_cli::update::ApplyUpdateOutcome::Updated(version) => {
+                        println!("Updated successfully to `{version}`.");
+                        println!("Restart romm-cli to use the new version.");
+                    }
+                    romm_cli::update::ApplyUpdateOutcome::UpToDate(version) => {
+                        println!("Already up to date (`{version}`).");
+                    }
+                }
                 return Ok(());
             }
             "c" | "changelog" => {

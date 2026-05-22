@@ -237,6 +237,7 @@ pub struct App {
     /// Brief “connected” banner after setup or when the server responds to heartbeat.
     startup_splash: Option<StartupSplash>,
     pub global_error: Option<String>,
+    pub global_notice: Option<String>,
     show_keyboard_help: bool,
     startup_update_prompt: Option<StartupUpdatePrompt>,
     /// Receives completed background metadata refreshes for the library screen.
@@ -359,6 +360,7 @@ impl App {
             deferred_load_roms: None,
             startup_splash,
             global_error: None,
+            global_notice: None,
             show_keyboard_help: false,
             startup_update_prompt: startup_update.map(|status| StartupUpdatePrompt {
                 status,
@@ -1063,11 +1065,21 @@ impl App {
                             Some("Mock update successful! (No files were changed)".into());
                         self.startup_update_prompt = None;
                     } else {
-                        match crate::update::apply_update(None, false).await {
-                            Ok(version) => {
-                                self.global_error = Some(format!(
+                        let options = crate::update::ApplyUpdateOptions {
+                            show_progress: false,
+                            show_output: false,
+                            no_confirm: true,
+                            target_version_tag: Some(prompt.status.release_tag.clone()),
+                        };
+                        match crate::update::apply_update(None, options).await {
+                            Ok(crate::update::ApplyUpdateOutcome::Updated(version)) => {
+                                self.global_notice = Some(format!(
                                     "Updated to {version}. Restart romm-cli to use the new version."
                                 ));
+                            }
+                            Ok(crate::update::ApplyUpdateOutcome::UpToDate(version)) => {
+                                self.global_notice =
+                                    Some(format!("Already up to date (`{version}`)."));
                             }
                             Err(err) => {
                                 self.global_error = Some(format!("Update failed: {err:#}"));
@@ -1301,9 +1313,10 @@ impl App {
             return self.handle_startup_update_prompt(key).await;
         }
 
-        if self.global_error.is_some() {
+        if self.global_error.is_some() || self.global_notice.is_some() {
             if key.code == KeyCode::Esc || key.code == KeyCode::Enter {
                 self.global_error = None;
+                self.global_notice = None;
             }
             return Ok(false);
         }
@@ -2741,6 +2754,25 @@ impl App {
                 .wrap(ratatui::widgets::Wrap { trim: true });
             f.render_widget(paragraph, popup_area);
         }
+
+        if let Some(ref notice) = self.global_notice {
+            let popup_area = ratatui::layout::Rect {
+                x: area.width.saturating_sub(60) / 2,
+                y: area.height.saturating_sub(10) / 2,
+                width: 60.min(area.width),
+                height: 10.min(area.height),
+            };
+            f.render_widget(ratatui::widgets::Clear, popup_area);
+            let block = ratatui::widgets::Block::default()
+                .title("Notice")
+                .borders(ratatui::widgets::Borders::ALL)
+                .style(ratatui::style::Style::default().fg(ratatui::style::Color::Cyan));
+            let text = format!("{notice}\n\nPress Esc to dismiss");
+            let paragraph = ratatui::widgets::Paragraph::new(text)
+                .block(block)
+                .wrap(ratatui::widgets::Wrap { trim: true });
+            f.render_widget(paragraph, popup_area);
+        }
     }
 }
 
@@ -2821,6 +2853,7 @@ mod tests {
         UpdateStatus {
             current_version: "0.25.0".into(),
             latest_version: "0.26.0".into(),
+            release_tag: "v0.26.0".into(),
             should_update: true,
             release_url: "https://github.com/patricksmill/romm-cli/releases/tag/v0.26.0".into(),
             changelog_url: "https://github.com/patricksmill/romm-cli/blob/main/CHANGELOG.md".into(),

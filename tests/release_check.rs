@@ -40,6 +40,20 @@ async fn check_for_update_reads_mocked_github_latest() {
     let status = update::check_for_update().await.expect("check_for_update");
     assert!(status.should_update);
     assert_eq!(status.latest_version, "999.0.0");
+    assert_eq!(status.release_tag, "v999.0.0");
 
     std::env::remove_var("ROMM_GITHUB_LATEST_RELEASE_API");
+}
+
+#[test]
+fn github_api_base_url_defaults_to_github() {
+    std::env::remove_var("ROMM_GITHUB_API_BASE");
+    assert_eq!(update::github_api_base_url(), "https://api.github.com");
+}
+
+#[test]
+fn github_api_base_url_reads_env_override() {
+    std::env::set_var("ROMM_GITHUB_API_BASE", "http://127.0.0.1:9");
+    assert_eq!(update::github_api_base_url(), "http://127.0.0.1:9");
+    std::env::remove_var("ROMM_GITHUB_API_BASE");
 }
