@@ -46,14 +46,17 @@ async fn check_for_update_reads_mocked_github_latest() {
 }
 
 #[test]
-fn github_api_base_url_defaults_to_github() {
+fn github_api_base_url_respects_env_override() {
+    let previous = std::env::var("ROMM_GITHUB_API_BASE").ok();
+
     std::env::remove_var("ROMM_GITHUB_API_BASE");
     assert_eq!(update::github_api_base_url(), "https://api.github.com");
-}
 
-#[test]
-fn github_api_base_url_reads_env_override() {
     std::env::set_var("ROMM_GITHUB_API_BASE", "http://127.0.0.1:9");
     assert_eq!(update::github_api_base_url(), "http://127.0.0.1:9");
-    std::env::remove_var("ROMM_GITHUB_API_BASE");
+
+    match previous {
+        Some(value) => std::env::set_var("ROMM_GITHUB_API_BASE", value),
+        None => std::env::remove_var("ROMM_GITHUB_API_BASE"),
+    }
 }
