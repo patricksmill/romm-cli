@@ -3,7 +3,7 @@ use std::fs;
 use std::path::Path;
 
 use anyhow::{anyhow, Result};
-use romm_cli::tui::openapi::is_openapi_operation_method;
+use romm_cli::openapi::is_openapi_operation_method;
 use serde_json::Value;
 
 /// Very small sketch of an OpenAPI-driven generator.

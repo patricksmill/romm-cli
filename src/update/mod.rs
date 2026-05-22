@@ -11,6 +11,11 @@ const REPO_NAME: &str = "romm-cli";
 const DEFAULT_BIN_NAME: &str = "romm-cli";
 const GITHUB_LATEST_RELEASE_API: &str =
     "https://api.github.com/repos/patricksmill/romm-cli/releases/latest";
+
+fn github_latest_release_api_url() -> String {
+    std::env::var("ROMM_GITHUB_LATEST_RELEASE_API")
+        .unwrap_or_else(|_| GITHUB_LATEST_RELEASE_API.to_string())
+}
 const CHANGELOG_URL: &str = "https://github.com/patricksmill/romm-cli/blob/main/CHANGELOG.md";
 
 #[derive(Debug, Clone)]
@@ -120,7 +125,7 @@ fn current_binary_name() -> String {
 pub async fn check_for_update() -> Result<UpdateStatus> {
     let current_version = cargo_crate_version!().to_string();
     let response = reqwest::Client::new()
-        .get(GITHUB_LATEST_RELEASE_API)
+        .get(github_latest_release_api_url())
         .header(
             reqwest::header::USER_AGENT,
             format!("romm-cli/{current_version}"),

@@ -114,7 +114,7 @@ fn make_progress_style() -> ProgressStyle {
     ProgressStyle::with_template(
         "[{elapsed_precise}] {bar:40.cyan/blue} {bytes}/{total_bytes} ({eta}) {msg}",
     )
-    .unwrap()
+    .expect("hardcoded download progress template")
     .progress_chars("#>-")
 }
 
@@ -323,7 +323,11 @@ pub async fn handle(
             if interrupt.is_cancelled() {
                 break 'enqueue;
             }
-            let permit = semaphore.clone().acquire_owned().await.unwrap();
+            let permit = semaphore
+                .clone()
+                .acquire_owned()
+                .await
+                .map_err(|_| anyhow!("download worker semaphore closed unexpectedly"))?;
             let client = client.clone();
             let dir = output_dir.clone();
             let interrupt = interrupt.clone();
@@ -521,7 +525,11 @@ async fn run_targets(
         if interrupt.is_cancelled() {
             break 'enqueue;
         }
-        let permit = semaphore.clone().acquire_owned().await.unwrap();
+        let permit = semaphore
+            .clone()
+            .acquire_owned()
+            .await
+            .map_err(|_| anyhow!("download worker semaphore closed unexpectedly"))?;
         let client = client.clone();
         let interrupt = interrupt.clone();
         let pb = mp.add(ProgressBar::new(0));

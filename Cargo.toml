@@ -65,8 +65,11 @@ name = "romm-tui"
 path = "src/bin/romm_tui.rs"
 required-features = ["tui"]
 
+[[bin]]
+name = "romm-openapi-gen"
+path = "tools/openapi_gen.rs"
+
 [dev-dependencies]
-mockall = "0.13"
 assert_cmd = "2.0"
 httpmock = "0.7"
 predicates = "3.1"
