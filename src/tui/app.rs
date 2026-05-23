@@ -1968,10 +1968,8 @@ impl App {
                 PathPickerEvent::Confirmed(p) => {
                     match validate_configured_download_directory(p.to_string_lossy().as_ref()) {
                         Ok(canonical) => {
-                            settings.confirm_console_path(
-                                platform_id,
-                                canonical.display().to_string(),
-                            );
+                            settings
+                                .confirm_console_path(platform_id, canonical.display().to_string());
                         }
                         Err(e) => {
                             settings.message =
@@ -2077,7 +2075,10 @@ impl App {
                     self.screen =
                         AppScreen::SetupWizard(Box::new(SetupWizard::new_auth_only(&self.config)));
                 } else if row == SettingsRow::ConsoleDirs {
-                    settings.open_console_picker(self.platforms.clone());
+                    let platforms = startup_library_snapshot::load_snapshot()
+                        .map(|s| s.platforms)
+                        .unwrap_or_default();
+                    settings.open_console_picker(platforms);
                 } else if row == SettingsRow::SyncDevice {
                     if !settings.save_sync_supported() {
                         settings.set_save_sync_unsupported_message();
@@ -2553,12 +2554,12 @@ impl App {
                     &self.config.roms_layout,
                     Some(self.config.download_dir.as_str()),
                 ) {
-                        Ok(t) => t,
-                        Err(e) => {
-                            picker.show_message(format!("{e:#}"), Duration::from_secs(4));
-                            return Ok(false);
-                        }
-                    };
+                    Ok(t) => t,
+                    Err(e) => {
+                        picker.show_message(format!("{e:#}"), Duration::from_secs(4));
+                        return Ok(false);
+                    }
+                };
                 let rom = picker.rom.clone();
                 let prev =
                     std::mem::replace(&mut self.screen, AppScreen::MainMenu(MainMenuScreen::new()));

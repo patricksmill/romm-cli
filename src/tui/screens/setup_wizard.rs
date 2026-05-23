@@ -604,7 +604,8 @@ impl SetupWizard {
                         "Layout: {}",
                         match self.roms_layout_mode {
                             RomsLayoutMode::Auto => "auto",
-                            RomsLayoutMode::Manual => "manual (configure consoles in Settings → ROMs)",
+                            RomsLayoutMode::Manual =>
+                                "manual (configure consoles in Settings → ROMs)",
                         }
                     ),
                     format!("Use HTTPS: {}", if self.use_https { "Yes" } else { "No" }),
@@ -684,7 +685,7 @@ impl SetupWizard {
                 let x = inner.x + 1 + self.api_key_cursor.min(self.api_key.len()) as u16;
                 Some((x, inner.y + 6))
             }
-            Step::Https | Step::AuthMenu | Step::Summary => None,
+            Step::Https | Step::RomsLayout | Step::AuthMenu | Step::Summary => None,
         }
     }
 

@@ -312,11 +312,7 @@ pub fn build_manual_target(rom: &Rom, extras_root: &Path) -> Option<DownloadTarg
     })
 }
 
-pub fn extras_root_dir(
-    layout: &RomsLayoutConfig,
-    base_dir: &Path,
-    rom: &Rom,
-) -> Result<PathBuf> {
+pub fn extras_root_dir(layout: &RomsLayoutConfig, base_dir: &Path, rom: &Rom) -> Result<PathBuf> {
     let platform_dir = resolve_console_roms_dir(layout, base_dir, rom)?;
     let game_slug = sanitized_extra_game_name(&rom.name, rom.id);
     Ok(platform_dir.join(game_slug).join("extras"))
@@ -587,8 +583,7 @@ mod tests {
             fs_name: "Game DLC.zip".into(),
             ..rom_fixture(2, "Game", "Game DLC.zip")
         };
-        let extras_root =
-            extras_root_dir(&default_layout(), Path::new("/tmp/out"), &rom).unwrap();
+        let extras_root = extras_root_dir(&default_layout(), Path::new("/tmp/out"), &rom).unwrap();
 
         let targets = build_update_dlc_targets_from_related_rows(
             &rom,

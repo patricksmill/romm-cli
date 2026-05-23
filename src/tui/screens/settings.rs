@@ -6,7 +6,9 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Tabs};
 use ratatui::Frame;
 
-use crate::config::{disk_has_unresolved_keyring_sentinel, Config, RomsLayoutConfig, RomsLayoutMode};
+use crate::config::{
+    disk_has_unresolved_keyring_sentinel, Config, RomsLayoutConfig, RomsLayoutMode,
+};
 use crate::core::utils;
 use crate::endpoints::device::DeviceSchema;
 use crate::feature_compat::SaveSyncCompatibility;
@@ -270,8 +272,8 @@ impl SettingsScreen {
 
     pub fn console_next(&mut self) {
         if !self.console_platforms.is_empty() {
-            self.console_selected_index = (self.console_selected_index + 1)
-                .min(self.console_platforms.len() - 1);
+            self.console_selected_index =
+                (self.console_selected_index + 1).min(self.console_platforms.len() - 1);
         }
     }
 
@@ -284,7 +286,10 @@ impl SettingsScreen {
             return;
         };
         let initial = self.console_dir_preview(platform);
-        self.console_path_picker = Some((platform.id, PathPicker::new(PathPickerMode::Directory, &initial)));
+        self.console_path_picker = Some((
+            platform.id,
+            PathPicker::new(PathPickerMode::Directory, &initial),
+        ));
     }
 
     pub fn confirm_console_path(&mut self, platform_id: u64, path: String) {
@@ -547,7 +552,7 @@ impl SettingsScreen {
             let platform_name = self
                 .console_platforms
                 .iter()
-                .find(|p| p.id == *platform_id)
+                .find(|p| p.id == platform_id)
                 .map(Self::platform_display_name)
                 .unwrap_or_else(|| format!("Platform {platform_id}"));
             let info = [
@@ -978,13 +983,11 @@ impl SettingsScreen {
         );
         if self.console_platforms.is_empty() {
             f.render_widget(
-                Paragraph::new("No platforms loaded. Browse the library first, then reopen settings.")
-                    .style(Style::default().fg(Color::Yellow))
-                    .block(
-                        Block::default()
-                            .title(" Consoles ")
-                            .borders(Borders::ALL),
-                    ),
+                Paragraph::new(
+                    "No platforms loaded. Browse the library first, then reopen settings.",
+                )
+                .style(Style::default().fg(Color::Yellow))
+                .block(Block::default().title(" Consoles ").borders(Borders::ALL)),
                 chunks[1],
             );
         } else {
@@ -1006,11 +1009,7 @@ impl SettingsScreen {
             state.select(Some(self.console_selected_index));
             f.render_stateful_widget(
                 List::new(items)
-                    .block(
-                        Block::default()
-                            .title(" Consoles ")
-                            .borders(Borders::ALL),
-                    )
+                    .block(Block::default().title(" Consoles ").borders(Borders::ALL))
                     .highlight_symbol(">> ")
                     .highlight_style(
                         Style::default()
@@ -1080,15 +1079,19 @@ mod tests {
     #[test]
     fn tabs_expose_expected_rows() {
         assert_eq!(
-            SettingsScreen::new(&test_config(), Some("1.0.0"), supported_save_sync_compatibility())
-                .visible_rows(),
+            SettingsScreen::new(
+                &test_config(),
+                Some("1.0.0"),
+                supported_save_sync_compatibility()
+            )
+            .visible_rows(),
             vec![SettingsRow::RomsDir, SettingsRow::RomsLayoutMode]
         );
-        assert_eq!(CONNECTION_ROWS, [SettingsRow::BaseUrl, SettingsRow::UseHttps]);
         assert_eq!(
-            SettingsTab::Saves as usize,
-            SettingsTab::Roms.index() + 1
+            CONNECTION_ROWS,
+            [SettingsRow::BaseUrl, SettingsRow::UseHttps]
         );
+        assert_eq!(SettingsTab::Saves as usize, SettingsTab::Roms.index() + 1);
         let mut manual = screen();
         manual.selected_tab = SettingsTab::Roms;
         manual.roms_layout_mode = RomsLayoutMode::Manual;

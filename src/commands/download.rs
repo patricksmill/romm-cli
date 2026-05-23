@@ -345,9 +345,9 @@ pub async fn handle(
             let name = rom.name.clone();
             let rom_id = rom.id;
             let console_dir = resolve_console_roms_dir(&layout, &base_dir, &rom)?;
-            tokio::fs::create_dir_all(&console_dir).await.map_err(|e| {
-                anyhow!("create console download dir {:?}: {e}", console_dir)
-            })?;
+            tokio::fs::create_dir_all(&console_dir)
+                .await
+                .map_err(|e| anyhow!("create console download dir {:?}: {e}", console_dir))?;
             let platform_slug = rom
                 .platform_fs_slug
                 .clone()
@@ -467,12 +467,9 @@ pub async fn handle(
             println!("Base game files downloaded.");
         } else {
             let console_dir = resolve_console_roms_dir(&layout, &output_dir, &rom)?;
-            tokio::fs::create_dir_all(&console_dir).await.map_err(|e| {
-                anyhow!(
-                    "create console download dir {:?}: {e}",
-                    console_dir
-                )
-            })?;
+            tokio::fs::create_dir_all(&console_dir)
+                .await
+                .map_err(|e| anyhow!("create console download dir {:?}: {e}", console_dir))?;
             let save_path = console_dir.join(format!("rom_{rom_id}.zip"));
             let mp = MultiProgress::new();
             let pb = mp.add(ProgressBar::new(0));

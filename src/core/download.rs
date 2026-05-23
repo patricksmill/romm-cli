@@ -1174,13 +1174,10 @@ mod tests {
             file_size_bytes: 4,
             category: Some(crate::types::RomFileCategory::Game),
         }];
-        let target = build_base_rom_file_targets(
-            &rom,
-            &RomsLayoutConfig::default(),
-            base.as_path(),
-        )
-        .unwrap()
-        .remove(0);
+        let target =
+            build_base_rom_file_targets(&rom, &RomsLayoutConfig::default(), base.as_path())
+                .unwrap()
+                .remove(0);
         tokio::fs::create_dir_all(target.destination.parent().unwrap())
             .await
             .unwrap();
@@ -1210,13 +1207,10 @@ mod tests {
             file_size_bytes: 4,
             category: Some(crate::types::RomFileCategory::Game),
         }];
-        let target = build_base_rom_file_targets(
-            &rom,
-            &RomsLayoutConfig::default(),
-            base.as_path(),
-        )
-        .unwrap()
-        .remove(0);
+        let target =
+            build_base_rom_file_targets(&rom, &RomsLayoutConfig::default(), base.as_path())
+                .unwrap()
+                .remove(0);
         tokio::fs::create_dir_all(target.destination.parent().unwrap())
             .await
             .unwrap();
