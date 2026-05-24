@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.35.0](https://github.com/patricksmill/romm-cli/compare/v0.34.0...v0.35.0) (2026-05-24)
+
+
+### Features
+
+* **config:** implement custom console paths for ROM layout ([d360bca](https://github.com/patricksmill/romm-cli/commit/d360bca6de0ff24f3bad83301a4170049de958de))
+* **config:** introduce customizable ROM layout options ([874d815](https://github.com/patricksmill/romm-cli/commit/874d81578d53e49ac2f3f3d3bd1ad182238f301a))
+* **save-sync:** implement custom save paths for consoles ([6e2fcec](https://github.com/patricksmill/romm-cli/commit/6e2fcec52038cb9136ea8f894404ce585403ad2b))
+
+
+### Bug Fixes
+
+* **tests:** update download test to reflect new directory structure ([65d47e8](https://github.com/patricksmill/romm-cli/commit/65d47e8796620c9ea8642d77071c8ec67639b48f))
+
 ## [Unreleased]
 
 ### Added
