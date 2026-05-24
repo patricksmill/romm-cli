@@ -6,14 +6,16 @@
 use anyhow::{anyhow, Context, Result};
 use clap::Args;
 use dialoguer::{theme::ColorfulTheme, Confirm, Input, Password, Select};
+use std::collections::HashMap;
 use std::fs;
 use std::io::Read;
 
 use crate::client::RommClient;
 use crate::config::{
     normalize_romm_origin, persist_user_config, user_config_json_path, AuthConfig, Config,
-    ExtrasDefaults, RomsLayoutConfig, RomsLayoutMode,
+    ExtrasDefaults, RomsLayoutConfig,
 };
+use crate::endpoints::platforms::ListPlatforms;
 
 #[derive(Args, Debug, Clone)]
 pub struct InitCommand {
@@ -196,28 +198,6 @@ pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
 
     let download_dir = download_dir.trim().to_string();
 
-    let layout_idx = Select::with_theme(&ColorfulTheme::default())
-        .with_prompt("ROM layout")
-        .items([
-            "Auto (base directory + console subfolder)",
-            "Manual (custom directory per console — configure in TUI Settings → ROMs)",
-        ])
-        .default(0)
-        .interact()?;
-    let roms_layout = RomsLayoutConfig {
-        mode: if layout_idx == 1 {
-            RomsLayoutMode::Manual
-        } else {
-            RomsLayoutMode::Auto
-        },
-        platform_dirs: Default::default(),
-    };
-    if layout_idx == 1 {
-        println!(
-            "Manual layout selected. After setup, open TUI Settings → ROMs to map each console."
-        );
-    }
-
     // ── Authentication ─────────────────────────────────────────────────
     let use_https = Confirm::with_theme(&ColorfulTheme::default())
         .with_prompt("Connect over HTTPS?")
@@ -291,7 +271,7 @@ pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
                 auth: None,
                 extras_defaults: ExtrasDefaults::default(),
                 save_sync: Default::default(),
-                roms_layout: roms_layout.clone(),
+                roms_layout: Default::default(),
             };
             let client = RommClient::new(&temp_config, verbose)?;
             let endpoint = crate::endpoints::client_tokens::ExchangeClientToken { code };
@@ -308,6 +288,33 @@ pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
         }
     };
 
+    let mut platform_dirs = HashMap::new();
+    if auth.is_some() {
+        let map_custom = Confirm::with_theme(&ColorfulTheme::default())
+            .with_prompt("Map custom paths for consoles on other drives now?")
+            .default(false)
+            .interact()?;
+        if map_custom {
+            let temp_config = Config {
+                base_url: base_url.clone(),
+                download_dir: download_dir.clone(),
+                use_https,
+                auth: auth.clone(),
+                extras_defaults: ExtrasDefaults::default(),
+                save_sync: Default::default(),
+                roms_layout: Default::default(),
+            };
+            let client = RommClient::new(&temp_config, verbose)?;
+            let platforms = client
+                .call(&ListPlatforms)
+                .await
+                .context("failed to fetch platforms for custom path mapping")?;
+            prompt_custom_console_paths(&platforms, &mut platform_dirs)?;
+        }
+    }
+    let mut roms_layout = RomsLayoutConfig::default();
+    roms_layout.platform_dirs = platform_dirs;
+
     let config = Config {
         base_url,
         download_dir,
@@ -322,5 +329,48 @@ pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
     println!("Wrote {}", path.display());
     println!("Secrets are stored in the OS keyring when available (see file comments if plaintext fallback was used).");
     println!("You can run `romm-cli tui` or `romm-tui` to start the TUI.");
+    Ok(())
+}
+
+fn prompt_custom_console_paths(
+    platforms: &[crate::types::Platform],
+    platform_dirs: &mut HashMap<u64, String>,
+) -> Result<()> {
+    if platforms.is_empty() {
+        println!("No platforms returned from the server; configure custom paths later in TUI Settings → ROMs.");
+        return Ok(());
+    }
+    loop {
+        let mut items: Vec<String> = platforms
+            .iter()
+            .map(|p| {
+                let mapped = platform_dirs
+                    .get(&p.id)
+                    .map(|s| s.as_str())
+                    .unwrap_or("(base default)");
+                format!("{} — {mapped}", p.name)
+            })
+            .collect();
+        items.push("Done mapping".to_string());
+        let idx = Select::with_theme(&ColorfulTheme::default())
+            .with_prompt("Choose a console to set a custom path (or finish)")
+            .items(&items)
+            .default(0)
+            .interact()?;
+        if idx == items.len() - 1 {
+            break;
+        }
+        let platform = &platforms[idx];
+        let path: String = Input::with_theme(&ColorfulTheme::default())
+            .with_prompt(format!("Custom path for {} (leave empty to clear)", platform.name))
+            .allow_empty(true)
+            .interact_text()?;
+        let path = path.trim();
+        if path.is_empty() {
+            platform_dirs.remove(&platform.id);
+        } else {
+            platform_dirs.insert(platform.id, path.to_string());
+        }
+    }
     Ok(())
 }

@@ -116,17 +116,16 @@ Set these in your shell (or any tool that injects env vars into the process) for
 | `ROMM_VERBOSE` | Set to `1`/`true` to enable verbose mode for the standalone `romm-tui` binary (same as passing `--verbose` to `romm-cli`) |
 | `ROMM_CHECK_UPDATES` | Optional. Set to `false`/`0`/`no`/`off` to disable startup update checks and prompts in CLI/TUI. |
 
-### ROM layout (auto / manual)
+### Custom console paths
 
-By default (**auto**), downloads land in `{base Roms Dir}/{platform-slug}/` (for example `~/Downloads/romm-cli/nintendo-switch/`).
+By default, downloads land in `{base Roms Dir}/{platform-slug}/` (for example `~/Downloads/romm-cli/nintendo-switch/`).
 
-**Manual** mode lets you map each RomM platform to its own absolute directory. Configure it in the TUI under **Settings → ROMs**, during `romm-cli init`, or in `config.json`:
+For multi-drive collections, map individual consoles to custom absolute paths in the TUI under **Settings → ROMs → Console paths**, during `romm-cli init`, or in `config.json`:
 
 ```json
 {
   "download_dir": "C:\\Games\\romm-cli",
   "roms_layout": {
-    "mode": "manual",
     "platform_dirs": {
       "7": "D:\\Roms\\Switch",
       "3": "E:\\Roms\\NES"
@@ -135,7 +134,7 @@ By default (**auto**), downloads land in `{base Roms Dir}/{platform-slug}/` (for
 }
 ```
 
-Keys in `platform_dirs` are RomM platform IDs. Unmapped platforms fall back to the auto path. `romm-cli download` and TUI downloads both use this layout; `--output` replaces the base Roms Dir for that run but manual mappings stay absolute. Batch CLI downloads now write into the resolved console folder (same as the TUI).
+Keys in `platform_dirs` are RomM platform IDs. Unmapped consoles use the base subfolder path. `romm-cli download` and TUI downloads both use this layout; `--output` replaces the base Roms Dir for that run but custom mappings stay absolute.
 
 ---
 

@@ -37,6 +37,7 @@ use crate::core::download::DownloadManager;
 use crate::core::extras::has_update_or_dlc_extras;
 use crate::core::startup_library_snapshot;
 use crate::endpoints::device::{DeviceSchema, ListDevices};
+use crate::endpoints::platforms::ListPlatforms;
 use crate::endpoints::roms::GetRoms;
 use crate::endpoints::sync::{SyncSessionSchema, TriggerPushPull};
 use crate::types::{Collection, Platform, RomList, SaveMetadata};
@@ -119,6 +120,10 @@ struct SaveDownloadDone {
 
 struct DeviceListDone {
     result: Result<Vec<DeviceSchema>, String>,
+}
+
+struct PlatformListDone {
+    result: Result<Vec<crate::types::Platform>, String>,
 }
 
 struct SyncPushPullDone {
@@ -280,6 +285,8 @@ pub struct App {
     save_download_tx: tokio::sync::mpsc::UnboundedSender<SaveDownloadDone>,
     device_list_rx: tokio::sync::mpsc::UnboundedReceiver<DeviceListDone>,
     device_list_tx: tokio::sync::mpsc::UnboundedSender<DeviceListDone>,
+    platform_list_rx: tokio::sync::mpsc::UnboundedReceiver<PlatformListDone>,
+    platform_list_tx: tokio::sync::mpsc::UnboundedSender<PlatformListDone>,
     sync_push_pull_rx: tokio::sync::mpsc::UnboundedReceiver<SyncPushPullDone>,
     sync_push_pull_tx: tokio::sync::mpsc::UnboundedSender<SyncPushPullDone>,
 }
@@ -345,6 +352,7 @@ impl App {
         let (save_upload_tx, save_upload_rx) = tokio::sync::mpsc::unbounded_channel();
         let (save_download_tx, save_download_rx) = tokio::sync::mpsc::unbounded_channel();
         let (device_list_tx, device_list_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (platform_list_tx, platform_list_rx) = tokio::sync::mpsc::unbounded_channel();
         let (sync_push_pull_tx, sync_push_pull_rx) = tokio::sync::mpsc::unbounded_channel();
         let save_sync_compat = save_sync_compatibility(&registry);
         Self {
@@ -398,6 +406,8 @@ impl App {
             save_download_tx,
             device_list_rx,
             device_list_tx,
+            platform_list_rx,
+            platform_list_tx,
             sync_push_pull_rx,
             sync_push_pull_tx,
         }
@@ -804,6 +814,21 @@ impl App {
                     Err(e) => {
                         settings.set_device_error(e.clone());
                         settings.message = Some((format!("Device load failed: {e}"), Color::Red));
+                    }
+                }
+            }
+        }
+        while let Ok(done) = self.platform_list_rx.try_recv() {
+            if let AppScreen::Settings(settings) = &mut self.screen {
+                match done.result {
+                    Ok(platforms) => {
+                        settings.set_console_platforms(platforms);
+                        settings.message = None;
+                    }
+                    Err(e) => {
+                        settings.set_console_platform_error(e.clone());
+                        settings.message =
+                            Some((format!("Platform load failed: {e}"), Color::Red));
                     }
                 }
             }
@@ -1988,6 +2013,13 @@ impl App {
                 KeyCode::Up | KeyCode::Char('k') => settings.console_previous(),
                 KeyCode::Down | KeyCode::Char('j') => settings.console_next(),
                 KeyCode::Enter => settings.open_console_path_picker(),
+                KeyCode::Delete | KeyCode::Backspace => {
+                    if let Some(platform) =
+                        settings.console_platforms.get(settings.console_selected_index)
+                    {
+                        settings.clear_console_path(platform.id);
+                    }
+                }
                 _ => {}
             }
             return Ok(false);
@@ -2074,11 +2106,17 @@ impl App {
                 if row == SettingsRow::Auth {
                     self.screen =
                         AppScreen::SetupWizard(Box::new(SetupWizard::new_auth_only(&self.config)));
-                } else if row == SettingsRow::ConsoleDirs {
-                    let platforms = startup_library_snapshot::load_snapshot()
-                        .map(|s| s.platforms)
-                        .unwrap_or_default();
-                    settings.open_console_picker(platforms);
+                } else if row == SettingsRow::ConsolePaths {
+                    settings.open_console_picker();
+                    let client = self.client.clone();
+                    let tx = self.platform_list_tx.clone();
+                    tokio::spawn(async move {
+                        let result = client
+                            .call(&ListPlatforms)
+                            .await
+                            .map_err(|e| format!("{e:#}"));
+                        let _ = tx.send(PlatformListDone { result });
+                    });
                 } else if row == SettingsRow::SyncDevice {
                     if !settings.save_sync_supported() {
                         settings.set_save_sync_unsupported_message();

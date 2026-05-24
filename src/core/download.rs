@@ -13,7 +13,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use crate::client::RommClient;
-use crate::config::{RomsLayoutConfig, RomsLayoutMode};
+use crate::config::RomsLayoutConfig;
 use crate::core::extras::build_base_rom_file_targets;
 use crate::core::extras::{DownloadAssetKind, DownloadTarget};
 use crate::core::interrupt::is_cancelled_error;
@@ -119,20 +119,15 @@ pub fn resolve_console_roms_dir(
     base_download_dir: &Path,
     rom: &Rom,
 ) -> Result<PathBuf> {
-    match layout.mode {
-        RomsLayoutMode::Auto => Ok(auto_console_roms_dir(base_download_dir, rom)),
-        RomsLayoutMode::Manual => {
-            if let Some(raw) = layout
-                .platform_dirs
-                .get(&rom.platform_id)
-                .map(|s| s.trim())
-                .filter(|s| !s.is_empty())
-            {
-                validate_configured_download_directory(raw)
-            } else {
-                Ok(auto_console_roms_dir(base_download_dir, rom))
-            }
-        }
+    if let Some(raw) = layout
+        .platform_dirs
+        .get(&rom.platform_id)
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+    {
+        validate_configured_download_directory(raw)
+    } else {
+        Ok(auto_console_roms_dir(base_download_dir, rom))
     }
 }
 
@@ -834,7 +829,7 @@ fn final_download_path_for_rom(roms_dir: &Path, rom: &Rom) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{RomsLayoutConfig, RomsLayoutMode};
+    use crate::config::RomsLayoutConfig;
     use crate::types::Rom;
     use std::io::Write;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -1002,7 +997,7 @@ mod tests {
     }
 
     #[test]
-    fn resolve_console_roms_dir_auto_uses_platform_slug_subfolder() {
+    fn resolve_console_roms_dir_uses_platform_slug_subfolder_by_default() {
         let rom = rom_fixture_with_platform(Some("switch"), "game.zip");
         let layout = RomsLayoutConfig::default();
         let dir = resolve_console_roms_dir(&layout, Path::new("/roms"), &rom).unwrap();
@@ -1010,12 +1005,9 @@ mod tests {
     }
 
     #[test]
-    fn resolve_console_roms_dir_manual_uses_mapped_path() {
+    fn resolve_console_roms_dir_uses_custom_mapped_path() {
         let rom = rom_fixture_with_platform(Some("switch"), "game.zip");
-        let mut layout = RomsLayoutConfig {
-            mode: RomsLayoutMode::Manual,
-            ..Default::default()
-        };
+        let mut layout = RomsLayoutConfig::default();
         let custom = std::env::temp_dir().join(format!(
             "romm-cli-manual-{}",
             SystemTime::now()
@@ -1034,12 +1026,9 @@ mod tests {
     }
 
     #[test]
-    fn resolve_console_roms_dir_manual_falls_back_for_unmapped_platform() {
+    fn resolve_console_roms_dir_falls_back_for_unmapped_platform() {
         let rom = rom_fixture_with_platform(Some("switch"), "game.zip");
-        let layout = RomsLayoutConfig {
-            mode: RomsLayoutMode::Manual,
-            ..Default::default()
-        };
+        let layout = RomsLayoutConfig::default();
         let dir = resolve_console_roms_dir(&layout, Path::new("/roms"), &rom).unwrap();
         assert_eq!(dir, PathBuf::from("/roms/switch"));
     }

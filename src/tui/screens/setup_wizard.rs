@@ -20,7 +20,6 @@ use crate::client::RommClient;
 use crate::config::{
     is_keyring_placeholder, load_config, normalize_romm_origin, persist_user_config,
     read_user_config_json_from_disk, AuthConfig, Config, ExtrasDefaults, RomsLayoutConfig,
-    RomsLayoutMode,
 };
 use crate::core::download::validate_configured_download_directory;
 use crate::endpoints::client_tokens::ExchangeClientToken;
@@ -45,7 +44,7 @@ enum Step {
     Url,
     Https,
     Download,
-    RomsLayout,
+    CustomConsolePaths,
     AuthMenu,
     BasicUser,
     BasicPass,
@@ -102,7 +101,7 @@ pub struct SetupWizard {
     reuse_keyring_api_key: bool,
     pub testing: bool,
     pub use_https: bool,
-    pub roms_layout_mode: RomsLayoutMode,
+    skip_custom_console_paths: bool,
     pub error: Option<String>,
 }
 
@@ -136,7 +135,7 @@ impl SetupWizard {
             reuse_keyring_api_key: false,
             testing: false,
             use_https: true,
-            roms_layout_mode: RomsLayoutMode::Auto,
+            skip_custom_console_paths: false,
             error: None,
         }
     }
@@ -149,7 +148,7 @@ impl SetupWizard {
             .download_picker
             .set_path_text(config.download_dir.clone());
         wizard.use_https = config.use_https;
-        wizard.roms_layout_mode = config.roms_layout.mode;
+        wizard.skip_custom_console_paths = true;
 
         let disk = read_user_config_json_from_disk();
 
@@ -240,11 +239,9 @@ impl SetupWizard {
     }
 
     fn roms_layout_from_wizard(&self) -> RomsLayoutConfig {
-        let mut layout = read_user_config_json_from_disk()
+        read_user_config_json_from_disk()
             .map(|c| c.roms_layout)
-            .unwrap_or_default();
-        layout.mode = self.roms_layout_mode;
-        layout
+            .unwrap_or_default()
     }
 
     /// Build config after exchanging a Web UI pairing code (unauthenticated POST).
@@ -376,7 +373,7 @@ impl SetupWizard {
             Step::Url => "Step 1/6 — RomM server URL",
             Step::Https => "Step 2/6 — Secure connection",
             Step::Download => "Step 3/6 — ROMs directory",
-            Step::RomsLayout => "Step 4/6 — ROM layout",
+            Step::CustomConsolePaths => "Step 4/6 — Custom console paths",
             Step::AuthMenu => "Step 5/6 — Authentication",
             Step::BasicUser | Step::BasicPass => "Step 6/6 — Basic auth",
             Step::Bearer => "Step 6/6 — API Token",
@@ -406,7 +403,7 @@ impl SetupWizard {
                 let hint_top = match step {
                     Step::Https => "HTTPS ensures your credentials are encrypted in transit. Only disable if necessary.",
                     Step::Download => "Choose a directory to save ROMs. Make sure you have write permissions.",
-                    Step::RomsLayout => "Auto stores ROMs under {base}/{console}/. Manual lets you pick a directory per console in Settings → ROMs after setup.",
+                    Step::CustomConsolePaths => "Consoles on other drives can use custom paths. Map them in Settings → ROMs → Console paths after setup.",
                     Step::AuthMenu => "Select how you authenticate with the RomM server.",
                     Step::BasicUser | Step::BasicPass => "Enter the exact same username and password you use to log into the RomM web UI.",
                     Step::Bearer => "To get an API token, go to the RomM web UI -> client API Tokens -> generate a new token.",
@@ -446,14 +443,8 @@ impl SetupWizard {
             Step::Download => {
                 self.download_picker.render(f, main[1], title, "");
             }
-            Step::RomsLayout => {
-                let layout_line = match self.roms_layout_mode {
-                    RomsLayoutMode::Auto => "[X] Auto   [ ] Manual",
-                    RomsLayoutMode::Manual => "[ ] Auto   [X] Manual",
-                };
-                let body = format!(
-                    "ROM layout\n{layout_line}\n\nSpace: toggle   Enter: next\n\nManual mode: configure each console in Settings → ROMs after setup."
-                );
+            Step::CustomConsolePaths => {
+                let body = "By default each console uses a subfolder under your ROMs directory.\n\nConsoles on other drives (e.g. Switch on D:, NES on E:) can use custom paths.\nMap them in Settings → ROMs → Console paths after setup.\n\nEnter: next";
                 let block = Block::default().title(title).borders(Borders::ALL);
                 f.render_widget(Paragraph::new(body).block(block), main[1]);
             }
@@ -600,14 +591,7 @@ impl SetupWizard {
                 let mut lines = vec![
                     format!("Server: {url_line}"),
                     format!("ROMs Dir: {}", self.download_picker.path_trimmed()),
-                    format!(
-                        "Layout: {}",
-                        match self.roms_layout_mode {
-                            RomsLayoutMode::Auto => "auto",
-                            RomsLayoutMode::Manual =>
-                                "manual (configure consoles in Settings → ROMs)",
-                        }
-                    ),
+                    "Layout: base subfolder per console (custom paths in Settings → ROMs)".to_string(),
                     format!("Use HTTPS: {}", if self.use_https { "Yes" } else { "No" }),
                     format!("Auth: {auth_desc}"),
                     String::new(),
@@ -629,7 +613,7 @@ impl SetupWizard {
             Step::Url => "Enter: next   Backspace: delete   Esc: quit",
             Step::Https => "Space: toggle   Enter: next   Esc: quit",
             Step::Download => "Ctrl+Enter: next (creates path)   ↑ list top: path bar   ↓/↑: list focus   Tab: path/list   Esc: quit",
-            Step::RomsLayout => "Space: toggle   Enter: next   Esc: quit",
+            Step::CustomConsolePaths => "Enter: next   Esc: quit",
             Step::AuthMenu => "↑/↓: choose   Enter: next   Esc: quit",
             Step::BasicUser | Step::BasicPass => {
                 "Type text   Tab: switch field   Enter: next step   Esc: quit"
@@ -685,7 +669,7 @@ impl SetupWizard {
                 let x = inner.x + 1 + self.api_key_cursor.min(self.api_key.len()) as u16;
                 Some((x, inner.y + 6))
             }
-            Step::Https | Step::RomsLayout | Step::AuthMenu | Step::Summary => None,
+            Step::Https | Step::CustomConsolePaths | Step::AuthMenu | Step::Summary => None,
         }
     }
 
@@ -715,6 +699,14 @@ impl SetupWizard {
         };
     }
 
+    fn advance_after_auth_credentials(&mut self) {
+        self.step = if self.skip_custom_console_paths {
+            Step::Summary
+        } else {
+            Step::CustomConsolePaths
+        };
+    }
+
     fn advance_step(&mut self) -> Result<()> {
         self.error = None;
         match self.step {
@@ -729,16 +721,16 @@ impl SetupWizard {
                 self.step = Step::Download;
             }
             Step::Download => {}
-            Step::RomsLayout => {
-                self.step = Step::AuthMenu;
+            Step::CustomConsolePaths => {
+                self.step = Step::Summary;
             }
             Step::AuthMenu => self.advance_from_auth_menu(),
             Step::BasicUser => self.step = Step::BasicPass,
-            Step::BasicPass => self.step = Step::Summary,
-            Step::Bearer => self.step = Step::Summary,
+            Step::BasicPass => self.advance_after_auth_credentials(),
+            Step::Bearer => self.advance_after_auth_credentials(),
             Step::ApiHeader => self.step = Step::ApiKey,
-            Step::ApiKey => self.step = Step::Summary,
-            Step::PairingCode => self.step = Step::Summary,
+            Step::ApiKey => self.advance_after_auth_credentials(),
+            Step::PairingCode => self.advance_after_auth_credentials(),
             Step::Summary => {}
         }
         Ok(())
@@ -797,7 +789,7 @@ impl SetupWizard {
                         Ok(canonical) => {
                             self.download_picker
                                 .set_path_text(canonical.display().to_string());
-                            self.step = Step::RomsLayout;
+                            self.step = Step::AuthMenu;
                         }
                         Err(e) => {
                             self.error = Some(format!("{e:#}"));
@@ -806,18 +798,11 @@ impl SetupWizard {
                 }
                 PathPickerEvent::None => {}
             },
-            Step::RomsLayout => match key.code {
-                KeyCode::Enter => {
+            Step::CustomConsolePaths => {
+                if key.code == KeyCode::Enter {
                     let _ = self.advance_step();
                 }
-                KeyCode::Char(' ') => {
-                    self.roms_layout_mode = match self.roms_layout_mode {
-                        RomsLayoutMode::Auto => RomsLayoutMode::Manual,
-                        RomsLayoutMode::Manual => RomsLayoutMode::Auto,
-                    };
-                }
-                _ => {}
-            },
+            }
             Step::AuthMenu => match key.code {
                 KeyCode::Up | KeyCode::Char('k') if self.auth_menu_selected > 0 => {
                     self.auth_menu_selected -= 1;
@@ -1148,7 +1133,7 @@ mod tests {
             reuse_keyring_api_key: false,
             testing: false,
             use_https: false,
-            roms_layout_mode: RomsLayoutMode::Auto,
+            skip_custom_console_paths: false,
             error: None,
         }
     }

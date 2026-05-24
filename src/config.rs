@@ -24,7 +24,7 @@
 //! ## `load_config` vs `config.json`
 //!
 //! [`load_config`] merges sources **per field**: process environment wins over values from
-//! `config.json` for `API_BASE_URL`, `ROMM_ROMS_DIR`/`ROMM_DOWNLOAD_DIR`, `ROMM_ROMS_LAYOUT`, `API_USE_HTTPS`, and auth-related
+//! `config.json` for `API_BASE_URL`, `ROMM_ROMS_DIR`/`ROMM_DOWNLOAD_DIR`, `API_USE_HTTPS`, and auth-related
 //! fields. The keyring is used only to replace placeholder or sentinel secret strings after that merge.
 
 use std::collections::HashMap;
@@ -85,23 +85,25 @@ impl Default for ExtrasDefaults {
     }
 }
 
-/// How ROM files are laid out on disk under the base Roms directory.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+/// Legacy `roms_layout.mode` values accepted when reading older configs.
+#[derive(Debug, Clone, Copy, Deserialize, Default, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
-pub enum RomsLayoutMode {
-    /// `{base Roms Dir}/{platform-slug}/` for each console.
+enum LegacyRomsLayoutMode {
     #[default]
     Auto,
-    /// Per-platform absolute directories from [`RomsLayoutConfig::platform_dirs`].
     Manual,
 }
 
 /// Per-console ROM storage layout preferences.
+///
+/// Each platform defaults to `{download_dir}/{platform-slug}/`. Entries in
+/// [`platform_dirs`](Self::platform_dirs) override that with an absolute custom path.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct RomsLayoutConfig {
-    #[serde(default)]
-    pub mode: RomsLayoutMode,
-    /// Platform id → absolute directory path (manual mode).
+    /// Accepted when reading legacy configs; never written.
+    #[serde(default, skip_serializing, rename = "mode")]
+    _legacy_mode: Option<LegacyRomsLayoutMode>,
+    /// Platform id → absolute custom directory path.
     #[serde(default)]
     pub platform_dirs: HashMap<u64, String>,
 }
@@ -137,7 +139,7 @@ pub struct Config {
     /// TUI save-management settings.
     #[serde(default)]
     pub save_sync: SaveSyncConfig,
-    /// ROM layout mode and per-console directory overrides.
+    /// Optional per-console custom directory overrides.
     #[serde(default)]
     pub roms_layout: RomsLayoutConfig,
 }
@@ -559,13 +561,10 @@ pub fn load_config() -> Result<Config> {
         .map(|c| c.save_sync.clone())
         .unwrap_or_default();
 
-    let mut roms_layout = json_config
+    let roms_layout = json_config
         .as_ref()
         .map(|c| c.roms_layout.clone())
         .unwrap_or_default();
-    if let Some(mode) = env_nonempty("ROMM_ROMS_LAYOUT").and_then(|s| parse_roms_layout_mode(&s)) {
-        roms_layout.mode = mode;
-    }
 
     Ok(Config {
         base_url,
@@ -576,14 +575,6 @@ pub fn load_config() -> Result<Config> {
         save_sync,
         roms_layout,
     })
-}
-
-fn parse_roms_layout_mode(raw: &str) -> Option<RomsLayoutMode> {
-    match raw.trim().to_lowercase().as_str() {
-        "auto" => Some(RomsLayoutMode::Auto),
-        "manual" => Some(RomsLayoutMode::Manual),
-        _ => None,
-    }
 }
 
 /// Persists the user configuration to `config.json` and stores secrets in the OS keyring.
@@ -906,11 +897,10 @@ mod tests {
         }"#;
         let cfg: Config = serde_json::from_str(config_json).expect("deserialize legacy config");
         assert_eq!(cfg.roms_layout, RomsLayoutConfig::default());
-        assert_eq!(cfg.roms_layout.mode, RomsLayoutMode::Auto);
     }
 
     #[test]
-    fn roms_layout_deserializes_manual_platform_dirs() {
+    fn roms_layout_deserializes_legacy_mode_with_platform_dirs() {
         let config_json = r#"{
             "base_url": "http://example.test",
             "download_dir": "/tmp/downloads",
@@ -925,7 +915,6 @@ mod tests {
             }
         }"#;
         let cfg: Config = serde_json::from_str(config_json).expect("deserialize");
-        assert_eq!(cfg.roms_layout.mode, RomsLayoutMode::Manual);
         assert_eq!(
             cfg.roms_layout.platform_dirs.get(&7).map(String::as_str),
             Some("D:\\Roms\\Switch")
@@ -937,28 +926,39 @@ mod tests {
     }
 
     #[test]
-    fn roms_layout_env_overrides_mode_only() {
-        let env = TestEnv::new();
+    fn roms_layout_honors_platform_dirs_without_legacy_mode() {
         let config_json = r#"{
             "base_url": "http://example.test",
             "download_dir": "/tmp",
             "use_https": false,
             "auth": null,
             "roms_layout": {
-                "mode": "auto",
                 "platform_dirs": { "1": "/custom/nes" }
             }
         }"#;
-        std::fs::write(env.config_dir.join("config.json"), config_json).unwrap();
-        std::env::set_var("API_BASE_URL", "http://example.test");
-        std::env::set_var("ROMM_ROMS_LAYOUT", "manual");
-
-        let cfg = load_config().expect("load");
-        assert_eq!(cfg.roms_layout.mode, RomsLayoutMode::Manual);
+        let cfg: Config = serde_json::from_str(config_json).expect("deserialize");
         assert_eq!(
             cfg.roms_layout.platform_dirs.get(&1).map(String::as_str),
             Some("/custom/nes")
         );
+    }
+
+    #[test]
+    fn roms_layout_save_omits_legacy_mode_field() {
+        let config_json = r#"{
+            "base_url": "http://example.test",
+            "download_dir": "/tmp",
+            "use_https": false,
+            "auth": null,
+            "roms_layout": {
+                "mode": "manual",
+                "platform_dirs": { "1": "/custom/nes" }
+            }
+        }"#;
+        let cfg: Config = serde_json::from_str(config_json).expect("deserialize");
+        let json = serde_json::to_string(&cfg.roms_layout).expect("serialize");
+        assert!(!json.contains("mode"));
+        assert!(json.contains("platform_dirs"));
     }
 
     #[test]
