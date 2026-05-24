@@ -291,6 +291,13 @@ pub struct App {
 }
 
 impl App {
+    fn blocks_global_chord_shortcuts(&self) -> bool {
+        self.startup_splash.is_some()
+            || self.startup_update_prompt.is_some()
+            || self.global_error.is_some()
+            || self.global_notice.is_some()
+    }
+
     fn blocks_global_d_shortcut(&self) -> bool {
         let base = match &self.screen {
             AppScreen::Search(_) | AppScreen::Settings(_) | AppScreen::SetupWizard(_) => true,
@@ -299,7 +306,7 @@ impl App {
             }
             _ => false,
         };
-        base || self.library_upload_inflight
+        base || self.library_upload_inflight || self.blocks_global_chord_shortcuts()
     }
 
     fn allows_global_question_help(&self) -> bool {
@@ -1084,7 +1091,7 @@ impl App {
                     // Safety: Don't actually run self_update if this is a mock
                     if prompt.status.latest_version == "9.9.9-mock" {
                         tokio::time::sleep(std::time::Duration::from_secs(2)).await; // Simulate some work
-                        self.global_error =
+                        self.global_notice =
                             Some("Mock update successful! (No files were changed)".into());
                         self.startup_update_prompt = None;
                     } else {
@@ -1124,6 +1131,7 @@ impl App {
                     if key_event.kind == KeyEventKind::Press
                         && key_event.modifiers.contains(KeyModifiers::CONTROL)
                         && matches!(key_event.code, KeyCode::Char('r') | KeyCode::Char('R'))
+                        && !self.blocks_global_chord_shortcuts()
                     {
                         if let AppScreen::LibraryBrowse(ref lib) = self.screen {
                             if !lib.any_search_bar_open()
@@ -1139,6 +1147,7 @@ impl App {
                     if key_event.kind == KeyEventKind::Press
                         && key_event.modifiers.contains(KeyModifiers::CONTROL)
                         && matches!(key_event.code, KeyCode::Char('u') | KeyCode::Char('U'))
+                        && !self.blocks_global_chord_shortcuts()
                     {
                         if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
                             if lib.any_upload_prompt_open() {
@@ -2707,50 +2716,50 @@ impl App {
         let area = f.area();
         if let Some(ref splash) = self.startup_splash {
             connected_splash::render(f, area, splash);
-            return;
-        }
-        match &mut self.screen {
-            AppScreen::MainMenu(menu) => menu.render(f, area),
-            AppScreen::LibraryBrowse(lib) => {
-                lib.render(f, area);
-                if let Some((x, y)) = lib.upload_prompt_cursor(area) {
-                    f.set_cursor_position((x, y));
+        } else {
+            match &mut self.screen {
+                AppScreen::MainMenu(menu) => menu.render(f, area),
+                AppScreen::LibraryBrowse(lib) => {
+                    lib.render(f, area);
+                    if let Some((x, y)) = lib.upload_prompt_cursor(area) {
+                        f.set_cursor_position((x, y));
+                    }
+                }
+                AppScreen::Search(search) => {
+                    search.render(f, area);
+                    if let Some((x, y)) = search.cursor_position(area) {
+                        f.set_cursor_position((x, y));
+                    }
+                }
+                AppScreen::Settings(settings) => {
+                    settings.render(f, area);
+                    if let Some((x, y)) = settings.cursor_position(area) {
+                        f.set_cursor_position((x, y));
+                    }
+                }
+                AppScreen::Browse(browse) => browse.render(f, area),
+                AppScreen::Execute(execute) => {
+                    execute.render(f, area);
+                    if let Some((x, y)) = execute.cursor_position(area) {
+                        f.set_cursor_position((x, y));
+                    }
+                }
+                AppScreen::Result(result) => result.render(f, area),
+                AppScreen::ResultDetail(detail) => detail.render(f, area),
+                AppScreen::GameDetail(detail) => detail.render(f, area),
+                AppScreen::ExtrasPicker(picker) => picker.render(f, area),
+                AppScreen::Download(d) => d.render(f, area),
+                AppScreen::SetupWizard(wizard) => {
+                    wizard.render(f, area);
+                    if let Some((x, y)) = wizard.cursor_pos(area) {
+                        f.set_cursor_position((x, y));
+                    }
                 }
             }
-            AppScreen::Search(search) => {
-                search.render(f, area);
-                if let Some((x, y)) = search.cursor_position(area) {
-                    f.set_cursor_position((x, y));
-                }
-            }
-            AppScreen::Settings(settings) => {
-                settings.render(f, area);
-                if let Some((x, y)) = settings.cursor_position(area) {
-                    f.set_cursor_position((x, y));
-                }
-            }
-            AppScreen::Browse(browse) => browse.render(f, area),
-            AppScreen::Execute(execute) => {
-                execute.render(f, area);
-                if let Some((x, y)) = execute.cursor_position(area) {
-                    f.set_cursor_position((x, y));
-                }
-            }
-            AppScreen::Result(result) => result.render(f, area),
-            AppScreen::ResultDetail(detail) => detail.render(f, area),
-            AppScreen::GameDetail(detail) => detail.render(f, area),
-            AppScreen::ExtrasPicker(picker) => picker.render(f, area),
-            AppScreen::Download(d) => d.render(f, area),
-            AppScreen::SetupWizard(wizard) => {
-                wizard.render(f, area);
-                if let Some((x, y)) = wizard.cursor_pos(area) {
-                    f.set_cursor_position((x, y));
-                }
-            }
-        }
 
-        if self.show_keyboard_help {
-            keyboard_help::render_keyboard_help(f, area);
+            if self.show_keyboard_help {
+                keyboard_help::render_keyboard_help(f, area);
+            }
         }
 
         if let Some(prompt) = &self.startup_update_prompt {
@@ -2812,12 +2821,12 @@ impl App {
                     ratatui::text::Line::from(""),
                     ratatui::text::Line::from(vec![
                         ratatui::text::Span::styled(
-                            "Y",
+                            "Y/Enter",
                             ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
                         ),
                         ratatui::text::Span::raw(": Yes (update)  "),
                         ratatui::text::Span::styled(
-                            "N",
+                            "N/Esc",
                             ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
                         ),
                         ratatui::text::Span::raw(": No (skip)"),
@@ -3120,6 +3129,58 @@ mod tests {
                 .is_some_and(|p| p.updating),
             "update should be in progress"
         );
+    }
+
+    #[tokio::test]
+    async fn startup_update_prompt_esc_skips_without_quitting() {
+        let config = Config {
+            base_url: "http://127.0.0.1:9".into(),
+            download_dir: "/tmp".into(),
+            use_https: false,
+            auth: None,
+            extras_defaults: ExtrasDefaults::default(),
+            save_sync: Default::default(),
+            roms_layout: Default::default(),
+        };
+        let client = RommClient::new(&config, false).expect("client");
+        let mut app = App::new(
+            client,
+            config,
+            EndpointRegistry::default(),
+            None,
+            None,
+            Some(update_status_fixture()),
+        );
+        let quit = app
+            .handle_key_event(&KeyEvent::new(KeyCode::Esc, KeyModifiers::empty()))
+            .await
+            .expect("esc handled");
+        assert!(!quit);
+        assert!(app.startup_update_prompt.is_none());
+    }
+
+    #[tokio::test]
+    async fn startup_update_prompt_blocks_global_d_shortcut() {
+        let config = Config {
+            base_url: "http://127.0.0.1:9".into(),
+            download_dir: "/tmp".into(),
+            use_https: false,
+            auth: None,
+            extras_defaults: ExtrasDefaults::default(),
+            save_sync: Default::default(),
+            roms_layout: Default::default(),
+        };
+        let client = RommClient::new(&config, false).expect("client");
+        let app = App::new(
+            client,
+            config,
+            EndpointRegistry::default(),
+            None,
+            None,
+            Some(update_status_fixture()),
+        );
+        assert!(app.blocks_global_d_shortcut());
+        assert!(app.blocks_global_chord_shortcuts());
     }
 
     #[tokio::test]

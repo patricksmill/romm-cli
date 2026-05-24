@@ -62,6 +62,19 @@ fn startup_splash_for(
     None
 }
 
+/// Connected splash is skipped when an update prompt will show — avoids overlapping modals.
+fn startup_splash_for_launch(
+    from_setup_wizard: bool,
+    config: &Config,
+    server_version: &Option<String>,
+    update_pending: bool,
+) -> Option<StartupSplash> {
+    if update_pending {
+        return None;
+    }
+    startup_splash_for(from_setup_wizard, config, server_version)
+}
+
 async fn run_started(
     client: RommClient,
     config: Config,
@@ -91,7 +104,12 @@ async fn run_started(
         None
     };
 
-    let splash = startup_splash_for(from_setup_wizard, &config, &server_version);
+    let splash = startup_splash_for_launch(
+        from_setup_wizard,
+        &config,
+        &server_version,
+        startup_update.is_some(),
+    );
     let mut app = App::new(
         client,
         config,
@@ -116,4 +134,36 @@ pub async fn run_interactive(verbose: bool, mock_update: bool) -> Result<()> {
     };
     let client = RommClient::new(&config, verbose)?;
     run_started(client, config, from_wizard, mock_update).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::ExtrasDefaults;
+
+    fn test_config() -> Config {
+        Config {
+            base_url: "http://127.0.0.1:9".into(),
+            download_dir: "/tmp".into(),
+            use_https: false,
+            auth: None,
+            extras_defaults: ExtrasDefaults::default(),
+            save_sync: Default::default(),
+            roms_layout: Default::default(),
+        }
+    }
+
+    #[test]
+    fn startup_splash_for_launch_skips_splash_when_update_pending() {
+        let config = test_config();
+        let version = Some("4.0.0".into());
+        assert!(startup_splash_for_launch(false, &config, &version, true).is_none());
+    }
+
+    #[test]
+    fn startup_splash_for_launch_shows_splash_when_no_update() {
+        let config = test_config();
+        let version = Some("4.0.0".into());
+        assert!(startup_splash_for_launch(false, &config, &version, false).is_some());
+    }
 }
