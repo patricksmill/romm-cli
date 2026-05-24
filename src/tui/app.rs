@@ -1332,10 +1332,6 @@ impl App {
             return Ok(false);
         }
 
-        if self.startup_update_prompt.is_some() {
-            return self.handle_startup_update_prompt(key).await;
-        }
-
         if self.global_error.is_some() || self.global_notice.is_some() {
             if key.code == KeyCode::Esc || key.code == KeyCode::Enter {
                 self.global_error = None;
@@ -1344,9 +1340,15 @@ impl App {
             return Ok(false);
         }
 
+        // Dismiss the connected splash before the update prompt: the splash is drawn on top,
+        // so Enter/Esc here must not be routed to the hidden update dialog (which would quit).
         if self.startup_splash.is_some() {
             self.startup_splash = None;
             return Ok(false);
+        }
+
+        if self.startup_update_prompt.is_some() {
+            return self.handle_startup_update_prompt(key).await;
         }
 
         if self.show_keyboard_help {
@@ -1405,15 +1407,13 @@ impl App {
             | KeyCode::Char('Y')
             | KeyCode::Enter => {
                 prompt.updating = true;
-                // We need to return true to trigger a re-draw so the "Updating..." message shows up.
-                // But wait, the loop is in run().
-                Ok(true)
+                Ok(false)
             }
             KeyCode::Char('c') | KeyCode::Char('C') => {
                 if let Err(err) = crate::update::open_changelog_in_browser() {
                     self.global_error = Some(format!("Could not open changelog: {err:#}"));
                 } else {
-                    self.global_error =
+                    self.global_notice =
                         Some(format!("Opened changelog: {}", prompt.status.changelog_url));
                 }
                 Ok(false)
@@ -2882,6 +2882,7 @@ mod tests {
     use super::*;
     use crate::config::{Config, ExtrasDefaults};
     use crate::openapi::EndpointRegistry;
+    use crate::tui::screens::connected_splash::StartupSplash;
     use crate::tui::screens::library_browse::LibraryBrowseScreen;
     use crate::tui::screens::{GameDetailPrevious, GameDetailScreen, SearchScreen};
     use crate::types::Platform;
@@ -3047,6 +3048,78 @@ mod tests {
             .expect("esc handled");
         assert!(!quit);
         assert!(matches!(app.screen, AppScreen::LibraryBrowse(_)));
+    }
+
+    #[tokio::test]
+    async fn startup_splash_enter_dismisses_without_quitting_when_update_pending() {
+        let config = Config {
+            base_url: "http://127.0.0.1:9".into(),
+            download_dir: "/tmp".into(),
+            use_https: false,
+            auth: None,
+            extras_defaults: ExtrasDefaults::default(),
+            save_sync: Default::default(),
+            roms_layout: Default::default(),
+        };
+        let client = RommClient::new(&config, false).expect("client");
+        let splash = Some(StartupSplash::new(
+            config.base_url.clone(),
+            Some("4.0.0".into()),
+        ));
+        let mut app = App::new(
+            client,
+            config,
+            EndpointRegistry::default(),
+            Some("4.0.0".into()),
+            splash,
+            Some(update_status_fixture()),
+        );
+        assert!(app.startup_splash.is_some());
+        assert!(app.startup_update_prompt.is_some());
+
+        let quit = app
+            .handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()))
+            .await
+            .expect("enter handled");
+        assert!(!quit, "Enter on connected splash should not quit the app");
+        assert!(app.startup_splash.is_none(), "splash should be dismissed");
+        assert!(
+            app.startup_update_prompt.is_some(),
+            "update prompt should remain after splash dismiss"
+        );
+    }
+
+    #[tokio::test]
+    async fn startup_update_prompt_enter_starts_update_without_quitting() {
+        let config = Config {
+            base_url: "http://127.0.0.1:9".into(),
+            download_dir: "/tmp".into(),
+            use_https: false,
+            auth: None,
+            extras_defaults: ExtrasDefaults::default(),
+            save_sync: Default::default(),
+            roms_layout: Default::default(),
+        };
+        let client = RommClient::new(&config, false).expect("client");
+        let mut app = App::new(
+            client,
+            config,
+            EndpointRegistry::default(),
+            None,
+            None,
+            Some(update_status_fixture()),
+        );
+        let quit = app
+            .handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()))
+            .await
+            .expect("enter handled");
+        assert!(!quit, "Enter to confirm update should not quit the app");
+        assert!(
+            app.startup_update_prompt
+                .as_ref()
+                .is_some_and(|p| p.updating),
+            "update should be in progress"
+        );
     }
 
     #[tokio::test]
