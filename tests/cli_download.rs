@@ -95,7 +95,7 @@ async fn download_single_rom_zip_happy_path() {
         .success()
         .stdout(predicates::str::contains("Saved to"));
 
-    let saved = output_dir.join("rom_42.zip");
+    let saved = output_dir.join("nes").join("rom_42.zip");
     assert!(saved.exists(), "expected {:?} to exist", saved);
     assert_eq!(fs::read(saved).unwrap(), zip_bytes);
 
