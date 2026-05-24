@@ -7,6 +7,8 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 
 use crate::client::RommClient;
+use crate::config::RomsLayoutConfig;
+use crate::core::download::resolve_console_roms_dir;
 use crate::core::utils;
 use crate::endpoints::roms::GetRoms;
 use crate::services::RomService;
@@ -63,14 +65,15 @@ pub enum InternalRomFileGroup {
 pub async fn build_extras_targets(
     client: &RommClient,
     rom_id: u64,
-    output_dir: &Path,
+    layout: &RomsLayoutConfig,
+    base_dir: &Path,
 ) -> Result<Vec<DownloadTarget>> {
     let service = RomService::new(client);
     let rom = service.get_rom(rom_id).await?;
-    let extras_root = extras_root_dir(output_dir, &rom);
+    let extras_root = extras_root_dir(layout, base_dir, &rom)?;
 
     let mut targets = Vec::new();
-    targets.extend(build_internal_extra_targets(&rom, output_dir));
+    targets.extend(build_internal_extra_targets(&rom, layout, base_dir)?);
     targets.extend(build_related_rom_targets(client, &rom, &extras_root).await?);
     if let Some(cover) = build_cover_target(&rom, &extras_root) {
         targets.push(cover);
@@ -86,16 +89,18 @@ pub async fn build_extras_targets(
 pub async fn build_update_dlc_targets_for_rom(
     client: &RommClient,
     rom: &Rom,
-    output_dir: &Path,
+    layout: &RomsLayoutConfig,
+    base_dir: &Path,
 ) -> Result<Vec<DownloadTarget>> {
-    let extras_root = extras_root_dir(output_dir, rom);
+    let extras_root = extras_root_dir(layout, base_dir, rom)?;
     let related_rows = related_rom_rows(client, rom).await?;
     Ok(build_update_dlc_targets_from_related_rows(
         rom,
         &related_rows,
-        output_dir,
+        layout,
+        base_dir,
         &extras_root,
-    ))
+    )?)
 }
 
 pub fn has_update_or_dlc_extras(rom: &Rom, related_rows: &[Rom]) -> bool {
@@ -104,22 +109,30 @@ pub fn has_update_or_dlc_extras(rom: &Rom, related_rows: &[Rom]) -> bool {
         || !related_rows.is_empty()
 }
 
-pub fn build_base_rom_file_targets(rom: &Rom, output_dir: &Path) -> Vec<DownloadTarget> {
+pub fn build_base_rom_file_targets(
+    rom: &Rom,
+    layout: &RomsLayoutConfig,
+    base_dir: &Path,
+) -> Result<Vec<DownloadTarget>> {
     let base_files = internal_file_subset(rom, InternalRomFileGroup::BaseGame);
     if base_files.is_empty() {
-        return Vec::new();
+        return Ok(Vec::new());
     }
-    let platform_dir = platform_download_dir(output_dir, rom);
-    base_files
+    let platform_dir = resolve_console_roms_dir(layout, base_dir, rom)?;
+    Ok(base_files
         .into_iter()
         .map(|file| {
             internal_rom_file_target(rom, file, &platform_dir, InternalRomFileGroup::BaseGame)
         })
-        .collect()
+        .collect())
 }
 
-pub fn build_update_dlc_file_targets_for_rom(rom: &Rom, output_dir: &Path) -> Vec<DownloadTarget> {
-    build_internal_extra_targets(rom, output_dir)
+pub fn build_update_dlc_file_targets_for_rom(
+    rom: &Rom,
+    layout: &RomsLayoutConfig,
+    base_dir: &Path,
+) -> Result<Vec<DownloadTarget>> {
+    build_internal_extra_targets(rom, layout, base_dir)
 }
 
 pub fn collect_update_dlc_files(rom: &Rom) -> Vec<RomFile> {
@@ -173,23 +186,28 @@ async fn related_rom_rows(client: &RommClient, rom: &Rom) -> Result<Vec<Rom>> {
 pub fn build_update_dlc_targets_from_related_rows(
     rom: &Rom,
     related_rows: &[Rom],
-    output_dir: &Path,
+    layout: &RomsLayoutConfig,
+    base_dir: &Path,
     extras_root: &Path,
-) -> Vec<DownloadTarget> {
-    let mut targets = build_internal_extra_targets(rom, output_dir);
+) -> Result<Vec<DownloadTarget>> {
+    let mut targets = build_internal_extra_targets(rom, layout, base_dir)?;
     targets.extend(
         related_rows
             .iter()
             .map(|candidate| related_rom_download_target(rom, candidate, extras_root)),
     );
-    targets
+    Ok(targets)
 }
 
-fn build_internal_extra_targets(rom: &Rom, output_dir: &Path) -> Vec<DownloadTarget> {
+fn build_internal_extra_targets(
+    rom: &Rom,
+    layout: &RomsLayoutConfig,
+    base_dir: &Path,
+) -> Result<Vec<DownloadTarget>> {
     let updates = internal_file_subset(rom, InternalRomFileGroup::Update);
     let dlc = internal_file_subset(rom, InternalRomFileGroup::Dlc);
     let mut out = Vec::with_capacity(updates.len() + dlc.len());
-    let platform_dir = platform_download_dir(output_dir, rom);
+    let platform_dir = resolve_console_roms_dir(layout, base_dir, rom)?;
     let game_dir = sanitized_extra_game_name(&rom.name, rom.id);
     for f in updates {
         out.push(internal_rom_file_target(
@@ -207,7 +225,7 @@ fn build_internal_extra_targets(rom: &Rom, output_dir: &Path) -> Vec<DownloadTar
             InternalRomFileGroup::Dlc,
         ));
     }
-    out
+    Ok(out)
 }
 
 /// One related ROM archive under `extras_root` (same layout as CLI extras).
@@ -294,24 +312,14 @@ pub fn build_manual_target(rom: &Rom, extras_root: &Path) -> Option<DownloadTarg
     })
 }
 
-pub fn extras_root_dir(output_dir: &Path, rom: &Rom) -> PathBuf {
-    let platform_slug = platform_download_slug(rom);
+pub fn extras_root_dir(
+    layout: &RomsLayoutConfig,
+    base_dir: &Path,
+    rom: &Rom,
+) -> Result<PathBuf> {
+    let platform_dir = resolve_console_roms_dir(layout, base_dir, rom)?;
     let game_slug = sanitized_extra_game_name(&rom.name, rom.id);
-    output_dir
-        .join(utils::sanitize_filename(&platform_slug))
-        .join(game_slug)
-        .join("extras")
-}
-
-fn platform_download_slug(rom: &Rom) -> String {
-    rom.platform_fs_slug
-        .clone()
-        .or_else(|| rom.platform_slug.clone())
-        .unwrap_or_else(|| format!("platform-{}", rom.platform_id))
-}
-
-fn platform_download_dir(output_dir: &Path, rom: &Rom) -> PathBuf {
-    output_dir.join(utils::sanitize_filename(&platform_download_slug(rom)))
+    Ok(platform_dir.join(game_slug).join("extras"))
 }
 
 fn internal_file_subset(rom: &Rom, group: InternalRomFileGroup) -> Vec<RomFile> {
@@ -393,12 +401,17 @@ fn filename_from_url(url: &str, fallback: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::RomsLayoutConfig;
     use crate::types::Rom;
+
+    fn default_layout() -> RomsLayoutConfig {
+        RomsLayoutConfig::default()
+    }
 
     #[test]
     fn extras_root_dir_is_sanitized() {
         let rom = rom_fixture(7, "Mario Kart", "Mario Kart [USA].zip");
-        let dir = extras_root_dir(PathBuf::from("/tmp/out").as_path(), &rom);
+        let dir = extras_root_dir(&default_layout(), Path::new("/tmp/out"), &rom).unwrap();
         assert_eq!(
             dir,
             PathBuf::from("/tmp/out")
@@ -489,7 +502,8 @@ mod tests {
                 category: Some(RomFileCategory::Update),
             },
         ];
-        let targets = build_base_rom_file_targets(&rom, Path::new("/tmp/out"));
+        let targets =
+            build_base_rom_file_targets(&rom, &default_layout(), Path::new("/tmp/out")).unwrap();
         assert_eq!(targets.len(), 1);
         assert_eq!(targets[0].kind, DownloadAssetKind::RomFile);
         assert_eq!(
@@ -529,12 +543,15 @@ mod tests {
             },
         ];
         assert!(has_update_or_dlc_extras(&rom, &[]));
-        let base = build_base_rom_file_targets(&rom, Path::new("/tmp/out"));
+        let base =
+            build_base_rom_file_targets(&rom, &default_layout(), Path::new("/tmp/out")).unwrap();
         assert_eq!(base.len(), 1);
         assert!(base[0]
             .destination
             .ends_with("Nintendo Switch/Game Base.nsp"));
-        let extras = build_update_dlc_file_targets_for_rom(&rom, Path::new("/tmp/out"));
+        let extras =
+            build_update_dlc_file_targets_for_rom(&rom, &default_layout(), Path::new("/tmp/out"))
+                .unwrap();
         assert_eq!(extras.len(), 2);
         assert_eq!(
             extras[0].source_url,
@@ -570,14 +587,17 @@ mod tests {
             fs_name: "Game DLC.zip".into(),
             ..rom_fixture(2, "Game", "Game DLC.zip")
         };
-        let extras_root = extras_root_dir(Path::new("/tmp/out"), &rom);
+        let extras_root =
+            extras_root_dir(&default_layout(), Path::new("/tmp/out"), &rom).unwrap();
 
         let targets = build_update_dlc_targets_from_related_rows(
             &rom,
             &[related],
+            &default_layout(),
             Path::new("/tmp/out"),
             &extras_root,
-        );
+        )
+        .unwrap();
 
         assert_eq!(targets.len(), 2);
         assert!(targets.iter().any(|t| t.kind == DownloadAssetKind::RomFile));

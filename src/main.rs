@@ -61,6 +61,7 @@ async fn run_app() -> Result<()> {
                     auth: None,
                     extras_defaults: romm_cli::config::ExtrasDefaults::default(),
                     save_sync: Default::default(),
+                    roms_layout: Default::default(),
                 };
                 return run(
                     Cli {

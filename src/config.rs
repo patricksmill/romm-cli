@@ -24,9 +24,10 @@
 //! ## `load_config` vs `config.json`
 //!
 //! [`load_config`] merges sources **per field**: process environment wins over values from
-//! `config.json` for `API_BASE_URL`, `ROMM_ROMS_DIR`/`ROMM_DOWNLOAD_DIR`, `API_USE_HTTPS`, and auth-related
+//! `config.json` for `API_BASE_URL`, `ROMM_ROMS_DIR`/`ROMM_DOWNLOAD_DIR`, `ROMM_ROMS_LAYOUT`, `API_USE_HTTPS`, and auth-related
 //! fields. The keyring is used only to replace placeholder or sentinel secret strings after that merge.
 
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 
@@ -84,6 +85,27 @@ impl Default for ExtrasDefaults {
     }
 }
 
+/// How ROM files are laid out on disk under the base Roms directory.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum RomsLayoutMode {
+    /// `{base Roms Dir}/{platform-slug}/` for each console.
+    #[default]
+    Auto,
+    /// Per-platform absolute directories from [`RomsLayoutConfig::platform_dirs`].
+    Manual,
+}
+
+/// Per-console ROM storage layout preferences.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct RomsLayoutConfig {
+    #[serde(default)]
+    pub mode: RomsLayoutMode,
+    /// Platform id → absolute directory path (manual mode).
+    #[serde(default)]
+    pub platform_dirs: HashMap<u64, String>,
+}
+
 /// Save sync preferences shared by CLI/TUI frontends.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct SaveSyncConfig {
@@ -115,6 +137,9 @@ pub struct Config {
     /// TUI save-management settings.
     #[serde(default)]
     pub save_sync: SaveSyncConfig,
+    /// ROM layout mode and per-console directory overrides.
+    #[serde(default)]
+    pub roms_layout: RomsLayoutConfig,
 }
 
 pub fn resolved_save_dir(config: &Config) -> PathBuf {
@@ -534,6 +559,14 @@ pub fn load_config() -> Result<Config> {
         .map(|c| c.save_sync.clone())
         .unwrap_or_default();
 
+    let mut roms_layout = json_config
+        .as_ref()
+        .map(|c| c.roms_layout.clone())
+        .unwrap_or_default();
+    if let Some(mode) = env_nonempty("ROMM_ROMS_LAYOUT").and_then(|s| parse_roms_layout_mode(&s)) {
+        roms_layout.mode = mode;
+    }
+
     Ok(Config {
         base_url,
         download_dir,
@@ -541,7 +574,16 @@ pub fn load_config() -> Result<Config> {
         auth,
         extras_defaults,
         save_sync,
+        roms_layout,
     })
+}
+
+fn parse_roms_layout_mode(raw: &str) -> Option<RomsLayoutMode> {
+    match raw.trim().to_lowercase().as_str() {
+        "auto" => Some(RomsLayoutMode::Auto),
+        "manual" => Some(RomsLayoutMode::Manual),
+        _ => None,
+    }
 }
 
 /// Persists the user configuration to `config.json` and stores secrets in the OS keyring.
@@ -855,6 +897,71 @@ mod tests {
     }
 
     #[test]
+    fn roms_layout_defaults_when_missing_from_legacy_json() {
+        let config_json = r#"{
+            "base_url": "http://from-json-file.test",
+            "download_dir": "/tmp/downloads",
+            "use_https": false,
+            "auth": null
+        }"#;
+        let cfg: Config = serde_json::from_str(config_json).expect("deserialize legacy config");
+        assert_eq!(cfg.roms_layout, RomsLayoutConfig::default());
+        assert_eq!(cfg.roms_layout.mode, RomsLayoutMode::Auto);
+    }
+
+    #[test]
+    fn roms_layout_deserializes_manual_platform_dirs() {
+        let config_json = r#"{
+            "base_url": "http://example.test",
+            "download_dir": "/tmp/downloads",
+            "use_https": false,
+            "auth": null,
+            "roms_layout": {
+                "mode": "manual",
+                "platform_dirs": {
+                    "7": "D:\\Roms\\Switch",
+                    "3": "/roms/nes"
+                }
+            }
+        }"#;
+        let cfg: Config = serde_json::from_str(config_json).expect("deserialize");
+        assert_eq!(cfg.roms_layout.mode, RomsLayoutMode::Manual);
+        assert_eq!(
+            cfg.roms_layout.platform_dirs.get(&7).map(String::as_str),
+            Some("D:\\Roms\\Switch")
+        );
+        assert_eq!(
+            cfg.roms_layout.platform_dirs.get(&3).map(String::as_str),
+            Some("/roms/nes")
+        );
+    }
+
+    #[test]
+    fn roms_layout_env_overrides_mode_only() {
+        let env = TestEnv::new();
+        let config_json = r#"{
+            "base_url": "http://example.test",
+            "download_dir": "/tmp",
+            "use_https": false,
+            "auth": null,
+            "roms_layout": {
+                "mode": "auto",
+                "platform_dirs": { "1": "/custom/nes" }
+            }
+        }"#;
+        std::fs::write(env.config_dir.join("config.json"), config_json).unwrap();
+        std::env::set_var("API_BASE_URL", "http://example.test");
+        std::env::set_var("ROMM_ROMS_LAYOUT", "manual");
+
+        let cfg = load_config().expect("load");
+        assert_eq!(cfg.roms_layout.mode, RomsLayoutMode::Manual);
+        assert_eq!(
+            cfg.roms_layout.platform_dirs.get(&1).map(String::as_str),
+            Some("/custom/nes")
+        );
+    }
+
+    #[test]
     fn resolved_save_dir_falls_back_to_download_dir_saves() {
         let cfg = Config {
             base_url: "http://example.test".into(),
@@ -863,6 +970,7 @@ mod tests {
             auth: None,
             extras_defaults: ExtrasDefaults::default(),
             save_sync: SaveSyncConfig::default(),
+            roms_layout: RomsLayoutConfig::default(),
         };
         assert_eq!(
             resolved_save_dir(&cfg),
@@ -1054,6 +1162,7 @@ mod tests {
             }),
             extras_defaults: ExtrasDefaults::default(),
             save_sync: SaveSyncConfig::default(),
+            roms_layout: RomsLayoutConfig::default(),
         })
         .expect("persist bearer sentinel");
 
@@ -1078,6 +1187,7 @@ mod tests {
             }),
             extras_defaults: ExtrasDefaults::default(),
             save_sync: SaveSyncConfig::default(),
+            roms_layout: RomsLayoutConfig::default(),
         })
         .expect("persist api key sentinel");
 
@@ -1101,6 +1211,7 @@ mod tests {
             }),
             extras_defaults: ExtrasDefaults::default(),
             save_sync: SaveSyncConfig::default(),
+            roms_layout: RomsLayoutConfig::default(),
         })
         .expect("persist basic password sentinel");
 

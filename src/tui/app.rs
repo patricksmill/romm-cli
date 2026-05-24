@@ -1887,6 +1887,7 @@ impl App {
             auth,
             extras_defaults: self.config.extras_defaults.clone(),
             save_sync: self.config.save_sync.clone(),
+            roms_layout: self.config.roms_layout.clone(),
         };
         let client = match RommClient::new(&cfg, verbose) {
             Ok(c) => c,
@@ -1954,6 +1955,42 @@ impl App {
                     }
                 }
                 PathPickerEvent::None => {}
+            }
+            return Ok(false);
+        }
+
+        if let Some((platform_id, ref mut picker)) = settings.console_path_picker {
+            if key.code == KeyCode::Esc {
+                settings.console_path_picker = None;
+                return Ok(false);
+            }
+            match picker.handle_key(key) {
+                PathPickerEvent::Confirmed(p) => {
+                    match validate_configured_download_directory(p.to_string_lossy().as_ref()) {
+                        Ok(canonical) => {
+                            settings.confirm_console_path(
+                                platform_id,
+                                canonical.display().to_string(),
+                            );
+                        }
+                        Err(e) => {
+                            settings.message =
+                                Some((format!("Invalid console directory: {e:#}"), Color::Red));
+                        }
+                    }
+                }
+                PathPickerEvent::None => {}
+            }
+            return Ok(false);
+        }
+
+        if settings.console_picker_open {
+            match key.code {
+                KeyCode::Esc => settings.console_picker_open = false,
+                KeyCode::Up | KeyCode::Char('k') => settings.console_previous(),
+                KeyCode::Down | KeyCode::Char('j') => settings.console_next(),
+                KeyCode::Enter => settings.open_console_path_picker(),
+                _ => {}
             }
             return Ok(false);
         }
@@ -2039,6 +2076,8 @@ impl App {
                 if row == SettingsRow::Auth {
                     self.screen =
                         AppScreen::SetupWizard(Box::new(SetupWizard::new_auth_only(&self.config)));
+                } else if row == SettingsRow::ConsoleDirs {
+                    settings.open_console_picker(self.platforms.clone());
                 } else if row == SettingsRow::SyncDevice {
                     if !settings.save_sync_supported() {
                         settings.set_save_sync_unsupported_message();
@@ -2105,6 +2144,7 @@ impl App {
                         save_dir: Some(settings.save_dir.clone()),
                         device_id: settings.sync_device_id.clone(),
                     },
+                    roms_layout: settings.roms_layout_config(),
                 };
                 if let Err(e) = persist_user_config(&cfg) {
                     settings.message = Some((format!("Error saving: {e}"), Color::Red));
@@ -2116,6 +2156,7 @@ impl App {
                     self.config.use_https = cfg.use_https;
                     self.config.extras_defaults = cfg.extras_defaults.clone();
                     self.config.save_sync = cfg.save_sync.clone();
+                    self.config.roms_layout = cfg.roms_layout.clone();
                     // Re-create client to pick up new base URL
                     if let Ok(new_client) = RommClient::new(&self.config, self.client.verbose()) {
                         self.client = new_client;
@@ -2442,6 +2483,7 @@ impl App {
                 match self.downloads.start_download(
                     &detail.rom,
                     self.client.clone(),
+                    &self.config.roms_layout,
                     Some(self.config.download_dir.as_str()),
                 ) {
                     Ok(()) => {
@@ -2507,8 +2549,10 @@ impl App {
                     );
                     return Ok(false);
                 }
-                let targets =
-                    match picker.build_selected_targets(Some(self.config.download_dir.as_str())) {
+                let targets = match picker.build_selected_targets(
+                    &self.config.roms_layout,
+                    Some(self.config.download_dir.as_str()),
+                ) {
                         Ok(t) => t,
                         Err(e) => {
                             picker.show_message(format!("{e:#}"), Duration::from_secs(4));
@@ -2835,6 +2879,7 @@ mod tests {
             auth: None,
             extras_defaults: ExtrasDefaults::default(),
             save_sync: Default::default(),
+            roms_layout: Default::default(),
         };
         let client = RommClient::new(&config, false).expect("client");
         let mut app = App::new(
@@ -2956,6 +3001,7 @@ mod tests {
             auth: None,
             extras_defaults: ExtrasDefaults::default(),
             save_sync: Default::default(),
+            roms_layout: Default::default(),
         };
         let client = RommClient::new(&config, false).expect("client");
         let mut app = App::new(
@@ -2984,6 +3030,7 @@ mod tests {
             auth: None,
             extras_defaults: ExtrasDefaults::default(),
             save_sync: Default::default(),
+            roms_layout: Default::default(),
         };
         let client = RommClient::new(&config, false).expect("client");
         let mut app = App::new(
@@ -3026,6 +3073,7 @@ mod tests {
             auth: None,
             extras_defaults: ExtrasDefaults::default(),
             save_sync: Default::default(),
+            roms_layout: Default::default(),
         };
         let client = RommClient::new(&config, false).expect("client");
         let mut app = App::new(

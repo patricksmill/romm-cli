@@ -1,25 +1,31 @@
+use std::collections::HashMap;
+
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Tabs};
 use ratatui::Frame;
 
-use crate::config::{disk_has_unresolved_keyring_sentinel, Config};
+use crate::config::{disk_has_unresolved_keyring_sentinel, Config, RomsLayoutConfig, RomsLayoutMode};
+use crate::core::utils;
 use crate::endpoints::device::DeviceSchema;
 use crate::feature_compat::SaveSyncCompatibility;
 use crate::tui::path_picker::{PathPicker, PathPickerMode};
+use crate::types::Platform;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SettingsTab {
     Connection,
+    Roms,
     Saves,
     Extras,
     AuthMaintenance,
 }
 
 impl SettingsTab {
-    pub const ALL: [SettingsTab; 4] = [
+    pub const ALL: [SettingsTab; 5] = [
         SettingsTab::Connection,
+        SettingsTab::Roms,
         SettingsTab::Saves,
         SettingsTab::Extras,
         SettingsTab::AuthMaintenance,
@@ -30,27 +36,20 @@ impl SettingsTab {
     pub fn index(self) -> usize {
         match self {
             SettingsTab::Connection => 0,
-            SettingsTab::Saves => 1,
-            SettingsTab::Extras => 2,
-            SettingsTab::AuthMaintenance => 3,
+            SettingsTab::Roms => 1,
+            SettingsTab::Saves => 2,
+            SettingsTab::Extras => 3,
+            SettingsTab::AuthMaintenance => 4,
         }
     }
 
     fn title(self) -> &'static str {
         match self {
             SettingsTab::Connection => "Connection",
+            SettingsTab::Roms => "ROMs",
             SettingsTab::Saves => "Saves",
             SettingsTab::Extras => "Extras",
             SettingsTab::AuthMaintenance => "Auth/Maint",
-        }
-    }
-
-    pub fn rows(self) -> &'static [SettingsRow] {
-        match self {
-            SettingsTab::Connection => &CONNECTION_ROWS,
-            SettingsTab::Saves => &SAVES_ROWS,
-            SettingsTab::Extras => &EXTRAS_ROWS,
-            SettingsTab::AuthMaintenance => &AUTH_MAINT_ROWS,
         }
     }
 }
@@ -59,6 +58,8 @@ impl SettingsTab {
 pub enum SettingsRow {
     BaseUrl,
     RomsDir,
+    RomsLayoutMode,
+    ConsoleDirs,
     UseHttps,
     SaveDir,
     SyncDevice,
@@ -71,11 +72,7 @@ pub enum SettingsRow {
     ResetConfiguration,
 }
 
-const CONNECTION_ROWS: [SettingsRow; 3] = [
-    SettingsRow::BaseUrl,
-    SettingsRow::RomsDir,
-    SettingsRow::UseHttps,
-];
+const CONNECTION_ROWS: [SettingsRow; 2] = [SettingsRow::BaseUrl, SettingsRow::UseHttps];
 const SAVES_ROWS: [SettingsRow; 3] = [
     SettingsRow::SaveDir,
     SettingsRow::SyncDevice,
@@ -138,6 +135,13 @@ pub struct SettingsScreen {
     pub sync_inflight: bool,
     pub message: Option<(String, Color)>,
     pub save_sync_compat: SaveSyncCompatibility,
+    pub roms_layout_mode: RomsLayoutMode,
+    pub platform_dirs: HashMap<u64, String>,
+    pub console_picker_open: bool,
+    pub console_platforms: Vec<Platform>,
+    pub console_selected_index: usize,
+    /// Per-console directory browser (`None` when not picking for a platform).
+    pub console_path_picker: Option<(u64, PathPicker)>,
 }
 
 impl SettingsScreen {
@@ -198,7 +202,98 @@ impl SettingsScreen {
             sync_inflight: false,
             message: None,
             save_sync_compat,
+            roms_layout_mode: config.roms_layout.mode,
+            platform_dirs: config.roms_layout.platform_dirs.clone(),
+            console_picker_open: false,
+            console_platforms: Vec::new(),
+            console_selected_index: 0,
+            console_path_picker: None,
         }
+    }
+
+    pub fn roms_layout_config(&self) -> RomsLayoutConfig {
+        RomsLayoutConfig {
+            mode: self.roms_layout_mode,
+            platform_dirs: self.platform_dirs.clone(),
+        }
+    }
+
+    pub fn visible_rows(&self) -> Vec<SettingsRow> {
+        match self.selected_tab {
+            SettingsTab::Connection => CONNECTION_ROWS.to_vec(),
+            SettingsTab::Roms => {
+                let mut rows = vec![SettingsRow::RomsDir, SettingsRow::RomsLayoutMode];
+                if self.roms_layout_mode == RomsLayoutMode::Manual {
+                    rows.push(SettingsRow::ConsoleDirs);
+                }
+                rows
+            }
+            SettingsTab::Saves => SAVES_ROWS.to_vec(),
+            SettingsTab::Extras => EXTRAS_ROWS.to_vec(),
+            SettingsTab::AuthMaintenance => AUTH_MAINT_ROWS.to_vec(),
+        }
+    }
+
+    fn platform_display_name(platform: &Platform) -> String {
+        platform
+            .custom_name
+            .as_deref()
+            .filter(|s| !s.is_empty())
+            .unwrap_or(platform.name.as_str())
+            .to_string()
+    }
+
+    fn auto_console_dir_preview(&self, platform: &Platform) -> String {
+        let slug = platform.fs_slug.as_str();
+        format!(
+            "{}/{}",
+            self.download_dir.trim_end_matches(['/', '\\']),
+            utils::sanitize_filename(slug)
+        )
+    }
+
+    fn console_dir_preview(&self, platform: &Platform) -> String {
+        self.platform_dirs
+            .get(&platform.id)
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+            .unwrap_or_else(|| self.auto_console_dir_preview(platform))
+    }
+
+    pub fn open_console_picker(&mut self, platforms: Vec<Platform>) {
+        self.console_platforms = platforms;
+        self.console_selected_index = 0;
+        self.console_picker_open = true;
+        self.console_path_picker = None;
+    }
+
+    pub fn console_next(&mut self) {
+        if !self.console_platforms.is_empty() {
+            self.console_selected_index = (self.console_selected_index + 1)
+                .min(self.console_platforms.len() - 1);
+        }
+    }
+
+    pub fn console_previous(&mut self) {
+        self.console_selected_index = self.console_selected_index.saturating_sub(1);
+    }
+
+    pub fn open_console_path_picker(&mut self) {
+        let Some(platform) = self.console_platforms.get(self.console_selected_index) else {
+            return;
+        };
+        let initial = self.console_dir_preview(platform);
+        self.console_path_picker = Some((platform.id, PathPicker::new(PathPickerMode::Directory, &initial)));
+    }
+
+    pub fn confirm_console_path(&mut self, platform_id: u64, path: String) {
+        self.platform_dirs.insert(platform_id, path);
+        self.console_path_picker = None;
+        self.message = Some((
+            "Console directory updated (press S to save)".to_string(),
+            Color::Green,
+        ));
     }
 
     pub fn save_sync_supported(&self) -> bool {
@@ -210,21 +305,29 @@ impl SettingsScreen {
     }
 
     pub fn selected_row_index(&self) -> usize {
-        let rows = self.selected_tab.rows();
+        let rows = self.visible_rows();
         self.selected_indices[self.selected_tab.index()].min(rows.len().saturating_sub(1))
     }
 
     fn set_selected_row_index(&mut self, index: usize) {
-        let max = self.selected_tab.rows().len().saturating_sub(1);
+        let max = self.visible_rows().len().saturating_sub(1);
         self.selected_indices[self.selected_tab.index()] = index.min(max);
     }
 
     pub fn selected_row(&self) -> SettingsRow {
-        self.selected_tab.rows()[self.selected_row_index()]
+        let rows = self.visible_rows();
+        rows[self.selected_row_index()]
     }
 
-    pub fn active_rows(&self) -> &'static [SettingsRow] {
-        self.selected_tab.rows()
+    pub fn active_rows(&self) -> &[SettingsRow] {
+        // Legacy helper for tests; prefer visible_rows().
+        match self.selected_tab {
+            SettingsTab::Connection => &CONNECTION_ROWS,
+            SettingsTab::Saves => &SAVES_ROWS,
+            SettingsTab::Extras => &EXTRAS_ROWS,
+            SettingsTab::AuthMaintenance => &AUTH_MAINT_ROWS,
+            SettingsTab::Roms => &[],
+        }
     }
 
     pub fn next_tab(&mut self) {
@@ -247,7 +350,7 @@ impl SettingsScreen {
 
     pub fn next(&mut self) {
         if !self.editing && self.confirm.is_none() {
-            let len = self.selected_tab.rows().len();
+            let len = self.visible_rows().len();
             if len > 0 {
                 self.set_selected_row_index((self.selected_row_index() + 1) % len);
             }
@@ -256,7 +359,7 @@ impl SettingsScreen {
 
     pub fn previous(&mut self) {
         if !self.editing && self.confirm.is_none() {
-            let len = self.selected_tab.rows().len();
+            let len = self.visible_rows().len();
             if len == 0 {
                 return;
             }
@@ -342,6 +445,28 @@ impl SettingsScreen {
                     self.message = Some(("Updated URL scheme (HTTP)".to_string(), Color::Green));
                 }
             }
+            SettingsRow::RomsLayoutMode => {
+                self.roms_layout_mode = match self.roms_layout_mode {
+                    RomsLayoutMode::Auto => RomsLayoutMode::Manual,
+                    RomsLayoutMode::Manual => RomsLayoutMode::Auto,
+                };
+                if self.roms_layout_mode == RomsLayoutMode::Auto {
+                    self.console_picker_open = false;
+                    self.console_path_picker = None;
+                }
+                self.set_selected_row_index(self.selected_row_index());
+                self.message = Some((
+                    format!(
+                        "ROM layout: {} (press S to save)",
+                        match self.roms_layout_mode {
+                            RomsLayoutMode::Auto => "auto",
+                            RomsLayoutMode::Manual => "manual",
+                        }
+                    ),
+                    Color::Green,
+                ));
+            }
+            SettingsRow::ConsoleDirs => {}
             SettingsRow::RomsDir => {
                 self.path_picker = Some((
                     SettingsPickerKind::RomsDir,
@@ -378,6 +503,8 @@ impl SettingsScreen {
         self.editing = false;
         self.confirm = None;
         self.path_picker = None;
+        self.console_path_picker = None;
+        self.console_picker_open = false;
         self.message = None;
     }
 
@@ -408,6 +535,52 @@ impl SettingsScreen {
     }
 
     pub fn render(&mut self, f: &mut Frame, area: Rect) {
+        if let Some((platform_id, ref mut picker)) = self.console_path_picker {
+            let chunks = Layout::default()
+                .constraints([
+                    Constraint::Length(4),
+                    Constraint::Min(12),
+                    Constraint::Length(3),
+                ])
+                .direction(ratatui::layout::Direction::Vertical)
+                .split(area);
+            let platform_name = self
+                .console_platforms
+                .iter()
+                .find(|p| p.id == *platform_id)
+                .map(Self::platform_display_name)
+                .unwrap_or_else(|| format!("Platform {platform_id}"));
+            let info = [
+                format!(
+                    "romm-cli: v{} | RomM server: {}",
+                    self.version, self.server_version
+                ),
+                format!("Console: {platform_name}"),
+            ];
+            f.render_widget(
+                Paragraph::new(info.join("\n")).block(Block::default().borders(Borders::BOTTOM)),
+                chunks[0],
+            );
+            picker.render(
+                f,
+                chunks[1],
+                "Choose console directory",
+                "Esc: cancel   Ctrl+Enter: apply typed path (creates folders)   Tab: path/list",
+            );
+            f.render_widget(
+                Paragraph::new("Console directory picker — Esc returns without changing")
+                    .style(Style::default().fg(Color::Cyan))
+                    .block(Block::default().borders(Borders::ALL)),
+                chunks[2],
+            );
+            return;
+        }
+
+        if self.console_picker_open {
+            self.render_console_picker(f, area);
+            return;
+        }
+
         if let Some((kind, ref mut picker)) = self.path_picker {
             let chunks = Layout::default()
                 .constraints([
@@ -493,7 +666,7 @@ impl SettingsScreen {
 
         // -- Editable List --
         let items = self
-            .active_rows()
+            .visible_rows()
             .iter()
             .copied()
             .map(|row| self.render_row_item(row))
@@ -580,6 +753,17 @@ impl SettingsScreen {
                 }
             ),
             SettingsRow::RomsDir => format!("Roms Dir:     {}", self.download_dir),
+            SettingsRow::RomsLayoutMode => format!(
+                "Layout mode:  {}",
+                match self.roms_layout_mode {
+                    RomsLayoutMode::Auto => "[X] Auto   [ ] Manual",
+                    RomsLayoutMode::Manual => "[ ] Auto   [X] Manual",
+                }
+            ),
+            SettingsRow::ConsoleDirs => {
+                let mapped = self.platform_dirs.len();
+                format!("Console dirs: {mapped} custom (Enter to edit)")
+            }
             SettingsRow::UseHttps => format!(
                 "Use HTTPS:    {}",
                 if self.use_https { "[X] Yes" } else { "[ ] No" }
@@ -771,6 +955,78 @@ impl SettingsScreen {
             chunks[2],
         );
     }
+
+    fn render_console_picker(&mut self, f: &mut Frame, area: Rect) {
+        let chunks = Layout::default()
+            .constraints([
+                Constraint::Length(4),
+                Constraint::Min(10),
+                Constraint::Length(3),
+            ])
+            .direction(ratatui::layout::Direction::Vertical)
+            .split(area);
+        let info = [
+            format!(
+                "romm-cli: v{} | RomM server: {}",
+                self.version, self.server_version
+            ),
+            "Set a custom directory for each console (manual layout).".to_string(),
+        ];
+        f.render_widget(
+            Paragraph::new(info.join("\n")).block(Block::default().borders(Borders::BOTTOM)),
+            chunks[0],
+        );
+        if self.console_platforms.is_empty() {
+            f.render_widget(
+                Paragraph::new("No platforms loaded. Browse the library first, then reopen settings.")
+                    .style(Style::default().fg(Color::Yellow))
+                    .block(
+                        Block::default()
+                            .title(" Consoles ")
+                            .borders(Borders::ALL),
+                    ),
+                chunks[1],
+            );
+        } else {
+            let items: Vec<ListItem> = self
+                .console_platforms
+                .iter()
+                .map(|platform| {
+                    let name = Self::platform_display_name(platform);
+                    let path = self.console_dir_preview(platform);
+                    let custom = self
+                        .platform_dirs
+                        .get(&platform.id)
+                        .is_some_and(|s| !s.trim().is_empty());
+                    let tag = if custom { "custom" } else { "auto default" };
+                    ListItem::new(format!("{name}  [{tag}]  {path}"))
+                })
+                .collect();
+            let mut state = ListState::default();
+            state.select(Some(self.console_selected_index));
+            f.render_stateful_widget(
+                List::new(items)
+                    .block(
+                        Block::default()
+                            .title(" Consoles ")
+                            .borders(Borders::ALL),
+                    )
+                    .highlight_symbol(">> ")
+                    .highlight_style(
+                        Style::default()
+                            .fg(Color::Yellow)
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                chunks[1],
+                &mut state,
+            );
+        }
+        f.render_widget(
+            Paragraph::new("Enter: choose directory   Esc: back   ↑/↓: select")
+                .block(Block::default().borders(Borders::ALL)),
+            chunks[2],
+        );
+    }
 }
 
 #[cfg(test)]
@@ -793,6 +1049,7 @@ mod tests {
                 save_dir: Some("C:\\saves".to_string()),
                 device_id: None,
             },
+            roms_layout: RomsLayoutConfig::default(),
         }
     }
 
@@ -823,32 +1080,45 @@ mod tests {
     #[test]
     fn tabs_expose_expected_rows() {
         assert_eq!(
-            SettingsTab::Connection.rows(),
-            &[
-                SettingsRow::BaseUrl,
+            SettingsScreen::new(&test_config(), Some("1.0.0"), supported_save_sync_compatibility())
+                .visible_rows(),
+            vec![SettingsRow::RomsDir, SettingsRow::RomsLayoutMode]
+        );
+        assert_eq!(CONNECTION_ROWS, [SettingsRow::BaseUrl, SettingsRow::UseHttps]);
+        assert_eq!(
+            SettingsTab::Saves as usize,
+            SettingsTab::Roms.index() + 1
+        );
+        let mut manual = screen();
+        manual.selected_tab = SettingsTab::Roms;
+        manual.roms_layout_mode = RomsLayoutMode::Manual;
+        assert_eq!(
+            manual.visible_rows(),
+            vec![
                 SettingsRow::RomsDir,
-                SettingsRow::UseHttps
+                SettingsRow::RomsLayoutMode,
+                SettingsRow::ConsoleDirs
             ]
         );
         assert_eq!(
-            SettingsTab::Saves.rows(),
-            &[
+            SAVES_ROWS,
+            [
                 SettingsRow::SaveDir,
                 SettingsRow::SyncDevice,
                 SettingsRow::SyncNow
             ]
         );
         assert_eq!(
-            SettingsTab::Extras.rows(),
-            &[
+            EXTRAS_ROWS,
+            [
                 SettingsRow::ExtrasRelatedRoms,
                 SettingsRow::ExtrasCover,
                 SettingsRow::ExtrasManual
             ]
         );
         assert_eq!(
-            SettingsTab::AuthMaintenance.rows(),
-            &[
+            AUTH_MAINT_ROWS,
+            [
                 SettingsRow::Auth,
                 SettingsRow::ClearCache,
                 SettingsRow::ResetConfiguration
@@ -868,12 +1138,27 @@ mod tests {
     }
 
     #[test]
+    fn roms_tab_layout_toggle_adds_console_dirs_row() {
+        let mut s = screen();
+        s.selected_tab = SettingsTab::Roms;
+        s.next();
+        assert_eq!(s.selected_row(), SettingsRow::RomsLayoutMode);
+        s.enter_edit();
+        assert_eq!(s.roms_layout_mode, RomsLayoutMode::Manual);
+        assert_eq!(s.visible_rows().len(), 3);
+    }
+
+    #[test]
     fn tab_navigation_preserves_per_tab_selection() {
         let mut s = screen();
 
         s.next();
         s.next();
         assert_eq!(s.selected_row(), SettingsRow::UseHttps);
+
+        s.next_tab();
+        assert_eq!(s.selected_tab, SettingsTab::Roms);
+        assert_eq!(s.selected_row(), SettingsRow::RomsDir);
 
         s.next_tab();
         assert_eq!(s.selected_tab, SettingsTab::Saves);
@@ -883,12 +1168,20 @@ mod tests {
         assert_eq!(s.selected_row(), SettingsRow::SyncDevice);
 
         s.previous_tab();
+        assert_eq!(s.selected_tab, SettingsTab::Roms);
+        assert_eq!(s.selected_row(), SettingsRow::RomsDir);
+
+        s.previous_tab();
         assert_eq!(s.selected_tab, SettingsTab::Connection);
         assert_eq!(s.selected_row(), SettingsRow::UseHttps);
 
         s.next_tab();
+        assert_eq!(s.selected_tab, SettingsTab::Roms);
+        assert_eq!(s.selected_row(), SettingsRow::RomsDir);
+
+        s.next_tab();
         assert_eq!(s.selected_tab, SettingsTab::Saves);
-        assert_eq!(s.selected_row(), SettingsRow::SyncDevice);
+        assert_eq!(s.selected_row(), SettingsRow::SaveDir);
     }
 
     #[test]

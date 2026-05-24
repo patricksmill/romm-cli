@@ -13,6 +13,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use crate::client::RommClient;
+use crate::config::{RomsLayoutConfig, RomsLayoutMode};
 use crate::core::extras::build_base_rom_file_targets;
 use crate::core::extras::{DownloadAssetKind, DownloadTarget};
 use crate::core::interrupt::is_cancelled_error;
@@ -98,6 +99,41 @@ fn resolve_download_directory_from_inputs(
     let _ = std::fs::remove_file(&probe_path);
 
     Ok(normalized)
+}
+
+/// Filesystem slug used for auto-mode console subfolders.
+pub fn platform_download_slug(rom: &Rom) -> String {
+    rom.platform_fs_slug
+        .clone()
+        .or_else(|| rom.platform_slug.clone())
+        .unwrap_or_else(|| format!("platform-{}", rom.platform_id))
+}
+
+fn auto_console_roms_dir(base_download_dir: &Path, rom: &Rom) -> PathBuf {
+    base_download_dir.join(utils::sanitize_filename(&platform_download_slug(rom)))
+}
+
+/// Resolve the directory where ROM files for `rom` should be stored.
+pub fn resolve_console_roms_dir(
+    layout: &RomsLayoutConfig,
+    base_download_dir: &Path,
+    rom: &Rom,
+) -> Result<PathBuf> {
+    match layout.mode {
+        RomsLayoutMode::Auto => Ok(auto_console_roms_dir(base_download_dir, rom)),
+        RomsLayoutMode::Manual => {
+            if let Some(raw) = layout
+                .platform_dirs
+                .get(&rom.platform_id)
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+            {
+                validate_configured_download_directory(raw)
+            } else {
+                Ok(auto_console_roms_dir(base_download_dir, rom))
+            }
+        }
+    }
 }
 
 /// Pick `stem.zip`, then `stem__2.zip`, `stem__3.zip`, … until the path does not exist.
@@ -310,6 +346,7 @@ impl DownloadManager {
         &self,
         rom: &Rom,
         client: RommClient,
+        layout: &RomsLayoutConfig,
         configured_download_dir: Option<&str>,
     ) -> Result<()> {
         let platform = rom
@@ -323,13 +360,9 @@ impl DownloadManager {
         let job_id = job.id;
         let rom_id = rom.id;
         let fs_name = rom.fs_name.clone();
-        let final_console_slug = rom
-            .platform_fs_slug
-            .clone()
-            .or_else(|| rom.platform_slug.clone())
-            .unwrap_or_else(|| format!("platform-{}", rom.platform_id));
         let final_name = sanitized_final_filename(&rom.fs_name, rom.id);
         let rom_for_targets = rom.clone();
+        let layout = layout.clone();
         match self.jobs.lock() {
             Ok(mut jobs) => jobs.push(job),
             Err(err) => {
@@ -339,6 +372,8 @@ impl DownloadManager {
         }
 
         let save_dir = resolve_download_directory(configured_download_dir)?;
+        let console_dir = resolve_console_roms_dir(&layout, &save_dir, rom)?;
+        let base_targets = build_base_rom_file_targets(&rom_for_targets, &layout, &save_dir)?;
         let jobs = self.jobs.clone();
         tokio::spawn(async move {
             let temp_root = save_dir.join(".tmp");
@@ -354,7 +389,6 @@ impl DownloadManager {
                 return;
             }
 
-            let console_dir = save_dir.join(utils::sanitize_filename(&final_console_slug));
             let final_path = console_dir.join(final_name.clone());
             if let Err(err) = tokio::fs::create_dir_all(&console_dir).await {
                 if let Ok(mut list) = jobs.lock() {
@@ -368,7 +402,7 @@ impl DownloadManager {
                 return;
             }
 
-            let base_targets = build_base_rom_file_targets(&rom_for_targets, &save_dir);
+            let base_targets = base_targets;
             if !base_targets.is_empty() {
                 let total_targets = base_targets.len() as f64;
                 for (idx, target) in base_targets.iter().enumerate() {
@@ -800,6 +834,7 @@ fn final_download_path_for_rom(roms_dir: &Path, rom: &Rom) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::{RomsLayoutConfig, RomsLayoutMode};
     use crate::types::Rom;
     use std::io::Write;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -967,6 +1002,45 @@ mod tests {
     }
 
     #[test]
+    fn resolve_console_roms_dir_auto_uses_platform_slug_subfolder() {
+        let rom = rom_fixture_with_platform(Some("switch"), "game.zip");
+        let layout = RomsLayoutConfig::default();
+        let dir = resolve_console_roms_dir(&layout, Path::new("/roms"), &rom).unwrap();
+        assert_eq!(dir, PathBuf::from("/roms/switch"));
+    }
+
+    #[test]
+    fn resolve_console_roms_dir_manual_uses_mapped_path() {
+        let rom = rom_fixture_with_platform(Some("switch"), "game.zip");
+        let mut layout = RomsLayoutConfig::default();
+        layout.mode = RomsLayoutMode::Manual;
+        let custom = std::env::temp_dir().join(format!(
+            "romm-cli-manual-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&custom).unwrap();
+        layout
+            .platform_dirs
+            .insert(rom.platform_id, custom.display().to_string());
+
+        let dir = resolve_console_roms_dir(&layout, Path::new("/roms"), &rom).unwrap();
+        assert_eq!(dir, custom);
+        let _ = std::fs::remove_dir_all(custom);
+    }
+
+    #[test]
+    fn resolve_console_roms_dir_manual_falls_back_for_unmapped_platform() {
+        let rom = rom_fixture_with_platform(Some("switch"), "game.zip");
+        let mut layout = RomsLayoutConfig::default();
+        layout.mode = RomsLayoutMode::Manual;
+        let dir = resolve_console_roms_dir(&layout, Path::new("/roms"), &rom).unwrap();
+        assert_eq!(dir, PathBuf::from("/roms/switch"));
+    }
+
+    #[test]
     fn final_download_path_uses_console_folder_and_original_file_name() {
         let rom = rom_fixture_with_platform(Some("switch"), "Zelda (USA).xci");
         let base = PathBuf::from("/roms");
@@ -1100,7 +1174,13 @@ mod tests {
             file_size_bytes: 4,
             category: Some(crate::types::RomFileCategory::Game),
         }];
-        let target = build_base_rom_file_targets(&rom, &base).remove(0);
+        let target = build_base_rom_file_targets(
+            &rom,
+            &RomsLayoutConfig::default(),
+            base.as_path(),
+        )
+        .unwrap()
+        .remove(0);
         tokio::fs::create_dir_all(target.destination.parent().unwrap())
             .await
             .unwrap();
@@ -1130,7 +1210,13 @@ mod tests {
             file_size_bytes: 4,
             category: Some(crate::types::RomFileCategory::Game),
         }];
-        let target = build_base_rom_file_targets(&rom, &base).remove(0);
+        let target = build_base_rom_file_targets(
+            &rom,
+            &RomsLayoutConfig::default(),
+            base.as_path(),
+        )
+        .unwrap()
+        .remove(0);
         tokio::fs::create_dir_all(target.destination.parent().unwrap())
             .await
             .unwrap();

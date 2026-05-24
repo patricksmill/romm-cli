@@ -12,7 +12,7 @@ use std::io::Read;
 use crate::client::RommClient;
 use crate::config::{
     normalize_romm_origin, persist_user_config, user_config_json_path, AuthConfig, Config,
-    ExtrasDefaults,
+    ExtrasDefaults, RomsLayoutConfig, RomsLayoutMode,
 };
 
 #[derive(Args, Debug, Clone)]
@@ -137,6 +137,7 @@ pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
             auth,
             extras_defaults: ExtrasDefaults::default(),
             save_sync: Default::default(),
+            roms_layout: Default::default(),
         };
         persist_user_config(&config)?;
         println!("Wrote {}", path.display());
@@ -194,6 +195,28 @@ pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
         .interact_text()?;
 
     let download_dir = download_dir.trim().to_string();
+
+    let layout_idx = Select::with_theme(&ColorfulTheme::default())
+        .with_prompt("ROM layout")
+        .items(&[
+            "Auto (base directory + console subfolder)",
+            "Manual (custom directory per console — configure in TUI Settings → ROMs)",
+        ])
+        .default(0)
+        .interact()?;
+    let roms_layout = RomsLayoutConfig {
+        mode: if layout_idx == 1 {
+            RomsLayoutMode::Manual
+        } else {
+            RomsLayoutMode::Auto
+        },
+        platform_dirs: Default::default(),
+    };
+    if layout_idx == 1 {
+        println!(
+            "Manual layout selected. After setup, open TUI Settings → ROMs to map each console."
+        );
+    }
 
     // ── Authentication ─────────────────────────────────────────────────
     let use_https = Confirm::with_theme(&ColorfulTheme::default())
@@ -268,6 +291,7 @@ pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
                 auth: None,
                 extras_defaults: ExtrasDefaults::default(),
                 save_sync: Default::default(),
+                roms_layout: roms_layout.clone(),
             };
             let client = RommClient::new(&temp_config, verbose)?;
             let endpoint = crate::endpoints::client_tokens::ExchangeClientToken { code };
@@ -291,6 +315,7 @@ pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
         auth,
         extras_defaults: ExtrasDefaults::default(),
         save_sync: Default::default(),
+        roms_layout,
     };
     persist_user_config(&config)?;
 

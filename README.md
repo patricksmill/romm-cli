@@ -100,8 +100,9 @@ Set these in your shell (or any tool that injects env vars into the process) for
 | Variable | Description |
 |----------|-------------|
 | `API_BASE_URL` | RomM site URL (browser address, no `/api`; e.g. `https://romm.example.com`) |
-| `ROMM_ROMS_DIR` | Preferred. Directory for stored ROMs (defaults to a `romm-cli` folder under the OS download directory, e.g. `~/Downloads/romm-cli` on typical Unix setups) |
+| `ROMM_ROMS_DIR` | Preferred. Base directory for stored ROMs (defaults to a `romm-cli` folder under the OS download directory, e.g. `~/Downloads/romm-cli` on typical Unix setups) |
 | `ROMM_DOWNLOAD_DIR` | Legacy alias for `ROMM_ROMS_DIR` |
+| `ROMM_ROMS_LAYOUT` | `auto` (default) or `manual`. In auto mode, ROMs go under `{ROMM_ROMS_DIR}/{console-slug}/`. In manual mode, use per-console paths from `config.json` (see below). |
 | `API_USE_HTTPS` | Set to `false` to disable automatic upgrade to HTTPS (default: `true`) |
 | `API_USERNAME` / `API_PASSWORD` | Basic Auth credentials |
 | `API_TOKEN` | Bearer token |
@@ -114,6 +115,27 @@ Set these in your shell (or any tool that injects env vars into the process) for
 | `ROMM_USER_AGENT` | Optional. Override the HTTP `User-Agent` (some proxies block non-browser defaults). |
 | `ROMM_VERBOSE` | Set to `1`/`true` to enable verbose mode for the standalone `romm-tui` binary (same as passing `--verbose` to `romm-cli`) |
 | `ROMM_CHECK_UPDATES` | Optional. Set to `false`/`0`/`no`/`off` to disable startup update checks and prompts in CLI/TUI. |
+
+### ROM layout (auto / manual)
+
+By default (**auto**), downloads land in `{base Roms Dir}/{platform-slug}/` (for example `~/Downloads/romm-cli/nintendo-switch/`).
+
+**Manual** mode lets you map each RomM platform to its own absolute directory. Configure it in the TUI under **Settings → ROMs**, during `romm-cli init`, or in `config.json`:
+
+```json
+{
+  "download_dir": "C:\\Games\\romm-cli",
+  "roms_layout": {
+    "mode": "manual",
+    "platform_dirs": {
+      "7": "D:\\Roms\\Switch",
+      "3": "E:\\Roms\\NES"
+    }
+  }
+}
+```
+
+Keys in `platform_dirs` are RomM platform IDs. Unmapped platforms fall back to the auto path. `romm-cli download` and TUI downloads both use this layout; `--output` replaces the base Roms Dir for that run but manual mappings stay absolute. Batch CLI downloads now write into the resolved console folder (same as the TUI).
 
 ---
 

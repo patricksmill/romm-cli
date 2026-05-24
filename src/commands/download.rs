@@ -8,8 +8,10 @@ use std::sync::Arc;
 use tokio::sync::Semaphore;
 
 use crate::client::RommClient;
+use crate::config::{load_config, RomsLayoutConfig};
 use crate::core::download::{
-    download_directory, extract_zip_archive, prepare_download_target_destination, unique_zip_path,
+    extract_zip_archive, prepare_download_target_destination, resolve_console_roms_dir,
+    resolve_download_directory, unique_zip_path,
 };
 use crate::core::extras::{
     build_base_rom_file_targets, build_extras_targets, build_update_dlc_targets_for_rom,
@@ -260,7 +262,12 @@ pub async fn handle(
     interrupt: Option<InterruptContext>,
 ) -> Result<()> {
     let interrupt = interrupt.unwrap_or_default();
-    let output_dir = cmd.output.clone().unwrap_or_else(download_directory);
+    let config = load_config()?;
+    let layout = config.roms_layout.clone();
+    let output_dir = match cmd.output.clone() {
+        Some(path) => path,
+        None => resolve_download_directory(Some(config.download_dir.as_str()))?,
+    };
     let action = cmd.action.clone();
 
     if cmd.with_extras && cmd.no_extras {
@@ -275,7 +282,7 @@ pub async fn handle(
         .map_err(|e| anyhow!("create download dir {:?}: {e}", output_dir))?;
 
     if let Some(DownloadAction::Extras(extras)) = action.clone() {
-        return handle_extras(extras, client, interrupt, output_dir, cmd.jobs).await;
+        return handle_extras(extras, client, interrupt, &layout, output_dir, cmd.jobs).await;
     }
 
     // Determine if we are in batch mode.
@@ -329,13 +336,18 @@ pub async fn handle(
                 .await
                 .map_err(|_| anyhow!("download worker semaphore closed unexpectedly"))?;
             let client = client.clone();
-            let dir = output_dir.clone();
+            let base_dir = output_dir.clone();
+            let layout = layout.clone();
             let interrupt = interrupt.clone();
             let pb = mp.add(ProgressBar::new(0));
             pb.set_style(make_progress_style());
 
             let name = rom.name.clone();
             let rom_id = rom.id;
+            let console_dir = resolve_console_roms_dir(&layout, &base_dir, &rom)?;
+            tokio::fs::create_dir_all(&console_dir).await.map_err(|e| {
+                anyhow!("create console download dir {:?}: {e}", console_dir)
+            })?;
             let platform_slug = rom
                 .platform_fs_slug
                 .clone()
@@ -346,7 +358,7 @@ pub async fn handle(
                 .rsplit_once('.')
                 .map(|(s, _)| s.to_string())
                 .unwrap_or(base.clone());
-            let save_path = unique_zip_path(&dir, &stem);
+            let save_path = unique_zip_path(&console_dir, &stem);
             let extract = cmd.extract;
             let extract_layout = cmd.extract_layout;
             let delete_zip_after_extract = cmd.delete_zip_after_extract;
@@ -375,7 +387,7 @@ pub async fn handle(
 
                 if result.is_ok() && extract {
                     let extract_dir =
-                        extraction_target_dir(&dir, &platform_slug, &stem, extract_layout);
+                        extraction_target_dir(&console_dir, &platform_slug, &stem, extract_layout);
                     if let Err(err) = tokio::fs::create_dir_all(&extract_dir).await {
                         result = Err(anyhow!(
                             "failed to create extraction directory {:?}: {}",
@@ -443,7 +455,7 @@ pub async fn handle(
         })?;
         let service = RomService::new(client);
         let rom = service.get_rom(rom_id).await?;
-        let base_targets = build_base_rom_file_targets(&rom, &output_dir);
+        let base_targets = build_base_rom_file_targets(&rom, &layout, &output_dir)?;
 
         if !base_targets.is_empty() {
             let summary = run_targets(base_targets, client, interrupt.clone(), 1).await?;
@@ -454,7 +466,14 @@ pub async fn handle(
             }
             println!("Base game files downloaded.");
         } else {
-            let save_path = output_dir.join(format!("rom_{rom_id}.zip"));
+            let console_dir = resolve_console_roms_dir(&layout, &output_dir, &rom)?;
+            tokio::fs::create_dir_all(&console_dir).await.map_err(|e| {
+                anyhow!(
+                    "create console download dir {:?}: {e}",
+                    console_dir
+                )
+            })?;
+            let save_path = console_dir.join(format!("rom_{rom_id}.zip"));
             let mp = MultiProgress::new();
             let pb = mp.add(ProgressBar::new(0));
             pb.set_style(make_progress_style());
@@ -465,7 +484,8 @@ pub async fn handle(
             println!("Saved to {:?}", save_path);
         }
 
-        let extras_targets = build_update_dlc_targets_for_rom(client, &rom, &output_dir).await?;
+        let extras_targets =
+            build_update_dlc_targets_for_rom(client, &rom, &layout, &output_dir).await?;
         if !extras_targets.is_empty() {
             let include_extras = resolve_include_extras_choice(&cmd)?;
             if include_extras {
@@ -481,10 +501,11 @@ async fn handle_extras(
     cmd: DownloadExtrasCommand,
     client: &RommClient,
     interrupt: InterruptContext,
+    layout: &RomsLayoutConfig,
     output_dir: PathBuf,
     jobs: usize,
 ) -> Result<()> {
-    let targets = build_extras_targets(client, cmd.rom_id, &output_dir).await?;
+    let targets = build_extras_targets(client, cmd.rom_id, layout, &output_dir).await?;
     run_targets(targets, client, interrupt, jobs).await?;
     Ok(())
 }

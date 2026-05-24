@@ -11,6 +11,7 @@ use ratatui::Frame;
 use std::time::Instant;
 
 use crate::config::ExtrasDefaults;
+use crate::config::RomsLayoutConfig;
 use crate::core::download::resolve_download_directory;
 use crate::core::extras::{
     build_cover_target, build_manual_target, build_update_dlc_file_targets_for_rom,
@@ -171,12 +172,13 @@ impl ExtrasPickerScreen {
     /// Build download targets for checked rows. Fails if ROM dir is not configured.
     pub fn build_selected_targets(
         &self,
+        layout: &RomsLayoutConfig,
         configured_download_dir: Option<&str>,
     ) -> Result<Vec<DownloadTarget>> {
         let out = resolve_download_directory(configured_download_dir)?;
-        let root = extras_root_dir(&out, &self.rom);
+        let root = extras_root_dir(layout, &out, &self.rom)?;
         let mut targets = Vec::new();
-        let internal_targets = build_update_dlc_file_targets_for_rom(&self.rom, &out);
+        let internal_targets = build_update_dlc_file_targets_for_rom(&self.rom, layout, &out)?;
 
         for item in &self.items {
             if !item.checked {
@@ -417,7 +419,9 @@ mod tests {
         }
         let env = TestDownloadEnv::new("empty");
         let dir = env.dir.clone();
-        let targets = picker.build_selected_targets(Some("ignored")).unwrap();
+        let targets = picker
+            .build_selected_targets(&RomsLayoutConfig::default(), Some("ignored"))
+            .unwrap();
         assert!(targets.is_empty());
         drop(env);
         let _ = std::fs::remove_dir_all(dir);
@@ -435,7 +439,7 @@ mod tests {
         let env = TestDownloadEnv::new("cover");
         let dir = env.dir.clone();
         let targets = picker
-            .build_selected_targets(Some("ignored"))
+            .build_selected_targets(&RomsLayoutConfig::default(), Some("ignored"))
             .expect("targets");
         assert_eq!(targets.len(), 1);
         assert!(matches!(
