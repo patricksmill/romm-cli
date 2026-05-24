@@ -6,7 +6,9 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Tabs};
 use ratatui::Frame;
 
-use crate::config::{disk_has_unresolved_keyring_sentinel, Config, RomsLayoutConfig};
+use crate::config::{
+    disk_has_unresolved_keyring_sentinel, Config, RomsLayoutConfig, SaveSyncConfig,
+};
 use crate::core::utils;
 use crate::endpoints::device::DeviceSchema;
 use crate::feature_compat::SaveSyncCompatibility;
@@ -61,6 +63,7 @@ pub enum SettingsRow {
     ConsolePaths,
     UseHttps,
     SaveDir,
+    SaveConsolePaths,
     SyncDevice,
     SyncNow,
     ExtrasRelatedRoms,
@@ -72,8 +75,9 @@ pub enum SettingsRow {
 }
 
 const CONNECTION_ROWS: [SettingsRow; 2] = [SettingsRow::BaseUrl, SettingsRow::UseHttps];
-const SAVES_ROWS: [SettingsRow; 3] = [
+const SAVES_ROWS: [SettingsRow; 4] = [
     SettingsRow::SaveDir,
+    SettingsRow::SaveConsolePaths,
     SettingsRow::SyncDevice,
     SettingsRow::SyncNow,
 ];
@@ -92,6 +96,12 @@ const AUTH_MAINT_ROWS: [SettingsRow; 3] = [
 pub enum SettingsPickerKind {
     RomsDir,
     SaveDir,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ConsolePathKind {
+    Roms,
+    Saves,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -134,8 +144,10 @@ pub struct SettingsScreen {
     pub sync_inflight: bool,
     pub message: Option<(String, Color)>,
     pub save_sync_compat: SaveSyncCompatibility,
-    pub platform_dirs: HashMap<u64, String>,
+    pub rom_platform_dirs: HashMap<u64, String>,
+    pub save_platform_dirs: HashMap<u64, String>,
     pub console_picker_open: bool,
+    pub active_console_kind: Option<ConsolePathKind>,
     pub console_picker_loading: bool,
     pub console_picker_error: Option<String>,
     pub console_platforms: Vec<Platform>,
@@ -202,8 +214,10 @@ impl SettingsScreen {
             sync_inflight: false,
             message: None,
             save_sync_compat,
-            platform_dirs: config.roms_layout.platform_dirs.clone(),
+            rom_platform_dirs: config.roms_layout.platform_dirs.clone(),
+            save_platform_dirs: config.save_sync.platform_dirs.clone(),
             console_picker_open: false,
+            active_console_kind: None,
             console_picker_loading: false,
             console_picker_error: None,
             console_platforms: Vec::new(),
@@ -214,8 +228,30 @@ impl SettingsScreen {
 
     pub fn roms_layout_config(&self) -> RomsLayoutConfig {
         let mut layout = RomsLayoutConfig::default();
-        layout.platform_dirs = self.platform_dirs.clone();
+        layout.platform_dirs = self.rom_platform_dirs.clone();
         layout
+    }
+
+    pub fn save_sync_config(&self) -> SaveSyncConfig {
+        SaveSyncConfig {
+            save_dir: Some(self.save_dir.clone()),
+            device_id: self.sync_device_id.clone(),
+            platform_dirs: self.save_platform_dirs.clone(),
+        }
+    }
+
+    fn console_dirs(&self, kind: ConsolePathKind) -> &HashMap<u64, String> {
+        match kind {
+            ConsolePathKind::Roms => &self.rom_platform_dirs,
+            ConsolePathKind::Saves => &self.save_platform_dirs,
+        }
+    }
+
+    fn console_dirs_mut(&mut self, kind: ConsolePathKind) -> &mut HashMap<u64, String> {
+        match kind {
+            ConsolePathKind::Roms => &mut self.rom_platform_dirs,
+            ConsolePathKind::Saves => &mut self.save_platform_dirs,
+        }
     }
 
     pub fn visible_rows(&self) -> Vec<SettingsRow> {
@@ -237,27 +273,28 @@ impl SettingsScreen {
             .to_string()
     }
 
-    fn auto_console_dir_preview(&self, platform: &Platform) -> String {
+    fn auto_console_dir_preview(&self, kind: ConsolePathKind, platform: &Platform) -> String {
         let slug = platform.fs_slug.as_str();
-        format!(
-            "{}/{}",
-            self.download_dir.trim_end_matches(['/', '\\']),
-            utils::sanitize_filename(slug)
-        )
+        let base = match kind {
+            ConsolePathKind::Roms => self.download_dir.trim_end_matches(['/', '\\']),
+            ConsolePathKind::Saves => self.save_dir.trim_end_matches(['/', '\\']),
+        };
+        format!("{}/{}", base, utils::sanitize_filename(slug))
     }
 
-    fn console_dir_preview(&self, platform: &Platform) -> String {
-        self.platform_dirs
+    fn console_dir_preview(&self, kind: ConsolePathKind, platform: &Platform) -> String {
+        self.console_dirs(kind)
             .get(&platform.id)
             .map(|s| s.trim())
             .filter(|s| !s.is_empty())
             .map(str::to_string)
-            .unwrap_or_else(|| self.auto_console_dir_preview(platform))
+            .unwrap_or_else(|| self.auto_console_dir_preview(kind, platform))
     }
 
-    pub fn open_console_picker(&mut self) {
+    pub fn open_console_picker(&mut self, kind: ConsolePathKind) {
         self.console_selected_index = 0;
         self.console_picker_open = true;
+        self.active_console_kind = Some(kind);
         self.console_path_picker = None;
         self.console_picker_loading = true;
         self.console_picker_error = None;
@@ -279,7 +316,10 @@ impl SettingsScreen {
     }
 
     pub fn clear_console_path(&mut self, platform_id: u64) {
-        self.platform_dirs.remove(&platform_id);
+        let Some(kind) = self.active_console_kind else {
+            return;
+        };
+        self.console_dirs_mut(kind).remove(&platform_id);
         self.message = Some((
             "Custom path cleared (press S to save)".to_string(),
             Color::Green,
@@ -298,10 +338,13 @@ impl SettingsScreen {
     }
 
     pub fn open_console_path_picker(&mut self) {
+        let Some(kind) = self.active_console_kind else {
+            return;
+        };
         let Some(platform) = self.console_platforms.get(self.console_selected_index) else {
             return;
         };
-        let initial = self.console_dir_preview(platform);
+        let initial = self.console_dir_preview(kind, platform);
         self.console_path_picker = Some((
             platform.id,
             PathPicker::new(PathPickerMode::Directory, &initial),
@@ -309,12 +352,16 @@ impl SettingsScreen {
     }
 
     pub fn confirm_console_path(&mut self, platform_id: u64, path: String) {
-        self.platform_dirs.insert(platform_id, path);
+        let Some(kind) = self.active_console_kind else {
+            return;
+        };
+        self.console_dirs_mut(kind).insert(platform_id, path);
         self.console_path_picker = None;
-        self.message = Some((
-            "Custom console path updated (press S to save)".to_string(),
-            Color::Green,
-        ));
+        let label = match kind {
+            ConsolePathKind::Roms => "Custom console path updated (press S to save)",
+            ConsolePathKind::Saves => "Custom save path updated (press S to save)",
+        };
+        self.message = Some((label.to_string(), Color::Green));
     }
 
     pub fn save_sync_supported(&self) -> bool {
@@ -472,7 +519,7 @@ impl SettingsScreen {
                     PathPicker::new(PathPickerMode::Directory, self.download_dir.as_str()),
                 ));
             }
-            SettingsRow::ConsolePaths => {}
+            SettingsRow::ConsolePaths | SettingsRow::SaveConsolePaths => {}
             SettingsRow::SaveDir => {
                 self.path_picker = Some((
                     SettingsPickerKind::SaveDir,
@@ -505,6 +552,7 @@ impl SettingsScreen {
         self.path_picker = None;
         self.console_path_picker = None;
         self.console_picker_open = false;
+        self.active_console_kind = None;
         self.message = None;
     }
 
@@ -754,8 +802,12 @@ impl SettingsScreen {
             ),
             SettingsRow::RomsDir => format!("Roms Dir:     {}", self.download_dir),
             SettingsRow::ConsolePaths => {
-                let mapped = self.platform_dirs.len();
+                let mapped = self.rom_platform_dirs.len();
                 format!("Console paths: {mapped} custom · Enter to edit")
+            }
+            SettingsRow::SaveConsolePaths => {
+                let mapped = self.save_platform_dirs.len();
+                format!("Save console paths: {mapped} custom · Enter to edit")
             }
             SettingsRow::UseHttps => format!(
                 "Use HTTPS:    {}",
@@ -950,6 +1002,7 @@ impl SettingsScreen {
     }
 
     fn render_console_picker(&mut self, f: &mut Frame, area: Rect) {
+        let kind = self.active_console_kind.unwrap_or(ConsolePathKind::Roms);
         let chunks = Layout::default()
             .constraints([
                 Constraint::Length(4),
@@ -958,12 +1011,16 @@ impl SettingsScreen {
             ])
             .direction(ratatui::layout::Direction::Vertical)
             .split(area);
+        let subtitle = match kind {
+            ConsolePathKind::Roms => "Set a custom ROM path for consoles on other drives.",
+            ConsolePathKind::Saves => "Set a custom save path for consoles on other drives.",
+        };
         let info = [
             format!(
                 "romm-cli: v{} | RomM server: {}",
                 self.version, self.server_version
             ),
-            "Set a custom path for consoles on other drives.".to_string(),
+            subtitle.to_string(),
         ];
         f.render_widget(
             Paragraph::new(info.join("\n")).block(Block::default().borders(Borders::BOTTOM)),
@@ -995,9 +1052,9 @@ impl SettingsScreen {
                 .iter()
                 .map(|platform| {
                     let name = Self::platform_display_name(platform);
-                    let path = self.console_dir_preview(platform);
+                    let path = self.console_dir_preview(kind, platform);
                     let custom = self
-                        .platform_dirs
+                        .console_dirs(kind)
                         .get(&platform.id)
                         .is_some_and(|s| !s.trim().is_empty());
                     let tag = if custom {
@@ -1033,6 +1090,8 @@ impl SettingsScreen {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::*;
     use crate::config::{ExtrasDefaults, SaveSyncConfig};
     use crate::feature_compat::{
@@ -1050,6 +1109,7 @@ mod tests {
             save_sync: SaveSyncConfig {
                 save_dir: Some("C:\\saves".to_string()),
                 device_id: None,
+                platform_dirs: HashMap::new(),
             },
             roms_layout: RomsLayoutConfig::default(),
         }
@@ -1095,6 +1155,7 @@ mod tests {
             SAVES_ROWS,
             [
                 SettingsRow::SaveDir,
+                SettingsRow::SaveConsolePaths,
                 SettingsRow::SyncDevice,
                 SettingsRow::SyncNow
             ]
@@ -1129,6 +1190,23 @@ mod tests {
     }
 
     #[test]
+    fn saves_tab_shows_save_console_paths_row() {
+        let mut s = screen();
+        s.selected_tab = SettingsTab::Saves;
+        assert_eq!(
+            s.visible_rows(),
+            vec![
+                SettingsRow::SaveDir,
+                SettingsRow::SaveConsolePaths,
+                SettingsRow::SyncDevice,
+                SettingsRow::SyncNow,
+            ]
+        );
+        s.next();
+        assert_eq!(s.selected_row(), SettingsRow::SaveConsolePaths);
+    }
+
+    #[test]
     fn roms_tab_always_shows_console_paths_row() {
         let mut s = screen();
         s.selected_tab = SettingsTab::Roms;
@@ -1154,6 +1232,9 @@ mod tests {
         s.next_tab();
         assert_eq!(s.selected_tab, SettingsTab::Saves);
         assert_eq!(s.selected_row(), SettingsRow::SaveDir);
+
+        s.next();
+        assert_eq!(s.selected_row(), SettingsRow::SaveConsolePaths);
 
         s.next();
         assert_eq!(s.selected_row(), SettingsRow::SyncDevice);
@@ -1200,6 +1281,7 @@ mod tests {
         s.selected_tab = SettingsTab::Saves;
 
         s.next();
+        s.next();
         assert_eq!(s.selected_row(), SettingsRow::SyncDevice);
         s.enter_edit();
         assert!(s.device_picker_open);
@@ -1241,6 +1323,7 @@ mod tests {
         let mut s = unsupported_screen();
         s.selected_tab = SettingsTab::Saves;
 
+        s.next();
         s.next();
         assert_eq!(s.selected_row(), SettingsRow::SyncDevice);
         s.enter_edit();

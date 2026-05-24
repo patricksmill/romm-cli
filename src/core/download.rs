@@ -14,6 +14,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::client::RommClient;
 use crate::config::RomsLayoutConfig;
+use crate::config::{resolved_save_dir, Config, SaveSyncConfig};
 use crate::core::extras::build_base_rom_file_targets;
 use crate::core::extras::{DownloadAssetKind, DownloadTarget};
 use crate::core::interrupt::is_cancelled_error;
@@ -129,6 +130,88 @@ pub fn resolve_console_roms_dir(
     } else {
         Ok(auto_console_roms_dir(base_download_dir, rom))
     }
+}
+
+fn save_platform_slug(
+    platform_id: u64,
+    platform_fs_slug: Option<&str>,
+    platform_slug: Option<&str>,
+) -> String {
+    utils::sanitize_filename(
+        platform_fs_slug
+            .or(platform_slug)
+            .unwrap_or(&format!("platform-{platform_id}")),
+    )
+}
+
+fn auto_console_save_dir(
+    base_save_dir: &Path,
+    platform_id: u64,
+    platform_fs_slug: Option<&str>,
+    platform_slug: Option<&str>,
+) -> PathBuf {
+    base_save_dir.join(save_platform_slug(
+        platform_id,
+        platform_fs_slug,
+        platform_slug,
+    ))
+}
+
+/// Resolve the directory where save files for a console should be stored.
+pub fn resolve_console_save_dir(
+    save_sync: &SaveSyncConfig,
+    base_save_dir: &Path,
+    platform_id: u64,
+    platform_fs_slug: Option<&str>,
+    platform_slug: Option<&str>,
+) -> Result<PathBuf> {
+    if let Some(raw) = save_sync
+        .platform_dirs
+        .get(&platform_id)
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+    {
+        validate_configured_download_directory(raw)
+    } else {
+        Ok(auto_console_save_dir(
+            base_save_dir,
+            platform_id,
+            platform_fs_slug,
+            platform_slug,
+        ))
+    }
+}
+
+fn safe_game_path_segment(input: &str) -> String {
+    let cleaned: String = input
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || matches!(c, ' ' | '-' | '_' | '.') {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    let trimmed = cleaned.trim().trim_matches('.').trim();
+    if trimmed.is_empty() {
+        "game".to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+/// Resolve the directory where a specific game's saves should be downloaded.
+pub fn resolve_game_save_dir(config: &Config, rom: &Rom) -> Result<PathBuf> {
+    let base = resolved_save_dir(config);
+    let console_dir = resolve_console_save_dir(
+        &config.save_sync,
+        &base,
+        rom.platform_id,
+        rom.platform_fs_slug.as_deref(),
+        rom.platform_slug.as_deref(),
+    )?;
+    Ok(console_dir.join(safe_game_path_segment(&rom.name)))
 }
 
 /// Pick `stem.zip`, then `stem__2.zip`, `stem__3.zip`, … until the path does not exist.
@@ -828,6 +911,8 @@ fn final_download_path_for_rom(roms_dir: &Path, rom: &Rom) -> PathBuf {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::*;
     use crate::config::RomsLayoutConfig;
     use crate::types::Rom;
@@ -1031,6 +1116,72 @@ mod tests {
         let layout = RomsLayoutConfig::default();
         let dir = resolve_console_roms_dir(&layout, Path::new("/roms"), &rom).unwrap();
         assert_eq!(dir, PathBuf::from("/roms/switch"));
+    }
+
+    #[test]
+    fn resolve_console_save_dir_uses_platform_slug_subfolder_by_default() {
+        let save_sync = SaveSyncConfig::default();
+        let dir = resolve_console_save_dir(
+            &save_sync,
+            Path::new("/saves"),
+            7,
+            Some("switch"),
+            Some("nintendo-switch"),
+        )
+        .unwrap();
+        assert_eq!(dir, PathBuf::from("/saves/switch"));
+    }
+
+    #[test]
+    fn resolve_console_save_dir_uses_custom_mapped_path() {
+        let mut save_sync = SaveSyncConfig::default();
+        let custom = std::env::temp_dir().join(format!(
+            "romm-cli-save-custom-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&custom).unwrap();
+        save_sync
+            .platform_dirs
+            .insert(7, custom.display().to_string());
+
+        let dir =
+            resolve_console_save_dir(&save_sync, Path::new("/saves"), 7, Some("switch"), None)
+                .unwrap();
+        assert_eq!(dir, custom);
+        let _ = std::fs::remove_dir_all(custom);
+    }
+
+    #[test]
+    fn resolve_console_save_dir_ignores_empty_override() {
+        let mut save_sync = SaveSyncConfig::default();
+        save_sync.platform_dirs.insert(7, "   ".to_string());
+        let dir =
+            resolve_console_save_dir(&save_sync, Path::new("/saves"), 7, Some("switch"), None)
+                .unwrap();
+        assert_eq!(dir, PathBuf::from("/saves/switch"));
+    }
+
+    #[test]
+    fn resolve_game_save_dir_appends_game_folder() {
+        let rom = rom_fixture_with_platform(Some("switch"), "game.zip");
+        let cfg = Config {
+            base_url: "http://example.test".into(),
+            download_dir: "/roms".into(),
+            use_https: false,
+            auth: None,
+            extras_defaults: Default::default(),
+            save_sync: SaveSyncConfig {
+                save_dir: Some("/saves".into()),
+                device_id: None,
+                platform_dirs: HashMap::new(),
+            },
+            roms_layout: Default::default(),
+        };
+        let dir = resolve_game_save_dir(&cfg, &rom).unwrap();
+        assert_eq!(dir, PathBuf::from("/saves/switch/Game"));
     }
 
     #[test]

@@ -126,3 +126,13 @@ To match RomM server behavior:
 - zip files: MD5 of a deterministic string built from sorted zip entries as `name:entry_md5`, joined by newlines
 
 This keeps negotiate comparisons consistent for save files that are zip archives.
+
+## TUI save downloads
+
+When you download a save from game detail (`D`), romm-cli writes files using the same per-console layout as ROM downloads:
+
+- Base: **Settings → Saves → Save Dir** (or `{download_dir}/saves` when unset)
+- Default per console: `{save_dir}/{platform-slug}/{game-name}/`
+- Custom override: `save_sync.platform_dirs` in `config.json` (absolute path per platform ID)
+
+Configure overrides in **Settings → Saves → Save console paths**. CLI `sync plan` / `sync run` still use explicit paths from your manifest file.

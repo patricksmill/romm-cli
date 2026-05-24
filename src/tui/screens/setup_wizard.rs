@@ -591,7 +591,8 @@ impl SetupWizard {
                 let mut lines = vec![
                     format!("Server: {url_line}"),
                     format!("ROMs Dir: {}", self.download_picker.path_trimmed()),
-                    "Layout: base subfolder per console (custom paths in Settings → ROMs)".to_string(),
+                    "Layout: base subfolder per console (custom paths in Settings → ROMs)"
+                        .to_string(),
                     format!("Use HTTPS: {}", if self.use_https { "Yes" } else { "No" }),
                     format!("Auth: {auth_desc}"),
                     String::new(),

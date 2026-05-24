@@ -7,9 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **config/TUI:** Per-console custom save directory overrides (`save_sync.platform_dirs`), configured under **Settings → Saves → Save console paths** or in `config.json`.
+
 ### Changed
 
 - **config:** Replace auto/manual ROM layout mode with optional per-console custom paths (`platform_dirs` only). Legacy `"mode"` in config is ignored on load and omitted on save. `ROMM_ROMS_LAYOUT` env var removed.
+- **TUI:** Save downloads now use `{save_base}/{platform-slug}/{game}/` by default (previously `{save_base}/{game}/`). Custom per-console mappings use absolute paths, same model as ROM downloads.
 
 ## [0.34.0](https://github.com/patricksmill/romm-cli/compare/v0.33.1...v0.34.0) (2026-05-22)
 

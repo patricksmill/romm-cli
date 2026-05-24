@@ -136,6 +136,26 @@ For multi-drive collections, map individual consoles to custom absolute paths in
 
 Keys in `platform_dirs` are RomM platform IDs. Unmapped consoles use the base subfolder path. `romm-cli download` and TUI downloads both use this layout; `--output` replaces the base Roms Dir for that run but custom mappings stay absolute.
 
+### Custom console save paths
+
+By default, TUI save downloads land in `{Save Dir}/{platform-slug}/{game}/` (for example `~/Downloads/romm-cli/saves/nintendo-switch/Zelda/`).
+
+For multi-drive layouts, map individual consoles to custom absolute save paths in the TUI under **Settings → Saves → Save console paths**, or in `config.json`:
+
+```json
+{
+  "save_sync": {
+    "save_dir": "C:\\Games\\romm-cli\\saves",
+    "platform_dirs": {
+      "7": "D:\\Saves\\Switch",
+      "3": "E:\\Saves\\NES"
+    }
+  }
+}
+```
+
+Keys in `platform_dirs` are RomM platform IDs. Unmapped consoles use `{save_dir}/{platform-slug}/`. CLI `sync run` manifest paths are unchanged (explicit paths in the manifest file).
+
 ---
 
 ## Further documentation

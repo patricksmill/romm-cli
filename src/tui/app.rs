@@ -29,8 +29,7 @@ use std::time::{Duration, Instant};
 use crate::client::RommClient;
 use crate::commands::library_scan::ScanCacheInvalidate;
 use crate::config::{
-    auth_for_persist_merge, normalize_romm_origin, resolved_save_dir, Config, ExtrasDefaults,
-    SaveSyncConfig,
+    auth_for_persist_merge, normalize_romm_origin, resolve_game_save_dir, Config, ExtrasDefaults,
 };
 use crate::core::cache::{RomCache, RomCacheKey};
 use crate::core::download::DownloadManager;
@@ -45,7 +44,7 @@ use crate::update::UpdateStatus;
 
 use super::keyboard_help;
 use super::screens::connected_splash::{self, StartupSplash};
-use super::screens::settings::SettingsRow;
+use super::screens::settings::{ConsolePathKind, SettingsRow};
 use super::screens::setup_wizard::SetupWizard;
 use super::screens::{
     BrowseScreen, DownloadScreen, ExecuteScreen, ExtrasPickerScreen, GameDetailPrevious,
@@ -827,8 +826,7 @@ impl App {
                     }
                     Err(e) => {
                         settings.set_console_platform_error(e.clone());
-                        settings.message =
-                            Some((format!("Platform load failed: {e}"), Color::Red));
+                        settings.message = Some((format!("Platform load failed: {e}"), Color::Red));
                     }
                 }
             }
@@ -2009,13 +2007,17 @@ impl App {
 
         if settings.console_picker_open {
             match key.code {
-                KeyCode::Esc => settings.console_picker_open = false,
+                KeyCode::Esc => {
+                    settings.console_picker_open = false;
+                    settings.active_console_kind = None;
+                }
                 KeyCode::Up | KeyCode::Char('k') => settings.console_previous(),
                 KeyCode::Down | KeyCode::Char('j') => settings.console_next(),
                 KeyCode::Enter => settings.open_console_path_picker(),
                 KeyCode::Delete | KeyCode::Backspace => {
-                    if let Some(platform) =
-                        settings.console_platforms.get(settings.console_selected_index)
+                    if let Some(platform) = settings
+                        .console_platforms
+                        .get(settings.console_selected_index)
                     {
                         settings.clear_console_path(platform.id);
                     }
@@ -2107,7 +2109,18 @@ impl App {
                     self.screen =
                         AppScreen::SetupWizard(Box::new(SetupWizard::new_auth_only(&self.config)));
                 } else if row == SettingsRow::ConsolePaths {
-                    settings.open_console_picker();
+                    settings.open_console_picker(ConsolePathKind::Roms);
+                    let client = self.client.clone();
+                    let tx = self.platform_list_tx.clone();
+                    tokio::spawn(async move {
+                        let result = client
+                            .call(&ListPlatforms)
+                            .await
+                            .map_err(|e| format!("{e:#}"));
+                        let _ = tx.send(PlatformListDone { result });
+                    });
+                } else if row == SettingsRow::SaveConsolePaths {
+                    settings.open_console_picker(ConsolePathKind::Saves);
                     let client = self.client.clone();
                     let tx = self.platform_list_tx.clone();
                     tokio::spawn(async move {
@@ -2179,10 +2192,7 @@ impl App {
                         include_cover: settings.extras_include_cover,
                         include_manual: settings.extras_include_manual,
                     },
-                    save_sync: SaveSyncConfig {
-                        save_dir: Some(settings.save_dir.clone()),
-                        device_id: settings.sync_device_id.clone(),
-                    },
+                    save_sync: settings.save_sync_config(),
                     roms_layout: settings.roms_layout_config(),
                 };
                 if let Err(e) = persist_user_config(&cfg) {
@@ -2491,8 +2501,17 @@ impl App {
                     return Ok(false);
                 };
                 let rom_id = detail.rom.id;
-                let game_name = detail.rom.name.clone();
-                let save_dir = resolved_save_dir(&self.config);
+                let rom = detail.rom.clone();
+                let target_dir = match resolve_game_save_dir(&self.config, &rom) {
+                    Ok(path) => path,
+                    Err(err) => {
+                        detail.message = Some(format!(
+                            "Save download blocked: {err:#}. Fix save paths in Settings."
+                        ));
+                        detail.message_clear_at = Some(Instant::now() + Duration::from_secs(5));
+                        return Ok(false);
+                    }
+                };
                 detail.message = Some("Downloading save...".into());
                 detail.message_clear_at = None;
                 let client = self.client.clone();
@@ -2500,7 +2519,6 @@ impl App {
                 tokio::spawn(async move {
                     let result = async {
                         let bytes = client.download_save_content(save.id, None, None).await?;
-                        let target_dir = save_dir.join(safe_path_segment(&game_name));
                         tokio::fs::create_dir_all(&target_dir).await?;
                         let filename = if save.file_name.trim().is_empty() {
                             format!("save-{}.sav", save.id)

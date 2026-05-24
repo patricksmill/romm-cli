@@ -362,7 +362,10 @@ fn prompt_custom_console_paths(
         }
         let platform = &platforms[idx];
         let path: String = Input::with_theme(&ColorfulTheme::default())
-            .with_prompt(format!("Custom path for {} (leave empty to clear)", platform.name))
+            .with_prompt(format!(
+                "Custom path for {} (leave empty to clear)",
+                platform.name
+            ))
             .allow_empty(true)
             .interact_text()?;
         let path = path.trim();

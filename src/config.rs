@@ -109,6 +109,9 @@ pub struct RomsLayoutConfig {
 }
 
 /// Save sync preferences shared by CLI/TUI frontends.
+///
+/// Each platform defaults to `{save_base}/{platform-slug}/`. Entries in
+/// [`platform_dirs`](Self::platform_dirs) override that with an absolute custom path.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct SaveSyncConfig {
     /// Local folder used by TUI save download/sync flows.
@@ -117,6 +120,9 @@ pub struct SaveSyncConfig {
     /// RomM sync device id used by manual push-pull.
     #[serde(default)]
     pub device_id: Option<String>,
+    /// Platform id → absolute custom save directory path.
+    #[serde(default)]
+    pub platform_dirs: HashMap<u64, String>,
 }
 
 /// High-level configuration for the `romm-cli` application.
@@ -153,6 +159,28 @@ pub fn resolved_save_dir(config: &Config) -> PathBuf {
         .filter(|s| !s.is_empty())
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(&config.download_dir).join("saves"))
+}
+
+/// Resolve the directory where save files for a console should be stored.
+pub fn resolve_console_save_dir(
+    save_sync: &SaveSyncConfig,
+    base_save_dir: &std::path::Path,
+    platform_id: u64,
+    platform_fs_slug: Option<&str>,
+    platform_slug: Option<&str>,
+) -> Result<PathBuf> {
+    crate::core::download::resolve_console_save_dir(
+        save_sync,
+        base_save_dir,
+        platform_id,
+        platform_fs_slug,
+        platform_slug,
+    )
+}
+
+/// Resolve the directory where a specific game's saves should be downloaded.
+pub fn resolve_game_save_dir(config: &Config, rom: &crate::types::Rom) -> Result<PathBuf> {
+    crate::core::download::resolve_game_save_dir(config, rom)
 }
 
 fn is_placeholder(value: &str) -> bool {
@@ -976,6 +1004,46 @@ mod tests {
             resolved_save_dir(&cfg),
             PathBuf::from("/roms").join("saves")
         );
+    }
+
+    #[test]
+    fn save_sync_deserializes_platform_dirs() {
+        let config_json = r#"{
+            "base_url": "http://example.test",
+            "download_dir": "/tmp",
+            "use_https": false,
+            "auth": null,
+            "save_sync": {
+                "save_dir": "/saves",
+                "platform_dirs": {
+                    "7": "D:\\Saves\\Switch"
+                }
+            }
+        }"#;
+        let cfg: Config = serde_json::from_str(config_json).expect("deserialize");
+        assert_eq!(
+            cfg.save_sync.platform_dirs.get(&7).map(String::as_str),
+            Some("D:\\Saves\\Switch")
+        );
+    }
+
+    #[test]
+    fn save_sync_save_includes_platform_dirs() {
+        let cfg = Config {
+            base_url: "http://example.test".into(),
+            download_dir: "/tmp".into(),
+            use_https: false,
+            auth: None,
+            extras_defaults: ExtrasDefaults::default(),
+            save_sync: SaveSyncConfig {
+                save_dir: Some("/saves".into()),
+                device_id: None,
+                platform_dirs: HashMap::from([(7, "D:\\Saves\\Switch".into())]),
+            },
+            roms_layout: RomsLayoutConfig::default(),
+        };
+        let json = serde_json::to_string(&cfg.save_sync).expect("serialize");
+        assert!(json.contains("platform_dirs"));
     }
 
     #[test]
