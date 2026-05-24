@@ -1012,8 +1012,10 @@ mod tests {
     #[test]
     fn resolve_console_roms_dir_manual_uses_mapped_path() {
         let rom = rom_fixture_with_platform(Some("switch"), "game.zip");
-        let mut layout = RomsLayoutConfig::default();
-        layout.mode = RomsLayoutMode::Manual;
+        let mut layout = RomsLayoutConfig {
+            mode: RomsLayoutMode::Manual,
+            ..Default::default()
+        };
         let custom = std::env::temp_dir().join(format!(
             "romm-cli-manual-{}",
             SystemTime::now()
@@ -1034,8 +1036,10 @@ mod tests {
     #[test]
     fn resolve_console_roms_dir_manual_falls_back_for_unmapped_platform() {
         let rom = rom_fixture_with_platform(Some("switch"), "game.zip");
-        let mut layout = RomsLayoutConfig::default();
-        layout.mode = RomsLayoutMode::Manual;
+        let layout = RomsLayoutConfig {
+            mode: RomsLayoutMode::Manual,
+            ..Default::default()
+        };
         let dir = resolve_console_roms_dir(&layout, Path::new("/roms"), &rom).unwrap();
         assert_eq!(dir, PathBuf::from("/roms/switch"));
     }

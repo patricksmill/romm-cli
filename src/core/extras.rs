@@ -94,13 +94,7 @@ pub async fn build_update_dlc_targets_for_rom(
 ) -> Result<Vec<DownloadTarget>> {
     let extras_root = extras_root_dir(layout, base_dir, rom)?;
     let related_rows = related_rom_rows(client, rom).await?;
-    Ok(build_update_dlc_targets_from_related_rows(
-        rom,
-        &related_rows,
-        layout,
-        base_dir,
-        &extras_root,
-    )?)
+    build_update_dlc_targets_from_related_rows(rom, &related_rows, layout, base_dir, &extras_root)
 }
 
 pub fn has_update_or_dlc_extras(rom: &Rom, related_rows: &[Rom]) -> bool {

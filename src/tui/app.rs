@@ -195,7 +195,7 @@ pub enum AppScreen {
     MainMenu(MainMenuScreen),
     LibraryBrowse(LibraryBrowseScreen),
     Search(SearchScreen),
-    Settings(SettingsScreen),
+    Settings(Box<SettingsScreen>),
     Browse(BrowseScreen),
     Execute(ExecuteScreen),
     Result(ResultScreen),
@@ -1497,11 +1497,11 @@ impl App {
                     ));
                 }
                 3 => {
-                    self.screen = AppScreen::Settings(SettingsScreen::new(
+                    self.screen = AppScreen::Settings(Box::new(SettingsScreen::new(
                         &self.config,
                         self.server_version.as_deref(),
                         self.save_sync_compat.clone(),
-                    ))
+                    )))
                 }
                 4 => return Ok(true),
                 _ => {}
@@ -2598,11 +2598,11 @@ impl App {
 
         if wizard.handle_key(key)? {
             // Esc pressed
-            self.screen = AppScreen::Settings(SettingsScreen::new(
+            self.screen = AppScreen::Settings(Box::new(SettingsScreen::new(
                 &self.config,
                 self.server_version.as_deref(),
                 self.save_sync_compat.clone(),
-            ));
+            )));
             return Ok(false);
         }
 
@@ -2633,7 +2633,7 @@ impl App {
                             Color::Yellow,
                         ));
                     }
-                    self.screen = AppScreen::Settings(settings);
+                    self.screen = AppScreen::Settings(Box::new(settings));
                 }
                 Err(e) => {
                     wizard.error = Some(format!("{e:#}"));

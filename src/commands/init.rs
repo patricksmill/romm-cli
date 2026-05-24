@@ -198,7 +198,7 @@ pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
 
     let layout_idx = Select::with_theme(&ColorfulTheme::default())
         .with_prompt("ROM layout")
-        .items(&[
+        .items([
             "Auto (base directory + console subfolder)",
             "Manual (custom directory per console — configure in TUI Settings → ROMs)",
         ])
