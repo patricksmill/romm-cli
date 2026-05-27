@@ -11,7 +11,7 @@ use crate::config::RomsLayoutConfig;
 use crate::core::download::resolve_console_roms_dir;
 use crate::core::utils;
 use crate::endpoints::roms::GetRoms;
-use crate::services::RomService;
+use crate::endpoints::roms::GetRom;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
 use crate::types::{Rom, RomFile, RomFileCategory};
@@ -68,8 +68,7 @@ pub async fn build_extras_targets(
     layout: &RomsLayoutConfig,
     base_dir: &Path,
 ) -> Result<Vec<DownloadTarget>> {
-    let service = RomService::new(client);
-    let rom = service.get_rom(rom_id).await?;
+    let rom = client.call(&GetRom { id: rom_id }).await?;
     let extras_root = extras_root_dir(layout, base_dir, &rom)?;
 
     let mut targets = Vec::new();
@@ -148,14 +147,13 @@ async fn build_related_rom_targets(
 }
 
 async fn related_rom_rows(client: &RommClient, rom: &Rom) -> Result<Vec<Rom>> {
-    let service = RomService::new(client);
     let ep = GetRoms {
         search_term: Some(rom.name.clone()),
         platform_id: Some(rom.platform_id),
         limit: Some(9999),
         ..Default::default()
     };
-    let results = service.search_roms(&ep).await?;
+    let results = client.call(&ep).await?;
     let groups = utils::group_roms_by_name(&results.items);
     let Some(group) = groups.iter().find(|g| g.name == rom.name) else {
         return Ok(Vec::new());

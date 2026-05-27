@@ -19,10 +19,8 @@ use crate::core::extras::{
 };
 use crate::core::interrupt::{cancelled_error, is_cancelled_error, InterruptContext};
 use crate::core::utils;
-use crate::endpoints::roms::GetRoms;
-use crate::services::{PlatformService, RomService};
-use crate::types::Platform;
-
+use crate::endpoints::roms::{GetRom, GetRoms};
+use crate::core::resolve::resolve_platform_id;
 /// Maximum number of concurrent download connections.
 const DEFAULT_CONCURRENCY: usize = 4;
 
@@ -308,8 +306,7 @@ pub async fn handle(
             ..Default::default()
         };
 
-        let service = RomService::new(client);
-        let results = service.search_roms(&ep).await?;
+        let results = client.call(&ep).await?;
 
         if results.items.is_empty() {
             println!("No ROMs found matching the given filters.");
@@ -453,8 +450,7 @@ pub async fn handle(
                 "ROM ID is required (e.g. 'download 123' or 'download batch --search-term ...')"
             )
         })?;
-        let service = RomService::new(client);
-        let rom = service.get_rom(rom_id).await?;
+        let rom = client.call(&GetRom { id: rom_id }).await?;
         let base_targets = build_base_rom_file_targets(&rom, &layout, &output_dir)?;
 
         if !base_targets.is_empty() {
@@ -621,61 +617,6 @@ fn is_interactive_terminal() -> bool {
     io::stdin().is_terminal() && io::stdout().is_terminal()
 }
 
-async fn resolve_platform_id(
-    client: &RommClient,
-    platform_query: Option<&str>,
-) -> Result<Option<u64>> {
-    let Some(query) = platform_query.map(str::trim).filter(|q| !q.is_empty()) else {
-        return Ok(None);
-    };
-    let service = PlatformService::new(client);
-    let platforms = service.list_platforms().await?;
-    resolve_platform_query(query, &platforms).map(Some)
-}
-
-fn resolve_platform_query(query: &str, platforms: &[Platform]) -> Result<u64> {
-    let normalized = query.trim().to_ascii_lowercase();
-
-    if let Some(platform) = platforms.iter().find(|p| {
-        p.slug.eq_ignore_ascii_case(&normalized) || p.fs_slug.eq_ignore_ascii_case(&normalized)
-    }) {
-        return Ok(platform.id);
-    }
-
-    let exact_name_matches: Vec<&Platform> = platforms
-        .iter()
-        .filter(|p| {
-            p.name.eq_ignore_ascii_case(&normalized)
-                || p.display_name
-                    .as_deref()
-                    .is_some_and(|name| name.eq_ignore_ascii_case(&normalized))
-                || p.custom_name
-                    .as_deref()
-                    .is_some_and(|name| name.eq_ignore_ascii_case(&normalized))
-        })
-        .collect();
-
-    match exact_name_matches.len() {
-        1 => Ok(exact_name_matches[0].id),
-        0 => Err(anyhow!(
-            "No platform found for '{}'. Use 'romm-cli platforms list' to inspect available values.",
-            query
-        )),
-        _ => {
-            let names = exact_name_matches
-                .iter()
-                .map(|p| format!("{} ({})", p.name, p.id))
-                .collect::<Vec<_>>()
-                .join(", ");
-            Err(anyhow!(
-                "Platform '{}' is ambiguous. Matches: {}. Please use a more specific --platform value.",
-                query,
-                names
-            ))
-        }
-    }
-}
-
 fn extraction_target_dir(
     output_dir: &std::path::Path,
     platform_slug: &str,
@@ -694,6 +635,7 @@ fn extraction_target_dir(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::resolve::resolve_platform_id_from_list;
     use clap::Parser;
 
     use crate::commands::{Cli, Commands};
@@ -856,7 +798,7 @@ mod tests {
             None,
             None,
         )];
-        let id = resolve_platform_query("3ds", &platforms).expect("slug should resolve");
+        let id = resolve_platform_id_from_list("3ds", &platforms).expect("slug should resolve");
         assert_eq!(id, 3);
     }
 
@@ -870,7 +812,7 @@ mod tests {
             None,
             None,
         )];
-        let id = resolve_platform_query("nintendo 3ds", &platforms).expect("name should resolve");
+        let id = resolve_platform_id_from_list("nintendo 3ds", &platforms).expect("name should resolve");
         assert_eq!(id, 4);
     }
 
@@ -880,7 +822,7 @@ mod tests {
             platform_fixture(7, "foo-a", "foo-a", "Arcade", None, None),
             platform_fixture(8, "foo-b", "foo-b", "Arcade", None, None),
         ];
-        let err = resolve_platform_query("Arcade", &platforms).expect_err("should be ambiguous");
+        let err = resolve_platform_id_from_list("Arcade", &platforms).expect_err("should be ambiguous");
         assert!(
             err.to_string().contains("ambiguous"),
             "unexpected error: {err:#}"
@@ -897,7 +839,7 @@ mod tests {
             None,
             None,
         )];
-        let err = resolve_platform_query("3ds", &platforms).expect_err("should not match");
+        let err = resolve_platform_id_from_list("3ds", &platforms).expect_err("should not match");
         assert!(
             err.to_string().contains("No platform found"),
             "unexpected error: {err:#}"

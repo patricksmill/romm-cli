@@ -8,7 +8,8 @@ use serde_json::json;
 
 use crate::client::RommClient;
 use crate::core::interrupt::InterruptContext;
-use crate::services::{self, PlatformService};
+use crate::core::resolve::resolve_platform_id_from_list;
+use crate::endpoints::platforms::ListPlatforms;
 
 use super::library_scan::{run_scan_library_flow, ScanCacheInvalidate, ScanLibraryOptions};
 use super::OutputFormat;
@@ -54,9 +55,8 @@ pub async fn handle(
     let cache_invalidate = if cmd.wait {
         match cmd.platform.as_deref() {
             Some(p) if !p.trim().is_empty() && !p.contains(',') => {
-                let service = PlatformService::new(client);
-                let platforms = service.list_platforms().await?;
-                match services::resolve_platform_id_from_list(p.trim(), &platforms) {
+                let platforms = client.call(&ListPlatforms).await?;
+                match resolve_platform_id_from_list(p.trim(), &platforms) {
                     Ok(pid) => ScanCacheInvalidate::Platform(pid),
                     Err(_) => ScanCacheInvalidate::AllPlatforms,
                 }
