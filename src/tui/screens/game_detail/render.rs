@@ -1,0 +1,273 @@
+use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
+use ratatui::style::{Color, Style};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, Borders, Gauge, Paragraph};
+use ratatui::Frame;
+use ratatui_image::{Resize, StatefulImage};
+
+use crate::core::download::DownloadStatus;
+use crate::core::utils::format_size;
+use crate::tui::utils::truncate;
+
+use super::saves::save_lines;
+use super::types::{CoverState, GameDetailScreen};
+
+impl GameDetailScreen {
+    pub fn render(&mut self, f: &mut Frame, area: Rect) {
+        if let Some(picker) = self.save_upload_picker.as_mut() {
+            picker.render(
+                f,
+                area,
+                "Upload save file",
+                "Esc: cancel   Enter: choose file   Ctrl+Enter: apply typed file",
+            );
+            return;
+        }
+        let chunks = Layout::default()
+            .constraints([Constraint::Min(10), Constraint::Length(3)])
+            .direction(Direction::Vertical)
+            .split(area);
+        let body = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Min(10), Constraint::Length(42)])
+            .split(chunks[0]);
+
+        self.render_metadata_panel(f, body[0]);
+        self.render_cover_panel(f, body[1]);
+        self.render_footer_panel(f, chunks[1]);
+    }
+
+    fn render_cover_panel(&mut self, f: &mut Frame, area: Rect) {
+        let platform = self
+            .rom
+            .platform_display_name
+            .as_deref()
+            .or(self.rom.platform_custom_name.as_deref())
+            .unwrap_or("—");
+        let name = truncate(&self.rom.name, 28);
+        if matches!(self.cover_state, CoverState::Ready) {
+            if let Some(image_state) = self.cover_image.as_mut() {
+                let block = Block::default().title("Cover").borders(Borders::ALL);
+                let inner = block.inner(area);
+                f.render_widget(block, area);
+                let widget = StatefulImage::default().resize(Resize::Fit(None));
+                f.render_stateful_widget(widget, inner, image_state);
+                return;
+            }
+        }
+
+        let content = match &self.cover_state {
+            CoverState::Ready => vec![
+                Line::from(""),
+                Line::from(Span::styled(
+                    "Inline cover ready",
+                    Style::default().fg(Color::Green),
+                )),
+                Line::from(""),
+                Line::from(self.cover_pipeline_label()),
+                Line::from("Press o for browser view"),
+            ],
+            CoverState::Loading => vec![
+                Line::from(""),
+                Line::from(Span::styled(
+                    "Loading cover...",
+                    Style::default().fg(Color::Yellow),
+                )),
+                Line::from(""),
+                Line::from("Fetching image"),
+                Line::from("in background"),
+            ],
+            CoverState::Failed(message) => vec![
+                Line::from(""),
+                Line::from(Span::styled(
+                    "Cover unavailable",
+                    Style::default().fg(Color::Red),
+                )),
+                Line::from(""),
+                Line::from(truncate(message, 26)),
+                Line::from(""),
+                Line::from("Press o to open URL"),
+            ],
+            CoverState::Idle => vec![
+                Line::from(""),
+                Line::from(if self.rom.url_cover.is_some() {
+                    "Cover available"
+                } else {
+                    "No cover URL"
+                }),
+                Line::from(""),
+                Line::from("Press o to open cover"),
+                Line::from("in browser"),
+            ],
+        };
+        let lines = vec![
+            Line::from(Span::styled(
+                format!("[{}]", platform),
+                Style::default().fg(Color::Cyan),
+            )),
+            Line::from(Span::styled(name, Style::default().fg(Color::White))),
+            Line::from(""),
+        ]
+        .into_iter()
+        .chain(content)
+        .collect::<Vec<_>>();
+        let widget = Paragraph::new(lines)
+            .alignment(Alignment::Center)
+            .block(Block::default().title("Cover").borders(Borders::ALL))
+            .wrap(ratatui::widgets::Wrap { trim: true });
+        f.render_widget(widget, area);
+    }
+
+    fn render_metadata_panel(&self, f: &mut Frame, area: Rect) {
+        let title = self.rom.name.as_str();
+        let platform = self
+            .rom
+            .platform_display_name
+            .as_deref()
+            .or(self.rom.platform_custom_name.as_deref())
+            .unwrap_or("—");
+        let summary = self.rom.summary.as_deref().unwrap_or("").trim();
+        let path = self.rom.fs_path.as_str();
+        let size = format_size(self.rom.fs_size_bytes);
+        let mut lines: Vec<Line> = vec![
+            Line::from(vec![
+                Span::styled("Title: ", Style::default().fg(Color::Cyan)),
+                Span::raw(title),
+            ]),
+            Line::from(vec![
+                Span::styled("Platform: ", Style::default().fg(Color::Cyan)),
+                Span::raw(platform),
+            ]),
+            Line::from(""),
+            Line::from(Span::styled("Overview:", Style::default().fg(Color::Cyan))),
+            Line::from(vec![
+                Span::styled("Download: ", Style::default().fg(Color::Gray)),
+                Span::raw(if self.has_started_download {
+                    "Started"
+                } else {
+                    "Not started"
+                }),
+            ]),
+            Line::from(vec![
+                Span::styled("Cover URL: ", Style::default().fg(Color::Gray)),
+                Span::raw(if self.rom.url_cover.is_some() {
+                    "Available (o to open)"
+                } else {
+                    "Missing"
+                }),
+            ]),
+            Line::from(""),
+            Line::from(vec![Span::styled(
+                "Summary: ",
+                Style::default().fg(Color::Cyan),
+            )]),
+            Line::from(if summary.is_empty() { "—" } else { summary }),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("File: ", Style::default().fg(Color::Cyan)),
+                Span::raw(path),
+            ]),
+            Line::from(vec![
+                Span::styled("Size: ", Style::default().fg(Color::Cyan)),
+                Span::raw(size),
+            ]),
+        ];
+
+        if !self.other_files.is_empty() {
+            lines.push(Line::from(""));
+            lines.push(Line::from(vec![
+                Span::styled(
+                    "Other files (updates/DLC): ",
+                    Style::default().fg(Color::Cyan),
+                ),
+                Span::raw(format!("{} file(s)", self.other_files.len())),
+            ]));
+            for other in self.other_files.iter().take(10) {
+                let label = other.fs_name.as_str();
+                lines.push(Line::from(format!("  • {}", label)));
+            }
+            if self.other_files.len() > 10 {
+                lines.push(Line::from(format!(
+                    "  … and {} more",
+                    self.other_files.len() - 10
+                )));
+            }
+        }
+
+        if self.show_technical {
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                "Technical:",
+                Style::default().fg(Color::Yellow),
+            )));
+            lines.push(Line::from(format!("  ID: {}", self.rom.id)));
+            lines.push(Line::from(format!(
+                "  Platform ID: {}",
+                self.rom.platform_id
+            )));
+            if let Some(s) = &self.rom.slug {
+                lines.push(Line::from(format!("  Slug: {}", s)));
+            }
+            lines.push(Line::from(format!(
+                "  Identified: {}",
+                self.rom.is_identified
+            )));
+        }
+
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::styled(
+            "Saves:",
+            Style::default().fg(Color::Cyan),
+        )));
+        lines.extend(save_lines(&self.saves_state, self.selected_save_index));
+
+        let block = Block::default().title("Game detail").borders(Borders::ALL);
+        let p = Paragraph::new(lines)
+            .block(block)
+            .wrap(ratatui::widgets::Wrap { trim: true });
+        f.render_widget(p, area);
+    }
+
+    fn render_footer_panel(&mut self, f: &mut Frame, footer_area: Rect) {
+        self.tick_message();
+        // Footer: show progress bar if downloading, otherwise help text.
+        if let Some(job) = self.active_download() {
+            let (label, style) = match &job.status {
+                DownloadStatus::Downloading => (
+                    format!("Downloading… {}%", job.percent()),
+                    Style::default().fg(Color::Cyan),
+                ),
+                DownloadStatus::Done => (
+                    "Download complete".to_string(),
+                    Style::default().fg(Color::Green),
+                ),
+                DownloadStatus::SkippedAlreadyExists => (
+                    "Already present (skipped)".to_string(),
+                    Style::default().fg(Color::Yellow),
+                ),
+                DownloadStatus::Cancelled => (
+                    "Download cancelled".to_string(),
+                    Style::default().fg(Color::Yellow),
+                ),
+                DownloadStatus::FinalizeFailed(msg) => (
+                    format!("Finalize failed: {}", truncate(msg, 40)),
+                    Style::default().fg(Color::Red),
+                ),
+                DownloadStatus::Error(msg) => (
+                    format!("Error: {}", truncate(msg, 50)),
+                    Style::default().fg(Color::Red),
+                ),
+            };
+            let gauge = Gauge::default()
+                .block(Block::default().borders(Borders::ALL))
+                .gauge_style(style)
+                .percent(job.percent())
+                .label(label);
+            f.render_widget(gauge, footer_area);
+        } else {
+            let msg = self.message.as_deref().unwrap_or(self.footer_help_text());
+            let footer = Paragraph::new(msg).block(Block::default().borders(Borders::ALL));
+            f.render_widget(footer, footer_area);
+        }
+    }
+}
