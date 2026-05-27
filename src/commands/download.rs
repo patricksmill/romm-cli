@@ -639,7 +639,7 @@ mod tests {
     use clap::Parser;
 
     use crate::commands::{Cli, Commands};
-    use crate::types::Firmware;
+    use crate::types::{Firmware, Platform};
 
     #[test]
     fn parse_download_batch_with_extract_flags() {
