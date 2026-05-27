@@ -211,7 +211,7 @@ impl App {
                     std::mem::replace(&mut self.screen, AppScreen::MainMenu(MainMenuScreen::new()));
                 if let AppScreen::GameDetail(g) = prev {
                     self.screen = match g.previous {
-                        GameDetailPrevious::Library(l) => AppScreen::LibraryBrowse(*l),
+                        GameDetailPrevious::Library(l) => AppScreen::LibraryBrowse(l),
                         GameDetailPrevious::Search(s) => AppScreen::Search(s),
                     };
                 }

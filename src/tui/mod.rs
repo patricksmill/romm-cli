@@ -23,6 +23,7 @@ use std::time::Duration;
 
 use crate::client::RommClient;
 use crate::config::{openapi_cache_path, should_check_updates, Config};
+use crate::feature_compat::save_sync_compatibility;
 
 use self::app::App;
 use self::openapi_sync::sync_openapi_registry;
@@ -110,10 +111,11 @@ async fn run_started(
         &server_version,
         startup_update.is_some(),
     );
+    let save_sync_compat = save_sync_compatibility(&registry);
     let mut app = App::new(
         client,
         config,
-        registry,
+        save_sync_compat,
         server_version,
         splash,
         startup_update,

@@ -26,15 +26,13 @@ use crate::config::Config;
 use crate::core::cache::{RomCache, RomCacheKey};
 use crate::core::download::DownloadManager;
 use crate::endpoints::roms::GetRoms;
-use crate::feature_compat::{save_sync_compatibility, SaveSyncCompatibility};
-use crate::openapi::EndpointRegistry;
+use crate::feature_compat::SaveSyncCompatibility;
 use crate::update::UpdateStatus;
 
 use super::screens::connected_splash::StartupSplash;
 use super::screens::{
-    BrowseScreen, DownloadScreen, ExecuteScreen, ExtrasPickerScreen, GameDetailScreen,
-    LibraryBrowseScreen, MainMenuScreen, ResultDetailScreen, ResultScreen, SearchScreen,
-    SettingsScreen,
+    DownloadScreen, ExtrasPickerScreen, GameDetailScreen, LibraryBrowseScreen, MainMenuScreen,
+    SearchScreen, SettingsScreen,
 };
 
 use background::types::{
@@ -50,13 +48,9 @@ use background::types::{
 /// rendering and key handling based on the current variant.
 pub enum AppScreen {
     MainMenu(MainMenuScreen),
-    LibraryBrowse(LibraryBrowseScreen),
+    LibraryBrowse(Box<LibraryBrowseScreen>),
     Search(SearchScreen),
     Settings(Box<SettingsScreen>),
-    Browse(BrowseScreen),
-    Execute(ExecuteScreen),
-    Result(ResultScreen),
-    ResultDetail(ResultDetailScreen),
     GameDetail(Box<GameDetailScreen>),
     ExtrasPicker(Box<ExtrasPickerScreen>),
     Download(DownloadScreen),
@@ -71,7 +65,6 @@ pub struct App {
     pub screen: AppScreen,
     client: RommClient,
     config: Config,
-    registry: EndpointRegistry,
     /// RomM server version from `GET /api/heartbeat` (`SYSTEM.VERSION`), if available.
     server_version: Option<String>,
     save_sync_compat: SaveSyncCompatibility,
@@ -154,7 +147,7 @@ impl App {
 
     fn allows_global_question_help(&self) -> bool {
         match &self.screen {
-            AppScreen::Search(_) | AppScreen::SetupWizard(_) | AppScreen::Execute(_) => false,
+            AppScreen::Search(_) | AppScreen::SetupWizard(_) => false,
             AppScreen::LibraryBrowse(lib)
                 if lib.any_search_bar_open() || lib.any_upload_prompt_open() =>
             {
@@ -174,7 +167,7 @@ impl App {
     pub fn new(
         client: RommClient,
         config: Config,
-        registry: EndpointRegistry,
+        save_sync_compat: SaveSyncCompatibility,
         server_version: Option<String>,
         startup_splash: Option<StartupSplash>,
         startup_update: Option<UpdateStatus>,
@@ -189,12 +182,10 @@ impl App {
         let (device_list_tx, device_list_rx) = tokio::sync::mpsc::unbounded_channel();
         let (platform_list_tx, platform_list_rx) = tokio::sync::mpsc::unbounded_channel();
         let (sync_push_pull_tx, sync_push_pull_rx) = tokio::sync::mpsc::unbounded_channel();
-        let save_sync_compat = save_sync_compatibility(&registry);
         Self {
             screen: AppScreen::MainMenu(MainMenuScreen::new()),
             client,
             config,
-            registry,
             server_version,
             save_sync_compat,
             rom_cache: RomCache::load(),
@@ -304,10 +295,6 @@ impl App {
             AppScreen::LibraryBrowse(_) => self.handle_library_browse(key).await,
             AppScreen::Search(_) => self.handle_search(key).await,
             AppScreen::Settings(_) => self.handle_settings(key).await,
-            AppScreen::Browse(_) => self.handle_browse(key),
-            AppScreen::Execute(_) => self.handle_execute(key).await,
-            AppScreen::Result(_) => self.handle_result(key),
-            AppScreen::ResultDetail(_) => self.handle_result_detail(key),
             AppScreen::GameDetail(_) => self.handle_game_detail(key),
             AppScreen::ExtrasPicker(_) => self.handle_extras_picker(key),
             AppScreen::Download(_) => self.handle_download(key),

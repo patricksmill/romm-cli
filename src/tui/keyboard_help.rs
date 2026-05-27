@@ -54,25 +54,6 @@ Settings
   Esc                Main menu
   q                  Quit
 
-Execute request
-  Tab / Shift+Tab    Next / previous field
-  Typing             Edit fields
-  Enter              Send request
-  Esc                Back to browse
-
-JSON / table result
-  Up / k, Down / j, PgUp / PgDn   Scroll
-  t                  Toggle JSON / table (when applicable)
-  Enter              Open selected row (table)
-  Esc                Back to browse
-  q                  Quit
-
-Result detail
-  Arrows, PgUp / PgDn   Scroll
-  o                  Open image URL
-  Esc                Back
-  q                  Quit
-
 Setup wizard
   Follow on-screen prompts; Esc returns when offered.
 

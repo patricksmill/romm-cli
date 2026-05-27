@@ -3,42 +3,7 @@
 //! Inline `parameters` only; `$ref` on parameters is not resolved.
 
 use anyhow::{anyhow, Result};
-use percent_encoding::{utf8_percent_encode, AsciiSet, CONTROLS};
 use serde_json::Value;
-
-/// Percent-encode set for OpenAPI path parameter values (conservative).
-const PATH_PARAM_ENCODE: &AsciiSet = &CONTROLS
-    .add(b' ')
-    .add(b'"')
-    .add(b'#')
-    .add(b'<')
-    .add(b'>')
-    .add(b'`')
-    .add(b'?')
-    .add(b'{')
-    .add(b'}')
-    .add(b'/')
-    .add(b'%');
-
-/// Replace `{name}` segments in an OpenAPI path template using percent-encoded values.
-/// Returns an error if any `{...}` placeholder remains after substitution.
-pub fn resolve_path_template(template: &str, values: &[(String, String)]) -> Result<String> {
-    let mut out = template.to_string();
-    for (name, raw) in values {
-        let token = format!("{{{}}}", name);
-        if out.contains(&token) {
-            let encoded = utf8_percent_encode(raw, PATH_PARAM_ENCODE).to_string();
-            out = out.replace(&token, &encoded);
-        }
-    }
-    if out.contains('{') {
-        return Err(anyhow!(
-            "unresolved path placeholders in {:?} (fill all path parameters)",
-            template
-        ));
-    }
-    Ok(out)
-}
 
 /// Lowercase OpenAPI path-item operation keys we treat as HTTP methods.
 const OPENAPI_OPERATION_METHODS: &[&str] = &[
@@ -263,44 +228,6 @@ impl EndpointRegistry {
             .iter()
             .any(|ep| ep.method.eq_ignore_ascii_case(method) && ep.path == path)
     }
-
-    #[allow(dead_code)]
-    pub fn get_by_tag(&self, tag: &str) -> Vec<&ApiEndpoint> {
-        self.endpoints
-            .iter()
-            .filter(|ep| ep.tags.contains(&tag.to_string()))
-            .collect()
-    }
-
-    #[allow(dead_code)]
-    pub fn get_by_path_prefix(&self, prefix: &str) -> Vec<&ApiEndpoint> {
-        self.endpoints
-            .iter()
-            .filter(|ep| ep.path.starts_with(prefix))
-            .collect()
-    }
-
-    #[allow(dead_code)]
-    pub fn search(&self, query: &str) -> Vec<&ApiEndpoint> {
-        let query_lower = query.to_lowercase();
-        self.endpoints
-            .iter()
-            .filter(|ep| {
-                ep.path.to_lowercase().contains(&query_lower)
-                    || ep.method.to_lowercase().contains(&query_lower)
-                    || ep
-                        .summary
-                        .as_ref()
-                        .map(|s| s.to_lowercase().contains(&query_lower))
-                        .unwrap_or(false)
-                    || ep
-                        .description
-                        .as_ref()
-                        .map(|s| s.to_lowercase().contains(&query_lower))
-                        .unwrap_or(false)
-            })
-            .collect()
-    }
 }
 
 #[cfg(test)]
@@ -404,18 +331,5 @@ mod tests {
         assert!(is_openapi_operation_method("GET"));
         assert!(!is_openapi_operation_method("parameters"));
         assert!(!is_openapi_operation_method("summary"));
-    }
-
-    #[test]
-    fn resolve_path_template_substitutes_and_encodes() {
-        let p = resolve_path_template("/api/roms/{id}/files", &[("id".into(), "42".into())])
-            .expect("ok");
-        assert_eq!(p, "/api/roms/42/files");
-    }
-
-    #[test]
-    fn resolve_path_template_errors_on_missing_placeholder() {
-        let e = resolve_path_template("/api/{x}", &[]).unwrap_err();
-        assert!(e.to_string().contains("unresolved"));
     }
 }

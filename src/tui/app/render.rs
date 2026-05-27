@@ -30,15 +30,6 @@ impl super::App {
                         f.set_cursor_position((x, y));
                     }
                 }
-                AppScreen::Browse(browse) => browse.render(f, area),
-                AppScreen::Execute(execute) => {
-                    execute.render(f, area);
-                    if let Some((x, y)) = execute.cursor_position(area) {
-                        f.set_cursor_position((x, y));
-                    }
-                }
-                AppScreen::Result(result) => result.render(f, area),
-                AppScreen::ResultDetail(detail) => detail.render(f, area),
                 AppScreen::GameDetail(detail) => detail.render(f, area),
                 AppScreen::ExtrasPicker(picker) => picker.render(f, area),
                 AppScreen::Download(d) => d.render(f, area),

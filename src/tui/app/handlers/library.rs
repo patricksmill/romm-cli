@@ -195,7 +195,7 @@ impl App {
                         self.screen = AppScreen::GameDetail(Box::new(GameDetailScreen::new(
                             primary,
                             others,
-                            GameDetailPrevious::Library(Box::new(l)),
+                            GameDetailPrevious::Library(l),
                             self.downloads.shared(),
                         )));
                         self.maybe_start_game_detail_cover_load();

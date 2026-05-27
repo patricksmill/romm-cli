@@ -5,7 +5,7 @@ use super::{
 };
 use crate::client::RommClient;
 use crate::config::{Config, ExtrasDefaults};
-use crate::openapi::EndpointRegistry;
+use crate::feature_compat::supported_save_sync_compatibility;
 use crate::tui::screens::connected_splash::StartupSplash;
 use crate::tui::screens::library_browse::LibraryBrowseScreen;
 use crate::tui::screens::{GameDetailPrevious, GameDetailScreen, SearchScreen};
@@ -67,12 +67,14 @@ fn app_with_library(platforms: Vec<Platform>) -> App {
     let mut app = App::new(
         client,
         config,
-        EndpointRegistry::default(),
+        supported_save_sync_compatibility(),
         None,
         None,
         None,
     );
-    app.screen = AppScreen::LibraryBrowse(LibraryBrowseScreen::new(platforms, vec![]));
+    app.screen = AppScreen::LibraryBrowse(Box::new(LibraryBrowseScreen::new(
+        platforms, vec![],
+    )));
     app
 }
 
@@ -193,7 +195,7 @@ async fn startup_splash_enter_dismisses_without_quitting_when_update_pending() {
     let mut app = App::new(
         client,
         config,
-        EndpointRegistry::default(),
+        supported_save_sync_compatibility(),
         Some("4.0.0".into()),
         splash,
         Some(update_status_fixture()),
@@ -228,7 +230,7 @@ async fn startup_update_prompt_enter_starts_update_without_quitting() {
     let mut app = App::new(
         client,
         config,
-        EndpointRegistry::default(),
+        supported_save_sync_compatibility(),
         None,
         None,
         Some(update_status_fixture()),
@@ -261,7 +263,7 @@ async fn startup_update_prompt_esc_skips_without_quitting() {
     let mut app = App::new(
         client,
         config,
-        EndpointRegistry::default(),
+        supported_save_sync_compatibility(),
         None,
         None,
         Some(update_status_fixture()),
@@ -289,7 +291,7 @@ async fn startup_update_prompt_blocks_global_d_shortcut() {
     let app = App::new(
         client,
         config,
-        EndpointRegistry::default(),
+        supported_save_sync_compatibility(),
         None,
         None,
         Some(update_status_fixture()),
@@ -313,7 +315,7 @@ async fn startup_update_prompt_skip_closes_prompt() {
     let mut app = App::new(
         client,
         config,
-        EndpointRegistry::default(),
+        supported_save_sync_compatibility(),
         None,
         None,
         Some(update_status_fixture()),
@@ -342,7 +344,7 @@ fn search_batch_updates_results_without_stopping_loading() {
     let mut app = App::new(
         client,
         config,
-        EndpointRegistry::default(),
+        supported_save_sync_compatibility(),
         None,
         None,
         None,
@@ -385,7 +387,7 @@ fn search_complete_event_stops_loading() {
     let mut app = App::new(
         client,
         config,
-        EndpointRegistry::default(),
+        supported_save_sync_compatibility(),
         None,
         None,
         None,

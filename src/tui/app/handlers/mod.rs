@@ -1,4 +1,3 @@
-mod api_browser;
 mod download;
 mod game_detail;
 mod library;

@@ -6,7 +6,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use romm_cli::client::RommClient;
 use romm_cli::config::{Config, ExtrasDefaults};
 use romm_cli::core::utils;
-use romm_cli::openapi::EndpointRegistry;
+use romm_cli::feature_compat::supported_save_sync_compatibility;
 use romm_cli::tui::app::{App, AppScreen};
 use romm_cli::tui::screens::library_browse::{
     LibraryBrowseScreen, LibrarySearchMode, LibraryViewMode,
@@ -49,7 +49,7 @@ async fn test_main_menu_api_error_shows_popup() {
     let mut app = App::new(
         client,
         config,
-        EndpointRegistry::default(),
+        supported_save_sync_compatibility(),
         None,
         None,
         None,
@@ -129,7 +129,7 @@ async fn test_main_menu_success_transitions_to_library() {
     let mut app = App::new(
         client,
         config,
-        EndpointRegistry::default(),
+        supported_save_sync_compatibility(),
         None,
         None,
         None,
@@ -165,7 +165,7 @@ async fn main_menu_fifth_item_is_exit() {
     let mut app = App::new(
         client,
         config,
-        EndpointRegistry::default(),
+        supported_save_sync_compatibility(),
         None,
         None,
         None,
@@ -203,7 +203,7 @@ async fn library_filter_mode_d_types_in_search_bar_not_downloads() {
     let mut app = App::new(
         client,
         config,
-        EndpointRegistry::default(),
+        supported_save_sync_compatibility(),
         None,
         None,
         None,
@@ -212,7 +212,7 @@ async fn library_filter_mode_d_types_in_search_bar_not_downloads() {
     let mut lib = LibraryBrowseScreen::new(vec![], vec![]);
     lib.view_mode = LibraryViewMode::Roms;
     lib.enter_rom_search(LibrarySearchMode::Filter);
-    app.screen = AppScreen::LibraryBrowse(lib);
+    app.screen = AppScreen::LibraryBrowse(Box::new(lib));
 
     let quit = app
         .handle_key_event(&KeyEvent::new(KeyCode::Char('d'), KeyModifiers::empty()))
@@ -269,7 +269,7 @@ async fn library_filter_enter_then_enter_opens_game_detail() {
     let mut app = App::new(
         client,
         config,
-        EndpointRegistry::default(),
+        supported_save_sync_compatibility(),
         None,
         None,
         None,
@@ -291,7 +291,7 @@ async fn library_filter_enter_then_enter_opens_game_detail() {
     for c in "al".chars() {
         lib.add_rom_search_char(c);
     }
-    app.screen = AppScreen::LibraryBrowse(lib);
+    app.screen = AppScreen::LibraryBrowse(Box::new(lib));
 
     assert!(!app
         .handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()))
@@ -336,7 +336,7 @@ async fn game_detail_download_is_blocked_when_config_download_path_is_invalid() 
     let mut app = App::new(
         client,
         config,
-        EndpointRegistry::default(),
+        supported_save_sync_compatibility(),
         None,
         None,
         None,
@@ -354,7 +354,7 @@ async fn game_detail_download_is_blocked_when_config_download_path_is_invalid() 
     lib.roms = Some(rom_list);
     lib.rom_groups = Some(utils::group_roms_by_name(&items));
     lib.view_mode = LibraryViewMode::Roms;
-    app.screen = AppScreen::LibraryBrowse(lib);
+    app.screen = AppScreen::LibraryBrowse(Box::new(lib));
 
     assert!(!app
         .handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()))
@@ -399,7 +399,7 @@ async fn game_detail_download_skips_when_rom_already_exists_in_console_folder() 
     let mut app = App::new(
         client,
         config,
-        EndpointRegistry::default(),
+        supported_save_sync_compatibility(),
         None,
         None,
         None,
@@ -417,7 +417,7 @@ async fn game_detail_download_skips_when_rom_already_exists_in_console_folder() 
     lib.roms = Some(rom_list);
     lib.rom_groups = Some(utils::group_roms_by_name(&items));
     lib.view_mode = LibraryViewMode::Roms;
-    app.screen = AppScreen::LibraryBrowse(lib);
+    app.screen = AppScreen::LibraryBrowse(Box::new(lib));
 
     assert!(!app
         .handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()))
