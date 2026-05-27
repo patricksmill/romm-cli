@@ -287,7 +287,7 @@ impl SetupWizard {
             }
             Step::Download => self
                 .download_picker
-                .cursor_position(inner, "Step 3/5 — ROMs directory"),
+                .cursor_position(inner, "Step 3/6 — ROMs directory"),
             Step::Bearer => {
                 let x = inner.x + 1 + self.bearer_cursor.min(self.bearer_token.len()) as u16;
                 Some((x, inner.y + 1))
