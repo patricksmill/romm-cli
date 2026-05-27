@@ -1,0 +1,68 @@
+//! Setup wizard key handler.
+
+use anyhow::Result;
+use crossterm::event::KeyEvent;
+use ratatui::style::Color;
+
+use crate::client::RommClient;
+
+use super::super::{App, AppScreen};
+use crate::tui::screens::SettingsScreen;
+
+impl App {
+    pub(in crate::tui::app) async fn handle_setup_wizard(
+        &mut self,
+        key: &KeyEvent,
+    ) -> Result<bool> {
+        let wizard = match &mut self.screen {
+            AppScreen::SetupWizard(w) => w,
+            _ => return Ok(false),
+        };
+
+        if wizard.handle_key(key)? {
+            // Esc pressed
+            self.screen = AppScreen::Settings(Box::new(SettingsScreen::new(
+                &self.config,
+                self.server_version.as_deref(),
+                self.save_sync_compat.clone(),
+            )));
+            return Ok(false);
+        }
+
+        if wizard.testing {
+            let result = wizard.try_connect_and_persist(self.client.verbose()).await;
+            wizard.testing = false;
+            match result {
+                Ok(cfg) => {
+                    let auth_ok = cfg.auth.is_some();
+                    self.config = cfg;
+                    if let Ok(new_client) = RommClient::new(&self.config, self.client.verbose()) {
+                        self.client = new_client;
+                    }
+                    let mut settings = SettingsScreen::new(
+                        &self.config,
+                        self.server_version.as_deref(),
+                        self.save_sync_compat.clone(),
+                    );
+                    if auth_ok {
+                        settings.message = Some((
+                            "Authentication updated successfully".to_string(),
+                            Color::Green,
+                        ));
+                    } else {
+                        settings.message = Some((
+                            "Saved configuration but credentials could not be loaded from the OS keyring (see logs)."
+                                .to_string(),
+                            Color::Yellow,
+                        ));
+                    }
+                    self.screen = AppScreen::Settings(Box::new(settings));
+                }
+                Err(e) => {
+                    wizard.error = Some(format!("{e:#}"));
+                }
+            }
+        }
+        Ok(false)
+    }
+}
