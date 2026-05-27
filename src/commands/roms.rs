@@ -13,13 +13,14 @@ use crate::commands::library_scan::{
 };
 use crate::commands::print::print_roms_table;
 use crate::commands::OutputFormat;
+use crate::core::resolve::{
+    resolve_manual_collection_id, resolve_platform_id, resolve_platform_ids,
+    resolve_smart_collection_id,
+};
+use crate::endpoints::roms::GetRom;
 use crate::endpoints::roms::{
     DeleteRomNote, DeleteRoms, GetRomByHash, GetRomByMetadataProvider, GetRomFilters, GetRomNotes,
     GetRoms, GetSearchCover, GetSearchRoms, PostRomNote, PutRomNote, PutRomUserProps,
-};
-use crate::services::{self};
-use crate::services::{
-    resolve_manual_collection_id, resolve_platform_ids, resolve_smart_collection_id, RomService,
 };
 
 /// Optional tri-state: CLI passes `true` / `false` / `yes` / `no` / `1` / `0`.
@@ -374,16 +375,14 @@ pub async fn handle(cmd: RomsCommand, client: &RommClient, format: OutputFormat)
     match cmd.action {
         None => {
             let ep = build_get_roms(client, cmd.list.clone()).await?;
-            let service = RomService::new(client);
-            let results = service.search_roms(&ep).await?;
+            let results = client.call(&ep).await?;
             match format {
                 OutputFormat::Json => println!("{}", serde_json::to_string_pretty(&results)?),
                 OutputFormat::Text => print_roms_table(&results),
             }
         }
         Some(RomsAction::Get { id }) => {
-            let service = RomService::new(client);
-            let rom = service.get_rom(id).await?;
+            let rom = client.call(&GetRom { id }).await?;
             match format {
                 OutputFormat::Json => println!("{}", serde_json::to_string_pretty(&rom)?),
                 OutputFormat::Text => println!("{}", serde_json::to_string_pretty(&rom)?),
@@ -601,11 +600,8 @@ pub async fn handle(cmd: RomsCommand, client: &RommClient, format: OutputFormat)
             wait,
             wait_timeout_secs,
         }) => {
-            let resolved_platform_id = match services::resolve_platform_id(
-                client,
-                Some(platform.trim()),
-            )
-            .await?
+            let resolved_platform_id = match resolve_platform_id(client, Some(platform.trim()))
+                .await?
             {
                 Some(id) => id,
                 None => {

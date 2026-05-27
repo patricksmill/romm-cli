@@ -21,16 +21,9 @@ pub fn group_roms_by_name(items: &[Rom]) -> Vec<RomGroup> {
     }
     let mut groups = Vec::with_capacity(by_group.len());
     for ((name, _platform_id), mut roms) in by_group {
-        roms.sort_by(|a, b| {
-            let a_extra = a.fs_name.to_lowercase().contains("[update]")
-                || a.fs_name.to_lowercase().contains("[dlc]");
-            let b_extra = b.fs_name.to_lowercase().contains("[update]")
-                || b.fs_name.to_lowercase().contains("[dlc]");
-            match (a_extra, b_extra) {
-                (false, true) => std::cmp::Ordering::Less,
-                (true, false) => std::cmp::Ordering::Greater,
-                _ => std::cmp::Ordering::Equal,
-            }
+        roms.sort_by_cached_key(|r| {
+            let lower = r.fs_name.to_lowercase();
+            lower.contains("[update]") || lower.contains("[dlc]")
         });
         let primary = roms.remove(0);
         groups.push(RomGroup {

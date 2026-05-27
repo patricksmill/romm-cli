@@ -1,10 +1,7 @@
 //! ROM list fetch and collection prefetch scheduling.
 
-use anyhow::Result;
-
-use crate::client::RommClient;
+use crate::core::roms::fetch_roms_paginated;
 use crate::endpoints::roms::GetRoms;
-use crate::types::RomList;
 
 use super::background::types::CollectionPrefetchDone;
 use super::AppScreen;
@@ -61,7 +58,7 @@ impl super::App {
             let tx = self.collection_prefetch_tx.clone();
             let client = self.client.clone();
             tokio::spawn(async move {
-                let result = Self::fetch_roms_full(client, req).await;
+                let result = fetch_roms_paginated(&client, &req).await;
                 let (roms, warning) = match result {
                     Ok(list) => (Some(list), None),
                     Err(e) => (None, Some(format!("Collection prefetch failed: {e:#}"))),
@@ -74,23 +71,5 @@ impl super::App {
                 });
             });
         }
-    }
-    pub(in crate::tui::app) async fn fetch_roms_full(
-        client: RommClient,
-        req: GetRoms,
-    ) -> Result<RomList> {
-        let mut roms = client.call(&req).await?;
-        let total = roms.total;
-        let ceiling = 20000;
-        while (roms.items.len() as u64) < total && (roms.items.len() as u64) < ceiling {
-            let mut next_req = req.clone();
-            next_req.offset = Some(roms.items.len() as u32);
-            let next_batch = client.call(&next_req).await?;
-            if next_batch.items.is_empty() {
-                break;
-            }
-            roms.items.extend(next_batch.items);
-        }
-        Ok(roms)
     }
 }

@@ -94,7 +94,7 @@ impl App {
                             Instant::now(),
                         ));
                     }
-                    self.screen = AppScreen::LibraryBrowse(lib);
+                    self.screen = AppScreen::LibraryBrowse(Box::new(lib));
                     self.spawn_library_metadata_refresh();
                     tracing::debug!(
                         "library-open latency_ms={} snapshot_hit={}",

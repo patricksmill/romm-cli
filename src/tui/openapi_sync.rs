@@ -1,5 +1,5 @@
-//! Load the RomM OpenAPI spec for the API browser: prefer the live server, fall back to cache,
-//! then a bundled copy shipped in the binary so the TUI always starts without manual `openapi.json`.
+//! Load the RomM OpenAPI spec at TUI startup: prefer the live server, fall back to cache,
+//! then a bundled copy shipped in the binary. Used for save-sync compatibility and server version.
 
 use anyhow::{anyhow, Result};
 use serde_json::Value;
@@ -80,7 +80,7 @@ pub async fn sync_openapi_registry(
             } else {
                 tracing::warn!(
                     "Using bundled OpenAPI spec (server unreachable: {:#}). \
-                     API browser paths match the build-time snapshot; connect to refresh from your server.",
+                     OpenAPI paths match the build-time snapshot; connect to refresh from your server.",
                     e
                 );
                 EMBEDDED_OPENAPI_JSON.to_string()

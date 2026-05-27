@@ -1,77 +1,13 @@
-//! Small service objects that wrap `RommClient` for higher-level operations.
-//!
-//! These are used by the CLI commands to keep a clear separation between
-//! \"how we talk to ROMM\" (HTTP) and \"what we want to do\" (list
-//! platforms, search ROMs, etc.).
+//! Shared name/slug → ID resolution for platforms and collections.
 
 use anyhow::{anyhow, Result};
 
 use crate::client::RommClient;
 use crate::endpoints::collections::{ListCollections, ListSmartCollections};
-use crate::endpoints::{
-    platforms::{GetPlatform, ListPlatforms},
-    roms::{GetRom, GetRoms},
-};
-use crate::types::{Collection, Platform, Rom, RomList};
-
-/// Service for interacting with platform-related API endpoints.
-///
-/// This service provides higher-level methods for listing and retrieving
-/// platforms, abstracting away the underlying endpoint definitions.
-pub struct PlatformService<'a> {
-    client: &'a RommClient,
-}
-
-impl<'a> PlatformService<'a> {
-    /// Creates a new `PlatformService` using the provided client.
-    pub fn new(client: &'a RommClient) -> Self {
-        Self { client }
-    }
-
-    /// Lists all platforms from the RomM API.
-    pub async fn list_platforms(&self) -> Result<Vec<Platform>> {
-        let platforms = self.client.call(&ListPlatforms).await?;
-        Ok(platforms)
-    }
-
-    /// Retrieves a single platform by its unique identifier.
-    pub async fn get_platform(&self, id: u64) -> Result<Platform> {
-        let platform = self.client.call(&GetPlatform { id }).await?;
-        Ok(platform)
-    }
-}
-
-/// Service for interacting with ROM-related API endpoints.
-///
-/// This service provides methods for searching and retrieving ROMs,
-/// abstracting away the underlying endpoint definitions.
-pub struct RomService<'a> {
-    client: &'a RommClient,
-}
-
-impl<'a> RomService<'a> {
-    /// Creates a new `RomService` using the provided client.
-    pub fn new(client: &'a RommClient) -> Self {
-        Self { client }
-    }
-
-    /// Searches or lists ROMs using the provided request descriptor.
-    pub async fn search_roms(&self, ep: &GetRoms) -> Result<RomList> {
-        let results = self.client.call(ep).await?;
-        Ok(results)
-    }
-
-    /// Retrieves a single ROM by its unique identifier.
-    pub async fn get_rom(&self, id: u64) -> Result<Rom> {
-        let rom = self.client.call(&GetRom { id }).await?;
-        Ok(rom)
-    }
-}
+use crate::endpoints::platforms::ListPlatforms;
+use crate::types::{Collection, Platform};
 
 /// Resolves a platform ID from a string query by matching against slugs, names, and custom names.
-///
-/// This is used to handle platform lookups from CLI arguments where the user
-/// might provide a name or slug instead of a numeric ID.
 pub fn resolve_platform_id_from_list(query: &str, platforms: &[Platform]) -> Result<u64> {
     let normalized = query.trim().to_ascii_lowercase();
 
@@ -116,8 +52,6 @@ pub fn resolve_platform_id_from_list(query: &str, platforms: &[Platform]) -> Res
 }
 
 /// Resolves a platform query (slug or name) to a numeric ID.
-///
-/// If the query is empty or `None`, returns `Ok(None)`.
 pub async fn resolve_platform_id(
     client: &RommClient,
     platform_query: Option<&str>,
@@ -125,8 +59,7 @@ pub async fn resolve_platform_id(
     let Some(query) = platform_query.map(str::trim).filter(|q| !q.is_empty()) else {
         return Ok(None);
     };
-    let service = PlatformService::new(client);
-    let platforms = service.list_platforms().await?;
+    let platforms = client.call(&ListPlatforms).await?;
     resolve_platform_id_from_list(query, &platforms).map(Some)
 }
 
@@ -135,8 +68,7 @@ pub async fn resolve_platform_ids(client: &RommClient, names: &[String]) -> Resu
     if names.is_empty() {
         return Ok(Vec::new());
     }
-    let service = PlatformService::new(client);
-    let platforms = service.list_platforms().await?;
+    let platforms = client.call(&ListPlatforms).await?;
     let mut out = Vec::new();
     for n in names {
         let id = resolve_platform_id_from_list(n.trim(), &platforms)?;

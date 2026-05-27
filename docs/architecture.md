@@ -35,7 +35,8 @@ The CLI layer itself is split into:
 - `commands::mod` – top-level `Cli` and `Commands` enum plus `OutputFormat`.
 - `commands::platforms` / `commands::roms` / `commands::api` / `commands::auth` / `commands::download` / `commands::scan` / `commands::sync` / `commands::cache` / `commands::init` / `commands::update` – small modules that parse arguments, call into services, and print results. Library scan HTTP for both `scan` and upload-triggered scans lives in `commands::library_scan`.
 - `commands::print` – helpers for tabular text output.
-- `services` – `PlatformService` and `RomService` wrappers around endpoint calls, plus shared resolvers (platform and collection name/id helpers).
+- `core::resolve` – platform/collection name→ID helpers shared by CLI commands.
+- `core::roms` – paginated ROM list fetching shared by TUI prefetch paths.
 
 There are no TUI/CLI dependencies inside the core services, which makes it straightforward to add more frontends later.
 
@@ -59,8 +60,8 @@ The TUI and CLI both operate on the same `RommClient` and model types.
 
 The TUI uses:
 
-- `AppScreen` – an enum with variants for each high-level screen (`MainMenu`, `LibraryBrowse`, `Search`, `Settings`, `Browse`, `Execute`, `Result`, `ResultDetail`, `GameDetail`, `Download`, `SetupWizard`).
-- `App` – a struct that owns shared services (`RommClient`, `RomCache`, `DownloadManager`) and the current `AppScreen`. It also holds shared state like the `EndpointRegistry` (for the API browser), `server_version`, `startup_splash`, and `deferred_load_roms`.
+- `AppScreen` – an enum with variants for each high-level screen (`MainMenu`, `LibraryBrowse`, `Search`, `Settings`, `GameDetail`, `Download`, `SetupWizard`).
+- `App` – a struct that owns shared services (`RommClient`, `RomCache`, `DownloadManager`) and the current `AppScreen`. It also holds shared state like `save_sync_compat` (from OpenAPI at startup), `server_version`, `startup_splash`, and `deferred_load_roms`.
 
 Each key press is dispatched to a method like `handle_main_menu` or `handle_library_browse`, which matches on `self.screen`, mutates it, and possibly transitions to another variant.
 

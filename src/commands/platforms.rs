@@ -4,7 +4,7 @@ use clap::{Args, Subcommand};
 use crate::client::RommClient;
 use crate::commands::print::print_platforms_table;
 use crate::commands::OutputFormat;
-use crate::services::PlatformService;
+use crate::endpoints::platforms::{GetPlatform, ListPlatforms};
 
 /// CLI entrypoint for platform-related operations.
 #[derive(Args, Debug)]
@@ -38,10 +38,9 @@ pub async fn handle(
 ) -> Result<()> {
     let action = cmd.action.unwrap_or(PlatformsAction::List);
 
-    let service = PlatformService::new(client);
     match action {
         PlatformsAction::List => {
-            let platforms = service.list_platforms().await?;
+            let platforms = client.call(&ListPlatforms).await?;
 
             match format {
                 OutputFormat::Json => {
@@ -53,7 +52,7 @@ pub async fn handle(
             }
         }
         PlatformsAction::Get { id } => {
-            let platform = service.get_platform(id).await?;
+            let platform = client.call(&GetPlatform { id }).await?;
 
             match format {
                 OutputFormat::Json => {

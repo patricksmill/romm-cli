@@ -6,5 +6,7 @@ pub mod cache;
 pub mod download;
 pub mod extras;
 pub mod interrupt;
+pub mod resolve;
+pub mod roms;
 pub mod startup_library_snapshot;
 pub mod utils;

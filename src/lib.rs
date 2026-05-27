@@ -47,8 +47,6 @@ pub mod feature_compat;
 pub mod frontend;
 /// OpenAPI parsing and endpoint lookup helpers.
 pub mod openapi;
-/// High-level service objects for common operations.
-pub mod services;
 /// TUI implementation (requires the `tui` feature).
 #[cfg(feature = "tui")]
 pub mod tui;
