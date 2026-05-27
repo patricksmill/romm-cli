@@ -36,6 +36,20 @@ Each screen is its own struct under `src/tui/screens/`:
 
 The `AppScreen` enum in `tui::app` wraps these screen structs so that `App` only ever has one active screen at a time. During startup, a `StartupSplash` overlay (`screens/connected_splash`) may render before the main menu appears.
 
+## App module layout
+
+The TUI state machine lives under `src/tui/app/` (not a single file):
+
+- `mod.rs` — `App`, `AppScreen`, `App::new`, key dispatch (`handle_key_event`), shortcut guards
+- `run.rs` — terminal event loop (`App::run`)
+- `render.rs` — frame drawing and global overlays (errors, update prompt)
+- `background/` — async task completion types and spawn/poll helpers (`poll_background_tasks`)
+- `handlers/` — one module per screen group (`library.rs`, `settings.rs`, …)
+- `rom_load.rs` — ROM list fetch and collection prefetch scheduling
+- `tests.rs` — unit tests for app behavior
+
+Public exports are unchanged: `romm_cli::tui::app::{App, AppScreen}`.
+
 ## Layout and scrolling
 
 `ratatui::layout::Layout` is used extensively to divide the terminal into smaller `Rect`s:
