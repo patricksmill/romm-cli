@@ -4,9 +4,7 @@ use ratatui_image::picker::ProtocolType;
 
 use super::cover::detect_cover_protocol_from_env;
 use super::saves::save_lines;
-use super::types::{
-    CoverState, GameDetailPrevious, GameDetailScreen, SaveListState,
-};
+use super::types::{CoverState, GameDetailPrevious, GameDetailScreen, SaveListState};
 use crate::tui::screens::SearchScreen;
 use crate::types::SaveMetadata;
 

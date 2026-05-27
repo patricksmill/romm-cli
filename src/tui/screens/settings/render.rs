@@ -5,8 +5,7 @@ use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Tab
 use ratatui::Frame;
 
 use super::types::{
-    ConsolePathKind, SettingsConfirm, SettingsPickerKind, SettingsRow, SettingsScreen,
-    SettingsTab,
+    ConsolePathKind, SettingsConfirm, SettingsPickerKind, SettingsRow, SettingsScreen, SettingsTab,
 };
 
 impl SettingsScreen {

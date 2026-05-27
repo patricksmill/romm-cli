@@ -4,9 +4,7 @@ use crate::tui::text_search::{
 };
 use crate::types::{Collection, Platform, Rom, RomList};
 
-use super::types::{
-    LibraryBrowseScreen, LibrarySubsection, LibraryViewMode, UploadPrompt,
-};
+use super::types::{LibraryBrowseScreen, LibrarySubsection, LibraryViewMode, UploadPrompt};
 
 impl LibraryBrowseScreen {
     pub fn new(platforms: Vec<Platform>, collections: Vec<Collection>) -> Self {
@@ -385,5 +383,4 @@ impl LibraryBrowseScreen {
             LibrarySubsection::ByCollection => None,
         }
     }
-
 }

@@ -2,15 +2,15 @@ use std::collections::HashMap;
 
 use ratatui::style::Color;
 
-use crate::feature_compat::SaveSyncCompatibility;
 use crate::config::{
     disk_has_unresolved_keyring_sentinel, Config, RomsLayoutConfig, SaveSyncConfig,
 };
+use crate::feature_compat::SaveSyncCompatibility;
 use crate::tui::path_picker::{PathPicker, PathPickerMode};
 
 use super::types::{
-    ConsolePathKind, SettingsConfirm, SettingsPickerKind, SettingsRow, SettingsScreen,
-    SettingsTab, AUTH_MAINT_ROWS, CONNECTION_ROWS, EXTRAS_ROWS, SAVES_ROWS,
+    ConsolePathKind, SettingsConfirm, SettingsPickerKind, SettingsRow, SettingsScreen, SettingsTab,
+    AUTH_MAINT_ROWS, CONNECTION_ROWS, EXTRAS_ROWS, SAVES_ROWS,
 };
 
 impl SettingsScreen {

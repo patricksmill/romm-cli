@@ -18,9 +18,9 @@ use crate::core::extras::{
     DownloadTarget,
 };
 use crate::core::interrupt::{cancelled_error, is_cancelled_error, InterruptContext};
+use crate::core::resolve::resolve_platform_id;
 use crate::core::utils;
 use crate::endpoints::roms::{GetRom, GetRoms};
-use crate::core::resolve::resolve_platform_id;
 /// Maximum number of concurrent download connections.
 const DEFAULT_CONCURRENCY: usize = 4;
 
@@ -812,7 +812,8 @@ mod tests {
             None,
             None,
         )];
-        let id = resolve_platform_id_from_list("nintendo 3ds", &platforms).expect("name should resolve");
+        let id =
+            resolve_platform_id_from_list("nintendo 3ds", &platforms).expect("name should resolve");
         assert_eq!(id, 4);
     }
 
@@ -822,7 +823,8 @@ mod tests {
             platform_fixture(7, "foo-a", "foo-a", "Arcade", None, None),
             platform_fixture(8, "foo-b", "foo-b", "Arcade", None, None),
         ];
-        let err = resolve_platform_id_from_list("Arcade", &platforms).expect_err("should be ambiguous");
+        let err =
+            resolve_platform_id_from_list("Arcade", &platforms).expect_err("should be ambiguous");
         assert!(
             err.to_string().contains("ambiguous"),
             "unexpected error: {err:#}"

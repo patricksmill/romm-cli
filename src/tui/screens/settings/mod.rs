@@ -9,6 +9,5 @@ mod types;
 mod tests;
 
 pub use types::{
-    ConsolePathKind, SettingsConfirm, SettingsPickerKind, SettingsRow, SettingsScreen,
-    SettingsTab,
+    ConsolePathKind, SettingsConfirm, SettingsPickerKind, SettingsRow, SettingsScreen, SettingsTab,
 };

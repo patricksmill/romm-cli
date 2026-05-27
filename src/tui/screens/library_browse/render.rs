@@ -1,13 +1,13 @@
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Style};
-use ratatui::widgets::{Block, Borders, Cell, Clear, List, ListItem, ListState, Paragraph, Row, Table};
+use ratatui::widgets::{
+    Block, Borders, Cell, Clear, List, ListItem, ListState, Paragraph, Row, Table,
+};
 use ratatui::Frame;
 
 use crate::tui::text_search::LibrarySearchMode;
 
-use super::types::{
-    LibraryBrowseScreen, LibrarySubsection, LibraryViewMode,
-};
+use super::types::{LibraryBrowseScreen, LibrarySubsection, LibraryViewMode};
 
 impl LibraryBrowseScreen {
     pub fn render(&mut self, f: &mut Frame, area: Rect) {

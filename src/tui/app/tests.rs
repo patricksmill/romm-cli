@@ -72,9 +72,7 @@ fn app_with_library(platforms: Vec<Platform>) -> App {
         None,
         None,
     );
-    app.screen = AppScreen::LibraryBrowse(Box::new(LibraryBrowseScreen::new(
-        platforms, vec![],
-    )));
+    app.screen = AppScreen::LibraryBrowse(Box::new(LibraryBrowseScreen::new(platforms, vec![])));
     app
 }
 

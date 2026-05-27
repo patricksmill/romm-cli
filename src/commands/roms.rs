@@ -13,15 +13,15 @@ use crate::commands::library_scan::{
 };
 use crate::commands::print::print_roms_table;
 use crate::commands::OutputFormat;
-use crate::endpoints::roms::{
-    DeleteRomNote, DeleteRoms, GetRomByHash, GetRomByMetadataProvider, GetRomFilters, GetRomNotes,
-    GetRoms, GetSearchCover, GetSearchRoms, PostRomNote, PutRomNote, PutRomUserProps,
-};
 use crate::core::resolve::{
     resolve_manual_collection_id, resolve_platform_id, resolve_platform_ids,
     resolve_smart_collection_id,
 };
 use crate::endpoints::roms::GetRom;
+use crate::endpoints::roms::{
+    DeleteRomNote, DeleteRoms, GetRomByHash, GetRomByMetadataProvider, GetRomFilters, GetRomNotes,
+    GetRoms, GetSearchCover, GetSearchRoms, PostRomNote, PutRomNote, PutRomUserProps,
+};
 
 /// Optional tri-state: CLI passes `true` / `false` / `yes` / `no` / `1` / `0`.
 fn parse_opt_bool(label: &str, raw: &Option<String>) -> Result<Option<bool>> {
@@ -600,11 +600,8 @@ pub async fn handle(cmd: RomsCommand, client: &RommClient, format: OutputFormat)
             wait,
             wait_timeout_secs,
         }) => {
-            let resolved_platform_id = match resolve_platform_id(
-                client,
-                Some(platform.trim()),
-            )
-            .await?
+            let resolved_platform_id = match resolve_platform_id(client, Some(platform.trim()))
+                .await?
             {
                 Some(id) => id,
                 None => {
