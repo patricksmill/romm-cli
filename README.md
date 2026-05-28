@@ -115,6 +115,7 @@ Set these in your shell (or any tool that injects env vars into the process) for
 | `ROMM_USER_AGENT` | Optional. Override the HTTP `User-Agent` (some proxies block non-browser defaults). |
 | `ROMM_VERBOSE` | Set to `1`/`true` to enable verbose mode for the standalone `romm-tui` binary (same as passing `--verbose` to `romm-cli`) |
 | `ROMM_CHECK_UPDATES` | Optional. Set to `false`/`0`/`no`/`off` to disable startup update checks and prompts in CLI/TUI. |
+| `ROMM_THEME` | Optional. TUI color theme ID (overrides `theme` in `config.json`). Built-in IDs include `terminal`, `catppuccin`, `dracula`, `nord`, `tokyo-night`, and others from Settings → Appearance. Default: `terminal`. Respects `NO_COLOR`. |
 
 ### Custom console paths
 

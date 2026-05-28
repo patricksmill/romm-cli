@@ -49,6 +49,17 @@ The TUI state machine lives under `src/tui/app/` (not a single file):
 
 Public exports are unchanged: `romm_cli::tui::app::{App, AppScreen}`.
 
+## Theming
+
+The TUI uses [ratatui-themekit](https://docs.rs/ratatui-themekit) preset palettes via `tui::theme::RommStyles`. `App` holds a resolved theme (`Box<dyn Theme>`) loaded from `config.json` (`theme` field, default `terminal`) or `ROMM_THEME`.
+
+- **Settings → Appearance** — cycle presets with ←/→; live preview; **S** saves to `config.json`.
+- **`terminal`** — ANSI named colors (widest terminal compatibility).
+- **RGB presets** (Dracula, Nord, Tokyo Night, …) — need a truecolor-capable terminal (Windows Terminal, iTerm2, Alacritty, etc.).
+- **`NO_COLOR=1`** — disables styling (no-color preset).
+
+Semantic roles (`selection`, `label`, `success`, `error`, `warning`, `muted`) map to theme slots in `src/tui/theme.rs`. Screen renderers take `&RommStyles` instead of hardcoded colors.
+
 ## Layout and scrolling
 
 `ratatui::layout::Layout` is used extensively to divide the terminal into smaller `Rect`s:
