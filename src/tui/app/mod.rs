@@ -34,6 +34,8 @@ use super::screens::{
     DownloadScreen, ExtrasPickerScreen, GameDetailScreen, LibraryBrowseScreen, MainMenuScreen,
     SearchScreen, SettingsScreen,
 };
+use super::theme::{resolve_theme_or_default, RommStyles};
+use ratatui_themekit::Theme;
 
 use background::types::{
     CollectionPrefetchDone, CoverLoadDone, DeferredLoadRoms, DeviceListDone,
@@ -124,6 +126,7 @@ pub struct App {
     platform_list_tx: tokio::sync::mpsc::UnboundedSender<PlatformListDone>,
     sync_push_pull_rx: tokio::sync::mpsc::UnboundedReceiver<SyncPushPullDone>,
     sync_push_pull_tx: tokio::sync::mpsc::UnboundedSender<SyncPushPullDone>,
+    theme: Box<dyn Theme>,
 }
 
 impl App {
@@ -182,6 +185,7 @@ impl App {
         let (device_list_tx, device_list_rx) = tokio::sync::mpsc::unbounded_channel();
         let (platform_list_tx, platform_list_rx) = tokio::sync::mpsc::unbounded_channel();
         let (sync_push_pull_tx, sync_push_pull_rx) = tokio::sync::mpsc::unbounded_channel();
+        let theme = resolve_theme_or_default(&config.theme);
         Self {
             screen: AppScreen::MainMenu(MainMenuScreen::new()),
             client,
@@ -236,7 +240,17 @@ impl App {
             platform_list_tx,
             sync_push_pull_rx,
             sync_push_pull_tx,
+            theme,
         }
+    }
+
+    pub(crate) fn styles(&self) -> RommStyles<'_> {
+        RommStyles::new(self.theme.as_ref())
+    }
+
+    pub(crate) fn set_theme_id(&mut self, id: &str) {
+        self.theme = resolve_theme_or_default(id);
+        self.config.theme = id.to_string();
     }
     pub fn set_error(&mut self, err: anyhow::Error) {
         self.global_error = Some(format!("{:#}", err));
