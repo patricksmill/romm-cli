@@ -3,10 +3,12 @@
 use std::time::{Duration, Instant};
 
 use ratatui::layout::{Alignment, Rect};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::Modifier;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
+
+use crate::tui::theme::RommStyles;
 
 /// Shown briefly before the main menu when the server is reachable.
 pub struct StartupSplash {
@@ -29,7 +31,7 @@ impl StartupSplash {
     }
 }
 
-pub fn render(f: &mut Frame, area: Rect, splash: &StartupSplash) {
+pub fn render(f: &mut Frame, area: Rect, splash: &StartupSplash, styles: &RommStyles) {
     let ver_line = splash
         .server_version
         .as_ref()
@@ -39,20 +41,18 @@ pub fn render(f: &mut Frame, area: Rect, splash: &StartupSplash) {
     let lines = vec![
         Line::from(vec![Span::styled(
             "✓ Connected",
-            Style::default()
-                .fg(Color::Green)
-                .add_modifier(Modifier::BOLD),
+            styles.success().add_modifier(Modifier::BOLD),
         )]),
         Line::from(""),
         Line::from(Span::styled(
             splash.base_url.to_string(),
-            Style::default().fg(Color::White),
+            styles.primary_text(),
         )),
-        Line::from(Span::styled(ver_line, Style::default().fg(Color::DarkGray))),
+        Line::from(Span::styled(ver_line, styles.muted())),
         Line::from(""),
         Line::from(Span::styled(
             "Enter or Esc — continue",
-            Style::default().fg(Color::Cyan),
+            styles.footer_hint(),
         )),
     ];
 
@@ -60,7 +60,7 @@ pub fn render(f: &mut Frame, area: Rect, splash: &StartupSplash) {
         Block::default()
             .title("romm-cli")
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Green)),
+            .border_style(styles.success()),
     );
     f.render_widget(p, area);
 }

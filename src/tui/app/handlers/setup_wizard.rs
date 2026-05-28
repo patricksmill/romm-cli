@@ -2,9 +2,8 @@
 
 use anyhow::Result;
 use crossterm::event::KeyEvent;
-use ratatui::style::Color;
-
 use crate::client::RommClient;
+use crate::tui::theme::MessageTone;
 
 use super::super::{App, AppScreen};
 use crate::tui::screens::SettingsScreen;
@@ -47,13 +46,13 @@ impl App {
                     if auth_ok {
                         settings.message = Some((
                             "Authentication updated successfully".to_string(),
-                            Color::Green,
+                            MessageTone::Success,
                         ));
                     } else {
                         settings.message = Some((
                             "Saved configuration but credentials could not be loaded from the OS keyring (see logs)."
                                 .to_string(),
-                            Color::Yellow,
+                            MessageTone::Warning,
                         ));
                     }
                     self.screen = AppScreen::Settings(Box::new(settings));

@@ -4,9 +4,11 @@ use std::path::{Path, PathBuf};
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph};
 use ratatui::Frame;
+
+use crate::tui::theme::RommStyles;
 
 /// Whether the user must pick a directory or a regular file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -377,7 +379,14 @@ impl PathPicker {
         }
     }
 
-    pub fn render(&mut self, f: &mut Frame, area: Rect, title: &str, footer_hint: &str) {
+    pub fn render(
+        &mut self,
+        f: &mut Frame,
+        area: Rect,
+        title: &str,
+        footer_hint: &str,
+        styles: &RommStyles,
+    ) {
         let block = Block::default().title(title).borders(Borders::ALL);
         let inner = block.inner(area);
         f.render_widget(block, area);
@@ -399,7 +408,7 @@ impl PathPicker {
         let before: String = self.path_text.chars().take(self.path_cursor).collect();
         let after: String = self.path_text.chars().skip(self.path_cursor).collect();
         let path_style = if self.focus == PathPickerFocus::PathBar {
-            Style::default().fg(Color::Yellow)
+            styles.selection()
         } else {
             Style::default()
         };
@@ -414,7 +423,7 @@ impl PathPicker {
 
         if let Some(ref err) = self.io_error {
             f.render_widget(
-                Paragraph::new(format!("⚠ {err}")).style(Style::default().fg(Color::Red)),
+                Paragraph::new(format!("⚠ {err}")).style(styles.error()),
                 Rect {
                     x: chunks[0].x,
                     y: chunks[0].y + 1,
@@ -426,7 +435,7 @@ impl PathPicker {
 
         let list_block = Block::default().borders(Borders::ALL).border_style(
             if self.focus == PathPickerFocus::List {
-                Style::default().fg(Color::Yellow)
+                styles.border_focus()
             } else {
                 Style::default()
             },
@@ -439,26 +448,20 @@ impl PathPicker {
             .iter()
             .map(|e| {
                 let style = if e.is_use_here {
-                    Style::default()
-                        .fg(Color::Green)
-                        .add_modifier(Modifier::BOLD)
+                    styles.success().add_modifier(Modifier::BOLD)
                 } else if !e.is_dir {
-                    Style::default().fg(Color::DarkGray)
+                    styles.muted()
                 } else {
                     Style::default()
                 };
                 ListItem::new(e.label.clone()).style(style)
             })
             .collect();
-        let list = List::new(items).highlight_style(
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
-        );
+        let list = List::new(items).highlight_style(styles.selection());
         f.render_stateful_widget(list, list_inner, &mut self.list_state);
 
         f.render_widget(
-            Paragraph::new(footer_hint).style(Style::default().fg(Color::Cyan)),
+            Paragraph::new(footer_hint).style(styles.footer_hint()),
             chunks[2],
         );
     }

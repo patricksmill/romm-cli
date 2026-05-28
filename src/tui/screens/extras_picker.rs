@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use anyhow::Result;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph};
 use ratatui::Frame;
@@ -17,6 +17,7 @@ use crate::core::extras::{
     build_cover_target, build_manual_target, build_update_dlc_file_targets_for_rom,
     collect_update_dlc_files, extras_root_dir, related_rom_download_target, DownloadTarget,
 };
+use crate::tui::theme::RommStyles;
 use crate::types::{Rom, RomFile};
 
 use super::game_detail::GameDetailScreen;
@@ -218,7 +219,7 @@ impl ExtrasPickerScreen {
         Ok(targets)
     }
 
-    pub fn render(&mut self, f: &mut Frame, area: Rect) {
+    pub fn render(&mut self, f: &mut Frame, area: Rect, styles: &RommStyles) {
         self.tick_message();
         let chunks = Layout::default()
             .constraints([
@@ -245,10 +246,10 @@ impl ExtrasPickerScreen {
             .map(|it| {
                 let mark = if it.checked { "[x]" } else { "[ ]" };
                 ListItem::new(Line::from(vec![
-                    Span::styled(format!("{} ", mark), Style::default().fg(Color::Cyan)),
-                    Span::styled(&it.label, Style::default().fg(Color::White)),
+                    Span::styled(format!("{} ", mark), styles.label()),
+                    Span::styled(&it.label, styles.primary_text()),
                     Span::raw(" — "),
-                    Span::styled(&it.sublabel, Style::default().fg(Color::DarkGray)),
+                    Span::styled(&it.sublabel, styles.muted()),
                 ]))
             })
             .collect();
@@ -258,7 +259,7 @@ impl ExtrasPickerScreen {
 
         let list = List::new(list_items)
             .block(Block::default().title("Items").borders(Borders::ALL))
-            .highlight_style(Style::default().fg(Color::Yellow));
+            .highlight_style(styles.selection());
 
         f.render_stateful_widget(list, chunks[1], &mut state);
 
@@ -268,7 +269,7 @@ impl ExtrasPickerScreen {
         f.render_widget(
             Paragraph::new(hint)
                 .block(Block::default().borders(Borders::ALL))
-                .style(Style::default().fg(Color::Gray)),
+                .style(styles.muted()),
             chunks[2],
         );
 

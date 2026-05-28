@@ -1,15 +1,17 @@
 use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::Modifier;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Tabs};
 use ratatui::Frame;
+
+use crate::tui::theme::RommStyles;
 
 use super::types::{
     ConsolePathKind, SettingsConfirm, SettingsPickerKind, SettingsRow, SettingsScreen, SettingsTab,
 };
 
 impl SettingsScreen {
-    pub fn render(&mut self, f: &mut Frame, area: Rect) {
+    pub fn render(&mut self, f: &mut Frame, area: Rect, styles: &RommStyles) {
         if let Some((platform_id, ref mut picker)) = self.console_path_picker {
             let chunks = Layout::default()
                 .constraints([
@@ -41,10 +43,11 @@ impl SettingsScreen {
                 chunks[1],
                 "Choose console directory",
                 "Esc: cancel   Ctrl+Enter: apply typed path (creates folders)   Tab: path/list",
+                styles,
             );
             f.render_widget(
                 Paragraph::new("Console directory picker — Esc returns without changing")
-                    .style(Style::default().fg(Color::Cyan))
+                    .style(styles.footer_hint())
                     .block(Block::default().borders(Borders::ALL)),
                 chunks[2],
             );
@@ -52,7 +55,7 @@ impl SettingsScreen {
         }
 
         if self.console_picker_open {
-            self.render_console_picker(f, area);
+            self.render_console_picker(f, area, styles);
             return;
         }
 
@@ -83,10 +86,10 @@ impl SettingsScreen {
                 SettingsPickerKind::RomsDir => "Choose ROMs directory",
                 SettingsPickerKind::SaveDir => "Choose save directory",
             };
-            picker.render(f, chunks[1], title, hint);
+            picker.render(f, chunks[1], title, hint, styles);
             f.render_widget(
                 Paragraph::new("ROMs directory picker — Esc returns without changing")
-                    .style(Style::default().fg(Color::Cyan))
+                    .style(styles.footer_hint())
                     .block(Block::default().borders(Borders::ALL)),
                 chunks[2],
             );
@@ -94,7 +97,7 @@ impl SettingsScreen {
         }
 
         if self.device_picker_open {
-            self.render_device_picker(f, area);
+            self.render_device_picker(f, area, styles);
             return;
         }
 
@@ -131,12 +134,8 @@ impl SettingsScreen {
         let tabs = Tabs::new(titles)
             .select(self.selected_tab.index())
             .block(Block::default().borders(Borders::ALL))
-            .style(Style::default().fg(Color::Gray))
-            .highlight_style(
-                Style::default()
-                    .fg(Color::Yellow)
-                    .add_modifier(Modifier::BOLD),
-            );
+            .style(styles.muted())
+            .highlight_style(styles.selection());
         f.render_widget(tabs, chunks[1]);
 
         // -- Editable List --
@@ -144,7 +143,7 @@ impl SettingsScreen {
             .visible_rows()
             .iter()
             .copied()
-            .map(|row| self.render_row_item(row))
+            .map(|row| self.render_row_item(row, styles))
             .collect::<Vec<_>>();
 
         let mut state = ListState::default();
@@ -156,11 +155,7 @@ impl SettingsScreen {
                     .title(format!(" {} ", self.selected_tab.title()))
                     .borders(Borders::ALL),
             )
-            .highlight_style(
-                Style::default()
-                    .add_modifier(Modifier::BOLD)
-                    .fg(Color::Yellow),
-            )
+            .highlight_style(styles.selection())
             .highlight_symbol(">> ");
 
         f.render_stateful_widget(list, chunks[2], &mut state);
@@ -176,19 +171,17 @@ impl SettingsScreen {
                 }
             };
             f.render_widget(
-                Paragraph::new(msg)
-                    .style(Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+                Paragraph::new(msg).style(styles.error().add_modifier(Modifier::BOLD)),
                 chunks[3],
             );
-        } else if let Some((msg, color)) = &self.message {
+        } else if let Some((msg, tone)) = &self.message {
             f.render_widget(
-                Paragraph::new(msg.as_str()).style(Style::default().fg(*color)),
+                Paragraph::new(msg.as_str()).style(styles.tone(*tone)),
                 chunks[3],
             );
         } else if self.editing {
             f.render_widget(
-                Paragraph::new("Editing... Enter: save   Esc: cancel")
-                    .style(Style::default().fg(Color::Cyan)),
+                Paragraph::new("Editing... Enter: save   Esc: cancel").style(styles.label()),
                 chunks[3],
             );
         }
@@ -207,11 +200,11 @@ impl SettingsScreen {
         );
     }
 
-    fn render_row_item(&self, row: SettingsRow) -> ListItem<'static> {
+    fn render_row_item(&self, row: SettingsRow, styles: &RommStyles) -> ListItem<'static> {
         let label = self.row_label(row);
         match row {
             SettingsRow::SyncDevice | SettingsRow::SyncNow if !self.save_sync_supported() => {
-                ListItem::new(label).style(Style::default().fg(Color::DarkGray))
+                ListItem::new(label).style(styles.muted())
             }
             _ => ListItem::new(label),
         }
@@ -329,7 +322,7 @@ impl SettingsScreen {
         Some((x, y))
     }
 
-    fn render_device_picker(&mut self, f: &mut Frame, area: Rect) {
+    fn render_device_picker(&mut self, f: &mut Frame, area: Rect, styles: &RommStyles) {
         let chunks = Layout::default()
             .constraints([
                 Constraint::Length(4),
@@ -358,7 +351,7 @@ impl SettingsScreen {
         } else if let Some(error) = &self.device_picker_error {
             f.render_widget(
                 Paragraph::new(format!("Could not load devices: {error}"))
-                    .style(Style::default().fg(Color::Red))
+                    .style(styles.error())
                     .block(Block::default().title(" Devices ").borders(Borders::ALL)),
                 chunks[1],
             );
@@ -377,11 +370,7 @@ impl SettingsScreen {
                 List::new(items)
                     .block(Block::default().title(" Devices ").borders(Borders::ALL))
                     .highlight_symbol(">> ")
-                    .highlight_style(
-                        Style::default()
-                            .fg(Color::Yellow)
-                            .add_modifier(Modifier::BOLD),
-                    ),
+                    .highlight_style(styles.selection()),
                 chunks[1],
                 &mut state,
             );
@@ -393,7 +382,7 @@ impl SettingsScreen {
         );
     }
 
-    fn render_console_picker(&mut self, f: &mut Frame, area: Rect) {
+    fn render_console_picker(&mut self, f: &mut Frame, area: Rect, styles: &RommStyles) {
         let kind = self.active_console_kind.unwrap_or(ConsolePathKind::Roms);
         let chunks = Layout::default()
             .constraints([
@@ -427,14 +416,14 @@ impl SettingsScreen {
         } else if let Some(error) = &self.console_picker_error {
             f.render_widget(
                 Paragraph::new(format!("Could not load platforms: {error}"))
-                    .style(Style::default().fg(Color::Red))
+                    .style(styles.error())
                     .block(Block::default().title(" Consoles ").borders(Borders::ALL)),
                 chunks[1],
             );
         } else if self.console_platforms.is_empty() {
             f.render_widget(
                 Paragraph::new("No platforms returned from the server.")
-                    .style(Style::default().fg(Color::Yellow))
+                    .style(styles.warning())
                     .block(Block::default().title(" Consoles ").borders(Borders::ALL)),
                 chunks[1],
             );
@@ -463,11 +452,7 @@ impl SettingsScreen {
                 List::new(items)
                     .block(Block::default().title(" Consoles ").borders(Borders::ALL))
                     .highlight_symbol(">> ")
-                    .highlight_style(
-                        Style::default()
-                            .fg(Color::Yellow)
-                            .add_modifier(Modifier::BOLD),
-                    ),
+                    .highlight_style(styles.selection()),
                 chunks[1],
                 &mut state,
             );

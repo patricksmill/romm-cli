@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use ratatui::style::Color;
-
 use crate::config::{
     disk_has_unresolved_keyring_sentinel, Config, RomsLayoutConfig, SaveSyncConfig,
 };
@@ -12,7 +10,7 @@ use super::types::{
     ConsolePathKind, SettingsConfirm, SettingsPickerKind, SettingsRow, SettingsScreen, SettingsTab,
     APPEARANCE_ROWS, AUTH_MAINT_ROWS, CONNECTION_ROWS, EXTRAS_ROWS, SAVES_ROWS,
 };
-use crate::tui::theme::{next_theme_id, prev_theme_id, theme_display_name};
+use crate::tui::theme::{next_theme_id, prev_theme_id, theme_display_name, MessageTone};
 
 impl SettingsScreen {
     pub fn new(
@@ -129,7 +127,7 @@ impl SettingsScreen {
     }
 
     pub fn set_save_sync_unsupported_message(&mut self) {
-        self.message = Some((self.save_sync_compat.unsupported_message(), Color::Yellow));
+        self.message = Some((self.save_sync_compat.unsupported_message(), MessageTone::Warning));
     }
 
     pub fn selected_row_index(&self) -> usize {
@@ -224,14 +222,14 @@ impl SettingsScreen {
                 self.device_picker_open = true;
                 self.device_picker_loading = true;
                 self.device_picker_error = None;
-                self.message = Some(("Loading devices...".to_string(), Color::Yellow));
+                self.message = Some(("Loading devices...".to_string(), MessageTone::Warning));
             }
             SettingsRow::SyncNow => {
                 if !self.save_sync_supported() {
                     self.set_save_sync_unsupported_message();
                     return;
                 }
-                self.message = Some(("Starting save sync...".to_string(), Color::Yellow));
+                self.message = Some(("Starting save sync...".to_string(), MessageTone::Warning));
             }
             SettingsRow::ExtrasManual => {
                 self.extras_include_manual = !self.extras_include_manual;
@@ -244,7 +242,7 @@ impl SettingsScreen {
                             "off"
                         }
                     ),
-                    Color::Green,
+                    MessageTone::Success,
                 ));
             }
             SettingsRow::ExtrasCover => {
@@ -258,7 +256,7 @@ impl SettingsScreen {
                             "off"
                         }
                     ),
-                    Color::Green,
+                    MessageTone::Success,
                 ));
             }
             SettingsRow::ExtrasRelatedRoms => {
@@ -272,7 +270,7 @@ impl SettingsScreen {
                             "off"
                         }
                     ),
-                    Color::Green,
+                    MessageTone::Success,
                 ));
             }
             SettingsRow::UseHttps => {
@@ -280,10 +278,10 @@ impl SettingsScreen {
                 self.use_https = !self.use_https;
                 if self.use_https && self.base_url.starts_with("http://") {
                     self.base_url = self.base_url.replace("http://", "https://");
-                    self.message = Some(("Updated URL scheme (HTTPS)".to_string(), Color::Green));
+                    self.message = Some(("Updated URL scheme (HTTPS)".to_string(), MessageTone::Success));
                 } else if !self.use_https && self.base_url.starts_with("https://") {
                     self.base_url = self.base_url.replace("https://", "http://");
-                    self.message = Some(("Updated URL scheme (HTTP)".to_string(), Color::Green));
+                    self.message = Some(("Updated URL scheme (HTTP)".to_string(), MessageTone::Success));
                 }
             }
             SettingsRow::RomsDir => {

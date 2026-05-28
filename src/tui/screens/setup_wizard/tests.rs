@@ -4,9 +4,10 @@ use std::path::PathBuf;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-use crate::config::{normalize_romm_origin, AuthConfig};
+use crate::config::{default_theme_id, normalize_romm_origin, AuthConfig};
 use crate::core::download::validate_configured_download_directory;
 use crate::tui::path_picker::{PathPicker, PathPickerMode};
+use crate::tui::theme::{resolve_theme_or_default, RommStyles};
 
 use super::types::{AuthKind, Step};
 use super::SetupWizard;
@@ -99,10 +100,12 @@ fn hidden_password_field_does_not_render_inline_cursor_glyph() {
     wizard.password = "secret".to_string();
     let backend = TestBackend::new(80, 24);
     let mut terminal = Terminal::new(backend).expect("create test terminal");
+    let theme = resolve_theme_or_default(&default_theme_id());
+    let styles = RommStyles::new(theme.as_ref());
     terminal
         .draw(|frame| {
             let area = frame.area();
-            wizard.render(frame, area);
+            wizard.render(frame, area, &styles);
         })
         .expect("render setup wizard");
     let backend = terminal.backend();
@@ -122,10 +125,12 @@ fn hidden_api_key_field_does_not_render_inline_cursor_glyph() {
     wizard.api_key_cursor = wizard.api_key.len();
     let backend = TestBackend::new(80, 24);
     let mut terminal = Terminal::new(backend).expect("create test terminal");
+    let theme = resolve_theme_or_default(&default_theme_id());
+    let styles = RommStyles::new(theme.as_ref());
     terminal
         .draw(|frame| {
             let area = frame.area();
-            wizard.render(frame, area);
+            wizard.render(frame, area, &styles);
         })
         .expect("render setup wizard");
     let backend = terminal.backend();

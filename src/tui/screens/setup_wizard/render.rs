@@ -1,16 +1,17 @@
 //! Setup wizard rendering.
 
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::Modifier;
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph};
 
 use crate::config::normalize_romm_origin;
+use crate::tui::theme::RommStyles;
 
 use super::layout::{wizard_footer_text, wizard_layout};
 use super::types::{AuthKind, SetupWizard, Step};
 
 impl SetupWizard {
-    pub fn render(&mut self, f: &mut ratatui::Frame, area: ratatui::layout::Rect) {
+    pub fn render(&mut self, f: &mut ratatui::Frame, area: ratatui::layout::Rect, styles: &RommStyles) {
         let title = match self.step {
             Step::Url => "Step 1/6 — RomM server URL",
             Step::Https => "Step 2/6 — Secure connection",
@@ -32,11 +33,11 @@ impl SetupWizard {
                     Line::from("First-time setup: point the CLI at your RomM server."),
                     Line::from(Span::styled(
                         "Example: https://romm.example.com or http://192.168.1.10:8080",
-                        Style::default().fg(Color::DarkGray),
+                        styles.muted(),
                     )),
                     Line::from(Span::styled(
                         "Same origin as in your browser (no trailing /api).",
-                        Style::default().fg(Color::DarkGray),
+                        styles.muted(),
                     )),
                 ]);
                 f.render_widget(Paragraph::new(intro), main[0]);
@@ -54,7 +55,7 @@ impl SetupWizard {
                     Step::Summary => "Review your configuration before testing the connection.",
                     Step::Url => "",
                 };
-                let p = Paragraph::new(hint_top).style(Style::default().fg(Color::DarkGray));
+                let p = Paragraph::new(hint_top).style(styles.muted());
                 f.render_widget(p, main[0]);
             }
         }
@@ -83,7 +84,7 @@ impl SetupWizard {
                 f.render_widget(p, main[1]);
             }
             Step::Download => {
-                self.download_picker.render(f, main[1], title, "");
+                self.download_picker.render(f, main[1], title, "", styles);
             }
             Step::CustomConsolePaths => {
                 let body = "By default each console uses a subfolder under your ROMs directory.\n\nConsoles on other drives (e.g. Switch on D:, NES on E:) can use custom paths.\nMap them in Settings → ROMs → Console paths after setup.\n\nEnter: next";
@@ -99,11 +100,7 @@ impl SetupWizard {
                 state.select(Some(self.auth_menu_selected));
                 let list = List::new(items)
                     .block(Block::default().title(title).borders(Borders::ALL))
-                    .highlight_style(
-                        Style::default()
-                            .fg(Color::Yellow)
-                            .add_modifier(Modifier::BOLD),
-                    )
+                    .highlight_style(styles.selection().add_modifier(Modifier::BOLD))
                     .highlight_symbol(">> ");
                 f.render_stateful_widget(list, main[1], &mut state);
             }
@@ -160,7 +157,7 @@ impl SetupWizard {
                     bearer_text.push_line(Line::from(""));
                     bearer_text.push_line(Line::from(Span::styled(
                         "Token stored in OS keyring — leave blank to keep, or type a new token.",
-                        Style::default().fg(Color::DarkGray),
+                        styles.muted(),
                     )));
                 }
                 let block = Block::default().title(title).borders(Borders::ALL);
@@ -272,7 +269,7 @@ impl SetupWizard {
                 }
             }
         };
-        let p = Paragraph::new(wizard_footer_text(footer_keys))
+        let p = Paragraph::new(wizard_footer_text(footer_keys, styles))
             .block(Block::default().borders(Borders::ALL));
         f.render_widget(p, main[2]);
     }

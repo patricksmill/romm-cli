@@ -1,10 +1,9 @@
 use std::collections::HashMap;
 
-use ratatui::style::Color;
-
 use crate::endpoints::device::DeviceSchema;
 use crate::feature_compat::SaveSyncCompatibility;
 use crate::tui::path_picker::PathPicker;
+use crate::tui::theme::MessageTone;
 use crate::types::Platform;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -141,7 +140,7 @@ pub struct SettingsScreen {
     pub device_picker_error: Option<String>,
     pub device_selected_index: usize,
     pub sync_inflight: bool,
-    pub message: Option<(String, Color)>,
+    pub message: Option<(String, MessageTone)>,
     pub save_sync_compat: SaveSyncCompatibility,
     pub rom_platform_dirs: HashMap<u64, String>,
     pub save_platform_dirs: HashMap<u64, String>,

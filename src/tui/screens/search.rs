@@ -1,9 +1,10 @@
 use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::style::{Color, Style};
+use ratatui::style::Style;
 use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Table};
 use ratatui::Frame;
 
 use crate::core::utils::{self, RomGroup};
+use crate::tui::theme::RommStyles;
 use crate::types::{Rom, RomList};
 
 /// Full-text search screen over ROMs, with grouped results.
@@ -138,7 +139,7 @@ impl SearchScreen {
             .map(|g| (g.primary.clone(), g.others.clone()))
     }
 
-    pub fn render(&mut self, f: &mut Frame, area: Rect) {
+    pub fn render(&mut self, f: &mut Frame, area: Rect, styles: &RommStyles) {
         let chunks = Layout::default()
             .constraints([
                 Constraint::Length(3),
@@ -166,8 +167,8 @@ impl SearchScreen {
             let visible_groups = &groups[start..end];
 
             let header = Row::new(vec![
-                Cell::from("Name").style(Style::default().fg(Color::Cyan)),
-                Cell::from("Platform").style(Style::default().fg(Color::Cyan)),
+                Cell::from("Name").style(styles.label()),
+                Cell::from("Platform").style(styles.label()),
             ]);
             let rows: Vec<Row> = visible_groups
                 .iter()
@@ -181,7 +182,7 @@ impl SearchScreen {
                         .or(g.primary.platform_custom_name.as_deref())
                         .unwrap_or("—");
                     let style = if global_idx == self.selected {
-                        Style::default().fg(Color::Yellow)
+                        styles.selection()
                     } else {
                         Style::default()
                     };

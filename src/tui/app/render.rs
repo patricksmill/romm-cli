@@ -3,38 +3,42 @@
 use super::AppScreen;
 use crate::tui::keyboard_help;
 use crate::tui::screens::connected_splash;
+use crate::tui::theme::RommStyles;
 
 impl super::App {
     pub(in crate::tui::app) fn render(&mut self, f: &mut ratatui::Frame) {
         let area = f.area();
+        let theme = self.theme.as_ref();
+        let styles = RommStyles::new(theme);
+
         if let Some(ref splash) = self.startup_splash {
-            connected_splash::render(f, area, splash);
+            connected_splash::render(f, area, splash, &styles);
         } else {
             match &mut self.screen {
-                AppScreen::MainMenu(menu) => menu.render(f, area),
+                AppScreen::MainMenu(menu) => menu.render(f, area, &styles),
                 AppScreen::LibraryBrowse(lib) => {
-                    lib.render(f, area);
+                    lib.render(f, area, &styles);
                     if let Some((x, y)) = lib.upload_prompt_cursor(area) {
                         f.set_cursor_position((x, y));
                     }
                 }
                 AppScreen::Search(search) => {
-                    search.render(f, area);
+                    search.render(f, area, &styles);
                     if let Some((x, y)) = search.cursor_position(area) {
                         f.set_cursor_position((x, y));
                     }
                 }
                 AppScreen::Settings(settings) => {
-                    settings.render(f, area);
+                    settings.render(f, area, &styles);
                     if let Some((x, y)) = settings.cursor_position(area) {
                         f.set_cursor_position((x, y));
                     }
                 }
-                AppScreen::GameDetail(detail) => detail.render(f, area),
-                AppScreen::ExtrasPicker(picker) => picker.render(f, area),
-                AppScreen::Download(d) => d.render(f, area),
+                AppScreen::GameDetail(detail) => detail.render(f, area, &styles),
+                AppScreen::ExtrasPicker(picker) => picker.render(f, area, &styles),
+                AppScreen::Download(d) => d.render(f, area, &styles),
                 AppScreen::SetupWizard(wizard) => {
-                    wizard.render(f, area);
+                    wizard.render(f, area, &styles);
                     if let Some((x, y)) = wizard.cursor_pos(area) {
                         f.set_cursor_position((x, y));
                     }
@@ -61,7 +65,7 @@ impl super::App {
                 .title(" Update Available ")
                 .title_alignment(ratatui::layout::Alignment::Center)
                 .borders(ratatui::widgets::Borders::ALL)
-                .border_style(ratatui::style::Style::default().fg(ratatui::style::Color::Cyan));
+                .border_style(styles.label());
 
             if prompt.updating {
                 let text = vec![
@@ -73,9 +77,7 @@ impl super::App {
                     ratatui::text::Line::from(""),
                     ratatui::text::Line::from("This may take a few moments.")
                         .alignment(ratatui::layout::Alignment::Center)
-                        .style(
-                            ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
-                        ),
+                        .style(styles.muted()),
                 ];
                 let paragraph = ratatui::widgets::Paragraph::new(text).block(block);
                 f.render_widget(paragraph, popup_area);
@@ -83,19 +85,14 @@ impl super::App {
                 let text = vec![
                     ratatui::text::Line::from(vec![
                         ratatui::text::Span::raw("Current: "),
-                        ratatui::text::Span::styled(
-                            &prompt.status.current_version,
-                            ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
-                        ),
+                        ratatui::text::Span::styled(&prompt.status.current_version, styles.muted()),
                     ])
                     .alignment(ratatui::layout::Alignment::Center),
                     ratatui::text::Line::from(vec![
                         ratatui::text::Span::raw("Latest:  "),
                         ratatui::text::Span::styled(
                             &prompt.status.latest_version,
-                            ratatui::style::Style::default()
-                                .fg(ratatui::style::Color::Green)
-                                .add_modifier(ratatui::style::Modifier::BOLD),
+                            styles.success().add_modifier(ratatui::style::Modifier::BOLD),
                         ),
                     ])
                     .alignment(ratatui::layout::Alignment::Center),
@@ -104,23 +101,14 @@ impl super::App {
                         .alignment(ratatui::layout::Alignment::Center),
                     ratatui::text::Line::from(""),
                     ratatui::text::Line::from(vec![
-                        ratatui::text::Span::styled(
-                            "Y/Enter",
-                            ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
-                        ),
+                        ratatui::text::Span::styled("Y/Enter", styles.selection()),
                         ratatui::text::Span::raw(": Yes (update)  "),
-                        ratatui::text::Span::styled(
-                            "N/Esc",
-                            ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
-                        ),
+                        ratatui::text::Span::styled("N/Esc", styles.selection()),
                         ratatui::text::Span::raw(": No (skip)"),
                     ])
                     .alignment(ratatui::layout::Alignment::Center),
                     ratatui::text::Line::from(vec![
-                        ratatui::text::Span::styled(
-                            "C",
-                            ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
-                        ),
+                        ratatui::text::Span::styled("C", styles.selection()),
                         ratatui::text::Span::raw(": View changelog"),
                     ])
                     .alignment(ratatui::layout::Alignment::Center),
@@ -141,7 +129,7 @@ impl super::App {
             let block = ratatui::widgets::Block::default()
                 .title("Error")
                 .borders(ratatui::widgets::Borders::ALL)
-                .style(ratatui::style::Style::default().fg(ratatui::style::Color::Red));
+                .style(styles.error());
             let text = format!("{}\n\nPress Esc to dismiss", err);
             let paragraph = ratatui::widgets::Paragraph::new(text)
                 .block(block)
@@ -160,7 +148,7 @@ impl super::App {
             let block = ratatui::widgets::Block::default()
                 .title("Notice")
                 .borders(ratatui::widgets::Borders::ALL)
-                .style(ratatui::style::Style::default().fg(ratatui::style::Color::Cyan));
+                .style(styles.label());
             let text = format!("{notice}\n\nPress Esc to dismiss");
             let paragraph = ratatui::widgets::Paragraph::new(text)
                 .block(block)

@@ -1,5 +1,4 @@
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Gauge, Paragraph};
 use ratatui::Frame;
@@ -7,19 +6,21 @@ use ratatui_image::{Resize, StatefulImage};
 
 use crate::core::download::DownloadStatus;
 use crate::core::utils::format_size;
+use crate::tui::theme::RommStyles;
 use crate::tui::utils::truncate;
 
 use super::saves::save_lines;
 use super::types::{CoverState, GameDetailScreen};
 
 impl GameDetailScreen {
-    pub fn render(&mut self, f: &mut Frame, area: Rect) {
+    pub fn render(&mut self, f: &mut Frame, area: Rect, styles: &RommStyles) {
         if let Some(picker) = self.save_upload_picker.as_mut() {
             picker.render(
                 f,
                 area,
                 "Upload save file",
                 "Esc: cancel   Enter: choose file   Ctrl+Enter: apply typed file",
+                styles,
             );
             return;
         }
@@ -32,12 +33,12 @@ impl GameDetailScreen {
             .constraints([Constraint::Min(10), Constraint::Length(42)])
             .split(chunks[0]);
 
-        self.render_metadata_panel(f, body[0]);
-        self.render_cover_panel(f, body[1]);
-        self.render_footer_panel(f, chunks[1]);
+        self.render_metadata_panel(f, body[0], styles);
+        self.render_cover_panel(f, body[1], styles);
+        self.render_footer_panel(f, chunks[1], styles);
     }
 
-    fn render_cover_panel(&mut self, f: &mut Frame, area: Rect) {
+    fn render_cover_panel(&mut self, f: &mut Frame, area: Rect, styles: &RommStyles) {
         let platform = self
             .rom
             .platform_display_name
@@ -59,30 +60,21 @@ impl GameDetailScreen {
         let content = match &self.cover_state {
             CoverState::Ready => vec![
                 Line::from(""),
-                Line::from(Span::styled(
-                    "Inline cover ready",
-                    Style::default().fg(Color::Green),
-                )),
+                Line::from(Span::styled("Inline cover ready", styles.success())),
                 Line::from(""),
                 Line::from(self.cover_pipeline_label()),
                 Line::from("Press o for browser view"),
             ],
             CoverState::Loading => vec![
                 Line::from(""),
-                Line::from(Span::styled(
-                    "Loading cover...",
-                    Style::default().fg(Color::Yellow),
-                )),
+                Line::from(Span::styled("Loading cover...", styles.warning())),
                 Line::from(""),
                 Line::from("Fetching image"),
                 Line::from("in background"),
             ],
             CoverState::Failed(message) => vec![
                 Line::from(""),
-                Line::from(Span::styled(
-                    "Cover unavailable",
-                    Style::default().fg(Color::Red),
-                )),
+                Line::from(Span::styled("Cover unavailable", styles.error())),
                 Line::from(""),
                 Line::from(truncate(message, 26)),
                 Line::from(""),
@@ -101,11 +93,8 @@ impl GameDetailScreen {
             ],
         };
         let lines = vec![
-            Line::from(Span::styled(
-                format!("[{}]", platform),
-                Style::default().fg(Color::Cyan),
-            )),
-            Line::from(Span::styled(name, Style::default().fg(Color::White))),
+            Line::from(Span::styled(format!("[{}]", platform), styles.label())),
+            Line::from(Span::styled(name, styles.primary_text())),
             Line::from(""),
         ]
         .into_iter()
@@ -118,7 +107,7 @@ impl GameDetailScreen {
         f.render_widget(widget, area);
     }
 
-    fn render_metadata_panel(&self, f: &mut Frame, area: Rect) {
+    fn render_metadata_panel(&self, f: &mut Frame, area: Rect, styles: &RommStyles) {
         let title = self.rom.name.as_str();
         let platform = self
             .rom
@@ -131,17 +120,17 @@ impl GameDetailScreen {
         let size = format_size(self.rom.fs_size_bytes);
         let mut lines: Vec<Line> = vec![
             Line::from(vec![
-                Span::styled("Title: ", Style::default().fg(Color::Cyan)),
+                Span::styled("Title: ", styles.label()),
                 Span::raw(title),
             ]),
             Line::from(vec![
-                Span::styled("Platform: ", Style::default().fg(Color::Cyan)),
+                Span::styled("Platform: ", styles.label()),
                 Span::raw(platform),
             ]),
             Line::from(""),
-            Line::from(Span::styled("Overview:", Style::default().fg(Color::Cyan))),
+            Line::from(Span::styled("Overview:", styles.label())),
             Line::from(vec![
-                Span::styled("Download: ", Style::default().fg(Color::Gray)),
+                Span::styled("Download: ", styles.muted()),
                 Span::raw(if self.has_started_download {
                     "Started"
                 } else {
@@ -149,7 +138,7 @@ impl GameDetailScreen {
                 }),
             ]),
             Line::from(vec![
-                Span::styled("Cover URL: ", Style::default().fg(Color::Gray)),
+                Span::styled("Cover URL: ", styles.muted()),
                 Span::raw(if self.rom.url_cover.is_some() {
                     "Available (o to open)"
                 } else {
@@ -157,18 +146,15 @@ impl GameDetailScreen {
                 }),
             ]),
             Line::from(""),
-            Line::from(vec![Span::styled(
-                "Summary: ",
-                Style::default().fg(Color::Cyan),
-            )]),
+            Line::from(vec![Span::styled("Summary: ", styles.label())]),
             Line::from(if summary.is_empty() { "—" } else { summary }),
             Line::from(""),
             Line::from(vec![
-                Span::styled("File: ", Style::default().fg(Color::Cyan)),
+                Span::styled("File: ", styles.label()),
                 Span::raw(path),
             ]),
             Line::from(vec![
-                Span::styled("Size: ", Style::default().fg(Color::Cyan)),
+                Span::styled("Size: ", styles.label()),
                 Span::raw(size),
             ]),
         ];
@@ -176,10 +162,7 @@ impl GameDetailScreen {
         if !self.other_files.is_empty() {
             lines.push(Line::from(""));
             lines.push(Line::from(vec![
-                Span::styled(
-                    "Other files (updates/DLC): ",
-                    Style::default().fg(Color::Cyan),
-                ),
+                Span::styled("Other files (updates/DLC): ", styles.label()),
                 Span::raw(format!("{} file(s)", self.other_files.len())),
             ]));
             for other in self.other_files.iter().take(10) {
@@ -196,10 +179,7 @@ impl GameDetailScreen {
 
         if self.show_technical {
             lines.push(Line::from(""));
-            lines.push(Line::from(Span::styled(
-                "Technical:",
-                Style::default().fg(Color::Yellow),
-            )));
+            lines.push(Line::from(Span::styled("Technical:", styles.warning())));
             lines.push(Line::from(format!("  ID: {}", self.rom.id)));
             lines.push(Line::from(format!(
                 "  Platform ID: {}",
@@ -215,10 +195,7 @@ impl GameDetailScreen {
         }
 
         lines.push(Line::from(""));
-        lines.push(Line::from(Span::styled(
-            "Saves:",
-            Style::default().fg(Color::Cyan),
-        )));
+        lines.push(Line::from(Span::styled("Saves:", styles.label())));
         lines.extend(save_lines(&self.saves_state, self.selected_save_index));
 
         let block = Block::default().title("Game detail").borders(Borders::ALL);
@@ -228,34 +205,31 @@ impl GameDetailScreen {
         f.render_widget(p, area);
     }
 
-    fn render_footer_panel(&mut self, f: &mut Frame, footer_area: Rect) {
+    fn render_footer_panel(&mut self, f: &mut Frame, footer_area: Rect, styles: &RommStyles) {
         self.tick_message();
         // Footer: show progress bar if downloading, otherwise help text.
         if let Some(job) = self.active_download() {
             let (label, style) = match &job.status {
                 DownloadStatus::Downloading => (
                     format!("Downloading… {}%", job.percent()),
-                    Style::default().fg(Color::Cyan),
+                    styles.label(),
                 ),
-                DownloadStatus::Done => (
-                    "Download complete".to_string(),
-                    Style::default().fg(Color::Green),
-                ),
+                DownloadStatus::Done => ("Download complete".to_string(), styles.success()),
                 DownloadStatus::SkippedAlreadyExists => (
                     "Already present (skipped)".to_string(),
-                    Style::default().fg(Color::Yellow),
+                    styles.warning(),
                 ),
                 DownloadStatus::Cancelled => (
                     "Download cancelled".to_string(),
-                    Style::default().fg(Color::Yellow),
+                    styles.warning(),
                 ),
                 DownloadStatus::FinalizeFailed(msg) => (
                     format!("Finalize failed: {}", truncate(msg, 40)),
-                    Style::default().fg(Color::Red),
+                    styles.error(),
                 ),
                 DownloadStatus::Error(msg) => (
                     format!("Error: {}", truncate(msg, 50)),
-                    Style::default().fg(Color::Red),
+                    styles.error(),
                 ),
             };
             let gauge = Gauge::default()

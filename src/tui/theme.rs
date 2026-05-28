@@ -5,12 +5,21 @@ use ratatui_themekit::{available_theme_ids, resolve_theme, Theme};
 
 use crate::config::{default_theme_id, DEFAULT_THEME_ID};
 
+/// Status message severity for themed TUI feedback.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MessageTone {
+    Success,
+    Error,
+    Warning,
+    Info,
+}
+
 /// Resolve a theme ID, falling back to [`DEFAULT_THEME_ID`] for unknown values.
 pub fn resolve_theme_or_default(id: &str) -> Box<dyn Theme> {
     if ratatui_themekit::no_color_active() {
         return resolve_theme(id);
     }
-    let known = id == "no-color" || available_theme_ids().iter().any(|known_id| *known_id == id);
+    let known = id == "no-color" || available_theme_ids().contains(&id);
     if !known {
         tracing::warn!(theme = id, "unknown theme ID, using {DEFAULT_THEME_ID}");
         return resolve_theme(DEFAULT_THEME_ID);
@@ -110,6 +119,15 @@ impl<'a> RommStyles<'a> {
 
     pub fn color_info(&self) -> Color {
         self.theme.info()
+    }
+
+    pub fn tone(&self, tone: MessageTone) -> Style {
+        match tone {
+            MessageTone::Success => self.success(),
+            MessageTone::Error => self.error(),
+            MessageTone::Warning => self.warning(),
+            MessageTone::Info => self.label(),
+        }
     }
 }
 

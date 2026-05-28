@@ -1,16 +1,17 @@
 use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::style::{Color, Style};
+use ratatui::style::Style;
 use ratatui::widgets::{
     Block, Borders, Cell, Clear, List, ListItem, ListState, Paragraph, Row, Table,
 };
 use ratatui::Frame;
 
 use crate::tui::text_search::LibrarySearchMode;
+use crate::tui::theme::RommStyles;
 
 use super::types::{LibraryBrowseScreen, LibrarySubsection, LibraryViewMode};
 
 impl LibraryBrowseScreen {
-    pub fn render(&mut self, f: &mut Frame, area: Rect) {
+    pub fn render(&mut self, f: &mut Frame, area: Rect, styles: &RommStyles) {
         let chunks = Layout::default()
             .constraints([Constraint::Percentage(30), Constraint::Percentage(70)])
             .direction(ratatui::layout::Direction::Horizontal)
@@ -61,15 +62,15 @@ impl LibraryBrowseScreen {
             let p = ratatui::widgets::Paragraph::new(format!("Search: {}", self.rom_search.query))
                 .block(Block::default().title(title).borders(Borders::ALL));
             f.render_widget(p, right_chunks[0]);
-            self.render_roms(f, right_chunks[1]);
+            self.render_roms(f, right_chunks[1], styles);
             self.render_help(f, right_chunks[2]);
         } else {
-            self.render_roms(f, right_chunks[0]);
+            self.render_roms(f, right_chunks[0], styles);
             self.render_help(f, right_chunks[1]);
         }
 
         if self.upload_prompt.is_some() {
-            self.render_upload_popup(f, area);
+            self.render_upload_popup(f, area, styles);
         }
     }
 
@@ -97,7 +98,7 @@ impl LibraryBrowseScreen {
         }
     }
 
-    fn render_upload_popup(&mut self, f: &mut Frame, area: Rect) {
+    fn render_upload_popup(&mut self, f: &mut Frame, area: Rect, styles: &RommStyles) {
         let platform_name = self.upload_popup_platform_name();
         let Some(ref mut up) = self.upload_prompt else {
             return;
@@ -126,7 +127,7 @@ impl LibraryBrowseScreen {
         );
         f.render_widget(Paragraph::new(header), rows[0]);
         let footer = "Enter: open/select   Ctrl+Enter: confirm file   ↑ list top: path   Tab: path/list   Ctrl+s: rescan";
-        up.picker.render(f, rows[1], "Choose ROM file", footer);
+        up.picker.render(f, rows[1], "Choose ROM file", footer, styles);
     }
 
     /// Cursor for the upload path field (when [`Self::upload_prompt`] is open).
@@ -179,7 +180,7 @@ impl LibraryBrowseScreen {
         f.render_stateful_widget(list, area, &mut state);
     }
 
-    fn render_roms(&mut self, f: &mut Frame, area: Rect) {
+    fn render_roms(&mut self, f: &mut Frame, area: Rect, styles: &RommStyles) {
         let visible = (area.height as usize).saturating_sub(3).max(1);
         self.visible_rows = visible;
 
@@ -203,16 +204,14 @@ impl LibraryBrowseScreen {
         let end = (start + visible).min(groups.len());
         let visible_groups = &groups[start..end];
 
-        let header = Row::new(vec![
-            Cell::from("Name").style(Style::default().fg(Color::Cyan))
-        ]);
+        let header = Row::new(vec![Cell::from("Name").style(styles.label())]);
         let rows: Vec<Row> = visible_groups
             .iter()
             .enumerate()
             .map(|(i, g)| {
                 let global_idx = start + i;
                 let style = if global_idx == self.rom_selected {
-                    Style::default().fg(Color::Yellow)
+                    styles.selection()
                 } else {
                     Style::default()
                 };

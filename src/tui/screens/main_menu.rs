@@ -1,6 +1,8 @@
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState};
 use ratatui::Frame;
 
+use crate::tui::theme::RommStyles;
+
 /// Simple main menu screen for choosing the high-level mode.
 pub struct MainMenuScreen {
     pub selected: usize,
@@ -29,7 +31,7 @@ impl MainMenuScreen {
         };
     }
 
-    pub fn render(&self, f: &mut Frame, area: ratatui::layout::Rect) {
+    pub fn render(&self, f: &mut Frame, area: ratatui::layout::Rect, styles: &RommStyles) {
         let items = vec![
             ListItem::new("Browse Games"),
             ListItem::new("Search"),
@@ -40,7 +42,8 @@ impl MainMenuScreen {
 
         let list = List::new(items)
             .block(Block::default().title("Game Library").borders(Borders::ALL))
-            .highlight_symbol(">> ");
+            .highlight_symbol(">> ")
+            .highlight_style(styles.selection());
 
         let mut state = ListState::default();
         state.select(Some(self.selected));

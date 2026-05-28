@@ -34,7 +34,7 @@ use super::screens::{
     DownloadScreen, ExtrasPickerScreen, GameDetailScreen, LibraryBrowseScreen, MainMenuScreen,
     SearchScreen, SettingsScreen,
 };
-use super::theme::{resolve_theme_or_default, RommStyles};
+use super::theme::resolve_theme_or_default;
 use ratatui_themekit::Theme;
 
 use background::types::{
@@ -242,15 +242,6 @@ impl App {
             sync_push_pull_tx,
             theme,
         }
-    }
-
-    pub(crate) fn styles(&self) -> RommStyles<'_> {
-        RommStyles::new(self.theme.as_ref())
-    }
-
-    pub(crate) fn set_theme_id(&mut self, id: &str) {
-        self.theme = resolve_theme_or_default(id);
-        self.config.theme = id.to_string();
     }
     pub fn set_error(&mut self, err: anyhow::Error) {
         self.global_error = Some(format!("{:#}", err));

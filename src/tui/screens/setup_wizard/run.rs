@@ -10,7 +10,8 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 use std::io::stdout;
 
-use crate::config::Config;
+use crate::config::{default_theme_id, Config};
+use crate::tui::theme::{resolve_theme_or_default, RommStyles};
 
 use super::types::SetupWizard;
 
@@ -26,11 +27,13 @@ impl SetupWizard {
         )?;
         let backend = CrosstermBackend::new(stdout);
         let mut terminal = Terminal::new(backend)?;
+        let theme = resolve_theme_or_default(&default_theme_id());
 
         loop {
+            let styles = RommStyles::new(theme.as_ref());
             terminal.draw(|f| {
                 let area = f.area();
-                self.render(f, area);
+                self.render(f, area, &styles);
                 if let Some((x, y)) = self.cursor_pos(area) {
                     f.set_cursor_position((x, y));
                 }
@@ -63,9 +66,10 @@ impl SetupWizard {
                 }
 
                 if self.testing {
+                    let styles = RommStyles::new(theme.as_ref());
                     terminal.draw(|f| {
                         let area = f.area();
-                        self.render(f, area);
+                        self.render(f, area, &styles);
                     })?;
                     let result = self.try_connect_and_persist(verbose).await;
                     self.testing = false;

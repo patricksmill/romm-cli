@@ -1,10 +1,10 @@
 use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::style::{Color, Style};
 use ratatui::widgets::{Block, Borders, Gauge, Paragraph};
 use ratatui::Frame;
 use std::sync::{Arc, Mutex};
 
 use crate::core::download::{DownloadJob, DownloadStatus, ExtrasJob, ExtrasJobStatus};
+use crate::tui::theme::RommStyles;
 use crate::tui::utils::truncate;
 
 /// Overlay screen listing active and completed downloads.
@@ -27,7 +27,7 @@ impl DownloadScreen {
         }
     }
 
-    pub fn render(&self, f: &mut Frame, area: Rect) {
+    pub fn render(&self, f: &mut Frame, area: Rect, styles: &RommStyles) {
         let chunks = Layout::default()
             .constraints([Constraint::Min(3), Constraint::Length(3)])
             .direction(ratatui::layout::Direction::Vertical)
@@ -82,23 +82,21 @@ impl DownloadScreen {
                     let percent = job.percent();
                     let (label, gauge_style) = match &job.status {
                         DownloadStatus::Downloading => {
-                            (format!("{}%", percent), Style::default().fg(Color::Cyan))
+                            (format!("{}%", percent), styles.label())
                         }
-                        DownloadStatus::Done => ("Done".into(), Style::default().fg(Color::Green)),
+                        DownloadStatus::Done => ("Done".into(), styles.success()),
                         DownloadStatus::SkippedAlreadyExists => (
                             "Skipped (already exists)".into(),
-                            Style::default().fg(Color::Yellow),
+                            styles.warning(),
                         ),
-                        DownloadStatus::Cancelled => {
-                            ("Cancelled".into(), Style::default().fg(Color::Yellow))
-                        }
+                        DownloadStatus::Cancelled => ("Cancelled".into(), styles.warning()),
                         DownloadStatus::FinalizeFailed(msg) => (
                             format!("Finalize failed: {}", truncate(msg, 40)),
-                            Style::default().fg(Color::Red),
+                            styles.error(),
                         ),
                         DownloadStatus::Error(msg) => (
                             format!("Error: {}", truncate(msg, 50)),
-                            Style::default().fg(Color::Red),
+                            styles.error(),
                         ),
                     };
                     let gauge = Gauge::default()
@@ -142,16 +140,13 @@ impl DownloadScreen {
                     let (label, gauge_style) = match &job.status {
                         ExtrasJobStatus::Running => (
                             format!("{}% {}/{}", percent, job.completed_items, job.total_items),
-                            Style::default().fg(Color::Cyan),
+                            styles.label(),
                         ),
-                        ExtrasJobStatus::Done => ("Done".into(), Style::default().fg(Color::Green)),
-                        ExtrasJobStatus::PartialFailure(n) => (
-                            format!("Partial ({n} failed)"),
-                            Style::default().fg(Color::Yellow),
-                        ),
-                        ExtrasJobStatus::AllFailed => {
-                            ("All failed".into(), Style::default().fg(Color::Red))
+                        ExtrasJobStatus::Done => ("Done".into(), styles.success()),
+                        ExtrasJobStatus::PartialFailure(n) => {
+                            (format!("Partial ({n} failed)"), styles.warning())
                         }
+                        ExtrasJobStatus::AllFailed => ("All failed".into(), styles.error()),
                     };
                     let gauge = Gauge::default()
                         .gauge_style(gauge_style)

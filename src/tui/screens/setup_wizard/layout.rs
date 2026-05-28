@@ -1,10 +1,10 @@
 //! Layout helpers for the setup wizard screen.
 
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Text};
 
 use crate::config::{read_user_config_json_from_disk, ExtrasDefaults};
+use crate::tui::theme::RommStyles;
 
 use super::types::Step;
 
@@ -27,10 +27,10 @@ pub(crate) fn wizard_layout(area: Rect, step: Step) -> [Rect; 3] {
     [v[0], v[1], v[2]]
 }
 
-pub(crate) fn wizard_footer_text(keys: &str) -> Text<'_> {
+pub(crate) fn wizard_footer_text<'a>(keys: &'a str, styles: &RommStyles<'_>) -> Text<'a> {
     let ver = format!("romm-cli {}", env!("CARGO_PKG_VERSION"));
     Text::from(vec![
-        Line::from(keys).style(Style::default().fg(Color::Cyan)),
-        Line::from(ver).style(Style::default().fg(Color::DarkGray)),
+        Line::from(keys).style(styles.label()),
+        Line::from(ver).style(styles.muted()),
     ])
 }

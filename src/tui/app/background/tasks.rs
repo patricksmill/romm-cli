@@ -7,13 +7,13 @@ use crate::commands::library_scan::ScanCacheInvalidate;
 use crate::core::cache::RomCacheKey;
 use crate::core::startup_library_snapshot;
 use crate::types::SaveMetadata;
-use ratatui::style::Color;
 
 use super::super::AppScreen;
 use super::types::{
     CoverLoadDone, LibraryMetadataRefreshDone, LibraryUploadComplete, RomLoadEvent, SaveListDone,
     SearchLoadEvent,
 };
+use crate::tui::theme::MessageTone;
 
 impl super::super::App {
     pub(in crate::tui::app) fn spawn_library_metadata_refresh(&mut self) {
@@ -427,7 +427,7 @@ impl super::super::App {
                     }
                     Err(e) => {
                         settings.set_device_error(e.clone());
-                        settings.message = Some((format!("Device load failed: {e}"), Color::Red));
+                        settings.message = Some((format!("Device load failed: {e}"), MessageTone::Error));
                     }
                 }
             }
@@ -441,7 +441,7 @@ impl super::super::App {
                     }
                     Err(e) => {
                         settings.set_console_platform_error(e.clone());
-                        settings.message = Some((format!("Platform load failed: {e}"), Color::Red));
+                        settings.message = Some((format!("Platform load failed: {e}"), MessageTone::Error));
                     }
                 }
             }
@@ -453,11 +453,11 @@ impl super::super::App {
                     Ok(session) => {
                         settings.message = Some((
                             format!("Sync session #{}: {}", session.id, session.status),
-                            Color::Green,
+                            MessageTone::Success,
                         ));
                     }
                     Err(e) => {
-                        settings.message = Some((format!("Sync failed: {e}"), Color::Red));
+                        settings.message = Some((format!("Sync failed: {e}"), MessageTone::Error));
                     }
                 }
             }

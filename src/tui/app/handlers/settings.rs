@@ -2,7 +2,6 @@
 
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
-use ratatui::style::Color;
 
 use crate::client::RommClient;
 use crate::config::{auth_for_persist_merge, normalize_romm_origin, Config, ExtrasDefaults};
@@ -15,7 +14,7 @@ use super::super::{App, AppScreen};
 use crate::tui::screens::settings::{ConsolePathKind, SettingsRow, SettingsTab};
 use crate::tui::screens::setup_wizard::SetupWizard;
 use crate::tui::screens::MainMenuScreen;
-use crate::tui::theme::resolve_theme_or_default;
+use crate::tui::theme::{resolve_theme_or_default, MessageTone};
 
 impl App {
     async fn refresh_settings_server_version(&mut self) -> Result<()> {
@@ -97,20 +96,20 @@ impl App {
                                 settings.download_dir = canonical.display().to_string();
                                 settings.message = Some((
                                     "ROMs directory updated (press S to save)".to_string(),
-                                    Color::Green,
+                                    MessageTone::Success,
                                 ));
                             } else {
                                 settings.save_dir = canonical.display().to_string();
                                 settings.message = Some((
                                     "Save directory updated (press S to save)".to_string(),
-                                    Color::Green,
+                                    MessageTone::Success,
                                 ));
                             }
                             settings.path_picker = None;
                         }
                         Err(e) => {
                             settings.message =
-                                Some((format!("Invalid ROMs directory: {e:#}"), Color::Red));
+                                Some((format!("Invalid ROMs directory: {e:#}"), MessageTone::Error));
                         }
                     }
                 }
@@ -133,7 +132,7 @@ impl App {
                         }
                         Err(e) => {
                             settings.message =
-                                Some((format!("Invalid console directory: {e:#}"), Color::Red));
+                                Some((format!("Invalid console directory: {e:#}"), MessageTone::Error));
                         }
                     }
                 }
@@ -185,7 +184,7 @@ impl App {
                         let _ = crate::config::reset_all_settings();
                         settings.message = Some((
                             "Settings deleted. Please restart romm-cli.".to_string(),
-                            Color::Yellow,
+                            MessageTone::Warning,
                         ));
                     }
                     crate::tui::screens::settings::SettingsConfirm::ClearCache => {
@@ -193,17 +192,17 @@ impl App {
                             Ok(true) => {
                                 self.rom_cache = crate::core::cache::RomCache::load();
                                 settings.message =
-                                    Some(("ROM cache cleared.".to_string(), Color::Green));
+                                    Some(("ROM cache cleared.".to_string(), MessageTone::Success));
                             }
                             Ok(false) => {
                                 settings.message = Some((
                                     "ROM cache file does not exist.".to_string(),
-                                    Color::Yellow,
+                                    MessageTone::Warning,
                                 ));
                             }
                             Err(e) => {
                                 settings.message =
-                                    Some((format!("Failed to clear cache: {e}"), Color::Red));
+                                    Some((format!("Failed to clear cache: {e}"), MessageTone::Error));
                             }
                         }
                     }
@@ -314,12 +313,12 @@ impl App {
                     }
                     let Some(device_id) = settings.sync_device_id.clone() else {
                         settings.message =
-                            Some(("Choose a Sync Device first".to_string(), Color::Yellow));
+                            Some(("Choose a Sync Device first".to_string(), MessageTone::Warning));
                         return Ok(false);
                     };
                     settings.sync_inflight = true;
                     settings.message =
-                        Some(("Sync Saves Now running...".to_string(), Color::Yellow));
+                        Some(("Sync Saves Now running...".to_string(), MessageTone::Warning));
                     let client = self.client.clone();
                     let tx = self.sync_push_pull_tx.clone();
                     tokio::spawn(async move {
@@ -356,9 +355,9 @@ impl App {
                     theme: settings.theme_id.clone(),
                 };
                 if let Err(e) = persist_user_config(&cfg) {
-                    settings.message = Some((format!("Error saving: {e}"), Color::Red));
+                    settings.message = Some((format!("Error saving: {e}"), MessageTone::Error));
                 } else {
-                    settings.message = Some(("Saved to config.json".to_string(), Color::Green));
+                    settings.message = Some(("Saved to config.json".to_string(), MessageTone::Success));
                     // Update app state
                     self.config.base_url = cfg.base_url.clone();
                     self.config.download_dir = cfg.download_dir.clone();

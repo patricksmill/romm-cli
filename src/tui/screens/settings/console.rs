@@ -1,5 +1,3 @@
-use ratatui::style::Color;
-
 use crate::core::utils;
 use crate::tui::path_picker::{PathPicker, PathPickerMode};
 use crate::types::Platform;
@@ -7,6 +5,7 @@ use crate::types::Platform;
 use crate::endpoints::device::DeviceSchema;
 
 use super::types::{ConsolePathKind, SettingsScreen};
+use crate::tui::theme::MessageTone;
 
 impl SettingsScreen {
     pub(crate) fn platform_display_name(platform: &Platform) -> String {
@@ -67,7 +66,7 @@ impl SettingsScreen {
         self.console_dirs_mut(kind).remove(&platform_id);
         self.message = Some((
             "Custom path cleared (press S to save)".to_string(),
-            Color::Green,
+            MessageTone::Success,
         ));
     }
 
@@ -106,7 +105,7 @@ impl SettingsScreen {
             ConsolePathKind::Roms => "Custom console path updated (press S to save)",
             ConsolePathKind::Saves => "Custom save path updated (press S to save)",
         };
-        self.message = Some((label.to_string(), Color::Green));
+        self.message = Some((label.to_string(), MessageTone::Success));
     }
     pub fn set_devices(&mut self, devices: Vec<DeviceSchema>) {
         self.devices = devices;
@@ -142,7 +141,7 @@ impl SettingsScreen {
             self.device_picker_open = false;
             self.message = Some((
                 "Sync device updated (press S to save)".to_string(),
-                Color::Green,
+                MessageTone::Success,
             ));
         }
     }
