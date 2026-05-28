@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.37.0](https://github.com/patricksmill/romm-cli/compare/v0.36.0...v0.37.0) (2026-05-28)
+
+
+### Features
+
+* **config:** add persisted TUI theme field ([737fd56](https://github.com/patricksmill/romm-cli/commit/737fd56f03925df26e5413c6f0f670043e982e20))
+* **download:** implement download management system ([d8e5c36](https://github.com/patricksmill/romm-cli/commit/d8e5c365a03bd931abd567889a8ed56cd19813c9))
+* **rom-load:** enhance ROM loading logic with selection validation ([3e016f0](https://github.com/patricksmill/romm-cli/commit/3e016f02c4380bef00654159284330f48ffd63d7))
+* **settings:** enhance settings exit behavior and unsaved changes handling ([c6cd88c](https://github.com/patricksmill/romm-cli/commit/c6cd88ca8c02c058db9c8d70bf95e1ba9f809598))
+* **settings:** introduce Appearance tab for theme selection and cycling ([cd14fba](https://github.com/patricksmill/romm-cli/commit/cd14fbaff27b5a5879feb9d3627f6b5994a23b8b))
+* **setup-wizard:** modularize setup wizard into submodules ([f6a4725](https://github.com/patricksmill/romm-cli/commit/f6a4725aeba290c6609183165a79ab0e39c21a03))
+* **tui:** add RommStyles theme wrapper on App ([705b593](https://github.com/patricksmill/romm-cli/commit/705b593d1a788738f054902b0a6d6d21a88eed4e))
+* **tui:** enhance RommStyles for native terminal compatibility ([75cc8da](https://github.com/patricksmill/romm-cli/commit/75cc8da5566c848a38f48f81de16bbb834942a5b))
+* **tui:** implement immersive theming across TUI components ([14b28b4](https://github.com/patricksmill/romm-cli/commit/14b28b42bf8d188be5529cd740544fe9b8a92f93))
+* **tui:** implement theme application and revert functionality ([e5297e6](https://github.com/patricksmill/romm-cli/commit/e5297e6639ba225eb61ed83369388f199e1f6d3e))
+* **tui:** integrate RommStyles into UI components for consistent theming ([9f59ebd](https://github.com/patricksmill/romm-cli/commit/9f59ebdce433109df7af21f8a499054d929bf3e2))
+* **tui:** optimize theme handling and improve release profile ([c8844f1](https://github.com/patricksmill/romm-cli/commit/c8844f13a2d45dc0ebb32895d672992e8db927f6))
+
+
+### Bug Fixes
+
+* **download:** restore Platform import in test helpers ([d07505f](https://github.com/patricksmill/romm-cli/commit/d07505f8d456945a41d75dc157207d4d601380a9))
+* **setup-wizard:** align ROMs directory step label with 3/6 flow ([b11293f](https://github.com/patricksmill/romm-cli/commit/b11293fa78dcb6eb21f7dc5a677dd1dd960a82bd))
+
 ## [0.36.0](https://github.com/patricksmill/romm-cli/compare/v0.35.0...v0.36.0) (2026-05-24)
 
 
