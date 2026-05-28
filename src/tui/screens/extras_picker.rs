@@ -4,9 +4,9 @@ use std::time::Duration;
 
 use anyhow::Result;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
-use ratatui::style::{Modifier, Style};
+use ratatui::style::Modifier;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph};
+use ratatui::widgets::{List, ListItem, ListState, Paragraph};
 use ratatui::Frame;
 use std::time::Instant;
 
@@ -235,8 +235,8 @@ impl ExtrasPickerScreen {
         f.render_widget(
             Paragraph::new(title)
                 .alignment(Alignment::Center)
-                .style(Style::default().add_modifier(Modifier::BOLD))
-                .block(Block::default().borders(Borders::ALL)),
+                .style(styles.primary_text().add_modifier(Modifier::BOLD))
+                .block(styles.panel_block_untitled()),
             chunks[0],
         );
 
@@ -258,7 +258,7 @@ impl ExtrasPickerScreen {
         state.select(Some(self.selected_index));
 
         let list = List::new(list_items)
-            .block(Block::default().title("Items").borders(Borders::ALL))
+            .block(styles.panel_block("Items"))
             .highlight_style(styles.selection());
 
         f.render_stateful_widget(list, chunks[1], &mut state);
@@ -268,14 +268,15 @@ impl ExtrasPickerScreen {
         );
         f.render_widget(
             Paragraph::new(hint)
-                .block(Block::default().borders(Borders::ALL))
+                .block(styles.panel_block_untitled())
                 .style(styles.muted()),
             chunks[2],
         );
 
         let footer = Paragraph::new("At least one item must be checked to start download.")
             .alignment(Alignment::Center)
-            .block(Block::default().borders(Borders::ALL));
+            .style(styles.footer_hint())
+            .block(styles.panel_block_untitled());
         f.render_widget(footer, chunks[3]);
     }
 }

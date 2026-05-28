@@ -1,4 +1,4 @@
-use ratatui::widgets::{Block, Borders, List, ListItem, ListState};
+use ratatui::widgets::{List, ListItem, ListState};
 use ratatui::Frame;
 
 use crate::tui::theme::RommStyles;
@@ -33,15 +33,15 @@ impl MainMenuScreen {
 
     pub fn render(&self, f: &mut Frame, area: ratatui::layout::Rect, styles: &RommStyles) {
         let items = vec![
-            ListItem::new("Browse Games"),
-            ListItem::new("Search"),
-            ListItem::new("Downloads"),
-            ListItem::new("Settings"),
-            ListItem::new("Exit"),
+            ListItem::new("Browse Games").style(styles.text()),
+            ListItem::new("Search").style(styles.text()),
+            ListItem::new("Downloads").style(styles.text()),
+            ListItem::new("Settings").style(styles.text()),
+            ListItem::new("Exit").style(styles.text()),
         ];
 
         let list = List::new(items)
-            .block(Block::default().title("Game Library").borders(Borders::ALL))
+            .block(styles.panel_block("Game Library"))
             .highlight_symbol(">> ")
             .highlight_style(styles.selection());
 

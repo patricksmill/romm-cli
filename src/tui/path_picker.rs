@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Modifier, Style};
+use ratatui::style::Modifier;
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph};
 use ratatui::Frame;
 
@@ -387,7 +387,7 @@ impl PathPicker {
         footer_hint: &str,
         styles: &RommStyles,
     ) {
-        let block = Block::default().title(title).borders(Borders::ALL);
+        let block = styles.panel_block(title);
         let inner = block.inner(area);
         f.render_widget(block, area);
 
@@ -410,7 +410,7 @@ impl PathPicker {
         let path_style = if self.focus == PathPickerFocus::PathBar {
             styles.selection()
         } else {
-            Style::default()
+            styles.text()
         };
         let path_line = format!("{path_prefix}{before}▏{after}");
         let path_row = Rect {
@@ -433,13 +433,13 @@ impl PathPicker {
             );
         }
 
-        let list_block = Block::default().borders(Borders::ALL).border_style(
-            if self.focus == PathPickerFocus::List {
+        let list_block = styles
+            .panel_block_untitled()
+            .border_style(if self.focus == PathPickerFocus::List {
                 styles.border_focus()
             } else {
-                Style::default()
-            },
-        );
+                styles.border()
+            });
         let list_inner = list_block.inner(chunks[1]);
         f.render_widget(list_block, chunks[1]);
 
@@ -452,7 +452,7 @@ impl PathPicker {
                 } else if !e.is_dir {
                     styles.muted()
                 } else {
-                    Style::default()
+                    styles.text()
                 };
                 ListItem::new(e.label.clone()).style(style)
             })

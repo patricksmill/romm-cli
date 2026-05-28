@@ -1,6 +1,6 @@
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Gauge, Paragraph};
+use ratatui::widgets::{Gauge, Paragraph};
 use ratatui::Frame;
 use ratatui_image::{Resize, StatefulImage};
 
@@ -48,7 +48,7 @@ impl GameDetailScreen {
         let name = truncate(&self.rom.name, 28);
         if matches!(self.cover_state, CoverState::Ready) {
             if let Some(image_state) = self.cover_image.as_mut() {
-                let block = Block::default().title("Cover").borders(Borders::ALL);
+                let block = styles.panel_block("Cover");
                 let inner = block.inner(area);
                 f.render_widget(block, area);
                 let widget = StatefulImage::default().resize(Resize::Fit(None));
@@ -102,7 +102,7 @@ impl GameDetailScreen {
         .collect::<Vec<_>>();
         let widget = Paragraph::new(lines)
             .alignment(Alignment::Center)
-            .block(Block::default().title("Cover").borders(Borders::ALL))
+            .block(styles.panel_block("Cover"))
             .wrap(ratatui::widgets::Wrap { trim: true });
         f.render_widget(widget, area);
     }
@@ -198,9 +198,10 @@ impl GameDetailScreen {
         lines.push(Line::from(Span::styled("Saves:", styles.label())));
         lines.extend(save_lines(&self.saves_state, self.selected_save_index));
 
-        let block = Block::default().title("Game detail").borders(Borders::ALL);
+        let block = styles.panel_block("Game detail");
         let p = Paragraph::new(lines)
             .block(block)
+            .style(styles.text())
             .wrap(ratatui::widgets::Wrap { trim: true });
         f.render_widget(p, area);
     }
@@ -233,14 +234,16 @@ impl GameDetailScreen {
                 ),
             };
             let gauge = Gauge::default()
-                .block(Block::default().borders(Borders::ALL))
+                .block(styles.panel_block_untitled())
                 .gauge_style(style)
                 .percent(job.percent())
                 .label(label);
             f.render_widget(gauge, footer_area);
         } else {
             let msg = self.message.as_deref().unwrap_or(self.footer_help_text());
-            let footer = Paragraph::new(msg).block(Block::default().borders(Borders::ALL));
+            let footer = Paragraph::new(msg)
+                .style(styles.footer_hint())
+                .block(styles.panel_block_untitled());
             f.render_widget(footer, footer_area);
         }
     }

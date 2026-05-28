@@ -1,6 +1,5 @@
 use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::style::Style;
-use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Table};
+use ratatui::widgets::{Cell, Paragraph, Row, Table};
 use ratatui::Frame;
 
 use crate::core::utils::{self, RomGroup};
@@ -151,7 +150,8 @@ impl SearchScreen {
 
         let input_line = format!("Search: {}", self.query);
         let input = Paragraph::new(input_line)
-            .block(Block::default().title("Search games").borders(Borders::ALL));
+            .style(styles.text())
+            .block(styles.panel_block("Search games"));
         f.render_widget(input, chunks[0]);
 
         if self.result_groups.is_some() {
@@ -181,11 +181,7 @@ impl SearchScreen {
                         .as_deref()
                         .or(g.primary.platform_custom_name.as_deref())
                         .unwrap_or("—");
-                    let style = if global_idx == self.selected {
-                        styles.selection()
-                    } else {
-                        Style::default()
-                    };
+                    let style = styles.row(i, global_idx == self.selected);
                     Row::new(vec![
                         Cell::from(g.name.as_str()).style(style),
                         Cell::from(platform).style(style),
@@ -207,7 +203,7 @@ impl SearchScreen {
             };
             let table = Table::new(rows, widths)
                 .header(header)
-                .block(Block::default().title(title).borders(Borders::ALL));
+                .block(styles.panel_block(title));
             f.render_widget(table, chunks[1]);
         } else {
             let msg = if self.loading {
@@ -215,13 +211,16 @@ impl SearchScreen {
             } else {
                 "Type a search term and press Enter to search"
             };
-            let p =
-                Paragraph::new(msg).block(Block::default().title("Results").borders(Borders::ALL));
+            let p = Paragraph::new(msg)
+                .style(styles.text())
+                .block(styles.panel_block("Results"));
             f.render_widget(p, chunks[1]);
         }
 
         let help = "Enter: Search (or open game if query unchanged) | ↑↓: Navigate | Esc: Back";
-        let p = Paragraph::new(help).block(Block::default().borders(Borders::ALL));
+        let p = Paragraph::new(help)
+            .style(styles.footer_hint())
+            .block(styles.panel_block_untitled());
         f.render_widget(p, chunks[2]);
     }
 

@@ -1,5 +1,5 @@
 use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::widgets::{Block, Borders, Gauge, Paragraph};
+use ratatui::widgets::{Gauge, Paragraph};
 use ratatui::Frame;
 use std::sync::{Arc, Mutex};
 
@@ -48,9 +48,7 @@ impl DownloadScreen {
             }
         };
 
-        let block = Block::default()
-            .title("Downloads (d: close)")
-            .borders(Borders::ALL);
+        let block = styles.panel_block("Downloads (d: close)");
 
         if jobs.is_empty() && extras.is_empty() {
             let p = Paragraph::new(
@@ -123,7 +121,7 @@ impl DownloadScreen {
                         width: gauge_width,
                         height: 1,
                     };
-                    f.render_widget(Paragraph::new(line.as_str()), line_area);
+                    f.render_widget(Paragraph::new(line.as_str()).style(styles.text()), line_area);
                     if gauge_width > 0 {
                         f.render_widget(gauge, gauge_area);
                     }
@@ -168,7 +166,7 @@ impl DownloadScreen {
                         width: gauge_width,
                         height: 1,
                     };
-                    f.render_widget(Paragraph::new(line.as_str()), line_area);
+                    f.render_widget(Paragraph::new(line.as_str()).style(styles.text()), line_area);
                     if gauge_width > 0 {
                         f.render_widget(gauge, gauge_area);
                     }
@@ -178,7 +176,9 @@ impl DownloadScreen {
         }
 
         let help = "d or Esc: Back to previous screen";
-        let footer = Paragraph::new(help).block(Block::default().borders(Borders::ALL));
+        let footer = Paragraph::new(help)
+            .style(styles.footer_hint())
+            .block(styles.panel_block_untitled());
         f.render_widget(footer, chunks[1]);
     }
 }

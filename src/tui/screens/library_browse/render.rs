@@ -1,7 +1,6 @@
 use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::style::Style;
 use ratatui::widgets::{
-    Block, Borders, Cell, Clear, List, ListItem, ListState, Paragraph, Row, Table,
+    Block, Borders, Cell, List, ListItem, ListState, Paragraph, Row, Table,
 };
 use ratatui::Frame;
 
@@ -30,12 +29,13 @@ impl LibraryBrowseScreen {
                 };
                 let p =
                     ratatui::widgets::Paragraph::new(format!("Search: {}", self.list_search.query))
-                        .block(Block::default().title(title).borders(Borders::ALL));
+                        .style(styles.text())
+                        .block(styles.panel_block(title));
                 f.render_widget(p, left_chunks[0]);
             }
-            self.render_list(f, left_chunks[1]);
+            self.render_list(f, left_chunks[1], styles);
         } else {
-            self.render_list(f, left_area);
+            self.render_list(f, left_area, styles);
         }
 
         let right_chunks = if self.rom_search.mode.is_some() {
@@ -60,13 +60,14 @@ impl LibraryBrowseScreen {
                 LibrarySearchMode::Jump => "Jump Search (Tab to next)",
             };
             let p = ratatui::widgets::Paragraph::new(format!("Search: {}", self.rom_search.query))
-                .block(Block::default().title(title).borders(Borders::ALL));
+                .style(styles.text())
+                .block(styles.panel_block(title));
             f.render_widget(p, right_chunks[0]);
             self.render_roms(f, right_chunks[1], styles);
-            self.render_help(f, right_chunks[2]);
+            self.render_help(f, right_chunks[2], styles);
         } else {
             self.render_roms(f, right_chunks[0], styles);
-            self.render_help(f, right_chunks[1]);
+            self.render_help(f, right_chunks[1], styles);
         }
 
         if self.upload_prompt.is_some() {
@@ -104,28 +105,21 @@ impl LibraryBrowseScreen {
             return;
         };
         let popup = Self::upload_popup_rect(area);
-        f.render_widget(Clear, popup);
+        styles.fill_surface(f, popup);
         let scan_line = if up.scan_after {
             "Rescan after upload: yes — Ctrl+s to disable"
         } else {
             "Rescan after upload: no — Ctrl+s to enable"
         };
         let header = format!("{platform_name}\n{scan_line}");
-        let inner = Block::default()
-            .title("Upload ROM (Ctrl+u)")
-            .borders(Borders::ALL)
-            .inner(popup);
+        let block = styles.panel_block("Upload ROM (Ctrl+u)");
+        let inner = block.inner(popup);
         let rows = Layout::default()
             .direction(ratatui::layout::Direction::Vertical)
             .constraints([Constraint::Length(2), Constraint::Min(8)])
             .split(inner);
-        f.render_widget(
-            Block::default()
-                .title("Upload ROM (Ctrl+u)")
-                .borders(Borders::ALL),
-            popup,
-        );
-        f.render_widget(Paragraph::new(header), rows[0]);
+        f.render_widget(block, popup);
+        f.render_widget(Paragraph::new(header).style(styles.text()), rows[0]);
         let footer = "Enter: open/select   Ctrl+Enter: confirm file   ↑ list top: path   Tab: path/list   Ctrl+s: rescan";
         up.picker.render(f, rows[1], "Choose ROM file", footer, styles);
     }
@@ -145,7 +139,7 @@ impl LibraryBrowseScreen {
         up.picker.cursor_position(rows[1], "Choose ROM file")
     }
 
-    fn render_list(&self, f: &mut Frame, area: Rect) {
+    fn render_list(&self, f: &mut Frame, area: Rect, styles: &RommStyles) {
         let visible = self.visible_list_source_indices();
         let labels = self.list_row_labels();
 
@@ -156,21 +150,18 @@ impl LibraryBrowseScreen {
                     .get(source_idx)
                     .cloned()
                     .unwrap_or_else(|| "?".to_string());
-                ListItem::new(line)
+                ListItem::new(line).style(styles.text())
             })
             .collect();
 
         let list = List::new(items)
-            .block(
-                Block::default()
-                    .title(self.list_title())
-                    .borders(Borders::ALL),
-            )
+            .block(styles.panel_block(self.list_title()))
             .highlight_symbol(if self.view_mode == LibraryViewMode::List {
                 ">> "
             } else {
                 "   "
-            });
+            })
+            .highlight_style(styles.selection());
 
         let mut state = ListState::default();
         if self.view_mode == LibraryViewMode::List {
@@ -188,7 +179,8 @@ impl LibraryBrowseScreen {
         if groups.is_empty() {
             let msg = self.empty_rom_state_message();
             let p = ratatui::widgets::Paragraph::new(msg)
-                .block(Block::default().title("Games").borders(Borders::ALL));
+                .style(styles.text())
+                .block(styles.panel_block("Games"));
             f.render_widget(p, area);
             return;
         }
@@ -210,11 +202,7 @@ impl LibraryBrowseScreen {
             .enumerate()
             .map(|(i, g)| {
                 let global_idx = start + i;
-                let style = if global_idx == self.rom_selected {
-                    styles.selection()
-                } else {
-                    Style::default()
-                };
+                let style = styles.row(i, global_idx == self.rom_selected);
                 Row::new(vec![Cell::from(g.name.as_str()).style(style)]).height(1)
             })
             .collect();
@@ -243,7 +231,7 @@ impl LibraryBrowseScreen {
         let widths = [Constraint::Percentage(100)];
         let table = Table::new(rows, widths)
             .header(header)
-            .block(Block::default().title(title).borders(Borders::ALL));
+            .block(styles.panel_block(title));
 
         f.render_widget(table, area);
     }
@@ -258,7 +246,7 @@ impl LibraryBrowseScreen {
         }
     }
 
-    fn render_help(&self, f: &mut Frame, area: Rect) {
+    fn render_help(&self, f: &mut Frame, area: Rect, styles: &RommStyles) {
         let help = match self.view_mode {
             LibraryViewMode::List => {
                 if self.list_search.mode.is_some() {
@@ -283,8 +271,9 @@ impl LibraryBrowseScreen {
             Some(m) if !m.is_empty() => format!("{m}\n{help}"),
             _ => help.to_string(),
         };
-        let p =
-            ratatui::widgets::Paragraph::new(text).block(Block::default().borders(Borders::ALL));
+        let p = ratatui::widgets::Paragraph::new(text)
+            .style(styles.footer_hint())
+            .block(styles.panel_block_untitled());
         f.render_widget(p, area);
     }
 }

@@ -1,8 +1,10 @@
 //! Static keyboard shortcut reference for the help overlay.
 
 use ratatui::layout::Rect;
-use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
+use ratatui::widgets::{Paragraph, Wrap};
 use ratatui::Frame;
+
+use crate::tui::theme::RommStyles;
 
 pub const KEYBOARD_HELP_TEXT: &str = "\
 Global
@@ -25,7 +27,7 @@ Library (consoles / games)
   Tab                Next jump match (jump mode)
   Enter              Open games list or game detail
   t                  Switch consoles / collections
-  Ctrl-u             Upload ROM (Consoles list; path browser; Ctrl+s: rescan after upload)
+  Ctrl+u             Upload ROM (Consoles list; path browser; Ctrl+s: rescan after upload)
   Ctrl-r             Rescan library on server (waits until done; refreshes games list)
   Esc                Back or main menu
   q                  Quit
@@ -60,7 +62,7 @@ Setup wizard
 Press Esc, Enter, F1, or ? to close this help.
 ";
 
-pub fn render_keyboard_help(f: &mut Frame, area: Rect) {
+pub fn render_keyboard_help(f: &mut Frame, area: Rect, styles: &RommStyles) {
     let popup_w = (area.width * 4 / 5).max(40).min(area.width);
     let popup_h = (area.height * 4 / 5).max(15).min(area.height);
     let popup_area = Rect {
@@ -69,12 +71,11 @@ pub fn render_keyboard_help(f: &mut Frame, area: Rect) {
         width: popup_w,
         height: popup_h,
     };
-    f.render_widget(Clear, popup_area);
-    let block = Block::default()
-        .title("Keyboard shortcuts")
-        .borders(Borders::ALL);
+    styles.fill_surface(f, popup_area);
+    let block = styles.panel_block("Keyboard shortcuts");
     let paragraph = Paragraph::new(KEYBOARD_HELP_TEXT)
         .block(block)
+        .style(styles.text())
         .wrap(Wrap { trim: true });
     f.render_widget(paragraph, popup_area);
 }

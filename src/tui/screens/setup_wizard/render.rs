@@ -2,7 +2,7 @@
 
 use ratatui::style::Modifier;
 use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph};
+use ratatui::widgets::{List, ListItem, ListState, Paragraph};
 
 use crate::config::normalize_romm_origin;
 use crate::tui::theme::RommStyles;
@@ -68,8 +68,8 @@ impl SetupWizard {
                 );
                 let rest: String = self.url.chars().skip(self.url_cursor).collect();
                 let text = format!("{line}{rest}");
-                let block = Block::default().title(title).borders(Borders::ALL);
-                let p = Paragraph::new(text).block(block);
+                let block = styles.panel_block(title);
+                let p = Paragraph::new(text).style(styles.text()).block(block);
                 f.render_widget(p, main[1]);
             }
             Step::Https => {
@@ -78,8 +78,9 @@ impl SetupWizard {
                 } else {
                     "[ ] Use HTTPS (Insecure)"
                 };
-                let block = Block::default().title(title).borders(Borders::ALL);
+                let block = styles.panel_block(title);
                 let p = Paragraph::new(format!("\n  {}\n\n  Space: toggle   Enter: next", text))
+                    .style(styles.text())
                     .block(block);
                 f.render_widget(p, main[1]);
             }
@@ -88,18 +89,21 @@ impl SetupWizard {
             }
             Step::CustomConsolePaths => {
                 let body = "By default each console uses a subfolder under your ROMs directory.\n\nConsoles on other drives (e.g. Switch on D:, NES on E:) can use custom paths.\nMap them in Settings → ROMs → Console paths after setup.\n\nEnter: next";
-                let block = Block::default().title(title).borders(Borders::ALL);
-                f.render_widget(Paragraph::new(body).block(block), main[1]);
+                let block = styles.panel_block(title);
+                f.render_widget(
+                    Paragraph::new(body).style(styles.text()).block(block),
+                    main[1],
+                );
             }
             Step::AuthMenu => {
                 let items: Vec<ListItem> = Self::auth_labels()
                     .iter()
-                    .map(|s| ListItem::new(*s))
+                    .map(|s| ListItem::new(*s).style(styles.text()))
                     .collect();
                 let mut state = ListState::default();
                 state.select(Some(self.auth_menu_selected));
                 let list = List::new(items)
-                    .block(Block::default().title(title).borders(Borders::ALL))
+                    .block(styles.panel_block(title))
                     .highlight_style(styles.selection().add_modifier(Modifier::BOLD))
                     .highlight_symbol(">> ");
                 f.render_stateful_widget(list, main[1], &mut state);
@@ -129,11 +133,11 @@ impl SetupWizard {
                 } else {
                     ""
                 };
-                let block = Block::default().title(title).borders(Borders::ALL);
+                let block = styles.panel_block(title);
                 let body = format!(
                     "Username\n{user_line}\n\nPassword (hidden)\n{pass_display}{kr_hint}\n\nTab: switch field"
                 );
-                let p = Paragraph::new(body).block(block);
+                let p = Paragraph::new(body).style(styles.text()).block(block);
                 f.render_widget(p, main[1]);
             }
             Step::Bearer => {
@@ -160,8 +164,8 @@ impl SetupWizard {
                         styles.muted(),
                     )));
                 }
-                let block = Block::default().title(title).borders(Borders::ALL);
-                let p = Paragraph::new(bearer_text).block(block);
+                let block = styles.panel_block(title);
+                let p = Paragraph::new(bearer_text).style(styles.text()).block(block);
                 f.render_widget(p, main[1]);
             }
             Step::PairingCode => {
@@ -177,8 +181,8 @@ impl SetupWizard {
                         .collect::<String>()
                 );
                 let body = format!("Enter the 8-character code provided.\n\n{line}");
-                let block = Block::default().title(title).borders(Borders::ALL);
-                let p = Paragraph::new(body).block(block);
+                let block = styles.panel_block(title);
+                let p = Paragraph::new(body).style(styles.text()).block(block);
                 f.render_widget(p, main[1]);
             }
             Step::ApiHeader | Step::ApiKey => {
@@ -209,8 +213,8 @@ impl SetupWizard {
                 let body = format!(
                     "Header name\n{header_line}\n\nKey (hidden)\n{key_line}{kr_hint}\n\nTab: switch field"
                 );
-                let block = Block::default().title(title).borders(Borders::ALL);
-                let p = Paragraph::new(body).block(block);
+                let block = styles.panel_block(title);
+                let p = Paragraph::new(body).style(styles.text()).block(block);
                 f.render_widget(p, main[1]);
             }
             Step::Summary => {
@@ -243,8 +247,8 @@ impl SetupWizard {
                 } else {
                     lines.push("Enter: test connection and save   Esc: quit".to_string());
                 }
-                let block = Block::default().title(title).borders(Borders::ALL);
-                let p = Paragraph::new(lines.join("\n")).block(block);
+                let block = styles.panel_block(title);
+                let p = Paragraph::new(lines.join("\n")).style(styles.text()).block(block);
                 f.render_widget(p, main[1]);
             }
         }
@@ -270,7 +274,7 @@ impl SetupWizard {
             }
         };
         let p = Paragraph::new(wizard_footer_text(footer_keys, styles))
-            .block(Block::default().borders(Borders::ALL));
+            .block(styles.panel_block_untitled());
         f.render_widget(p, main[2]);
     }
 

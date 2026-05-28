@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::Modifier;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 
 use crate::tui::theme::RommStyles;
@@ -56,11 +56,12 @@ pub fn render(f: &mut Frame, area: Rect, splash: &StartupSplash, styles: &RommSt
         )),
     ];
 
-    let p = Paragraph::new(lines).alignment(Alignment::Center).block(
-        Block::default()
-            .title("romm-cli")
-            .borders(Borders::ALL)
-            .border_style(styles.success()),
-    );
+    let p = Paragraph::new(lines)
+        .alignment(Alignment::Center)
+        .block(
+            styles
+                .panel_block("romm-cli")
+                .border_style(styles.success()),
+        );
     f.render_widget(p, area);
 }

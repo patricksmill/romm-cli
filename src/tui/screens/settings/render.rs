@@ -1,7 +1,7 @@
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::Modifier;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Tabs};
+use ratatui::widgets::{List, ListItem, ListState, Paragraph, Tabs};
 use ratatui::Frame;
 
 use crate::tui::theme::RommStyles;
@@ -35,7 +35,9 @@ impl SettingsScreen {
                 format!("Console: {platform_name}"),
             ];
             f.render_widget(
-                Paragraph::new(info.join("\n")).block(Block::default().borders(Borders::BOTTOM)),
+                Paragraph::new(info.join("\n"))
+                    .style(styles.text())
+                    .block(styles.header_block()),
                 chunks[0],
             );
             picker.render(
@@ -48,7 +50,7 @@ impl SettingsScreen {
             f.render_widget(
                 Paragraph::new("Console directory picker — Esc returns without changing")
                     .style(styles.footer_hint())
-                    .block(Block::default().borders(Borders::ALL)),
+                    .block(styles.panel_block_untitled()),
                 chunks[2],
             );
             return;
@@ -77,7 +79,9 @@ impl SettingsScreen {
                 format!("Auth:     {}", self.auth_status),
             ];
             f.render_widget(
-                Paragraph::new(info.join("\n")).block(Block::default().borders(Borders::BOTTOM)),
+                Paragraph::new(info.join("\n"))
+                    .style(styles.text())
+                    .block(styles.header_block()),
                 chunks[0],
             );
             let hint =
@@ -90,7 +94,7 @@ impl SettingsScreen {
             f.render_widget(
                 Paragraph::new("ROMs directory picker — Esc returns without changing")
                     .style(styles.footer_hint())
-                    .block(Block::default().borders(Borders::ALL)),
+                    .block(styles.panel_block_untitled()),
                 chunks[2],
             );
             return;
@@ -122,7 +126,9 @@ impl SettingsScreen {
             format!("Auth:     {}", self.auth_status),
         ];
         f.render_widget(
-            Paragraph::new(info.join("\n")).block(Block::default().borders(Borders::BOTTOM)),
+            Paragraph::new(info.join("\n"))
+                .style(styles.text())
+                .block(styles.header_block()),
             chunks[0],
         );
 
@@ -133,7 +139,7 @@ impl SettingsScreen {
             .collect::<Vec<_>>();
         let tabs = Tabs::new(titles)
             .select(self.selected_tab.index())
-            .block(Block::default().borders(Borders::ALL))
+            .block(styles.panel_block_untitled())
             .style(styles.muted())
             .highlight_style(styles.selection());
         f.render_widget(tabs, chunks[1]);
@@ -150,11 +156,7 @@ impl SettingsScreen {
         state.select(Some(self.selected_row_index()));
 
         let list = List::new(items)
-            .block(
-                Block::default()
-                    .title(format!(" {} ", self.selected_tab.title()))
-                    .borders(Borders::ALL),
-            )
+            .block(styles.panel_block(format!(" {} ", self.selected_tab.title())))
             .highlight_style(styles.selection())
             .highlight_symbol(">> ");
 
@@ -195,7 +197,9 @@ impl SettingsScreen {
             "Tab/←/→: tabs   ↑/↓: select   Enter: edit/toggle   S: save to disk   Esc: back"
         };
         f.render_widget(
-            Paragraph::new(help).block(Block::default().borders(Borders::ALL)),
+            Paragraph::new(help)
+                .style(styles.footer_hint())
+                .block(styles.panel_block_untitled()),
             chunks[4],
         );
     }
@@ -206,7 +210,7 @@ impl SettingsScreen {
             SettingsRow::SyncDevice | SettingsRow::SyncNow if !self.save_sync_supported() => {
                 ListItem::new(label).style(styles.muted())
             }
-            _ => ListItem::new(label),
+            _ => ListItem::new(label).style(styles.text()),
         }
     }
 
@@ -339,20 +343,23 @@ impl SettingsScreen {
             "Select the RomM sync device used for manual push-pull.".to_string(),
         ];
         f.render_widget(
-            Paragraph::new(info.join("\n")).block(Block::default().borders(Borders::BOTTOM)),
+            Paragraph::new(info.join("\n"))
+                .style(styles.text())
+                .block(styles.header_block()),
             chunks[0],
         );
         if self.device_picker_loading {
             f.render_widget(
                 Paragraph::new("Loading devices...")
-                    .block(Block::default().title(" Devices ").borders(Borders::ALL)),
+                    .style(styles.text())
+                    .block(styles.panel_block(" Devices ")),
                 chunks[1],
             );
         } else if let Some(error) = &self.device_picker_error {
             f.render_widget(
                 Paragraph::new(format!("Could not load devices: {error}"))
                     .style(styles.error())
-                    .block(Block::default().title(" Devices ").borders(Borders::ALL)),
+                    .block(styles.panel_block(" Devices ")),
                 chunks[1],
             );
         } else {
@@ -362,13 +369,14 @@ impl SettingsScreen {
                 .map(|d| {
                     let name = d.name.as_deref().unwrap_or("(unnamed)");
                     ListItem::new(format!("{name}  [{}]  mode={:?}", d.id, d.sync_mode))
+                        .style(styles.text())
                 })
                 .collect();
             let mut state = ListState::default();
             state.select(Some(self.device_selected_index));
             f.render_stateful_widget(
                 List::new(items)
-                    .block(Block::default().title(" Devices ").borders(Borders::ALL))
+                    .block(styles.panel_block(" Devices "))
                     .highlight_symbol(">> ")
                     .highlight_style(styles.selection()),
                 chunks[1],
@@ -377,7 +385,8 @@ impl SettingsScreen {
         }
         f.render_widget(
             Paragraph::new("Enter: choose   Esc: cancel   ↑/↓: select")
-                .block(Block::default().borders(Borders::ALL)),
+                .style(styles.footer_hint())
+                .block(styles.panel_block_untitled()),
             chunks[2],
         );
     }
@@ -404,27 +413,30 @@ impl SettingsScreen {
             subtitle.to_string(),
         ];
         f.render_widget(
-            Paragraph::new(info.join("\n")).block(Block::default().borders(Borders::BOTTOM)),
+            Paragraph::new(info.join("\n"))
+                .style(styles.text())
+                .block(styles.header_block()),
             chunks[0],
         );
         if self.console_picker_loading {
             f.render_widget(
                 Paragraph::new("Loading platforms...")
-                    .block(Block::default().title(" Consoles ").borders(Borders::ALL)),
+                    .style(styles.text())
+                    .block(styles.panel_block(" Consoles ")),
                 chunks[1],
             );
         } else if let Some(error) = &self.console_picker_error {
             f.render_widget(
                 Paragraph::new(format!("Could not load platforms: {error}"))
                     .style(styles.error())
-                    .block(Block::default().title(" Consoles ").borders(Borders::ALL)),
+                    .block(styles.panel_block(" Consoles ")),
                 chunks[1],
             );
         } else if self.console_platforms.is_empty() {
             f.render_widget(
                 Paragraph::new("No platforms returned from the server.")
                     .style(styles.warning())
-                    .block(Block::default().title(" Consoles ").borders(Borders::ALL)),
+                    .block(styles.panel_block(" Consoles ")),
                 chunks[1],
             );
         } else {
@@ -444,13 +456,14 @@ impl SettingsScreen {
                         "base default"
                     };
                     ListItem::new(format!("{name}  [{tag}]  {path}"))
+                        .style(styles.text())
                 })
                 .collect();
             let mut state = ListState::default();
             state.select(Some(self.console_selected_index));
             f.render_stateful_widget(
                 List::new(items)
-                    .block(Block::default().title(" Consoles ").borders(Borders::ALL))
+                    .block(styles.panel_block(" Consoles "))
                     .highlight_symbol(">> ")
                     .highlight_style(styles.selection()),
                 chunks[1],
@@ -459,7 +472,8 @@ impl SettingsScreen {
         }
         f.render_widget(
             Paragraph::new("Enter: set path   Del: clear custom   Esc: back   ↑/↓: select")
-                .block(Block::default().borders(Borders::ALL)),
+                .style(styles.footer_hint())
+                .block(styles.panel_block_untitled()),
             chunks[2],
         );
     }

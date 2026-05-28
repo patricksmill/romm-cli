@@ -10,6 +10,7 @@ impl super::App {
         let area = f.area();
         let theme = self.theme.as_ref();
         let styles = RommStyles::new(theme);
+        styles.fill_background(f, area);
 
         if let Some(ref splash) = self.startup_splash {
             connected_splash::render(f, area, splash, &styles);
@@ -46,7 +47,7 @@ impl super::App {
             }
 
             if self.show_keyboard_help {
-                keyboard_help::render_keyboard_help(f, area);
+                keyboard_help::render_keyboard_help(f, area, &styles);
             }
         }
 
@@ -59,21 +60,21 @@ impl super::App {
                 width: popup_w.min(area.width),
                 height: popup_h.min(area.height),
             };
-            f.render_widget(ratatui::widgets::Clear, popup_area);
+            styles.fill_surface(f, popup_area);
 
-            let block = ratatui::widgets::Block::default()
-                .title(" Update Available ")
-                .title_alignment(ratatui::layout::Alignment::Center)
-                .borders(ratatui::widgets::Borders::ALL)
-                .border_style(styles.label());
+            let block = styles
+                .panel_block(" Update Available ")
+                .title_alignment(ratatui::layout::Alignment::Center);
 
             if prompt.updating {
                 let text = vec![
                     ratatui::text::Line::from(""),
                     ratatui::text::Line::from("Downloading and installing...")
-                        .alignment(ratatui::layout::Alignment::Center),
+                        .alignment(ratatui::layout::Alignment::Center)
+                        .style(styles.text()),
                     ratatui::text::Line::from("Please wait.")
-                        .alignment(ratatui::layout::Alignment::Center),
+                        .alignment(ratatui::layout::Alignment::Center)
+                        .style(styles.text()),
                     ratatui::text::Line::from(""),
                     ratatui::text::Line::from("This may take a few moments.")
                         .alignment(ratatui::layout::Alignment::Center)
@@ -98,7 +99,8 @@ impl super::App {
                     .alignment(ratatui::layout::Alignment::Center),
                     ratatui::text::Line::from(""),
                     ratatui::text::Line::from("Would you like to update?")
-                        .alignment(ratatui::layout::Alignment::Center),
+                        .alignment(ratatui::layout::Alignment::Center)
+                        .style(styles.text()),
                     ratatui::text::Line::from(""),
                     ratatui::text::Line::from(vec![
                         ratatui::text::Span::styled("Y/Enter", styles.selection()),
@@ -125,14 +127,14 @@ impl super::App {
                 width: 60.min(area.width),
                 height: 10.min(area.height),
             };
-            f.render_widget(ratatui::widgets::Clear, popup_area);
-            let block = ratatui::widgets::Block::default()
-                .title("Error")
-                .borders(ratatui::widgets::Borders::ALL)
-                .style(styles.error());
+            styles.fill_surface(f, popup_area);
+            let block = styles
+                .panel_block("Error")
+                .border_style(styles.error());
             let text = format!("{}\n\nPress Esc to dismiss", err);
             let paragraph = ratatui::widgets::Paragraph::new(text)
                 .block(block)
+                .style(styles.text())
                 .wrap(ratatui::widgets::Wrap { trim: true });
             f.render_widget(paragraph, popup_area);
         }
@@ -144,14 +146,12 @@ impl super::App {
                 width: 60.min(area.width),
                 height: 10.min(area.height),
             };
-            f.render_widget(ratatui::widgets::Clear, popup_area);
-            let block = ratatui::widgets::Block::default()
-                .title("Notice")
-                .borders(ratatui::widgets::Borders::ALL)
-                .style(styles.label());
+            styles.fill_surface(f, popup_area);
+            let block = styles.panel_block("Notice");
             let text = format!("{notice}\n\nPress Esc to dismiss");
             let paragraph = ratatui::widgets::Paragraph::new(text)
                 .block(block)
+                .style(styles.text())
                 .wrap(ratatui::widgets::Wrap { trim: true });
             f.render_widget(paragraph, popup_area);
         }
