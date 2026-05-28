@@ -12,9 +12,10 @@ use crate::endpoints::sync::TriggerPushPull;
 
 use super::super::background::types::{DeviceListDone, PlatformListDone, SyncPushPullDone};
 use super::super::{App, AppScreen};
-use crate::tui::screens::settings::{ConsolePathKind, SettingsRow};
+use crate::tui::screens::settings::{ConsolePathKind, SettingsRow, SettingsTab};
 use crate::tui::screens::setup_wizard::SetupWizard;
 use crate::tui::screens::MainMenuScreen;
+use crate::tui::theme::resolve_theme_or_default;
 
 impl App {
     async fn refresh_settings_server_version(&mut self) -> Result<()> {
@@ -237,8 +238,30 @@ impl App {
         match key.code {
             KeyCode::Up | KeyCode::Char('k') => settings.previous(),
             KeyCode::Down | KeyCode::Char('j') => settings.next(),
-            KeyCode::Right | KeyCode::Char('l') | KeyCode::Tab => settings.next_tab(),
-            KeyCode::Left | KeyCode::Char('h') | KeyCode::BackTab => settings.previous_tab(),
+            KeyCode::Right | KeyCode::Char('l') => {
+                if settings.selected_tab == SettingsTab::Appearance
+                    && settings.selected_row() == SettingsRow::Theme
+                {
+                    settings.cycle_theme_next();
+                    self.theme = resolve_theme_or_default(&settings.theme_id);
+                    self.config.theme = settings.theme_id.clone();
+                } else {
+                    settings.next_tab();
+                }
+            }
+            KeyCode::Left | KeyCode::Char('h') => {
+                if settings.selected_tab == SettingsTab::Appearance
+                    && settings.selected_row() == SettingsRow::Theme
+                {
+                    settings.cycle_theme_prev();
+                    self.theme = resolve_theme_or_default(&settings.theme_id);
+                    self.config.theme = settings.theme_id.clone();
+                } else {
+                    settings.previous_tab();
+                }
+            }
+            KeyCode::Tab => settings.next_tab(),
+            KeyCode::BackTab => settings.previous_tab(),
             KeyCode::Enter => {
                 let row = settings.selected_row();
                 if row == SettingsRow::Auth {
@@ -330,7 +353,7 @@ impl App {
                     },
                     save_sync: settings.save_sync_config(),
                     roms_layout: settings.roms_layout_config(),
-                    theme: self.config.theme.clone(),
+                    theme: settings.theme_id.clone(),
                 };
                 if let Err(e) = persist_user_config(&cfg) {
                     settings.message = Some((format!("Error saving: {e}"), Color::Red));
@@ -343,6 +366,7 @@ impl App {
                     self.config.extras_defaults = cfg.extras_defaults.clone();
                     self.config.save_sync = cfg.save_sync.clone();
                     self.config.roms_layout = cfg.roms_layout.clone();
+                    self.config.theme = cfg.theme.clone();
                     // Re-create client to pick up new base URL
                     if let Ok(new_client) = RommClient::new(&self.config, self.client.verbose()) {
                         self.client = new_client;

@@ -13,15 +13,17 @@ pub enum SettingsTab {
     Roms,
     Saves,
     Extras,
+    Appearance,
     AuthMaintenance,
 }
 
 impl SettingsTab {
-    pub const ALL: [SettingsTab; 5] = [
+    pub const ALL: [SettingsTab; 6] = [
         SettingsTab::Connection,
         SettingsTab::Roms,
         SettingsTab::Saves,
         SettingsTab::Extras,
+        SettingsTab::Appearance,
         SettingsTab::AuthMaintenance,
     ];
 
@@ -33,7 +35,8 @@ impl SettingsTab {
             SettingsTab::Roms => 1,
             SettingsTab::Saves => 2,
             SettingsTab::Extras => 3,
-            SettingsTab::AuthMaintenance => 4,
+            SettingsTab::Appearance => 4,
+            SettingsTab::AuthMaintenance => 5,
         }
     }
 
@@ -43,6 +46,7 @@ impl SettingsTab {
             SettingsTab::Roms => "ROMs",
             SettingsTab::Saves => "Saves",
             SettingsTab::Extras => "Extras",
+            SettingsTab::Appearance => "Appearance",
             SettingsTab::AuthMaintenance => "Auth/Maint",
         }
     }
@@ -64,6 +68,7 @@ pub enum SettingsRow {
     Auth,
     ClearCache,
     ResetConfiguration,
+    Theme,
 }
 
 pub(crate) const CONNECTION_ROWS: [SettingsRow; 2] = [SettingsRow::BaseUrl, SettingsRow::UseHttps];
@@ -78,6 +83,7 @@ pub(crate) const EXTRAS_ROWS: [SettingsRow; 3] = [
     SettingsRow::ExtrasCover,
     SettingsRow::ExtrasManual,
 ];
+pub(crate) const APPEARANCE_ROWS: [SettingsRow; 1] = [SettingsRow::Theme];
 pub(crate) const AUTH_MAINT_ROWS: [SettingsRow; 3] = [
     SettingsRow::Auth,
     SettingsRow::ClearCache,
@@ -117,6 +123,7 @@ pub struct SettingsScreen {
     pub version: String,
     pub server_version: String,
     pub github_url: String,
+    pub theme_id: String,
 
     pub selected_tab: SettingsTab,
     pub(crate) selected_indices: [usize; SettingsTab::COUNT],

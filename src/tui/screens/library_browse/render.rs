@@ -150,18 +150,12 @@ impl LibraryBrowseScreen {
 
         let items: Vec<ListItem> = visible
             .iter()
-            .enumerate()
-            .map(|(pos, &source_idx)| {
+            .map(|&source_idx| {
                 let line = labels
                     .get(source_idx)
                     .cloned()
                     .unwrap_or_else(|| "?".to_string());
-                let prefix = if pos == self.list_index && self.view_mode == LibraryViewMode::List {
-                    "▶ "
-                } else {
-                    "  "
-                };
-                ListItem::new(format!("{}{}", prefix, line))
+                ListItem::new(line)
             })
             .collect();
 

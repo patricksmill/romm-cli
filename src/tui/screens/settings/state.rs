@@ -10,8 +10,9 @@ use crate::tui::path_picker::{PathPicker, PathPickerMode};
 
 use super::types::{
     ConsolePathKind, SettingsConfirm, SettingsPickerKind, SettingsRow, SettingsScreen, SettingsTab,
-    AUTH_MAINT_ROWS, CONNECTION_ROWS, EXTRAS_ROWS, SAVES_ROWS,
+    APPEARANCE_ROWS, AUTH_MAINT_ROWS, CONNECTION_ROWS, EXTRAS_ROWS, SAVES_ROWS,
 };
+use crate::tui::theme::{next_theme_id, prev_theme_id, theme_display_name};
 
 impl SettingsScreen {
     pub fn new(
@@ -56,6 +57,7 @@ impl SettingsScreen {
             version: env!("CARGO_PKG_VERSION").to_string(),
             server_version,
             github_url: "https://github.com/patricksmill/romm-cli".to_string(),
+            theme_id: config.theme.clone(),
             selected_tab: SettingsTab::Connection,
             selected_indices: [0; SettingsTab::COUNT],
             editing: false,
@@ -117,6 +119,7 @@ impl SettingsScreen {
             SettingsTab::Roms => vec![SettingsRow::RomsDir, SettingsRow::ConsolePaths],
             SettingsTab::Saves => SAVES_ROWS.to_vec(),
             SettingsTab::Extras => EXTRAS_ROWS.to_vec(),
+            SettingsTab::Appearance => APPEARANCE_ROWS.to_vec(),
             SettingsTab::AuthMaintenance => AUTH_MAINT_ROWS.to_vec(),
         }
     }
@@ -150,9 +153,22 @@ impl SettingsScreen {
             SettingsTab::Connection => &CONNECTION_ROWS,
             SettingsTab::Saves => &SAVES_ROWS,
             SettingsTab::Extras => &EXTRAS_ROWS,
+            SettingsTab::Appearance => &APPEARANCE_ROWS,
             SettingsTab::AuthMaintenance => &AUTH_MAINT_ROWS,
             SettingsTab::Roms => &[],
         }
+    }
+
+    pub fn cycle_theme_next(&mut self) {
+        self.theme_id = next_theme_id(&self.theme_id);
+    }
+
+    pub fn cycle_theme_prev(&mut self) {
+        self.theme_id = prev_theme_id(&self.theme_id);
+    }
+
+    pub fn theme_display_name(&self) -> String {
+        theme_display_name(&self.theme_id)
     }
 
     pub fn next_tab(&mut self) {
@@ -288,6 +304,7 @@ impl SettingsScreen {
                 self.edit_buffer = self.base_url.clone();
                 self.edit_cursor = self.edit_buffer.len();
             }
+            SettingsRow::Theme => {}
             SettingsRow::Auth => {}
         }
     }

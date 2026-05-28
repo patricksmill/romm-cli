@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::types::{AUTH_MAINT_ROWS, CONNECTION_ROWS, EXTRAS_ROWS, SAVES_ROWS};
+use super::types::{AUTH_MAINT_ROWS, APPEARANCE_ROWS, CONNECTION_ROWS, EXTRAS_ROWS, SAVES_ROWS};
 use super::{SettingsConfirm, SettingsRow, SettingsScreen, SettingsTab};
 use crate::config::{
     Config, ExtrasDefaults, RomsLayoutConfig, SaveSyncConfig, default_theme_id,
@@ -80,6 +80,7 @@ fn tabs_expose_expected_rows() {
             SettingsRow::ExtrasManual
         ]
     );
+    assert_eq!(APPEARANCE_ROWS, [SettingsRow::Theme]);
     assert_eq!(
         AUTH_MAINT_ROWS,
         [
@@ -88,6 +89,24 @@ fn tabs_expose_expected_rows() {
             SettingsRow::ResetConfiguration
         ]
     );
+}
+
+#[test]
+fn appearance_tab_has_theme_row() {
+    let mut s = screen();
+    s.selected_tab = SettingsTab::Appearance;
+    assert_eq!(s.visible_rows(), vec![SettingsRow::Theme]);
+}
+
+#[test]
+fn theme_row_cycles_with_helpers() {
+    let mut s = screen();
+    s.selected_tab = SettingsTab::Appearance;
+    let initial = s.theme_id.clone();
+    s.cycle_theme_next();
+    assert_ne!(s.theme_id, initial);
+    s.cycle_theme_prev();
+    assert_eq!(s.theme_id, initial);
 }
 
 #[test]

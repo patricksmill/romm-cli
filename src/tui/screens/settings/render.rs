@@ -270,6 +270,10 @@ impl SettingsScreen {
                     "[ ] No"
                 }
             ),
+            SettingsRow::Theme => format!(
+                "Theme:        {} (←/→ to change)",
+                self.theme_display_name()
+            ),
             SettingsRow::Auth => format!("Auth:         {} (Enter to change)", self.auth_status),
             SettingsRow::ClearCache => "Clear Cache (Remove cached ROM data)".to_string(),
             SettingsRow::ResetConfiguration => {
