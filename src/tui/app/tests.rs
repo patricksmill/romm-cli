@@ -582,8 +582,56 @@ async fn settings_theme_preview_reverts_when_leaving_without_save() {
 
     app.handle_key_event(&KeyEvent::new(KeyCode::Esc, KeyModifiers::empty()))
         .await
-        .expect("back to menu");
+        .expect("prompt to save");
+    assert!(matches!(app.screen, AppScreen::Settings(_)));
+
+    app.handle_key_event(&KeyEvent::new(KeyCode::Char('n'), KeyModifiers::empty()))
+        .await
+        .expect("discard and leave");
 
     assert!(matches!(app.screen, AppScreen::MainMenu(_)));
     assert_eq!(app.theme_id(), saved_theme);
+}
+
+#[tokio::test]
+async fn settings_exit_prompt_cancel_keeps_unsaved_preview() {
+    std::env::remove_var("NO_COLOR");
+    let mut app = app_on_main_menu();
+    let saved_theme = app.config.theme.clone();
+
+    let mut settings = SettingsScreen::new(&app.config, None, supported_save_sync_compatibility());
+    settings.selected_tab = SettingsTab::Appearance;
+    app.screen = AppScreen::Settings(Box::new(settings));
+
+    app.handle_key_event(&KeyEvent::new(KeyCode::Right, KeyModifiers::empty()))
+        .await
+        .expect("cycle theme");
+    let preview_theme = app.theme_id().to_string();
+
+    app.handle_key_event(&KeyEvent::new(KeyCode::Esc, KeyModifiers::empty()))
+        .await
+        .expect("prompt to save");
+    app.handle_key_event(&KeyEvent::new(KeyCode::Esc, KeyModifiers::empty()))
+        .await
+        .expect("cancel prompt");
+
+    assert!(matches!(app.screen, AppScreen::Settings(_)));
+    assert_eq!(app.theme_id(), preview_theme);
+    assert_eq!(app.config.theme, saved_theme);
+}
+
+#[tokio::test]
+async fn settings_exit_without_changes_skips_prompt() {
+    let mut app = app_on_main_menu();
+    app.screen = AppScreen::Settings(Box::new(SettingsScreen::new(
+        &app.config,
+        None,
+        supported_save_sync_compatibility(),
+    )));
+
+    app.handle_key_event(&KeyEvent::new(KeyCode::Esc, KeyModifiers::empty()))
+        .await
+        .expect("leave settings");
+
+    assert!(matches!(app.screen, AppScreen::MainMenu(_)));
 }

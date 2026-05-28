@@ -186,6 +186,21 @@ fn tab_navigation_preserves_per_tab_selection() {
 }
 
 #[test]
+fn fresh_settings_match_saved_config() {
+    let cfg = test_config();
+    let s = SettingsScreen::new(&cfg, Some("1.0.0"), supported_save_sync_compatibility());
+    assert!(!s.has_unsaved_changes(&cfg));
+}
+
+#[test]
+fn theme_change_detected_as_unsaved() {
+    let cfg = test_config();
+    let mut s = SettingsScreen::new(&cfg, Some("1.0.0"), supported_save_sync_compatibility());
+    s.cycle_theme_next();
+    assert!(s.has_unsaved_changes(&cfg));
+}
+
+#[test]
 fn activation_rows_resolve_to_expected_intents() {
     let mut s = screen();
 

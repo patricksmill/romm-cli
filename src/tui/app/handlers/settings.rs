@@ -17,6 +17,56 @@ use crate::tui::screens::MainMenuScreen;
 use crate::tui::theme::{resolve_theme_or_default, MessageTone};
 
 impl App {
+    fn persist_settings_screen(&mut self) -> bool {
+        use crate::config::persist_user_config;
+
+        let settings = match &self.screen {
+            AppScreen::Settings(s) => s,
+            _ => return false,
+        };
+        let auth = auth_for_persist_merge(self.config.auth.clone());
+        let cfg = Config {
+            base_url: settings.base_url.clone(),
+            download_dir: settings.download_dir.clone(),
+            use_https: settings.use_https,
+            auth,
+            extras_defaults: ExtrasDefaults {
+                include_related_roms: settings.extras_include_related_roms,
+                include_cover: settings.extras_include_cover,
+                include_manual: settings.extras_include_manual,
+            },
+            save_sync: settings.save_sync_config(),
+            roms_layout: settings.roms_layout_config(),
+            theme: settings.theme_id.clone(),
+        };
+        if let Err(e) = persist_user_config(&cfg) {
+            if let AppScreen::Settings(s) = &mut self.screen {
+                s.message = Some((format!("Error saving: {e}"), MessageTone::Error));
+            }
+            return false;
+        }
+        if let AppScreen::Settings(s) = &mut self.screen {
+            s.message = Some(("Saved to config.json".to_string(), MessageTone::Success));
+        }
+        self.config.base_url = cfg.base_url.clone();
+        self.config.download_dir = cfg.download_dir.clone();
+        self.config.use_https = cfg.use_https;
+        self.config.extras_defaults = cfg.extras_defaults.clone();
+        self.config.save_sync = cfg.save_sync.clone();
+        self.config.roms_layout = cfg.roms_layout.clone();
+        self.config.theme = cfg.theme.clone();
+        self.apply_saved_theme();
+        if let Ok(new_client) = RommClient::new(&self.config, self.client.verbose()) {
+            self.client = new_client;
+        }
+        true
+    }
+
+    fn exit_settings_to_menu(&mut self) {
+        self.apply_saved_theme();
+        self.screen = AppScreen::MainMenu(MainMenuScreen::new());
+    }
+
     async fn refresh_settings_server_version(&mut self) -> Result<()> {
         let (base_url, download_dir, use_https, verbose, auth) = {
             let settings = match &self.screen {
@@ -212,7 +262,20 @@ impl App {
                             }
                         }
                     }
+                    crate::tui::screens::settings::SettingsConfirm::ExitUnsaved => {
+                        if self.persist_settings_screen() {
+                            self.exit_settings_to_menu();
+                        }
+                    }
                 },
+                KeyCode::Char('n' | 'N') => {
+                    if settings.confirm
+                        == Some(crate::tui::screens::settings::SettingsConfirm::ExitUnsaved)
+                    {
+                        settings.confirm = None;
+                        self.exit_settings_to_menu();
+                    }
+                }
                 KeyCode::Esc => {
                     settings.confirm = None;
                 }
@@ -346,46 +409,15 @@ impl App {
                 }
             }
             KeyCode::Char('s' | 'S') => {
-                // Save to disk (accept both cases; footer shows "S:")
-                use crate::config::persist_user_config;
-                let auth = auth_for_persist_merge(self.config.auth.clone());
-                let cfg = Config {
-                    base_url: settings.base_url.clone(),
-                    download_dir: settings.download_dir.clone(),
-                    use_https: settings.use_https,
-                    auth,
-                    extras_defaults: ExtrasDefaults {
-                        include_related_roms: settings.extras_include_related_roms,
-                        include_cover: settings.extras_include_cover,
-                        include_manual: settings.extras_include_manual,
-                    },
-                    save_sync: settings.save_sync_config(),
-                    roms_layout: settings.roms_layout_config(),
-                    theme: settings.theme_id.clone(),
-                };
-                if let Err(e) = persist_user_config(&cfg) {
-                    settings.message = Some((format!("Error saving: {e}"), MessageTone::Error));
-                } else {
-                    settings.message =
-                        Some(("Saved to config.json".to_string(), MessageTone::Success));
-                    // Update app state
-                    self.config.base_url = cfg.base_url.clone();
-                    self.config.download_dir = cfg.download_dir.clone();
-                    self.config.use_https = cfg.use_https;
-                    self.config.extras_defaults = cfg.extras_defaults.clone();
-                    self.config.save_sync = cfg.save_sync.clone();
-                    self.config.roms_layout = cfg.roms_layout.clone();
-                    self.config.theme = cfg.theme.clone();
-                    self.apply_saved_theme();
-                    // Re-create client to pick up new base URL
-                    if let Ok(new_client) = RommClient::new(&self.config, self.client.verbose()) {
-                        self.client = new_client;
-                    }
-                }
+                self.persist_settings_screen();
             }
             KeyCode::Esc => {
-                self.apply_saved_theme();
-                self.screen = AppScreen::MainMenu(MainMenuScreen::new());
+                if settings.has_unsaved_changes(&self.config) {
+                    settings.confirm =
+                        Some(crate::tui::screens::settings::SettingsConfirm::ExitUnsaved);
+                } else {
+                    self.exit_settings_to_menu();
+                }
             }
             KeyCode::Char('q') => return Ok(true),
             _ => {}

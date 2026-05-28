@@ -171,6 +171,9 @@ impl SettingsScreen {
                 SettingsConfirm::ClearCache => {
                     "Are you sure you want to clear the ROM cache? (Enter: Yes, Esc: Cancel)"
                 }
+                SettingsConfirm::ExitUnsaved => {
+                    "Save changes before leaving? (Enter: Save, N: Don't save, Esc: Cancel)"
+                }
             };
             f.render_widget(
                 Paragraph::new(msg).style(styles.error().add_modifier(Modifier::BOLD)),
@@ -189,7 +192,9 @@ impl SettingsScreen {
         }
 
         // -- Footer Help --
-        let help = if self.confirm.is_some() {
+        let help = if self.confirm == Some(SettingsConfirm::ExitUnsaved) {
+            "Enter: save   N: don't save   Esc: cancel"
+        } else if self.confirm.is_some() {
             "Enter: confirm   Esc: cancel"
         } else if self.editing {
             "Backspace: delete   Arrows: move cursor   Enter: save   Esc: cancel"

@@ -97,6 +97,44 @@ impl SettingsScreen {
         }
     }
 
+    /// Whether the on-screen values differ from the last saved in-memory config.
+    pub fn has_unsaved_changes(&self, saved: &Config) -> bool {
+        if self.base_url != saved.base_url {
+            return true;
+        }
+        if self.download_dir != saved.download_dir {
+            return true;
+        }
+        if self.use_https != saved.use_https {
+            return true;
+        }
+        if self.extras_include_related_roms != saved.extras_defaults.include_related_roms {
+            return true;
+        }
+        if self.extras_include_cover != saved.extras_defaults.include_cover {
+            return true;
+        }
+        if self.extras_include_manual != saved.extras_defaults.include_manual {
+            return true;
+        }
+        if self.theme_id != saved.theme {
+            return true;
+        }
+        if self.roms_layout_config() != saved.roms_layout {
+            return true;
+        }
+        if self.sync_device_id != saved.save_sync.device_id {
+            return true;
+        }
+        if self.save_platform_dirs != saved.save_sync.platform_dirs {
+            return true;
+        }
+        let saved_save_dir = crate::config::resolved_save_dir(saved)
+            .display()
+            .to_string();
+        self.save_dir != saved_save_dir
+    }
+
     pub(crate) fn console_dirs(&self, kind: ConsolePathKind) -> &HashMap<u64, String> {
         match kind {
             ConsolePathKind::Roms => &self.rom_platform_dirs,

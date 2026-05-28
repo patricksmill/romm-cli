@@ -105,6 +105,7 @@ pub enum ConsolePathKind {
 pub enum SettingsConfirm {
     Reset,
     ClearCache,
+    ExitUnsaved,
 }
 
 /// Interactive settings screen for editing current config.
