@@ -3,7 +3,7 @@
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Line;
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 use ratatui::Frame;
 use ratatui_themekit::{available_theme_ids, resolve_theme, Theme};
 
@@ -76,6 +76,11 @@ impl<'a> RommStyles<'a> {
         !matches!(self.theme.background(), Color::Reset)
     }
 
+    /// Use the terminal emulator palette without forced panel/surface fills.
+    pub fn uses_native_terminal(&self) -> bool {
+        !self.has_immersive_background()
+    }
+
     /// Paint the full frame background when the theme defines one.
     pub fn fill_background(&self, f: &mut Frame, area: Rect) {
         if self.has_immersive_background() {
@@ -88,6 +93,9 @@ impl<'a> RommStyles<'a> {
 
     /// Fill a region (e.g. popup) with the panel surface color.
     pub fn fill_surface(&self, f: &mut Frame, area: Rect) {
+        if self.uses_native_terminal() {
+            return;
+        }
         f.render_widget(Paragraph::new("").style(self.surface_text()), area);
     }
 
@@ -96,46 +104,79 @@ impl<'a> RommStyles<'a> {
     }
 
     pub fn surface(&self) -> Style {
-        Style::default().bg(self.theme.surface())
+        if self.uses_native_terminal() {
+            Style::default()
+        } else {
+            Style::default().bg(self.theme.surface())
+        }
     }
 
     fn surface_text(&self) -> Style {
-        self.surface().fg(self.theme.text())
+        if self.uses_native_terminal() {
+            Style::default()
+        } else {
+            self.surface().fg(self.theme.text())
+        }
     }
 
     pub fn text(&self) -> Style {
-        Style::default().fg(self.theme.text())
+        if self.uses_native_terminal() {
+            Style::default()
+        } else {
+            Style::default().fg(self.theme.text())
+        }
     }
 
     pub fn stripe(&self) -> Style {
-        Style::default()
-            .fg(self.theme.text())
-            .bg(self.theme.stripe())
+        if self.uses_native_terminal() {
+            self.text()
+        } else {
+            Style::default()
+                .fg(self.theme.text())
+                .bg(self.theme.stripe())
+        }
     }
 
     pub fn border(&self) -> Style {
-        Style::default().fg(self.theme.border())
+        if self.uses_native_terminal() {
+            Style::default().fg(self.theme.border())
+        } else {
+            // Borders sit on the canvas, not the panel surface, so edges stay visible.
+            Style::default()
+                .fg(self.theme.text_dim())
+                .bg(self.theme.background())
+        }
     }
 
     pub fn border_accent(&self) -> Style {
-        Style::default().fg(self.theme.accent())
+        let mut style = Style::default().fg(self.theme.accent());
+        if self.has_immersive_background() {
+            style = style.bg(self.theme.background());
+        }
+        style
     }
 
     pub fn selection(&self) -> Style {
-        Style::default()
-            .fg(self.theme.accent())
-            .bg(self.theme.stripe())
-            .add_modifier(Modifier::BOLD)
+        if self.uses_native_terminal() {
+            Style::default()
+                .fg(self.theme.accent())
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default()
+                .fg(self.theme.accent())
+                .bg(self.theme.stripe())
+                .add_modifier(Modifier::BOLD)
+        }
     }
 
     /// Style for a table/list row: selected, zebra odd, or default.
     pub fn row(&self, index: usize, selected: bool) -> Style {
         if selected {
             self.selection()
-        } else if index % 2 == 1 {
-            self.stripe()
-        } else {
+        } else if self.uses_native_terminal() || index % 2 == 0 {
             self.text()
+        } else {
+            self.stripe()
         }
     }
 
@@ -160,7 +201,11 @@ impl<'a> RommStyles<'a> {
     }
 
     pub fn primary_text(&self) -> Style {
-        Style::default().fg(self.theme.text_bright())
+        if self.uses_native_terminal() {
+            Style::default().add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(self.theme.text_bright())
+        }
     }
 
     pub fn border_focus(&self) -> Style {
@@ -173,27 +218,54 @@ impl<'a> RommStyles<'a> {
 
     /// Bordered panel with themed surface fill.
     pub fn panel_block<'b>(&self, title: impl Into<Line<'b>>) -> Block<'b> {
-        Block::default()
+        let border_type = if self.uses_native_terminal() {
+            BorderType::Plain
+        } else {
+            BorderType::Rounded
+        };
+        let mut block = Block::default()
             .title(title)
             .borders(Borders::ALL)
+            .border_type(border_type)
             .border_style(self.border())
-            .style(self.surface_text())
+            .title_style(
+                Style::default()
+                    .fg(self.theme.accent())
+                    .add_modifier(Modifier::BOLD),
+            );
+        if !self.uses_native_terminal() {
+            block = block.style(self.surface());
+        }
+        block
     }
 
     /// Bordered panel without a title.
     pub fn panel_block_untitled(&self) -> Block<'_> {
-        Block::default()
+        let border_type = if self.uses_native_terminal() {
+            BorderType::Plain
+        } else {
+            BorderType::Rounded
+        };
+        let mut block = Block::default()
             .borders(Borders::ALL)
-            .border_style(self.border())
-            .style(self.surface_text())
+            .border_type(border_type)
+            .border_style(self.border());
+        if !self.uses_native_terminal() {
+            block = block.style(self.surface());
+        }
+        block
     }
 
     /// Header strip with bottom border only.
     pub fn header_block(&self) -> Block<'_> {
-        Block::default()
+        let mut block = Block::default()
             .borders(Borders::BOTTOM)
-            .border_style(self.border())
-            .style(self.surface_text())
+            .border_type(BorderType::Plain)
+            .border_style(self.border());
+        if !self.uses_native_terminal() {
+            block = block.style(self.surface());
+        }
+        block
     }
 
     pub fn color_success(&self) -> Color {
@@ -241,5 +313,26 @@ mod tests {
         assert!(styles.has_immersive_background());
         assert_ne!(styles.selection().fg, None);
         assert_ne!(styles.selection().bg, None);
+    }
+
+    #[test]
+    fn terminal_theme_respects_native_terminal_colors() {
+        std::env::remove_var("NO_COLOR");
+        let theme = resolve_theme_or_default("terminal");
+        let styles = RommStyles::new(theme.as_ref());
+        assert!(styles.uses_native_terminal());
+        assert_eq!(styles.surface().bg, None);
+        assert_eq!(styles.selection().bg, None);
+        assert_eq!(styles.text().fg, None);
+    }
+
+    #[test]
+    fn dracula_border_contrasts_with_surface() {
+        std::env::remove_var("NO_COLOR");
+        let theme = resolve_theme_or_default("dracula");
+        let styles = RommStyles::new(theme.as_ref());
+        let border = styles.border();
+        assert_eq!(border.bg, Some(theme.background()));
+        assert_ne!(border.fg, Some(theme.surface()));
     }
 }
