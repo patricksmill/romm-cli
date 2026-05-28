@@ -139,13 +139,23 @@ impl super::App {
                 if let Some(ref k) = key {
                     if let Some(cached) = self.rom_cache.get_valid(k, expected) {
                         if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
-                            lib.set_roms(cached.clone());
-                            lib.set_rom_loading(false);
-                            tracing::debug!(
-                                "rom-list-render context={} latency_ms={} (cache_hit)",
-                                context,
-                                started.elapsed().as_millis()
-                            );
+                            if crate::tui::app::rom_load::primary_rom_load_result_matches_selection(
+                                lib, &key,
+                            ) {
+                                lib.set_roms(cached.clone());
+                                lib.set_rom_loading(false);
+                                tracing::debug!(
+                                    "rom-list-render context={} latency_ms={} (cache_hit)",
+                                    context,
+                                    started.elapsed().as_millis()
+                                );
+                            } else {
+                                lib.set_rom_loading(false);
+                                tracing::debug!(
+                                    "rom-list-render context={} skipped stale cache hit",
+                                    context
+                                );
+                            }
                         }
                         continue;
                     }
@@ -158,7 +168,6 @@ impl super::App {
                     continue;
                 }
 
-                self.rom_load_gen = self.rom_load_gen.saturating_add(1);
                 let gen = self.rom_load_gen;
                 if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
                     lib.set_rom_loading(expected > 0);
@@ -178,10 +187,6 @@ impl super::App {
                 };
                 let client = self.client.clone();
                 let tx = self.rom_load_tx.clone();
-
-                if let Some(task) = self.rom_load_task.take() {
-                    task.abort();
-                }
 
                 self.rom_load_task = Some(tokio::spawn(async move {
                     let mut req = r;

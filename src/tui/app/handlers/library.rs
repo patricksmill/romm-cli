@@ -3,7 +3,6 @@
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::path::Path;
-use std::time::Instant;
 
 use super::super::{App, AppScreen};
 use crate::tui::screens::{GameDetailPrevious, GameDetailScreen, MainMenuScreen};
@@ -59,6 +58,10 @@ impl App {
             return Ok(false);
         }
 
+        let mut pending_rom_load: Option<(Option<crate::core::cache::RomCacheKey>, Option<crate::endpoints::roms::GetRoms>, u64, &'static str)> = None;
+        let mut cancel_rom_load = false;
+        let mut prefetch_collections = false;
+
         let lib = match &mut self.screen {
             AppScreen::LibraryBrowse(l) => l,
             _ => return Ok(false),
@@ -83,12 +86,16 @@ impl App {
                     if expected > 0 {
                         let req = Self::selected_rom_request_for_library(lib);
                         lib.set_rom_loading(true);
-                        self.deferred_load_roms =
-                            Some((new_key, req, expected, "search_filter", Instant::now()));
+                        pending_rom_load = Some((new_key, req, expected, "search_filter"));
                     } else {
                         lib.set_rom_loading(false);
-                        self.deferred_load_roms = None;
+                        cancel_rom_load = true;
                     }
+                }
+                if cancel_rom_load {
+                    self.cancel_primary_rom_load();
+                } else if let Some((key, req, expected, context)) = pending_rom_load {
+                    self.queue_primary_rom_load(key, req, expected, context);
                 }
                 return Ok(false);
             }
@@ -120,17 +127,17 @@ impl App {
                         if expected > 0 {
                             let req = Self::selected_rom_request_for_library(lib);
                             lib.set_rom_loading(true);
-                            self.deferred_load_roms =
-                                Some((key, req, expected, "list_move_up", Instant::now()));
+                            pending_rom_load =
+                                Some((key, req, expected, "list_move_up"));
                         } else {
                             lib.set_rom_loading(false);
-                            self.deferred_load_roms = None;
+                            cancel_rom_load = true;
                         }
                         if lib.subsection
                             == crate::tui::screens::library_browse::LibrarySubsection::ByCollection
                         {
                             tracing::debug!("collections-selection move=up expected={expected}");
-                            self.queue_collection_prefetches_from_screen(1, "move_up");
+                            prefetch_collections = true;
                         }
                     }
                 } else {
@@ -147,17 +154,17 @@ impl App {
                         if expected > 0 {
                             let req = Self::selected_rom_request_for_library(lib);
                             lib.set_rom_loading(true);
-                            self.deferred_load_roms =
-                                Some((key, req, expected, "list_move_down", Instant::now()));
+                            pending_rom_load =
+                                Some((key, req, expected, "list_move_down"));
                         } else {
                             lib.set_rom_loading(false);
-                            self.deferred_load_roms = None;
+                            cancel_rom_load = true;
                         }
                         if lib.subsection
                             == crate::tui::screens::library_browse::LibrarySubsection::ByCollection
                         {
                             tracing::debug!("collections-selection move=down expected={expected}");
-                            self.queue_collection_prefetches_from_screen(1, "move_down");
+                            prefetch_collections = true;
                         }
                     }
                 } else {
@@ -213,18 +220,18 @@ impl App {
                     if expected > 0 {
                         let req = Self::selected_rom_request_for_library(lib);
                         lib.set_rom_loading(true);
-                        self.deferred_load_roms =
-                            Some((key, req, expected, "switch_subsection", Instant::now()));
+                        pending_rom_load =
+                            Some((key, req, expected, "switch_subsection"));
                     } else {
                         lib.set_rom_loading(false);
-                        self.deferred_load_roms = None;
+                        cancel_rom_load = true;
                     }
                 }
                 if lib.subsection
                     == crate::tui::screens::library_browse::LibrarySubsection::ByCollection
                 {
                     tracing::debug!("collections-subsection entered");
-                    self.queue_collection_prefetches_from_screen(1, "enter_collections");
+                    prefetch_collections = true;
                 }
             }
             KeyCode::Esc => {
@@ -242,6 +249,14 @@ impl App {
             }
             KeyCode::Char('q') => return Ok(true),
             _ => {}
+        }
+        if cancel_rom_load {
+            self.cancel_primary_rom_load();
+        } else if let Some((key, req, expected, context)) = pending_rom_load {
+            self.queue_primary_rom_load(key, req, expected, context);
+        }
+        if prefetch_collections {
+            self.queue_collection_prefetches_from_screen(1, "library_selection");
         }
         Ok(false)
     }

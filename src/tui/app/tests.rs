@@ -1,8 +1,9 @@
 use super::{
-    background::types::{SearchLoadDone, SearchLoadEvent},
-    rom_load::primary_rom_load_result_is_current,
+    background::types::{RomLoadDone, RomLoadEvent, SearchLoadDone, SearchLoadEvent},
+    rom_load::{primary_rom_load_result_is_current, primary_rom_load_result_matches_selection},
     App, AppScreen,
 };
+use crate::core::cache::RomCacheKey;
 use crate::client::RommClient;
 use crate::config::{Config, ExtrasDefaults};
 use crate::feature_compat::supported_save_sync_compatibility;
@@ -13,6 +14,7 @@ use crate::types::{Platform, RomList};
 use crate::update::UpdateStatus;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use serde_json::json;
+use std::time::Instant;
 
 fn platform(id: u64, name: &str, rom_count: u64) -> Platform {
     serde_json::from_value(json!({
@@ -152,6 +154,71 @@ fn ctrl_c_is_treated_as_force_quit() {
 fn primary_rom_load_stale_gen_is_ignored() {
     assert!(!primary_rom_load_result_is_current(1, 2));
     assert!(primary_rom_load_result_is_current(3, 3));
+}
+
+#[test]
+fn primary_rom_load_stale_key_does_not_match_selection() {
+    let mut lib = LibraryBrowseScreen::new(
+        vec![
+            platform(1, "Nintendo 64", 312),
+            platform(2, "Nintendo 3DS", 38),
+        ],
+        vec![],
+    );
+    lib.list_index = 1;
+    assert_eq!(
+        lib.cache_key(),
+        Some(RomCacheKey::Platform(2)),
+        "fixture should select 3DS"
+    );
+    assert!(!primary_rom_load_result_matches_selection(
+        &lib,
+        &Some(RomCacheKey::Platform(1)),
+    ));
+    assert!(primary_rom_load_result_matches_selection(
+        &lib,
+        &Some(RomCacheKey::Platform(2)),
+    ));
+}
+
+#[test]
+fn primary_rom_load_batch_for_wrong_platform_is_ignored() {
+    let mut app = app_with_library(vec![
+        platform(1, "Nintendo 64", 312),
+        platform(2, "Nintendo 3DS", 38),
+    ]);
+    if let AppScreen::LibraryBrowse(ref mut lib) = app.screen {
+        lib.list_index = 1;
+        lib.clear_roms();
+        lib.set_rom_loading(true);
+    }
+    app.rom_load_gen = 1;
+    app.rom_load_tx
+        .send(RomLoadDone {
+            gen: 1,
+            key: Some(RomCacheKey::Platform(1)),
+            expected: 312,
+            event: RomLoadEvent::Batch(RomList {
+                total: 1,
+                limit: 1,
+                offset: 0,
+                items: vec![rom_fixture()],
+            }),
+            context: "test_stale_platform",
+            started: Instant::now(),
+        })
+        .expect("send stale batch");
+
+    app.poll_background_tasks();
+
+    if let AppScreen::LibraryBrowse(ref lib) = app.screen {
+        assert!(
+            lib.roms.is_none(),
+            "N64 batch must not populate games while 3DS is selected"
+        );
+    } else {
+        panic!("expected library browse screen");
+    }
 }
 
 #[tokio::test]

@@ -1,7 +1,11 @@
 //! ROM list fetch and collection prefetch scheduling.
 
+use std::time::Instant;
+
+use crate::core::cache::RomCacheKey;
 use crate::core::roms::fetch_roms_paginated;
 use crate::endpoints::roms::GetRoms;
+use crate::tui::screens::library_browse::LibraryBrowseScreen;
 
 use super::background::types::CollectionPrefetchDone;
 use super::AppScreen;
@@ -11,7 +15,39 @@ pub(crate) fn primary_rom_load_result_is_current(done_gen: u64, current_gen: u64
     done_gen == current_gen
 }
 
+/// True when a completed ROM load still matches the library pane selection.
+pub(crate) fn primary_rom_load_result_matches_selection(
+    lib: &LibraryBrowseScreen,
+    key: &Option<RomCacheKey>,
+) -> bool {
+    lib.cache_key().as_ref() == key.as_ref()
+}
+
 impl super::App {
+    /// Drop in-flight primary ROM fetches so stale batches cannot overwrite a new selection.
+    pub(in crate::tui::app) fn invalidate_primary_rom_load(&mut self) {
+        self.rom_load_gen = self.rom_load_gen.saturating_add(1);
+        if let Some(task) = self.rom_load_task.take() {
+            task.abort();
+        }
+    }
+
+    pub(in crate::tui::app) fn queue_primary_rom_load(
+        &mut self,
+        key: Option<RomCacheKey>,
+        req: Option<GetRoms>,
+        expected: u64,
+        context: &'static str,
+    ) {
+        self.invalidate_primary_rom_load();
+        self.deferred_load_roms = Some((key, req, expected, context, Instant::now()));
+    }
+
+    pub(in crate::tui::app) fn cancel_primary_rom_load(&mut self) {
+        self.invalidate_primary_rom_load();
+        self.deferred_load_roms = None;
+    }
+
     pub(in crate::tui::app) fn selected_rom_request_for_library(
         lib: &crate::tui::screens::library_browse::LibraryBrowseScreen,
     ) -> Option<GetRoms> {

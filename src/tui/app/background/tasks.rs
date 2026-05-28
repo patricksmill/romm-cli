@@ -477,6 +477,20 @@ impl super::super::App {
                     let AppScreen::LibraryBrowse(ref mut lib) = self.screen else {
                         continue;
                     };
+                    if !crate::tui::app::rom_load::primary_rom_load_result_matches_selection(
+                        lib,
+                        &done.key,
+                    ) {
+                        if matches!(done.event, RomLoadEvent::Complete | RomLoadEvent::Failed(_))
+                        {
+                            lib.set_rom_loading(false);
+                        }
+                        tracing::debug!(
+                            "rom-list-render skipped stale completion context={}",
+                            done.context
+                        );
+                        continue;
+                    }
                     match done.event {
                         RomLoadEvent::Batch(roms) => {
                             if let Some(ref k) = done.key {
@@ -535,70 +549,81 @@ impl super::super::App {
         if msg.gen != self.library_metadata_refresh_gen {
             return;
         }
-        let AppScreen::LibraryBrowse(ref mut lib) = self.screen else {
-            return;
-        };
 
-        let had_cached_lists = !lib.platforms.is_empty() || !lib.collections.is_empty();
-        let live_empty = msg.collections.is_empty();
-        if live_empty && had_cached_lists && !msg.warnings.is_empty() {
-            lib.set_temporary_metadata_footer(
-                "Could not refresh library metadata (keeping cached list).".into(),
-                std::time::Duration::from_secs(3),
+        let (selection_reload, post_scan_reload) = {
+            let AppScreen::LibraryBrowse(ref mut lib) = self.screen else {
+                return;
+            };
+
+            let had_cached_lists = !lib.platforms.is_empty() || !lib.collections.is_empty();
+            let live_empty = msg.collections.is_empty();
+            if live_empty && had_cached_lists && !msg.warnings.is_empty() {
+                lib.set_temporary_metadata_footer(
+                    "Could not refresh library metadata (keeping cached list).".into(),
+                    std::time::Duration::from_secs(3),
+                );
+                self.force_rom_reload_after_metadata = false;
+                return;
+            }
+
+            let old_digest =
+                startup_library_snapshot::build_collection_digest_from_collections(&lib.collections);
+            let digest_changed = old_digest != msg.collection_digest;
+            let update_platforms = !msg.platforms.is_empty();
+            let selection_changed = lib.replace_metadata_preserving_selection(
+                msg.platforms,
+                msg.collections,
+                update_platforms,
+                true,
             );
-            self.force_rom_reload_after_metadata = false;
-            return;
-        }
+            startup_library_snapshot::save_snapshot(&lib.platforms, &lib.collections);
 
-        let old_digest =
-            startup_library_snapshot::build_collection_digest_from_collections(&lib.collections);
-        let digest_changed = old_digest != msg.collection_digest;
-        let update_platforms = !msg.platforms.is_empty();
-        let selection_changed = lib.replace_metadata_preserving_selection(
-            msg.platforms,
-            msg.collections,
-            update_platforms,
-            true,
-        );
-        startup_library_snapshot::save_snapshot(&lib.platforms, &lib.collections);
+            let footer = if msg.warnings.is_empty() {
+                if digest_changed {
+                    Some("Collection metadata updated.".into())
+                } else {
+                    None
+                }
+            } else {
+                let w = msg.warnings.join(" | ");
+                let short: String = if w.chars().count() > 160 {
+                    let prefix: String = w.chars().take(157).collect();
+                    format!("{prefix}…")
+                } else {
+                    w
+                };
+                Some(format!("Partial refresh: {}", short))
+            };
+            lib.set_metadata_footer(footer);
 
-        let footer = if msg.warnings.is_empty() {
-            if digest_changed {
-                Some("Collection metadata updated.".into())
+            let force_reload = std::mem::take(&mut self.force_rom_reload_after_metadata);
+            let selection_reload = if selection_changed && lib.list_len() > 0 {
+                lib.clear_roms();
+                let key = lib.cache_key();
+                let expected = lib.expected_rom_count();
+                let req = Self::selected_rom_request_for_library(lib);
+                lib.set_rom_loading(expected > 0);
+                Some((key, req, expected, "refresh_selection"))
             } else {
                 None
-            }
-        } else {
-            let w = msg.warnings.join(" | ");
-            let short: String = if w.chars().count() > 160 {
-                let prefix: String = w.chars().take(157).collect();
-                format!("{prefix}…")
-            } else {
-                w
             };
-            Some(format!("Partial refresh: {}", short))
+            let post_scan_reload = if force_reload && lib.list_len() > 0 && !selection_changed {
+                lib.clear_roms();
+                let key = lib.cache_key();
+                let expected = lib.expected_rom_count();
+                let req = Self::selected_rom_request_for_library(lib);
+                lib.set_rom_loading(expected > 0);
+                Some((key, req, expected, "post_scan_reload"))
+            } else {
+                None
+            };
+            (selection_reload, post_scan_reload)
         };
-        lib.set_metadata_footer(footer);
 
-        if selection_changed && lib.list_len() > 0 {
-            lib.clear_roms();
-            let key = lib.cache_key();
-            let expected = lib.expected_rom_count();
-            let req = Self::selected_rom_request_for_library(lib);
-            lib.set_rom_loading(expected > 0);
-            self.deferred_load_roms =
-                Some((key, req, expected, "refresh_selection", Instant::now()));
-        }
-
-        let force_reload = std::mem::take(&mut self.force_rom_reload_after_metadata);
-        if force_reload && lib.list_len() > 0 && !selection_changed {
-            lib.clear_roms();
-            let key = lib.cache_key();
-            let expected = lib.expected_rom_count();
-            let req = Self::selected_rom_request_for_library(lib);
-            lib.set_rom_loading(expected > 0);
-            self.deferred_load_roms =
-                Some((key, req, expected, "post_scan_reload", Instant::now()));
+        if let Some((key, req, expected, context)) = selection_reload {
+            self.queue_primary_rom_load(key, req, expected, context);
+        } else if let Some((key, req, expected, context)) = post_scan_reload {
+            self.queue_primary_rom_load(key, req, expected, context);
         }
 
         self.queue_collection_prefetches_from_screen(1, "refresh_warmup");
