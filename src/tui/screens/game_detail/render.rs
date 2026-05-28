@@ -211,27 +211,21 @@ impl GameDetailScreen {
         // Footer: show progress bar if downloading, otherwise help text.
         if let Some(job) = self.active_download() {
             let (label, style) = match &job.status {
-                DownloadStatus::Downloading => (
-                    format!("Downloading… {}%", job.percent()),
-                    styles.label(),
-                ),
+                DownloadStatus::Downloading => {
+                    (format!("Downloading… {}%", job.percent()), styles.label())
+                }
                 DownloadStatus::Done => ("Download complete".to_string(), styles.success()),
-                DownloadStatus::SkippedAlreadyExists => (
-                    "Already present (skipped)".to_string(),
-                    styles.warning(),
-                ),
-                DownloadStatus::Cancelled => (
-                    "Download cancelled".to_string(),
-                    styles.warning(),
-                ),
+                DownloadStatus::SkippedAlreadyExists => {
+                    ("Already present (skipped)".to_string(), styles.warning())
+                }
+                DownloadStatus::Cancelled => ("Download cancelled".to_string(), styles.warning()),
                 DownloadStatus::FinalizeFailed(msg) => (
                     format!("Finalize failed: {}", truncate(msg, 40)),
                     styles.error(),
                 ),
-                DownloadStatus::Error(msg) => (
-                    format!("Error: {}", truncate(msg, 50)),
-                    styles.error(),
-                ),
+                DownloadStatus::Error(msg) => {
+                    (format!("Error: {}", truncate(msg, 50)), styles.error())
+                }
             };
             let gauge = Gauge::default()
                 .block(styles.panel_block_untitled())

@@ -788,7 +788,8 @@ mod tests {
 
     #[test]
     fn config_theme_round_trip() {
-        let json = r#"{"base_url":"http://x","download_dir":"/tmp","use_https":false,"theme":"dracula"}"#;
+        let json =
+            r#"{"base_url":"http://x","download_dir":"/tmp","use_https":false,"theme":"dracula"}"#;
         let cfg: Config = serde_json::from_str(json).unwrap();
         assert_eq!(cfg.theme, "dracula");
     }

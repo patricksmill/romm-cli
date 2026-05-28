@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use romm_cli::client::RommClient;
-use romm_cli::config::{Config, ExtrasDefaults, default_theme_id};
+use romm_cli::config::{default_theme_id, Config, ExtrasDefaults};
 use romm_cli::core::utils;
 use romm_cli::feature_compat::supported_save_sync_compatibility;
 use romm_cli::tui::app::{App, AppScreen};

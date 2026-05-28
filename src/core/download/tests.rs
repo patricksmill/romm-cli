@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use crate::config::{Config, RomsLayoutConfig, SaveSyncConfig, default_theme_id};
+use crate::config::{default_theme_id, Config, RomsLayoutConfig, SaveSyncConfig};
 use crate::core::download::extras_job::finalize_extras_job_status;
 use crate::core::download::paths::resolve_download_directory_from_inputs;
 use crate::core::download::transfer::{

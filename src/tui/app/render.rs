@@ -93,7 +93,9 @@ impl super::App {
                         ratatui::text::Span::raw("Latest:  "),
                         ratatui::text::Span::styled(
                             &prompt.status.latest_version,
-                            styles.success().add_modifier(ratatui::style::Modifier::BOLD),
+                            styles
+                                .success()
+                                .add_modifier(ratatui::style::Modifier::BOLD),
                         ),
                     ])
                     .alignment(ratatui::layout::Alignment::Center),
@@ -128,9 +130,7 @@ impl super::App {
                 height: 10.min(area.height),
             };
             styles.fill_surface(f, popup_area);
-            let block = styles
-                .panel_block("Error")
-                .border_style(styles.error());
+            let block = styles.panel_block("Error").border_style(styles.error());
             let text = format!("{}\n\nPress Esc to dismiss", err);
             let paragraph = ratatui::widgets::Paragraph::new(text)
                 .block(block)

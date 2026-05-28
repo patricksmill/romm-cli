@@ -433,13 +433,14 @@ impl PathPicker {
             );
         }
 
-        let list_block = styles
-            .panel_block_untitled()
-            .border_style(if self.focus == PathPickerFocus::List {
-                styles.border_focus()
-            } else {
-                styles.border()
-            });
+        let list_block =
+            styles
+                .panel_block_untitled()
+                .border_style(if self.focus == PathPickerFocus::List {
+                    styles.border_focus()
+                } else {
+                    styles.border()
+                });
         let list_inner = list_block.inner(chunks[1]);
         f.render_widget(list_block, chunks[1]);
 

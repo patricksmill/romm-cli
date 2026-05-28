@@ -1,7 +1,5 @@
 use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::widgets::{
-    Block, Borders, Cell, List, ListItem, ListState, Paragraph, Row, Table,
-};
+use ratatui::widgets::{Block, Borders, Cell, List, ListItem, ListState, Paragraph, Row, Table};
 use ratatui::Frame;
 
 use crate::tui::text_search::LibrarySearchMode;
@@ -121,7 +119,8 @@ impl LibraryBrowseScreen {
         f.render_widget(block, popup);
         f.render_widget(Paragraph::new(header).style(styles.text()), rows[0]);
         let footer = "Enter: open/select   Ctrl+Enter: confirm file   ↑ list top: path   Tab: path/list   Ctrl+s: rescan";
-        up.picker.render(f, rows[1], "Choose ROM file", footer, styles);
+        up.picker
+            .render(f, rows[1], "Choose ROM file", footer, styles);
     }
 
     /// Cursor for the upload path field (when [`Self::upload_prompt`] is open).

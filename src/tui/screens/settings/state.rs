@@ -127,7 +127,10 @@ impl SettingsScreen {
     }
 
     pub fn set_save_sync_unsupported_message(&mut self) {
-        self.message = Some((self.save_sync_compat.unsupported_message(), MessageTone::Warning));
+        self.message = Some((
+            self.save_sync_compat.unsupported_message(),
+            MessageTone::Warning,
+        ));
     }
 
     pub fn selected_row_index(&self) -> usize {
@@ -278,10 +281,16 @@ impl SettingsScreen {
                 self.use_https = !self.use_https;
                 if self.use_https && self.base_url.starts_with("http://") {
                     self.base_url = self.base_url.replace("http://", "https://");
-                    self.message = Some(("Updated URL scheme (HTTPS)".to_string(), MessageTone::Success));
+                    self.message = Some((
+                        "Updated URL scheme (HTTPS)".to_string(),
+                        MessageTone::Success,
+                    ));
                 } else if !self.use_https && self.base_url.starts_with("https://") {
                     self.base_url = self.base_url.replace("https://", "http://");
-                    self.message = Some(("Updated URL scheme (HTTP)".to_string(), MessageTone::Success));
+                    self.message = Some((
+                        "Updated URL scheme (HTTP)".to_string(),
+                        MessageTone::Success,
+                    ));
                 }
             }
             SettingsRow::RomsDir => {

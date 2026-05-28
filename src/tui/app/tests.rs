@@ -3,12 +3,13 @@ use super::{
     rom_load::{primary_rom_load_result_is_current, primary_rom_load_result_matches_selection},
     App, AppScreen,
 };
-use crate::core::cache::RomCacheKey;
 use crate::client::RommClient;
-use crate::config::{Config, ExtrasDefaults, default_theme_id};
+use crate::config::{default_theme_id, Config, ExtrasDefaults};
+use crate::core::cache::RomCacheKey;
 use crate::feature_compat::supported_save_sync_compatibility;
 use crate::tui::screens::connected_splash::StartupSplash;
 use crate::tui::screens::library_browse::LibraryBrowseScreen;
+use crate::tui::screens::settings::{SettingsScreen, SettingsTab};
 use crate::tui::screens::{GameDetailPrevious, GameDetailScreen, SearchScreen};
 use crate::types::{Platform, RomList};
 use crate::update::UpdateStatus;
@@ -538,4 +539,51 @@ async fn pressing_e_with_extras_opens_picker() {
         matches!(app.screen, AppScreen::ExtrasPicker(_)),
         "expected extras picker"
     );
+}
+
+fn app_on_main_menu() -> App {
+    let config = Config {
+        base_url: "http://127.0.0.1:9".into(),
+        download_dir: "/tmp".into(),
+        use_https: false,
+        auth: None,
+        extras_defaults: ExtrasDefaults::default(),
+        save_sync: Default::default(),
+        roms_layout: Default::default(),
+        theme: default_theme_id(),
+    };
+    let client = RommClient::new(&config, false).expect("client");
+    App::new(
+        client,
+        config,
+        supported_save_sync_compatibility(),
+        None,
+        None,
+        None,
+    )
+}
+
+#[tokio::test]
+async fn settings_theme_preview_reverts_when_leaving_without_save() {
+    std::env::remove_var("NO_COLOR");
+    let mut app = app_on_main_menu();
+    let saved_theme = app.config.theme.clone();
+    assert_eq!(app.theme_id(), saved_theme);
+
+    let mut settings = SettingsScreen::new(&app.config, None, supported_save_sync_compatibility());
+    settings.selected_tab = SettingsTab::Appearance;
+    app.screen = AppScreen::Settings(Box::new(settings));
+
+    app.handle_key_event(&KeyEvent::new(KeyCode::Right, KeyModifiers::empty()))
+        .await
+        .expect("cycle theme");
+    assert_ne!(app.theme_id(), saved_theme);
+    assert_eq!(app.config.theme, saved_theme);
+
+    app.handle_key_event(&KeyEvent::new(KeyCode::Esc, KeyModifiers::empty()))
+        .await
+        .expect("back to menu");
+
+    assert!(matches!(app.screen, AppScreen::MainMenu(_)));
+    assert_eq!(app.theme_id(), saved_theme);
 }

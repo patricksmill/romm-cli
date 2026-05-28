@@ -455,8 +455,7 @@ impl SettingsScreen {
                     } else {
                         "base default"
                     };
-                    ListItem::new(format!("{name}  [{tag}]  {path}"))
-                        .style(styles.text())
+                    ListItem::new(format!("{name}  [{tag}]  {path}")).style(styles.text())
                 })
                 .collect();
             let mut state = ListState::default();

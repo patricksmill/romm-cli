@@ -108,8 +108,10 @@ impl App {
                             settings.path_picker = None;
                         }
                         Err(e) => {
-                            settings.message =
-                                Some((format!("Invalid ROMs directory: {e:#}"), MessageTone::Error));
+                            settings.message = Some((
+                                format!("Invalid ROMs directory: {e:#}"),
+                                MessageTone::Error,
+                            ));
                         }
                     }
                 }
@@ -131,8 +133,10 @@ impl App {
                                 .confirm_console_path(platform_id, canonical.display().to_string());
                         }
                         Err(e) => {
-                            settings.message =
-                                Some((format!("Invalid console directory: {e:#}"), MessageTone::Error));
+                            settings.message = Some((
+                                format!("Invalid console directory: {e:#}"),
+                                MessageTone::Error,
+                            ));
                         }
                     }
                 }
@@ -201,8 +205,10 @@ impl App {
                                 ));
                             }
                             Err(e) => {
-                                settings.message =
-                                    Some((format!("Failed to clear cache: {e}"), MessageTone::Error));
+                                settings.message = Some((
+                                    format!("Failed to clear cache: {e}"),
+                                    MessageTone::Error,
+                                ));
                             }
                         }
                     }
@@ -243,7 +249,6 @@ impl App {
                 {
                     settings.cycle_theme_next();
                     self.theme = resolve_theme_or_default(&settings.theme_id);
-                    self.config.theme = settings.theme_id.clone();
                 } else {
                     settings.next_tab();
                 }
@@ -254,7 +259,6 @@ impl App {
                 {
                     settings.cycle_theme_prev();
                     self.theme = resolve_theme_or_default(&settings.theme_id);
-                    self.config.theme = settings.theme_id.clone();
                 } else {
                     settings.previous_tab();
                 }
@@ -264,6 +268,7 @@ impl App {
             KeyCode::Enter => {
                 let row = settings.selected_row();
                 if row == SettingsRow::Auth {
+                    self.apply_saved_theme();
                     self.screen =
                         AppScreen::SetupWizard(Box::new(SetupWizard::new_auth_only(&self.config)));
                 } else if row == SettingsRow::ConsolePaths {
@@ -312,13 +317,17 @@ impl App {
                         return Ok(false);
                     }
                     let Some(device_id) = settings.sync_device_id.clone() else {
-                        settings.message =
-                            Some(("Choose a Sync Device first".to_string(), MessageTone::Warning));
+                        settings.message = Some((
+                            "Choose a Sync Device first".to_string(),
+                            MessageTone::Warning,
+                        ));
                         return Ok(false);
                     };
                     settings.sync_inflight = true;
-                    settings.message =
-                        Some(("Sync Saves Now running...".to_string(), MessageTone::Warning));
+                    settings.message = Some((
+                        "Sync Saves Now running...".to_string(),
+                        MessageTone::Warning,
+                    ));
                     let client = self.client.clone();
                     let tx = self.sync_push_pull_tx.clone();
                     tokio::spawn(async move {
@@ -357,7 +366,8 @@ impl App {
                 if let Err(e) = persist_user_config(&cfg) {
                     settings.message = Some((format!("Error saving: {e}"), MessageTone::Error));
                 } else {
-                    settings.message = Some(("Saved to config.json".to_string(), MessageTone::Success));
+                    settings.message =
+                        Some(("Saved to config.json".to_string(), MessageTone::Success));
                     // Update app state
                     self.config.base_url = cfg.base_url.clone();
                     self.config.download_dir = cfg.download_dir.clone();
@@ -366,13 +376,17 @@ impl App {
                     self.config.save_sync = cfg.save_sync.clone();
                     self.config.roms_layout = cfg.roms_layout.clone();
                     self.config.theme = cfg.theme.clone();
+                    self.apply_saved_theme();
                     // Re-create client to pick up new base URL
                     if let Ok(new_client) = RommClient::new(&self.config, self.client.verbose()) {
                         self.client = new_client;
                     }
                 }
             }
-            KeyCode::Esc => self.screen = AppScreen::MainMenu(MainMenuScreen::new()),
+            KeyCode::Esc => {
+                self.apply_saved_theme();
+                self.screen = AppScreen::MainMenu(MainMenuScreen::new());
+            }
             KeyCode::Char('q') => return Ok(true),
             _ => {}
         }

@@ -56,12 +56,10 @@ pub fn render(f: &mut Frame, area: Rect, splash: &StartupSplash, styles: &RommSt
         )),
     ];
 
-    let p = Paragraph::new(lines)
-        .alignment(Alignment::Center)
-        .block(
-            styles
-                .panel_block("romm-cli")
-                .border_style(styles.success()),
-        );
+    let p = Paragraph::new(lines).alignment(Alignment::Center).block(
+        styles
+            .panel_block("romm-cli")
+            .border_style(styles.success()),
+    );
     f.render_widget(p, area);
 }

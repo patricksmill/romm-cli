@@ -427,7 +427,8 @@ impl super::super::App {
                     }
                     Err(e) => {
                         settings.set_device_error(e.clone());
-                        settings.message = Some((format!("Device load failed: {e}"), MessageTone::Error));
+                        settings.message =
+                            Some((format!("Device load failed: {e}"), MessageTone::Error));
                     }
                 }
             }
@@ -441,7 +442,8 @@ impl super::super::App {
                     }
                     Err(e) => {
                         settings.set_console_platform_error(e.clone());
-                        settings.message = Some((format!("Platform load failed: {e}"), MessageTone::Error));
+                        settings.message =
+                            Some((format!("Platform load failed: {e}"), MessageTone::Error));
                     }
                 }
             }
@@ -478,11 +480,9 @@ impl super::super::App {
                         continue;
                     };
                     if !crate::tui::app::rom_load::primary_rom_load_result_matches_selection(
-                        lib,
-                        &done.key,
+                        lib, &done.key,
                     ) {
-                        if matches!(done.event, RomLoadEvent::Complete | RomLoadEvent::Failed(_))
-                        {
+                        if matches!(done.event, RomLoadEvent::Complete | RomLoadEvent::Failed(_)) {
                             lib.set_rom_loading(false);
                         }
                         tracing::debug!(
@@ -566,8 +566,9 @@ impl super::super::App {
                 return;
             }
 
-            let old_digest =
-                startup_library_snapshot::build_collection_digest_from_collections(&lib.collections);
+            let old_digest = startup_library_snapshot::build_collection_digest_from_collections(
+                &lib.collections,
+            );
             let digest_changed = old_digest != msg.collection_digest;
             let update_platforms = !msg.platforms.is_empty();
             let selection_changed = lib.replace_metadata_preserving_selection(

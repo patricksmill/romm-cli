@@ -84,10 +84,7 @@ impl<'a> RommStyles<'a> {
     /// Paint the full frame background when the theme defines one.
     pub fn fill_background(&self, f: &mut Frame, area: Rect) {
         if self.has_immersive_background() {
-            f.render_widget(
-                Paragraph::new("").style(self.background()),
-                area,
-            );
+            f.render_widget(Paragraph::new("").style(self.background()), area);
         }
     }
 

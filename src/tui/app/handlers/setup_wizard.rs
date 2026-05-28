@@ -1,9 +1,9 @@
 //! Setup wizard key handler.
 
-use anyhow::Result;
-use crossterm::event::KeyEvent;
 use crate::client::RommClient;
 use crate::tui::theme::MessageTone;
+use anyhow::Result;
+use crossterm::event::KeyEvent;
 
 use super::super::{App, AppScreen};
 use crate::tui::screens::SettingsScreen;
@@ -20,6 +20,7 @@ impl App {
 
         if wizard.handle_key(key)? {
             // Esc pressed
+            self.apply_saved_theme();
             self.screen = AppScreen::Settings(Box::new(SettingsScreen::new(
                 &self.config,
                 self.server_version.as_deref(),
@@ -55,6 +56,7 @@ impl App {
                             MessageTone::Warning,
                         ));
                     }
+                    self.apply_saved_theme();
                     self.screen = AppScreen::Settings(Box::new(settings));
                 }
                 Err(e) => {

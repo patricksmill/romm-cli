@@ -79,23 +79,19 @@ impl DownloadScreen {
                 if let Some(row_area) = rows.get(row_i) {
                     let percent = job.percent();
                     let (label, gauge_style) = match &job.status {
-                        DownloadStatus::Downloading => {
-                            (format!("{}%", percent), styles.label())
-                        }
+                        DownloadStatus::Downloading => (format!("{}%", percent), styles.label()),
                         DownloadStatus::Done => ("Done".into(), styles.success()),
-                        DownloadStatus::SkippedAlreadyExists => (
-                            "Skipped (already exists)".into(),
-                            styles.warning(),
-                        ),
+                        DownloadStatus::SkippedAlreadyExists => {
+                            ("Skipped (already exists)".into(), styles.warning())
+                        }
                         DownloadStatus::Cancelled => ("Cancelled".into(), styles.warning()),
                         DownloadStatus::FinalizeFailed(msg) => (
                             format!("Finalize failed: {}", truncate(msg, 40)),
                             styles.error(),
                         ),
-                        DownloadStatus::Error(msg) => (
-                            format!("Error: {}", truncate(msg, 50)),
-                            styles.error(),
-                        ),
+                        DownloadStatus::Error(msg) => {
+                            (format!("Error: {}", truncate(msg, 50)), styles.error())
+                        }
                     };
                     let gauge = Gauge::default()
                         .gauge_style(gauge_style)
@@ -121,7 +117,10 @@ impl DownloadScreen {
                         width: gauge_width,
                         height: 1,
                     };
-                    f.render_widget(Paragraph::new(line.as_str()).style(styles.text()), line_area);
+                    f.render_widget(
+                        Paragraph::new(line.as_str()).style(styles.text()),
+                        line_area,
+                    );
                     if gauge_width > 0 {
                         f.render_widget(gauge, gauge_area);
                     }
@@ -166,7 +165,10 @@ impl DownloadScreen {
                         width: gauge_width,
                         height: 1,
                     };
-                    f.render_widget(Paragraph::new(line.as_str()).style(styles.text()), line_area);
+                    f.render_widget(
+                        Paragraph::new(line.as_str()).style(styles.text()),
+                        line_area,
+                    );
                     if gauge_width > 0 {
                         f.render_widget(gauge, gauge_area);
                     }

@@ -246,6 +246,16 @@ impl App {
     pub fn set_error(&mut self, err: anyhow::Error) {
         self.global_error = Some(format!("{:#}", err));
     }
+
+    /// Reapply the theme from persisted in-memory config (discards unsaved preview).
+    pub(in crate::tui::app) fn apply_saved_theme(&mut self) {
+        self.theme = resolve_theme_or_default(&self.config.theme);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn theme_id(&self) -> &str {
+        self.theme.id()
+    }
     pub async fn handle_key_event(&mut self, key: &KeyEvent) -> Result<bool> {
         if key.kind != KeyEventKind::Press {
             return Ok(false);

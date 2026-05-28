@@ -58,7 +58,12 @@ impl App {
             return Ok(false);
         }
 
-        let mut pending_rom_load: Option<(Option<crate::core::cache::RomCacheKey>, Option<crate::endpoints::roms::GetRoms>, u64, &'static str)> = None;
+        let mut pending_rom_load: Option<(
+            Option<crate::core::cache::RomCacheKey>,
+            Option<crate::endpoints::roms::GetRoms>,
+            u64,
+            &'static str,
+        )> = None;
         let mut cancel_rom_load = false;
         let mut prefetch_collections = false;
 
@@ -127,8 +132,7 @@ impl App {
                         if expected > 0 {
                             let req = Self::selected_rom_request_for_library(lib);
                             lib.set_rom_loading(true);
-                            pending_rom_load =
-                                Some((key, req, expected, "list_move_up"));
+                            pending_rom_load = Some((key, req, expected, "list_move_up"));
                         } else {
                             lib.set_rom_loading(false);
                             cancel_rom_load = true;
@@ -154,8 +158,7 @@ impl App {
                         if expected > 0 {
                             let req = Self::selected_rom_request_for_library(lib);
                             lib.set_rom_loading(true);
-                            pending_rom_load =
-                                Some((key, req, expected, "list_move_down"));
+                            pending_rom_load = Some((key, req, expected, "list_move_down"));
                         } else {
                             lib.set_rom_loading(false);
                             cancel_rom_load = true;
@@ -220,8 +223,7 @@ impl App {
                     if expected > 0 {
                         let req = Self::selected_rom_request_for_library(lib);
                         lib.set_rom_loading(true);
-                        pending_rom_load =
-                            Some((key, req, expected, "switch_subsection"));
+                        pending_rom_load = Some((key, req, expected, "switch_subsection"));
                     } else {
                         lib.set_rom_loading(false);
                         cancel_rom_load = true;

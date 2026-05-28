@@ -11,7 +11,12 @@ use super::layout::{wizard_footer_text, wizard_layout};
 use super::types::{AuthKind, SetupWizard, Step};
 
 impl SetupWizard {
-    pub fn render(&mut self, f: &mut ratatui::Frame, area: ratatui::layout::Rect, styles: &RommStyles) {
+    pub fn render(
+        &mut self,
+        f: &mut ratatui::Frame,
+        area: ratatui::layout::Rect,
+        styles: &RommStyles,
+    ) {
         let title = match self.step {
             Step::Url => "Step 1/6 — RomM server URL",
             Step::Https => "Step 2/6 — Secure connection",
@@ -165,7 +170,9 @@ impl SetupWizard {
                     )));
                 }
                 let block = styles.panel_block(title);
-                let p = Paragraph::new(bearer_text).style(styles.text()).block(block);
+                let p = Paragraph::new(bearer_text)
+                    .style(styles.text())
+                    .block(block);
                 f.render_widget(p, main[1]);
             }
             Step::PairingCode => {
@@ -248,7 +255,9 @@ impl SetupWizard {
                     lines.push("Enter: test connection and save   Esc: quit".to_string());
                 }
                 let block = styles.panel_block(title);
-                let p = Paragraph::new(lines.join("\n")).style(styles.text()).block(block);
+                let p = Paragraph::new(lines.join("\n"))
+                    .style(styles.text())
+                    .block(block);
                 f.render_widget(p, main[1]);
             }
         }
