@@ -268,13 +268,12 @@ impl App {
                         }
                     }
                 },
-                KeyCode::Char('n' | 'N') => {
+                KeyCode::Char('n' | 'N')
                     if settings.confirm
-                        == Some(crate::tui::screens::settings::SettingsConfirm::ExitUnsaved)
-                    {
-                        settings.confirm = None;
-                        self.exit_settings_to_menu();
-                    }
+                        == Some(crate::tui::screens::settings::SettingsConfirm::ExitUnsaved) =>
+                {
+                    settings.confirm = None;
+                    self.exit_settings_to_menu();
                 }
                 KeyCode::Esc => {
                     settings.confirm = None;

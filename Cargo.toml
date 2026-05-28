@@ -77,3 +77,6 @@ httpmock = "0.7"
 predicates = "3.1"
 wiremock = "0.6.5"
 
+[profile.release]
+strip = true
+

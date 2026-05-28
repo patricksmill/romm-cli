@@ -170,7 +170,7 @@ impl<'a> RommStyles<'a> {
     pub fn row(&self, index: usize, selected: bool) -> Style {
         if selected {
             self.selection()
-        } else if self.uses_native_terminal() || index % 2 == 0 {
+        } else if self.uses_native_terminal() || index.is_multiple_of(2) {
             self.text()
         } else {
             self.stripe()
