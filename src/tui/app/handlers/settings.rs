@@ -46,6 +46,7 @@ impl App {
             extras_defaults: self.config.extras_defaults.clone(),
             save_sync: self.config.save_sync.clone(),
             roms_layout: self.config.roms_layout.clone(),
+            theme: self.config.theme.clone(),
         };
         let client = match RommClient::new(&cfg, verbose) {
             Ok(c) => c,
@@ -329,6 +330,7 @@ impl App {
                     },
                     save_sync: settings.save_sync_config(),
                     roms_layout: settings.roms_layout_config(),
+                    theme: self.config.theme.clone(),
                 };
                 if let Err(e) = persist_user_config(&cfg) {
                     settings.message = Some((format!("Error saving: {e}"), Color::Red));

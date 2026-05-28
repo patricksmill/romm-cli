@@ -148,6 +148,16 @@ pub struct Config {
     /// Optional per-console custom directory overrides.
     #[serde(default)]
     pub roms_layout: RomsLayoutConfig,
+    /// TUI color theme ID (see ratatui-themekit `available_theme_ids`).
+    #[serde(default = "default_theme_id")]
+    pub theme: String,
+}
+
+/// Default TUI theme ID when none is configured.
+pub const DEFAULT_THEME_ID: &str = "terminal";
+
+pub fn default_theme_id() -> String {
+    DEFAULT_THEME_ID.to_string()
 }
 
 pub fn resolved_save_dir(config: &Config) -> PathBuf {
@@ -594,6 +604,10 @@ pub fn load_config() -> Result<Config> {
         .map(|c| c.roms_layout.clone())
         .unwrap_or_default();
 
+    let theme = env_nonempty("ROMM_THEME")
+        .or_else(|| json_config.as_ref().map(|c| c.theme.clone()))
+        .unwrap_or_else(default_theme_id);
+
     Ok(Config {
         base_url,
         download_dir,
@@ -602,6 +616,7 @@ pub fn load_config() -> Result<Config> {
         extras_defaults,
         save_sync,
         roms_layout,
+        theme,
     })
 }
 
@@ -762,6 +777,22 @@ mod tests {
         }
     }
 
+    #[test]
+    fn config_theme_defaults_to_terminal() {
+        let cfg: Config = serde_json::from_str(
+            r#"{"base_url":"http://x","download_dir":"/tmp","use_https":false}"#,
+        )
+        .unwrap();
+        assert_eq!(cfg.theme, "terminal");
+    }
+
+    #[test]
+    fn config_theme_round_trip() {
+        let json = r#"{"base_url":"http://x","download_dir":"/tmp","use_https":false,"theme":"dracula"}"#;
+        let cfg: Config = serde_json::from_str(json).unwrap();
+        assert_eq!(cfg.theme, "dracula");
+    }
+
     fn clear_auth_env() {
         for key in [
             "API_BASE_URL",
@@ -774,6 +805,7 @@ mod tests {
             "API_KEY",
             "API_KEY_HEADER",
             "API_USE_HTTPS",
+            "ROMM_THEME",
             "ROMM_TEST_CONFIG_DIR",
         ] {
             std::env::remove_var(key);
@@ -999,6 +1031,7 @@ mod tests {
             extras_defaults: ExtrasDefaults::default(),
             save_sync: SaveSyncConfig::default(),
             roms_layout: RomsLayoutConfig::default(),
+            theme: default_theme_id(),
         };
         assert_eq!(
             resolved_save_dir(&cfg),
@@ -1041,6 +1074,7 @@ mod tests {
                 platform_dirs: HashMap::from([(7, "D:\\Saves\\Switch".into())]),
             },
             roms_layout: RomsLayoutConfig::default(),
+            theme: default_theme_id(),
         };
         let json = serde_json::to_string(&cfg.save_sync).expect("serialize");
         assert!(json.contains("platform_dirs"));
@@ -1231,6 +1265,7 @@ mod tests {
             extras_defaults: ExtrasDefaults::default(),
             save_sync: SaveSyncConfig::default(),
             roms_layout: RomsLayoutConfig::default(),
+            theme: default_theme_id(),
         })
         .expect("persist bearer sentinel");
 
@@ -1256,6 +1291,7 @@ mod tests {
             extras_defaults: ExtrasDefaults::default(),
             save_sync: SaveSyncConfig::default(),
             roms_layout: RomsLayoutConfig::default(),
+            theme: default_theme_id(),
         })
         .expect("persist api key sentinel");
 
@@ -1280,6 +1316,7 @@ mod tests {
             extras_defaults: ExtrasDefaults::default(),
             save_sync: SaveSyncConfig::default(),
             roms_layout: RomsLayoutConfig::default(),
+            theme: default_theme_id(),
         })
         .expect("persist basic password sentinel");
 

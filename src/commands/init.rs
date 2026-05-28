@@ -12,8 +12,8 @@ use std::io::Read;
 
 use crate::client::RommClient;
 use crate::config::{
-    normalize_romm_origin, persist_user_config, user_config_json_path, AuthConfig, Config,
-    ExtrasDefaults, RomsLayoutConfig,
+    default_theme_id, normalize_romm_origin, persist_user_config, user_config_json_path,
+    AuthConfig, Config, ExtrasDefaults, RomsLayoutConfig,
 };
 use crate::endpoints::platforms::ListPlatforms;
 
@@ -140,6 +140,7 @@ pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
             extras_defaults: ExtrasDefaults::default(),
             save_sync: Default::default(),
             roms_layout: Default::default(),
+            theme: default_theme_id(),
         };
         persist_user_config(&config)?;
         println!("Wrote {}", path.display());
@@ -272,6 +273,7 @@ pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
                 extras_defaults: ExtrasDefaults::default(),
                 save_sync: Default::default(),
                 roms_layout: Default::default(),
+                theme: default_theme_id(),
             };
             let client = RommClient::new(&temp_config, verbose)?;
             let endpoint = crate::endpoints::client_tokens::ExchangeClientToken { code };
@@ -303,6 +305,7 @@ pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
                 extras_defaults: ExtrasDefaults::default(),
                 save_sync: Default::default(),
                 roms_layout: Default::default(),
+                theme: default_theme_id(),
             };
             let client = RommClient::new(&temp_config, verbose)?;
             let platforms = client
@@ -323,6 +326,7 @@ pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
         extras_defaults: ExtrasDefaults::default(),
         save_sync: Default::default(),
         roms_layout,
+        theme: default_theme_id(),
     };
     persist_user_config(&config)?;
 

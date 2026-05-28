@@ -62,6 +62,7 @@ async fn run_app() -> Result<()> {
                     extras_defaults: romm_cli::config::ExtrasDefaults::default(),
                     save_sync: Default::default(),
                     roms_layout: Default::default(),
+                    theme: romm_cli::config::default_theme_id(),
                 };
                 return run(
                     Cli {

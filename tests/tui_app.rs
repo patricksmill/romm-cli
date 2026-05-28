@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use romm_cli::client::RommClient;
-use romm_cli::config::{Config, ExtrasDefaults};
+use romm_cli::config::{Config, ExtrasDefaults, default_theme_id};
 use romm_cli::core::utils;
 use romm_cli::feature_compat::supported_save_sync_compatibility;
 use romm_cli::tui::app::{App, AppScreen};
@@ -44,6 +44,7 @@ async fn test_main_menu_api_error_shows_popup() {
         extras_defaults: ExtrasDefaults::default(),
         save_sync: Default::default(),
         roms_layout: Default::default(),
+        theme: default_theme_id(),
     };
     let client = RommClient::new(&config, false).unwrap();
     let mut app = App::new(
@@ -124,6 +125,7 @@ async fn test_main_menu_success_transitions_to_library() {
         extras_defaults: ExtrasDefaults::default(),
         save_sync: Default::default(),
         roms_layout: Default::default(),
+        theme: default_theme_id(),
     };
     let client = RommClient::new(&config, false).unwrap();
     let mut app = App::new(
@@ -160,6 +162,7 @@ async fn main_menu_fifth_item_is_exit() {
         extras_defaults: ExtrasDefaults::default(),
         save_sync: Default::default(),
         roms_layout: Default::default(),
+        theme: default_theme_id(),
     };
     let client = RommClient::new(&config, false).unwrap();
     let mut app = App::new(
@@ -198,6 +201,7 @@ async fn library_filter_mode_d_types_in_search_bar_not_downloads() {
         extras_defaults: ExtrasDefaults::default(),
         save_sync: Default::default(),
         roms_layout: Default::default(),
+        theme: default_theme_id(),
     };
     let client = RommClient::new(&config, false).unwrap();
     let mut app = App::new(
@@ -264,6 +268,7 @@ async fn library_filter_enter_then_enter_opens_game_detail() {
         extras_defaults: ExtrasDefaults::default(),
         save_sync: Default::default(),
         roms_layout: Default::default(),
+        theme: default_theme_id(),
     };
     let client = RommClient::new(&config, false).unwrap();
     let mut app = App::new(
@@ -331,6 +336,7 @@ async fn game_detail_download_is_blocked_when_config_download_path_is_invalid() 
         extras_defaults: ExtrasDefaults::default(),
         save_sync: Default::default(),
         roms_layout: Default::default(),
+        theme: default_theme_id(),
     };
     let client = RommClient::new(&config, false).unwrap();
     let mut app = App::new(
@@ -394,6 +400,7 @@ async fn game_detail_download_skips_when_rom_already_exists_in_console_folder() 
         extras_defaults: ExtrasDefaults::default(),
         save_sync: Default::default(),
         roms_layout: Default::default(),
+        theme: default_theme_id(),
     };
     let client = RommClient::new(&config, false).unwrap();
     let mut app = App::new(

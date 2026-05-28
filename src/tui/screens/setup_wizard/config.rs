@@ -4,8 +4,8 @@ use anyhow::{anyhow, Context, Result};
 
 use crate::client::RommClient;
 use crate::config::{
-    is_keyring_placeholder, load_config, normalize_romm_origin, persist_user_config,
-    read_user_config_json_from_disk, AuthConfig, Config, RomsLayoutConfig,
+    default_theme_id, is_keyring_placeholder, load_config, normalize_romm_origin,
+    persist_user_config, read_user_config_json_from_disk, AuthConfig, Config, RomsLayoutConfig,
 };
 use crate::core::download::validate_configured_download_directory;
 use crate::endpoints::client_tokens::ExchangeClientToken;
@@ -177,6 +177,9 @@ impl SetupWizard {
                 .map(|c| c.save_sync)
                 .unwrap_or_default(),
             roms_layout: self.roms_layout_from_wizard(),
+            theme: read_user_config_json_from_disk()
+                .map(|c| c.theme)
+                .unwrap_or_else(default_theme_id),
         };
         let client = RommClient::new(&temp_config, verbose)?;
         let response = client
@@ -195,6 +198,9 @@ impl SetupWizard {
                 .map(|c| c.save_sync)
                 .unwrap_or_default(),
             roms_layout: self.roms_layout_from_wizard(),
+            theme: read_user_config_json_from_disk()
+                .map(|c| c.theme)
+                .unwrap_or_else(default_theme_id),
         })
     }
 
@@ -274,6 +280,9 @@ impl SetupWizard {
                 .map(|c| c.save_sync)
                 .unwrap_or_default(),
             roms_layout: self.roms_layout_from_wizard(),
+            theme: read_user_config_json_from_disk()
+                .map(|c| c.theme)
+                .unwrap_or_else(default_theme_id),
         })
     }
 

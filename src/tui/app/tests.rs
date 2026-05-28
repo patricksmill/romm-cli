@@ -5,7 +5,7 @@ use super::{
 };
 use crate::core::cache::RomCacheKey;
 use crate::client::RommClient;
-use crate::config::{Config, ExtrasDefaults};
+use crate::config::{Config, ExtrasDefaults, default_theme_id};
 use crate::feature_compat::supported_save_sync_compatibility;
 use crate::tui::screens::connected_splash::StartupSplash;
 use crate::tui::screens::library_browse::LibraryBrowseScreen;
@@ -64,6 +64,7 @@ fn app_with_library(platforms: Vec<Platform>) -> App {
         extras_defaults: ExtrasDefaults::default(),
         save_sync: Default::default(),
         roms_layout: Default::default(),
+        theme: default_theme_id(),
     };
     let client = RommClient::new(&config, false).expect("client");
     let mut app = App::new(
@@ -251,6 +252,7 @@ async fn startup_splash_enter_dismisses_without_quitting_when_update_pending() {
         extras_defaults: ExtrasDefaults::default(),
         save_sync: Default::default(),
         roms_layout: Default::default(),
+        theme: default_theme_id(),
     };
     let client = RommClient::new(&config, false).expect("client");
     let splash = Some(StartupSplash::new(
@@ -290,6 +292,7 @@ async fn startup_update_prompt_enter_starts_update_without_quitting() {
         extras_defaults: ExtrasDefaults::default(),
         save_sync: Default::default(),
         roms_layout: Default::default(),
+        theme: default_theme_id(),
     };
     let client = RommClient::new(&config, false).expect("client");
     let mut app = App::new(
@@ -323,6 +326,7 @@ async fn startup_update_prompt_esc_skips_without_quitting() {
         extras_defaults: ExtrasDefaults::default(),
         save_sync: Default::default(),
         roms_layout: Default::default(),
+        theme: default_theme_id(),
     };
     let client = RommClient::new(&config, false).expect("client");
     let mut app = App::new(
@@ -351,6 +355,7 @@ async fn startup_update_prompt_blocks_global_d_shortcut() {
         extras_defaults: ExtrasDefaults::default(),
         save_sync: Default::default(),
         roms_layout: Default::default(),
+        theme: default_theme_id(),
     };
     let client = RommClient::new(&config, false).expect("client");
     let app = App::new(
@@ -375,6 +380,7 @@ async fn startup_update_prompt_skip_closes_prompt() {
         extras_defaults: ExtrasDefaults::default(),
         save_sync: Default::default(),
         roms_layout: Default::default(),
+        theme: default_theme_id(),
     };
     let client = RommClient::new(&config, false).expect("client");
     let mut app = App::new(
@@ -404,6 +410,7 @@ fn search_batch_updates_results_without_stopping_loading() {
         extras_defaults: ExtrasDefaults::default(),
         save_sync: Default::default(),
         roms_layout: Default::default(),
+        theme: default_theme_id(),
     };
     let client = RommClient::new(&config, false).expect("client");
     let mut app = App::new(
@@ -447,6 +454,7 @@ fn search_complete_event_stops_loading() {
         extras_defaults: ExtrasDefaults::default(),
         save_sync: Default::default(),
         roms_layout: Default::default(),
+        theme: default_theme_id(),
     };
     let client = RommClient::new(&config, false).expect("client");
     let mut app = App::new(

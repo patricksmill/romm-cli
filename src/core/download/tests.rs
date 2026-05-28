@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use crate::config::{Config, RomsLayoutConfig, SaveSyncConfig};
+use crate::config::{Config, RomsLayoutConfig, SaveSyncConfig, default_theme_id};
 use crate::core::download::extras_job::finalize_extras_job_status;
 use crate::core::download::paths::resolve_download_directory_from_inputs;
 use crate::core::download::transfer::{
@@ -274,6 +274,7 @@ fn resolve_game_save_dir_appends_game_folder() {
             platform_dirs: HashMap::new(),
         },
         roms_layout: Default::default(),
+        theme: default_theme_id(),
     };
     let dir = resolve_game_save_dir(&cfg, &rom).unwrap();
     assert_eq!(dir, PathBuf::from("/saves/switch/Game"));

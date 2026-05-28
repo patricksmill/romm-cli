@@ -141,7 +141,7 @@ pub async fn run_interactive(verbose: bool, mock_update: bool) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::ExtrasDefaults;
+    use crate::config::{Config, ExtrasDefaults, default_theme_id};
 
     fn test_config() -> Config {
         Config {
@@ -152,6 +152,7 @@ mod tests {
             extras_defaults: ExtrasDefaults::default(),
             save_sync: Default::default(),
             roms_layout: Default::default(),
+            theme: default_theme_id(),
         }
     }
 

@@ -2,7 +2,9 @@ use std::collections::HashMap;
 
 use super::types::{AUTH_MAINT_ROWS, CONNECTION_ROWS, EXTRAS_ROWS, SAVES_ROWS};
 use super::{SettingsConfirm, SettingsRow, SettingsScreen, SettingsTab};
-use crate::config::{Config, ExtrasDefaults, RomsLayoutConfig, SaveSyncConfig};
+use crate::config::{
+    Config, ExtrasDefaults, RomsLayoutConfig, SaveSyncConfig, default_theme_id,
+};
 use crate::feature_compat::{
     supported_save_sync_compatibility, FeatureCompatibility, RequiredEndpoint, SAVE_SYNC_FEATURE,
     SAVE_SYNC_UNSUPPORTED_MESSAGE,
@@ -21,6 +23,7 @@ fn test_config() -> Config {
             platform_dirs: HashMap::new(),
         },
         roms_layout: RomsLayoutConfig::default(),
+        theme: default_theme_id(),
     }
 }
 
