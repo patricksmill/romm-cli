@@ -233,6 +233,53 @@ After a chunked upload, RomM still needs a **library scan** before new games app
 
 Save sync commands use RomM sync endpoints introduced in the `4.9.0-alpha.2` pre-release. For details and the full manifest schema, see [docs/save-sync.md](docs/save-sync.md).
 
+### Shell completions
+
+Tab completion is available for bash, zsh, fish, PowerShell, and Elvish. Scripts are kept in [`completions/`](completions/) (regenerated when the CLI changes) and can also be printed at runtime:
+
+```bash
+romm-cli completions bash
+romm-cli completions zsh
+romm-cli completions fish
+romm-cli completions powershell
+```
+
+**Bash** — save or source the script:
+
+```bash
+# Linux (system-wide, requires root)
+sudo cp completions/romm-cli.bash /etc/bash_completion.d/romm-cli
+
+# User install
+mkdir -p ~/.local/share/bash-completion/completions
+romm-cli completions bash > ~/.local/share/bash-completion/completions/romm-cli
+```
+
+**Zsh** — clap generates `_romm-cli` (underscore prefix is required for zsh `fpath`):
+
+```bash
+mkdir -p ~/.zfunc
+cp completions/_romm-cli ~/.zfunc/_romm-cli
+# Add to ~/.zshrc before compinit:
+# fpath=(~/.zfunc $fpath); autoload -Uz compinit; compinit
+```
+
+**Fish**:
+
+```bash
+romm-cli completions fish > ~/.config/fish/completions/romm-cli.fish
+```
+
+**PowerShell** — clap generates `_romm-cli.ps1`:
+
+```powershell
+romm-cli completions powershell > $PROFILE.CurrentUserCurrentHost
+# Or dot-source from the repo:
+. .\completions\_romm-cli.ps1
+```
+
+After installing, start a new shell session (or reload your shell config) for completions to take effect.
+
 ---
 
 ## Project layout

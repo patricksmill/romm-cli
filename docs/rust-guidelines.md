@@ -125,7 +125,7 @@ pub enum ApiError {
 
 ### Gap 2: Shell completions
 
-**Current state:** No generated completion scripts. Users must rely on `--help` and tab completion is unavailable.
+**Current state:** `build.rs` reruns completion generation when CLI modules change (via `romm-complete-gen` after the first build). Static scripts live in `completions/`; users can also run `romm-cli completions <shell>`.
 
 **Recommended approach:**
 
@@ -136,9 +136,9 @@ pub enum ApiError {
 
 **Acceptance criteria:**
 
-- [ ] `build.rs` regenerates completions when CLI surface changes
-- [ ] At least bash, zsh, fish, and PowerShell covered
-- [ ] README section explains how to install completions per shell
+- [x] `build.rs` regenerates completions when CLI surface changes
+- [x] At least bash, zsh, fish, and PowerShell covered
+- [x] README section explains how to install completions per shell
 
 **References:** [Clap completions docs](https://docs.rs/clap_complete/latest/clap_complete/), [Rust CLI best practices guide — completions section](https://github.com/Dicklesworthstone/coding_agent_session_search/blob/main/RUST_CLI_TOOLS_BEST_PRACTICES_GUIDE.md)
 
