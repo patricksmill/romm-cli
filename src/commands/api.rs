@@ -1,11 +1,15 @@
 use anyhow::{anyhow, Result};
 use clap::{Args, Subcommand};
 
+use crate::cli_presentation::CliPresentation;
 use crate::client::RommClient;
 use crate::commands::OutputFormat;
 
 /// Low-level escape hatch for calling arbitrary ROMM API endpoints.
 #[derive(Args, Debug)]
+#[command(after_help = "Examples:\n  \
+      romm-cli api call GET /api/platforms\n  \
+      romm-cli --json api call GET /api/roms --query limit=10")]
 pub struct ApiCommand {
     #[command(subcommand)]
     pub action: Option<ApiAction>,
@@ -46,7 +50,12 @@ pub enum ApiAction {
     },
 }
 
-pub async fn handle(cmd: ApiCommand, client: &RommClient, format: OutputFormat) -> Result<()> {
+pub async fn handle(
+    cmd: ApiCommand,
+    client: &RommClient,
+    presentation: CliPresentation,
+) -> Result<()> {
+    let format = presentation.format;
     let (method, path) = match cmd.action {
         Some(ApiAction::Call { method, path }) => (method, path),
         Some(ApiAction::Get { path }) => ("GET".to_string(), path),

@@ -32,6 +32,8 @@
 //! }
 //! ```
 
+/// CLI output presentation (color, progress, JSON vs text).
+pub mod cli_presentation;
 /// HTTP client implementation for the RomM API.
 pub mod client;
 /// CLI command handlers.

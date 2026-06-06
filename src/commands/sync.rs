@@ -12,6 +12,7 @@ use time::format_description::well_known::Rfc3339;
 use time::{OffsetDateTime, UtcOffset};
 use zip::ZipArchive;
 
+use crate::cli_presentation::CliPresentation;
 use crate::client::{RommClient, SaveUploadOptions};
 use crate::commands::OutputFormat;
 use crate::endpoints::device::{
@@ -25,6 +26,9 @@ use crate::feature_compat::{save_sync_compatibility, SAVE_SYNC_UNSUPPORTED_MESSA
 use crate::openapi::EndpointRegistry;
 
 #[derive(Args, Debug)]
+#[command(after_help = "Examples:\n  \
+      romm-cli sync plan --device-id abc --manifest saves.json\n  \
+      romm-cli sync run --device-id abc --manifest saves.json --download-dir ./saves")]
 pub struct SyncCommand {
     /// Output as JSON (overrides global --json when set).
     #[arg(long, global = true)]
@@ -200,7 +204,12 @@ struct RunCounts {
     failed: u64,
 }
 
-pub async fn handle(cmd: SyncCommand, client: &RommClient, format: OutputFormat) -> Result<()> {
+pub async fn handle(
+    cmd: SyncCommand,
+    client: &RommClient,
+    presentation: CliPresentation,
+) -> Result<()> {
+    let format = presentation.format;
     preflight_save_sync_compatibility(client, format).await?;
 
     match cmd.action {

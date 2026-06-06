@@ -345,6 +345,18 @@ pub fn user_message(err: &RommError) -> String {
         RommError::Api(api) if api.is_auth_failure() => {
             "Authentication failed. Check credentials or run `romm-cli auth`.".to_string()
         }
+        RommError::Api(ApiError::Forbidden { .. }) => {
+            "Access denied. Check credentials or run `romm-cli auth`.".to_string()
+        }
+        RommError::Api(ApiError::NotFound { .. }) => {
+            "Resource not found. Check the server URL and resource ID.".to_string()
+        }
+        RommError::Api(ApiError::RateLimited { .. }) => {
+            "Rate limited by the server. Wait a moment and try again.".to_string()
+        }
+        RommError::Api(ApiError::ClientError { status, .. }) if (400..500).contains(status) => {
+            format!("Request rejected ({status}). Check command arguments and try again.")
+        }
         RommError::Api(ApiError::Request(_)) => {
             "Network error. Check your connection and server URL.".to_string()
         }
@@ -353,6 +365,9 @@ pub fn user_message(err: &RommError) -> String {
         }
         RommError::Download(DownloadError::PathNotConfigured) => {
             "ROMs directory is not configured. Run `romm-cli init`.".to_string()
+        }
+        RommError::Download(DownloadError::IoContext { .. }) => {
+            format!("Download I/O error: {err}. Check disk permissions and output path.")
         }
         RommError::Download(_) => format!("Download failed: {err}"),
         RommError::Api(_) => format!("API error: {err}"),
@@ -469,5 +484,25 @@ mod tests {
         );
 
         assert_eq!(exit_code(&RommError::Other("x".into())), exit::GENERAL);
+    }
+
+    #[test]
+    fn user_message_actionable_hints() {
+        let not_found = RommError::Api(ApiError::NotFound {
+            path: "/api/x".into(),
+            body: "missing".into(),
+        });
+        assert!(user_message(&not_found).contains("server URL"));
+
+        let forbidden = RommError::Api(ApiError::Forbidden {
+            body: "denied".into(),
+        });
+        assert!(user_message(&forbidden).contains("romm-cli auth"));
+
+        let rate = RommError::Api(ApiError::RateLimited {
+            retry_after: Some(30),
+            body: "slow down".into(),
+        });
+        assert!(user_message(&rate).contains("Rate limited"));
     }
 }

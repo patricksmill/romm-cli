@@ -248,7 +248,7 @@ There is no global `CLI > env` for connection settings on normal commands.
 
 ### Gap 7: CLI/TUI UX polish
 
-**Current state:** JSON output, `indicatif` progress, `tracing` — good baseline. Some polish items remain inconsistent across commands.
+**Current state:** `CliPresentation` centralizes color (`NO_COLOR`, `CLICOLOR`), progress (stderr / suppressed in JSON), and JSON stdout. Actionable errors via `user_message()`; verbose chains on stderr with `--verbose`. Help examples and [json-output.md](./json-output.md) document scripting surfaces.
 
 **Recommended approach:**
 
@@ -262,9 +262,9 @@ There is no global `CLI > env` for connection settings on normal commands.
 
 **Acceptance criteria:**
 
-- [ ] No ANSI codes when `NO_COLOR` is set
-- [ ] `--json` never interleaves human progress UI on stdout
-- [ ] Error messages suggest next step where possible (init, auth, check URL)
+- [x] No ANSI codes when `NO_COLOR` is set
+- [x] `--json` never interleaves human progress UI on stdout
+- [x] Error messages suggest next step where possible (init, auth, check URL)
 
 **References:** [Building CLI tools with Clap (2026)](https://lucaberton.com/blog/rust-cli-tools-clap-2026/)
 
@@ -292,4 +292,4 @@ There is no global `CLI > env` for connection settings on normal commands.
 
 ---
 
-*Last updated: 2026-06-06 — Gap 6 complete (layered config docs + tracing redaction); Gap 5 complete (event/action pipeline); Gap 4 closed as deferred (single crate maintained).*
+*Last updated: 2026-06-06 — Gap 7 complete (CliPresentation, JSON docs, help examples); Gap 6 complete (layered config); Gap 5 complete (event/action pipeline); Gap 4 closed as deferred (single crate maintained).*

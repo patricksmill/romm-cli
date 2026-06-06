@@ -305,6 +305,12 @@ After installing, start a new shell session (or reload your shell config) for co
 
 ---
 
+## JSON output
+
+Commands that support `--json` emit stable, machine-readable JSON on stdout. Progress bars and status lines go to stderr (or are suppressed) so scripts can parse stdout safely. See [docs/json-output.md](docs/json-output.md) for field reference and versioning policy.
+
+---
+
 ## Exit codes
 
 `romm-cli` uses distinct exit codes so scripts can branch on failure type:

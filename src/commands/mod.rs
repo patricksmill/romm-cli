@@ -58,7 +58,9 @@ impl OutputFormat {
     about = "Rust CLI and TUI for the ROMM API",
     infer_subcommands = true,
     arg_required_else_help = true,
-    after_help = "Exit codes: 0 success, 1 general failure, 2 usage, 3 config/auth, 4 API/network.\nSee README \"Exit codes\" for scripting examples."
+    after_help = "Exit codes: 0 success, 1 general failure, 2 usage, 3 config/auth, 4 API/network.\n\
+                  See README \"Exit codes\" for scripting examples.\n\
+                  JSON output shapes: docs/json-output.md"
 )]
 pub struct Cli {
     /// Increase output verbosity (logs requests to stderr).
@@ -139,6 +141,6 @@ pub async fn run(cli: Cli, config: Config) -> Result<(), RommError> {
         )),
         #[cfg(not(feature = "tui"))]
         Commands::Tui { .. } => Err(RommError::Other("this feature requires the tui".into())),
-        command => crate::frontend::cli::run(command, &client, cli.json).await,
+        command => crate::frontend::cli::run(command, &client, cli.json, cli.verbose).await,
     }
 }

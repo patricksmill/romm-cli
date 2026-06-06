@@ -1,7 +1,9 @@
+use crate::cli_presentation::{format_command_error, CliPresentation};
 use crate::error::{DownloadError, RommError};
 use clap::{Args, Subcommand, ValueEnum};
 use dialoguer::Confirm;
-use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use indicatif::ProgressBar;
+use serde::Serialize;
 use std::io::{self, IsTerminal};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -26,6 +28,19 @@ use crate::endpoints::roms::{GetRom, GetRoms};
 /// Maximum number of concurrent download connections.
 const DEFAULT_CONCURRENCY: usize = 4;
 
+const DOWNLOAD_PROGRESS_PLAIN: &str =
+    "[{elapsed_precise}] {bar:40} {bytes}/{total_bytes} ({eta}) {msg}";
+const DOWNLOAD_PROGRESS_COLOR: &str =
+    "[{elapsed_precise}] {bar:40.cyan/blue} {bytes}/{total_bytes} ({eta}) {msg}";
+
+#[derive(Default, Serialize)]
+struct DownloadJsonSummary {
+    succeeded: u32,
+    failed: u32,
+    cancelled: u32,
+    paths: Vec<String>,
+}
+
 fn parse_nonzero_usize(value: &str) -> std::result::Result<usize, String> {
     let parsed = value
         .parse::<usize>()
@@ -39,6 +54,10 @@ fn parse_nonzero_usize(value: &str) -> std::result::Result<usize, String> {
 
 /// Download a ROM to the local filesystem with a progress bar.
 #[derive(Args, Debug)]
+#[command(after_help = "Examples:\n  \
+      romm-cli download 42\n  \
+      romm-cli download batch --platform gba --search-term zelda\n  \
+      romm-cli download extras 42")]
 pub struct DownloadCommand {
     /// ID of the ROM to download in single-ROM mode
     pub rom_id: Option<u64>,
@@ -110,14 +129,6 @@ pub enum ExtractLayout {
     Flat,
     /// Extract to `<output>/<platform_slug>/<rom_name>/`
     Rom,
-}
-
-fn make_progress_style() -> ProgressStyle {
-    ProgressStyle::with_template(
-        "[{elapsed_precise}] {bar:40.cyan/blue} {bytes}/{total_bytes} ({eta}) {msg}",
-    )
-    .expect("hardcoded download progress template")
-    .progress_chars("#>-")
 }
 
 async fn download_one(
@@ -256,9 +267,25 @@ fn dedupe_preserve_order(urls: Vec<String>) -> Vec<String> {
     out
 }
 
+fn emit_download_summary(
+    presentation: CliPresentation,
+    summary: DownloadJsonSummary,
+) -> Result<(), RommError> {
+    if presentation.is_json() {
+        presentation.emit_json(&summary)?;
+    } else if summary.succeeded > 0 || summary.failed > 0 || summary.cancelled > 0 {
+        presentation.emit_status(format!(
+            "Download complete: {} succeeded, {} failed, {} cancelled.",
+            summary.succeeded, summary.failed, summary.cancelled
+        ));
+    }
+    Ok(())
+}
+
 pub async fn handle(
     cmd: DownloadCommand,
     client: &RommClient,
+    presentation: CliPresentation,
     interrupt: Option<InterruptContext>,
 ) -> Result<(), RommError> {
     let interrupt = interrupt.unwrap_or_default();
@@ -285,7 +312,17 @@ pub async fn handle(
     })?;
 
     if let Some(DownloadAction::Extras(extras)) = action.clone() {
-        return handle_extras(extras, client, interrupt, &layout, output_dir, cmd.jobs).await;
+        let summary = handle_extras(
+            extras,
+            client,
+            interrupt,
+            &layout,
+            output_dir,
+            cmd.jobs,
+            presentation,
+        )
+        .await?;
+        return emit_download_summary(presentation, summary);
     }
 
     // Determine if we are in batch mode.
@@ -315,20 +352,19 @@ pub async fn handle(
         let results = client.call(&ep).await?;
 
         if results.items.is_empty() {
-            println!("No ROMs found matching the given filters.");
-            return Ok(());
+            return emit_download_summary(presentation, DownloadJsonSummary::default());
         }
 
-        println!(
+        presentation.emit_status(format!(
             "Found {} ROM(s). Starting download with {} concurrent connections...",
             results.items.len(),
             cmd.jobs
-        );
+        ));
 
-        let mp = MultiProgress::new();
+        let style = presentation.progress_style(DOWNLOAD_PROGRESS_PLAIN, DOWNLOAD_PROGRESS_COLOR);
+        let mp = presentation.multi_progress();
         let semaphore = Arc::new(Semaphore::new(cmd.jobs));
         let mut handles = Vec::new();
-
         'enqueue: for rom in results.items {
             if interrupt.is_cancelled() {
                 break 'enqueue;
@@ -340,9 +376,13 @@ pub async fn handle(
             let base_dir = output_dir.clone();
             let layout = layout.clone();
             let interrupt = interrupt.clone();
-            let pb = mp.add(ProgressBar::new(0));
-            pb.set_style(make_progress_style());
-
+            let pb = if let Some(ref mp) = mp {
+                let pb = mp.add(ProgressBar::new(0));
+                pb.set_style(style.clone());
+                pb
+            } else {
+                ProgressBar::hidden()
+            };
             let name = rom.name.clone();
             let rom_id = rom.id;
             let console_dir = resolve_console_roms_dir(&layout, &base_dir, &rom)?;
@@ -386,7 +426,9 @@ pub async fn handle(
                     )
                     .await
                     .map(|_| {
-                        pb.finish_with_message(format!("✓ {name}"));
+                        if !pb.is_hidden() {
+                            pb.finish_with_message(format!("✓ {name}"));
+                        }
                     });
 
                 if result.is_ok() && extract {
@@ -419,34 +461,33 @@ pub async fn handle(
                         eprintln!("error downloading {name} (id={rom_id}): {e}");
                     }
                 }
-                result
+                result.map(|_| save_path)
             }));
         }
 
-        let mut successes = 0u32;
-        let mut failures = 0u32;
-        let mut cancelled = 0u32;
+        let mut summary = DownloadJsonSummary::default();
         for handle in handles {
             let task_result = tokio::select! {
                 res = handle => res,
                 _ = interrupt.cancelled() => {
-                    cancelled += 1;
+                    summary.cancelled += 1;
                     continue;
                 }
             };
             match task_result {
-                Ok(Ok(())) => successes += 1,
-                Ok(Err(e)) if is_cancelled_download(&e) => cancelled += 1,
-                _ => failures += 1,
+                Ok(Ok(path)) => {
+                    summary.succeeded += 1;
+                    summary.paths.push(path.display().to_string());
+                }
+                Ok(Err(e)) if is_cancelled_download(&e) => summary.cancelled += 1,
+                _ => summary.failed += 1,
             }
         }
 
         if interrupt.is_cancelled() {
-            println!("\nInterrupted by user.");
+            presentation.emit_status("Interrupted by user.");
         }
-        println!(
-            "\nBatch complete: {successes} succeeded, {failures} failed, {cancelled} cancelled."
-        );
+        emit_download_summary(presentation, summary)
     } else {
         // ── Single ROM mode ────────────────────────────────────────────
         let rom_id = cmd.rom_id.ok_or_else(|| {
@@ -458,14 +499,16 @@ pub async fn handle(
         let rom = client.call(&GetRom { id: rom_id }).await?;
         let base_targets = build_base_rom_file_targets(&rom, &layout, &output_dir)?;
 
+        let mut summary = DownloadJsonSummary::default();
+
         if !base_targets.is_empty() {
-            let summary = run_targets(base_targets, client, interrupt.clone(), 1).await?;
-            if summary.failures > 0 || summary.cancelled > 0 || summary.successes == 0 {
+            summary = run_targets(base_targets, client, interrupt.clone(), 1, presentation).await?;
+            if summary.failed > 0 || summary.cancelled > 0 || summary.succeeded == 0 {
                 return Err(RommError::Other(
                     "base game download failed; not prompting for updates/DLC".into(),
                 ));
             }
-            println!("Base game files downloaded.");
+            presentation.emit_status("Base game files downloaded.");
         } else {
             let console_dir = resolve_console_roms_dir(&layout, &output_dir, &rom)?;
             tokio::fs::create_dir_all(&console_dir).await.map_err(|e| {
@@ -475,14 +518,22 @@ pub async fn handle(
                 })
             })?;
             let save_path = console_dir.join(format!("rom_{rom_id}.zip"));
-            let mp = MultiProgress::new();
-            let pb = mp.add(ProgressBar::new(0));
-            pb.set_style(make_progress_style());
+            let style =
+                presentation.progress_style(DOWNLOAD_PROGRESS_PLAIN, DOWNLOAD_PROGRESS_COLOR);
+            let pb = if let Some(ref mp) = presentation.multi_progress() {
+                let pb = mp.add(ProgressBar::new(0));
+                pb.set_style(style);
+                pb
+            } else {
+                ProgressBar::hidden()
+            };
             if interrupt.is_cancelled() {
                 return Err(cancelled_download_error().into());
             }
             download_one(client, rom_id, &format!("ROM {rom_id}"), &save_path, pb).await?;
-            println!("Saved to {:?}", save_path);
+            summary.succeeded = 1;
+            summary.paths.push(save_path.display().to_string());
+            presentation.emit_status(format!("Saved to {save_path:?}"));
         }
 
         let extras_targets =
@@ -490,12 +541,17 @@ pub async fn handle(
         if !extras_targets.is_empty() {
             let include_extras = resolve_include_extras_choice(&cmd)?;
             if include_extras {
-                run_targets(extras_targets, client, interrupt, cmd.jobs).await?;
+                let extras_summary =
+                    run_targets(extras_targets, client, interrupt, cmd.jobs, presentation).await?;
+                summary.succeeded += extras_summary.succeeded;
+                summary.failed += extras_summary.failed;
+                summary.cancelled += extras_summary.cancelled;
+                summary.paths.extend(extras_summary.paths);
             }
         }
-    }
 
-    Ok(())
+        emit_download_summary(presentation, summary)
+    }
 }
 
 async fn handle_extras(
@@ -505,17 +561,10 @@ async fn handle_extras(
     layout: &RomsLayoutConfig,
     output_dir: PathBuf,
     jobs: usize,
-) -> Result<(), RommError> {
+    presentation: CliPresentation,
+) -> Result<DownloadJsonSummary, RommError> {
     let targets = build_extras_targets(client, cmd.rom_id, layout, &output_dir).await?;
-    run_targets(targets, client, interrupt, jobs).await?;
-    Ok(())
-}
-
-#[derive(Debug, Clone, Copy)]
-struct DownloadRunSummary {
-    successes: u32,
-    failures: u32,
-    cancelled: u32,
+    run_targets(targets, client, interrupt, jobs, presentation).await
 }
 
 async fn run_targets(
@@ -523,23 +572,21 @@ async fn run_targets(
     client: &RommClient,
     interrupt: InterruptContext,
     jobs: usize,
-) -> Result<DownloadRunSummary, RommError> {
+    presentation: CliPresentation,
+) -> Result<DownloadJsonSummary, RommError> {
     if targets.is_empty() {
-        println!("No downloadable extras were found.");
-        return Ok(DownloadRunSummary {
-            successes: 0,
-            failures: 0,
-            cancelled: 0,
-        });
+        presentation.emit_status("No downloadable extras were found.");
+        return Ok(DownloadJsonSummary::default());
     }
 
-    println!(
+    presentation.emit_status(format!(
         "Found {} download(s). Starting download with {} concurrent connections...",
         targets.len(),
         jobs
-    );
+    ));
 
-    let mp = MultiProgress::new();
+    let style = presentation.progress_style(DOWNLOAD_PROGRESS_PLAIN, DOWNLOAD_PROGRESS_COLOR);
+    let mp = presentation.multi_progress();
     let semaphore = Arc::new(Semaphore::new(jobs));
     let mut handles = Vec::new();
 
@@ -552,8 +599,16 @@ async fn run_targets(
         })?;
         let client = client.clone();
         let interrupt = interrupt.clone();
-        let pb = mp.add(ProgressBar::new(0));
-        pb.set_style(make_progress_style());
+        let destination = target.destination.clone();
+        let title = target.title.clone();
+        let kind = target.kind;
+        let pb = if let Some(ref mp) = mp {
+            let pb = mp.add(ProgressBar::new(0));
+            pb.set_style(style.clone());
+            pb
+        } else {
+            ProgressBar::hidden()
+        };
 
         handles.push(tokio::spawn(async move {
             let result = download_target(&client, &target, &interrupt, pb).await;
@@ -561,45 +616,39 @@ async fn run_targets(
             if let Err(err) = &result {
                 if !is_cancelled_error(err) {
                     eprintln!(
-                        "error downloading {} ({:?}): {}",
-                        target.title, target.kind, err
+                        "error downloading {title} ({kind:?}): {}",
+                        format_command_error(err)
                     );
                 }
             }
-            result
+            result.map(|_| destination)
         }));
     }
 
-    let mut successes = 0u32;
-    let mut failures = 0u32;
-    let mut cancelled = 0u32;
+    let mut summary = DownloadJsonSummary::default();
     for handle in handles {
         let task_result = tokio::select! {
             res = handle => res,
             _ = interrupt.cancelled() => {
-                cancelled += 1;
+                summary.cancelled += 1;
                 continue;
             }
         };
         match task_result {
-            Ok(Ok(())) => successes += 1,
-            Ok(Err(e)) if is_cancelled_error(&e) => cancelled += 1,
-            _ => failures += 1,
+            Ok(Ok(path)) => {
+                summary.succeeded += 1;
+                summary.paths.push(path.display().to_string());
+            }
+            Ok(Err(e)) if is_cancelled_error(&e) => summary.cancelled += 1,
+            _ => summary.failed += 1,
         }
     }
 
     if interrupt.is_cancelled() {
-        println!("\nInterrupted by user.");
+        presentation.emit_status("Interrupted by user.");
     }
-    println!(
-        "\nDownload complete: {successes} succeeded, {failures} failed, {cancelled} cancelled."
-    );
 
-    Ok(DownloadRunSummary {
-        successes,
-        failures,
-        cancelled,
-    })
+    Ok(summary)
 }
 
 fn resolve_include_extras_choice(cmd: &DownloadCommand) -> Result<bool, RommError> {

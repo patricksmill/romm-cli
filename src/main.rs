@@ -16,18 +16,23 @@ fn map_anyhow<T>(result: Result<T, anyhow::Error>) -> Result<T, RommError> {
 
 #[tokio::main]
 async fn main() {
-    if let Err(e) = run_app().await {
+    let cli = Cli::parse();
+    let verbose = cli.verbose;
+    if let Err(e) = run_app(cli).await {
         eprintln!("Error: {}", user_message(&e));
+        if verbose {
+            eprintln!("Details: {e:#}");
+        }
         std::process::exit(exit_code(&e));
     }
 }
 
-async fn run_app() -> Result<(), RommError> {
+async fn run_app(cli: Cli) -> Result<(), RommError> {
     let Cli {
         verbose,
         json,
         command,
-    } = Cli::parse();
+    } = cli;
 
     let filter = EnvFilter::from_default_env();
 
