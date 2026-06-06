@@ -11,6 +11,7 @@ use serde_json::json;
 use std::fs;
 use std::io::Read;
 
+use crate::cli_presentation::CliPresentation;
 use crate::client::RommClient;
 use crate::commands::OutputFormat;
 use crate::config::{
@@ -249,7 +250,12 @@ fn auth_mode_string(auth: &Option<AuthConfig>) -> &'static str {
 }
 
 /// Execute `romm-cli auth ...`.
-pub async fn handle(cmd: AuthCommand, client: &RommClient, format: OutputFormat) -> Result<()> {
+pub async fn handle(
+    cmd: AuthCommand,
+    client: &RommClient,
+    presentation: CliPresentation,
+) -> Result<()> {
+    let format = presentation.format;
     match cmd.action {
         AuthAction::Login(login) => {
             // Non-interactive fast path: infer auth from provided flags.

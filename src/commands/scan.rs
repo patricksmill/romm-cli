@@ -6,15 +6,19 @@ use anyhow::Result;
 use clap::Args;
 use serde_json::json;
 
+use crate::cli_presentation::CliPresentation;
 use crate::client::RommClient;
 use crate::core::interrupt::InterruptContext;
 use crate::core::resolve::resolve_platform_id_from_list;
 use crate::endpoints::platforms::ListPlatforms;
 
 use super::library_scan::{run_scan_library_flow, ScanCacheInvalidate, ScanLibraryOptions};
-use super::OutputFormat;
 
 #[derive(Args, Debug)]
+#[command(after_help = "Examples:\n  \
+      romm-cli scan\n  \
+      romm-cli scan --wait\n  \
+      romm-cli scan --platform gba --wait --wait-timeout-secs 600")]
 pub struct ScanCommand {
     /// Restrict scan to one or more platform slugs (comma-separated); passed as `platform_slugs` task kwargs
     #[arg(long)]
@@ -32,7 +36,7 @@ pub struct ScanCommand {
 pub async fn handle(
     cmd: ScanCommand,
     client: &RommClient,
-    format: OutputFormat,
+    presentation: CliPresentation,
     interrupt: Option<InterruptContext>,
 ) -> Result<()> {
     let slugs: Vec<String> = cmd
@@ -73,5 +77,5 @@ pub async fn handle(
         cache_invalidate,
         task_kwargs,
     };
-    run_scan_library_flow(client, options, format, interrupt.as_ref()).await
+    run_scan_library_flow(client, options, presentation, interrupt.as_ref()).await
 }

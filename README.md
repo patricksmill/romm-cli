@@ -102,7 +102,6 @@ Set these in your shell (or any tool that injects env vars into the process) for
 | `API_BASE_URL` | RomM site URL (browser address, no `/api`; e.g. `https://romm.example.com`) |
 | `ROMM_ROMS_DIR` | Preferred. Base directory for stored ROMs (defaults to a `romm-cli` folder under the OS download directory, e.g. `~/Downloads/romm-cli` on typical Unix setups) |
 | `ROMM_DOWNLOAD_DIR` | Legacy alias for `ROMM_ROMS_DIR` |
-| `ROMM_ROMS_LAYOUT` | `auto` (default) or `manual`. In auto mode, ROMs go under `{ROMM_ROMS_DIR}/{console-slug}/`. In manual mode, use per-console paths from `config.json` (see below). |
 | `API_USE_HTTPS` | Set to `false` to disable automatic upgrade to HTTPS (default: `true`) |
 | `API_USERNAME` / `API_PASSWORD` | Basic Auth credentials |
 | `API_TOKEN` | Bearer token |
@@ -116,6 +115,30 @@ Set these in your shell (or any tool that injects env vars into the process) for
 | `ROMM_VERBOSE` | Set to `1`/`true` to enable verbose mode for the standalone `romm-tui` binary (same as passing `--verbose` to `romm-cli`) |
 | `ROMM_CHECK_UPDATES` | Optional. Set to `false`/`0`/`no`/`off` to disable startup update checks and prompts in CLI/TUI. |
 | `ROMM_THEME` | Optional. TUI color theme ID (overrides `theme` in `config.json`). Built-in IDs include `terminal`, `catppuccin`, `dracula`, `nord`, `tokyo-night`, and others from Settings → Appearance. Default: `terminal`. Respects `NO_COLOR`. |
+| `ROMM_GITHUB_API_BASE` | Optional. Override GitHub API base URL for self-update checks (default: `https://api.github.com`) |
+| `ROMM_GITHUB_LATEST_RELEASE_API` | Optional. Override full URL for the latest-release endpoint used by self-update |
+
+Test-only variables (`ROMM_TEST_*`) are omitted from this table.
+
+For auth env precedence and keyring behavior, see [docs/troubleshooting-auth.md](docs/troubleshooting-auth.md).
+
+### Configuration precedence
+
+Settings are merged **per field** from lowest to highest precedence:
+
+1. **Built-in defaults** — e.g. HTTPS enabled, default theme, OS download folder.
+2. **`config.json`** — written by `romm-cli init`, the TUI setup wizard, Settings, or `auth login`.
+3. **Environment variables** — override `config.json` for the fields listed above (env wins over file).
+4. **OS keyring** — replaces `<stored-in-keyring>` placeholders in secrets after env + file merge.
+5. **Command-specific CLI (runtime)** — only where documented below.
+
+**Examples:**
+
+- `config.json` has `base_url` `https://romm.local`, but `API_BASE_URL=https://romm.prod` is set → **`https://romm.prod`** is used.
+- `romm-cli init --url https://romm.example --token …` writes file values; on the next run, env still beats file if set.
+- `romm-cli download --output /tmp/roms` uses **`/tmp/roms`** for that run, ignoring `ROMM_ROMS_DIR` and `download_dir` in config.
+
+There are no global `--url` / `--token` flags on normal commands (`platforms`, `roms`, `download`, etc.). Connection settings come from env + file + keyring.
 
 ### Custom console paths
 
@@ -279,6 +302,12 @@ romm-cli completions powershell > $PROFILE.CurrentUserCurrentHost
 ```
 
 After installing, start a new shell session (or reload your shell config) for completions to take effect.
+
+---
+
+## JSON output
+
+Commands that support `--json` emit stable, machine-readable JSON on stdout. Progress bars and status lines go to stderr (or are suppressed) so scripts can parse stdout safely. See [docs/json-output.md](docs/json-output.md) for field reference and versioning policy.
 
 ---
 

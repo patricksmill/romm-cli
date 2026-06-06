@@ -8,7 +8,7 @@ use crate::core::cache::RomCacheKey;
 use crate::core::startup_library_snapshot;
 use crate::types::SaveMetadata;
 
-use super::super::event::{BackgroundAction, AppEvent};
+use super::super::event::{AppEvent, BackgroundAction};
 use super::super::AppScreen;
 use super::types::{
     CoverLoadDone, LibraryMetadataRefreshDone, LibraryUploadComplete, SaveListDone,
@@ -103,7 +103,9 @@ impl super::super::App {
         };
         match rx.try_recv() {
             Ok(result) => {
-                vec![AppEvent::Background(BackgroundAction::LibraryScanDone(result))]
+                vec![AppEvent::Background(BackgroundAction::LibraryScanDone(
+                    result,
+                ))]
             }
             Err(tokio::sync::mpsc::error::TryRecvError::Empty) => Vec::new(),
             Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
@@ -205,10 +207,12 @@ impl super::super::App {
         let mut events = Vec::new();
         if let Some(rx) = &mut self.library_upload_progress_rx {
             while let Ok((up, tot)) = rx.try_recv() {
-                events.push(AppEvent::Background(BackgroundAction::LibraryUploadProgress {
-                    uploaded: up,
-                    total: tot,
-                }));
+                events.push(AppEvent::Background(
+                    BackgroundAction::LibraryUploadProgress {
+                        uploaded: up,
+                        total: tot,
+                    },
+                ));
             }
         }
 
@@ -477,9 +481,9 @@ impl super::super::App {
         let mut events = Vec::new();
         loop {
             match self.collection_prefetch_rx.try_recv() {
-                Ok(done) => {
-                    events.push(AppEvent::Background(BackgroundAction::CollectionPrefetch(done)))
-                }
+                Ok(done) => events.push(AppEvent::Background(
+                    BackgroundAction::CollectionPrefetch(done),
+                )),
                 Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
                 Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => break,
             }

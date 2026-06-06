@@ -1,6 +1,7 @@
 use anyhow::Result;
 use clap::{Args, Subcommand};
 
+use crate::cli_presentation::CliPresentation;
 use crate::client::RommClient;
 use crate::commands::print::print_platforms_table;
 use crate::commands::OutputFormat;
@@ -34,8 +35,9 @@ pub enum PlatformsAction {
 pub async fn handle(
     cmd: PlatformsCommand,
     client: &RommClient,
-    format: OutputFormat,
+    presentation: CliPresentation,
 ) -> Result<()> {
+    let format = presentation.format;
     let action = cmd.action.unwrap_or(PlatformsAction::List);
 
     match action {

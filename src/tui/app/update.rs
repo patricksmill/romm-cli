@@ -7,8 +7,8 @@ use crate::tui::screens::library_browse::LibrarySubsection;
 
 use super::background::types::{RomLoadDone, RomLoadEvent};
 use super::event::Action;
-use super::AppScreen;
 use super::App;
+use super::AppScreen;
 
 impl App {
     /// Apply background-only actions synchronously (tests and legacy poll path).
@@ -89,9 +89,7 @@ impl App {
             Action::StartupUpdatePromptDismiss => {
                 self.startup_update_prompt = None;
             }
-            Action::MainMenuPrevious
-            | Action::MainMenuNext
-            | Action::MainMenuActivate => {
+            Action::MainMenuPrevious | Action::MainMenuNext | Action::MainMenuActivate => {
                 if self.apply_main_menu_action(action).await? {
                     return Ok(true);
                 }
@@ -171,9 +169,7 @@ impl App {
                 if lib.subsection == LibrarySubsection::ByConsole {
                     lib.open_upload_prompt();
                 } else {
-                    lib.set_metadata_footer(Some(
-                        "Upload requires Consoles view — press t".into(),
-                    ));
+                    lib.set_metadata_footer(Some("Upload requires Consoles view — press t".into()));
                 }
             }
         }
@@ -361,7 +357,8 @@ impl App {
         match done.event {
             RomLoadEvent::Batch(roms) => {
                 if let Some(ref k) = done.key {
-                    self.rom_cache.insert(k.clone(), roms.clone(), done.expected);
+                    self.rom_cache
+                        .insert(k.clone(), roms.clone(), done.expected);
                 }
                 lib.set_roms(roms);
                 tracing::debug!(
@@ -484,7 +481,8 @@ impl App {
                 }
                 Err(e) => {
                     settings.set_device_error(e.clone());
-                    settings.message = Some((format!("Device load failed: {e}"), MessageTone::Error));
+                    settings.message =
+                        Some((format!("Device load failed: {e}"), MessageTone::Error));
                 }
             }
         }

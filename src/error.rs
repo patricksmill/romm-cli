@@ -108,6 +108,32 @@ impl ApiError {
             || self.status_code().is_some_and(|s| s == 404)
             || self.to_string().contains("404 Not Found")
     }
+
+    /// Log-safe summary: status and variant only; HTTP response bodies are omitted.
+    pub fn redacted_for_log(&self) -> String {
+        match self {
+            Self::Unauthorized { .. } => "ApiError: 401 Unauthorized (body redacted)".to_string(),
+            Self::Forbidden { .. } => "ApiError: 403 Forbidden (body redacted)".to_string(),
+            Self::NotFound { path, .. } => {
+                format!("ApiError: 404 Not Found path={path} (body redacted)")
+            }
+            Self::RateLimited { retry_after, .. } => format!(
+                "ApiError: 429 Too Many Requests retry_after={retry_after:?} (body redacted)"
+            ),
+            Self::ClientError { status, .. } => {
+                format!("ApiError: client error {status} (body redacted)")
+            }
+            Self::ServerError { status, .. } => {
+                format!("ApiError: server error {status} (body redacted)")
+            }
+            Self::Request(e) => format!("ApiError: request failed: {e}"),
+            Self::Decode(e) => format!("ApiError: invalid response: {e}"),
+            Self::InvalidMethod(m) => format!("ApiError: invalid HTTP method: {m}"),
+            Self::InvalidHeader(h) => format!("ApiError: invalid HTTP header: {h}"),
+            Self::UnexpectedResponse(m) => format!("ApiError: unexpected API response: {m}"),
+            Self::Io(e) => format!("ApiError: I/O error: {e}"),
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -319,6 +345,18 @@ pub fn user_message(err: &RommError) -> String {
         RommError::Api(api) if api.is_auth_failure() => {
             "Authentication failed. Check credentials or run `romm-cli auth`.".to_string()
         }
+        RommError::Api(ApiError::Forbidden { .. }) => {
+            "Access denied. Check credentials or run `romm-cli auth`.".to_string()
+        }
+        RommError::Api(ApiError::NotFound { .. }) => {
+            "Resource not found. Check the server URL and resource ID.".to_string()
+        }
+        RommError::Api(ApiError::RateLimited { .. }) => {
+            "Rate limited by the server. Wait a moment and try again.".to_string()
+        }
+        RommError::Api(ApiError::ClientError { status, .. }) if (400..500).contains(status) => {
+            format!("Request rejected ({status}). Check command arguments and try again.")
+        }
         RommError::Api(ApiError::Request(_)) => {
             "Network error. Check your connection and server URL.".to_string()
         }
@@ -327,6 +365,9 @@ pub fn user_message(err: &RommError) -> String {
         }
         RommError::Download(DownloadError::PathNotConfigured) => {
             "ROMs directory is not configured. Run `romm-cli init`.".to_string()
+        }
+        RommError::Download(DownloadError::IoContext { .. }) => {
+            format!("Download I/O error: {err}. Check disk permissions and output path.")
         }
         RommError::Download(_) => format!("Download failed: {err}"),
         RommError::Api(_) => format!("API error: {err}"),
@@ -443,5 +484,25 @@ mod tests {
         );
 
         assert_eq!(exit_code(&RommError::Other("x".into())), exit::GENERAL);
+    }
+
+    #[test]
+    fn user_message_actionable_hints() {
+        let not_found = RommError::Api(ApiError::NotFound {
+            path: "/api/x".into(),
+            body: "missing".into(),
+        });
+        assert!(user_message(&not_found).contains("server URL"));
+
+        let forbidden = RommError::Api(ApiError::Forbidden {
+            body: "denied".into(),
+        });
+        assert!(user_message(&forbidden).contains("romm-cli auth"));
+
+        let rate = RommError::Api(ApiError::RateLimited {
+            retry_after: Some(30),
+            body: "slow down".into(),
+        });
+        assert!(user_message(&rate).contains("Rate limited"));
     }
 }

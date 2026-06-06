@@ -6,6 +6,7 @@ use anyhow::{anyhow, Context, Result};
 use indicatif::ProgressBar;
 use serde_json::Value;
 
+use crate::cli_presentation::CliPresentation;
 use crate::client::RommClient;
 use crate::core::cache::{RomCache, RomCacheKey};
 use crate::core::interrupt::{cancelled_error, InterruptContext};
@@ -149,14 +150,20 @@ pub async fn wait_for_task_terminal(
     }
 }
 
-/// CLI: poll task status with an `indicatif` spinner (do not use under the TUI alternate screen).
+/// CLI: poll task status with an `indicatif` spinner when text mode allows progress.
 pub async fn wait_for_scan_task(
     client: &RommClient,
     task_id: &str,
     timeout: Duration,
     interrupt: Option<&InterruptContext>,
+    presentation: CliPresentation,
 ) -> Result<Value> {
+    if presentation.is_json() || !presentation.shows_progress() {
+        return wait_for_task_terminal(client, task_id, timeout, interrupt, |_| {}).await;
+    }
+
     let pb = ProgressBar::new_spinner();
+    pb.set_draw_target(presentation.progress_draw_target());
     pb.enable_steady_tick(Duration::from_millis(120));
     pb.set_message(format!("Waiting for library scan (task {task_id})…"));
 
@@ -169,13 +176,14 @@ pub async fn wait_for_scan_task(
     result
 }
 
-/// Start a library scan; optionally wait. Prints human text or JSON per `format`.
+/// Start a library scan; optionally wait. Prints human text or JSON per `presentation`.
 pub async fn run_scan_library_flow(
     client: &RommClient,
     options: ScanLibraryOptions,
-    format: OutputFormat,
+    presentation: CliPresentation,
     interrupt: Option<&InterruptContext>,
 ) -> Result<()> {
+    let format = presentation.format;
     match format {
         OutputFormat::Text => println!("Triggering library scan..."),
         OutputFormat::Json => {}
@@ -195,8 +203,14 @@ pub async fn run_scan_library_flow(
     }
 
     if options.wait {
-        let final_body =
-            wait_for_scan_task(client, &start.task_id, options.wait_timeout, interrupt).await?;
+        let final_body = wait_for_scan_task(
+            client,
+            &start.task_id,
+            options.wait_timeout,
+            interrupt,
+            presentation,
+        )
+        .await?;
         apply_cache_invalidate(&options.cache_invalidate);
         match format {
             OutputFormat::Text => println!("Library scan finished successfully."),

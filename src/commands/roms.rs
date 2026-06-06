@@ -4,9 +4,10 @@ use std::time::Duration;
 use anyhow::{anyhow, Result};
 use clap::{Args, Subcommand};
 use dialoguer::Confirm;
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::ProgressBar;
 use serde_json::json;
 
+use crate::cli_presentation::CliPresentation;
 use crate::client::RommClient;
 use crate::commands::library_scan::{
     run_scan_library_flow, ScanCacheInvalidate, ScanLibraryOptions,
@@ -314,7 +315,12 @@ pub enum RomsAction {
         search_by: String,
     },
     /// Upload a ROM file to a platform
-    #[command(visible_alias = "up")]
+    #[command(
+        visible_alias = "up",
+        after_help = "Examples:\n  \
+          romm-cli roms upload --platform gba ./games/\n  \
+          romm-cli roms upload --platform 3ds game.3ds --scan --wait"
+    )]
     Upload {
         /// Platform slug or name (e.g. "3ds", "Nintendo 3DS")
         #[arg(long)]
@@ -333,13 +339,10 @@ pub enum RomsAction {
     },
 }
 
-fn make_progress_style() -> ProgressStyle {
-    ProgressStyle::with_template(
-        "[{elapsed_precise}] {bar:40.cyan/blue} {bytes}/{total_bytes} ({eta}) {msg}",
-    )
-    .unwrap()
-    .progress_chars("#>-")
-}
+const UPLOAD_PROGRESS_PLAIN: &str =
+    "[{elapsed_precise}] {bar:40} {bytes}/{total_bytes} ({eta}) {msg}";
+const UPLOAD_PROGRESS_COLOR: &str =
+    "[{elapsed_precise}] {bar:40.cyan/blue} {bytes}/{total_bytes} ({eta}) {msg}";
 
 async fn upload_one(
     client: &RommClient,
@@ -371,7 +374,12 @@ async fn upload_one(
     Ok(())
 }
 
-pub async fn handle(cmd: RomsCommand, client: &RommClient, format: OutputFormat) -> Result<()> {
+pub async fn handle(
+    cmd: RomsCommand,
+    client: &RommClient,
+    presentation: CliPresentation,
+) -> Result<()> {
+    let format = presentation.format;
     match cmd.action {
         None => {
             let ep = build_get_roms(client, cmd.list.clone()).await?;
@@ -630,23 +638,56 @@ pub async fn handle(cmd: RomsCommand, client: &RommClient, format: OutputFormat)
             }
 
             if files.is_empty() {
-                println!("No files found to upload.");
+                if presentation.is_json() {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&serde_json::json!({
+                            "uploaded": 0,
+                            "failed": 0,
+                            "total": 0
+                        }))?
+                    );
+                } else {
+                    println!("No files found to upload.");
+                }
                 return Ok(());
             }
 
-            if files.len() > 1 {
+            if presentation.is_text() && files.len() > 1 {
                 println!("Found {} files to upload.", files.len());
             }
 
-            let mp = indicatif::MultiProgress::new();
+            let mp = presentation.multi_progress();
+            let style = presentation.progress_style(UPLOAD_PROGRESS_PLAIN, UPLOAD_PROGRESS_COLOR);
+            let total = files.len() as u32;
             let mut successes = 0u32;
+            let mut failures = 0u32;
             for path in files {
-                let pb = mp.add(ProgressBar::new(0));
-                pb.set_style(make_progress_style());
+                let pb = if let Some(ref mp) = mp {
+                    let pb = mp.add(ProgressBar::new(0));
+                    pb.set_style(style.clone());
+                    pb
+                } else {
+                    ProgressBar::hidden()
+                };
                 match upload_one(client, resolved_platform_id, path.clone(), pb).await {
                     Ok(()) => successes += 1,
-                    Err(e) => eprintln!("Error uploading {:?}: {}", path, e),
+                    Err(e) => {
+                        failures += 1;
+                        eprintln!("Error uploading {:?}: {}", path, e);
+                    }
                 }
+            }
+
+            if presentation.is_json() {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&serde_json::json!({
+                        "uploaded": successes,
+                        "failed": failures,
+                        "total": total
+                    }))?
+                );
             }
 
             if scan {
@@ -663,7 +704,7 @@ pub async fn handle(cmd: RomsCommand, client: &RommClient, format: OutputFormat)
                         },
                         task_kwargs: None,
                     };
-                    run_scan_library_flow(client, options, format, None).await?;
+                    run_scan_library_flow(client, options, presentation, None).await?;
                 }
             }
         }

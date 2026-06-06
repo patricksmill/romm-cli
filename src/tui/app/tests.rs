@@ -575,7 +575,7 @@ async fn settings_theme_preview_reverts_when_leaving_without_save() {
     settings.selected_tab = SettingsTab::Appearance;
     app.screen = AppScreen::Settings(Box::new(settings));
 
-    app.handle_key_event(&KeyEvent::new(KeyCode::Right, KeyModifiers::empty()))
+    app.handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()))
         .await
         .expect("cycle theme");
     assert_ne!(app.theme_id(), saved_theme);
@@ -604,7 +604,7 @@ async fn settings_exit_prompt_cancel_keeps_unsaved_preview() {
     settings.selected_tab = SettingsTab::Appearance;
     app.screen = AppScreen::Settings(Box::new(settings));
 
-    app.handle_key_event(&KeyEvent::new(KeyCode::Right, KeyModifiers::empty()))
+    app.handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()))
         .await
         .expect("cycle theme");
     let preview_theme = app.theme_id().to_string();
@@ -659,6 +659,9 @@ async fn global_error_esc_dismisses_via_action_pipeline() {
 #[tokio::test]
 async fn main_menu_quit_maps_to_quit_action() {
     let app = app_on_main_menu();
-    let actions = map_key_to_actions(&app, &KeyEvent::new(KeyCode::Char('q'), KeyModifiers::empty()));
+    let actions = map_key_to_actions(
+        &app,
+        &KeyEvent::new(KeyCode::Char('q'), KeyModifiers::empty()),
+    );
     assert!(matches!(actions.as_slice(), [Action::Quit]));
 }

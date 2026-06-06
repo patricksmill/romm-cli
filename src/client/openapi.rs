@@ -90,7 +90,7 @@ impl RommClient {
         if self.verbose {
             tracing::info!(
                 "[romm-cli] GET {} -> {} ({}ms)",
-                url,
+                crate::log_redact::redact_url_for_log(url),
                 status.as_u16(),
                 t0.elapsed().as_millis()
             );

@@ -224,20 +224,23 @@ romm-cli/          # workspace root
 
 ### Gap 6: Layered configuration
 
-**Current state:** Config from env + `config.json` + keyring. CLI flags override some behavior per command but there is no unified precedence model documented in one place.
+**Current state:** Layered merge in [`load_config()`](../src/config.rs) (defaults → `config.json` → env → keyring) plus narrow command-specific CLI runtime overrides. Documented in module docs, README, and [architecture.md](./architecture.md).
 
-**Recommended approach:**
+**Precedence model (per field):**
 
-- Model config as serde structs with optional layers:
-  - File defaults → env overrides → CLI flags (highest precedence)
-- Use `#[serde(flatten)]` to compose global + command-specific config structs in clap where it reduces duplication.
-- Document precedence in this file and in user-facing README.
+1. Built-in defaults
+2. `config.json`
+3. Environment variables (override file)
+4. OS keyring (resolve secret sentinels after merge)
+5. Command-specific CLI runtime (`download --output`, `sync run --download-dir`; `init`/`auth login` persist to file)
+
+There is no global `CLI > env` for connection settings on normal commands.
 
 **Acceptance criteria:**
 
-- [ ] Single documented precedence order: CLI > env > config file > defaults
-- [ ] Sensitive values never logged by `tracing` (passwords, tokens, API keys)
-- [ ] `ROMM_*` env vars listed in README
+- [x] Single documented precedence order (see README *Configuration precedence* and `config.rs` module docs)
+- [x] Sensitive values never logged by `tracing` (passwords, tokens, API keys)
+- [x] `ROMM_*` env vars listed in README
 
 **References:** [Modern Rust CLI — serde flatten](https://techbytes.app/posts/modern-rust-cli-development-2026-cheat-sheet/)
 
@@ -245,7 +248,7 @@ romm-cli/          # workspace root
 
 ### Gap 7: CLI/TUI UX polish
 
-**Current state:** JSON output, `indicatif` progress, `tracing` — good baseline. Some polish items remain inconsistent across commands.
+**Current state:** `CliPresentation` centralizes color (`NO_COLOR`, `CLICOLOR`), progress (stderr / suppressed in JSON), and JSON stdout. Actionable errors via `user_message()`; verbose chains on stderr with `--verbose`. Help examples and [json-output.md](./json-output.md) document scripting surfaces.
 
 **Recommended approach:**
 
@@ -259,9 +262,9 @@ romm-cli/          # workspace root
 
 **Acceptance criteria:**
 
-- [ ] No ANSI codes when `NO_COLOR` is set
-- [ ] `--json` never interleaves human progress UI on stdout
-- [ ] Error messages suggest next step where possible (init, auth, check URL)
+- [x] No ANSI codes when `NO_COLOR` is set
+- [x] `--json` never interleaves human progress UI on stdout
+- [x] Error messages suggest next step where possible (init, auth, check URL)
 
 **References:** [Building CLI tools with Clap (2026)](https://lucaberton.com/blog/rust-cli-tools-clap-2026/)
 
@@ -289,4 +292,4 @@ romm-cli/          # workspace root
 
 ---
 
-*Last updated: 2026-06-06 — Gap 5 complete (event/action pipeline); Gap 4 closed as deferred (single crate maintained).*
+*Last updated: 2026-06-06 — Gap 7 complete (CliPresentation, JSON docs, help examples); Gap 6 complete (layered config); Gap 5 complete (event/action pipeline); Gap 4 closed as deferred (single crate maintained).*

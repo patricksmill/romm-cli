@@ -5,9 +5,9 @@ use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use crate::commands::library_scan::ScanCacheInvalidate;
 
 use super::background::types::{
-    CollectionPrefetchDone, CoverLoadDone, DeviceListDone,
-    LibraryMetadataRefreshDone, LibraryUploadComplete, PlatformListDone, RomLoadDone,
-    SaveDownloadDone, SaveListDone, SaveUploadDone, SearchLoadDone, SyncPushPullDone,
+    CollectionPrefetchDone, CoverLoadDone, DeviceListDone, LibraryMetadataRefreshDone,
+    LibraryUploadComplete, PlatformListDone, RomLoadDone, SaveDownloadDone, SaveListDone,
+    SaveUploadDone, SearchLoadDone, SyncPushPullDone,
 };
 use super::App;
 

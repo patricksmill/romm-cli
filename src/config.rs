@@ -6,26 +6,46 @@
 //!
 //! ## Configuration precedence
 //!
-//! Call [`load_config`] to read config:
+//! Configuration is layered **per field**. Lowest precedence wins first; higher layers override
+//! only the fields they set. There is **no** automatic `.env` file loading.
 //!
-//! 1. Variables already set in the process environment (highest priority), including `API_TOKEN` and
-//!    paths `ROMM_TOKEN_FILE` / `API_TOKEN_FILE` (file contents used as bearer token when `API_TOKEN` is unset).
-//! 2. User `config.json` (see [`user_config_json_path`]) — fills any field **not** already set from the environment.
+//! ### Layer 1 — built-in defaults
 //!
-//! There is **no** automatic loading of a `.env` file; set variables in your shell or process manager,
-//! or rely on `config.json` written by `romm-cli init` / the TUI setup wizard.
+//! Examples: `use_https = true`, theme `terminal`, OS download directory when unset.
 //!
-//! After env + JSON merge, secrets that are still placeholders (including [`KEYRING_SECRET_PLACEHOLDER`])
-//! are resolved via the OS keyring (`keyring` crate, service name `romm-cli`). On Windows the stored
-//! credential target is typically `API_TOKEN.romm-cli`, `API_PASSWORD.romm-cli`, or `API_KEY.romm-cli`.
-//! Missing entries are silent; other keyring errors are logged at warn (never with secret values).
-//! On save, a successful store is followed by read-back verification before writing the sentinel to JSON.
+//! ### Layer 2 — `config.json`
 //!
-//! ## `load_config` vs `config.json`
+//! User file at [`user_config_json_path`], written by `romm-cli init`, the TUI setup wizard,
+//! Settings, or `auth login`. Fills fields not set by higher layers.
 //!
-//! [`load_config`] merges sources **per field**: process environment wins over values from
-//! `config.json` for `API_BASE_URL`, `ROMM_ROMS_DIR`/`ROMM_DOWNLOAD_DIR`, `API_USE_HTTPS`, and auth-related
-//! fields. The keyring is used only to replace placeholder or sentinel secret strings after that merge.
+//! ### Layer 3 — process environment
+//!
+//! Overrides `config.json` per field in [`load_config`]. Includes `API_BASE_URL`,
+//! `ROMM_ROMS_DIR` / `ROMM_DOWNLOAD_DIR`, `API_USE_HTTPS`, auth vars (`API_TOKEN`,
+//! `ROMM_TOKEN_FILE` / `API_TOKEN_FILE`, etc.), `ROMM_THEME`, and path overrides
+//! (`ROMM_CACHE_PATH`, `ROMM_OPENAPI_PATH`, …).
+//!
+//! ### Layer 4 — OS keyring
+//!
+//! After env + JSON merge, secrets that are still placeholders (including
+//! [`KEYRING_SECRET_PLACEHOLDER`]) are resolved via the OS keyring (`keyring` crate, service
+//! `romm-cli`). On Windows the stored credential target is typically
+//! `API_TOKEN.romm-cli`, `API_PASSWORD.romm-cli`, or `API_KEY.romm-cli`. Missing entries are
+//! silent; other keyring errors are logged at warn (never with secret values). On save, a
+//! successful store is followed by read-back verification before writing the sentinel to JSON.
+//!
+//! ### Layer 5 — command-specific CLI (runtime only)
+//!
+//! Narrow exceptions on top of [`load_config`] for a single invocation (not global):
+//!
+//! | Command / flag | Effect |
+//! |----------------|--------|
+//! | `download -o` / `--output` | Download directory for that run; ignores env and file |
+//! | `sync run --download-dir` | Save download base; defaults to manifest parent, not `save_sync.save_dir` |
+//! | `init` / `auth login` flags | **Persist to `config.json`**; effective on the next run unless env overrides |
+//!
+//! There are no global `--url` / `--token` flags on normal API commands; connection settings
+//! come from env + file + keyring via [`load_config`].
 
 use std::collections::HashMap;
 use std::fs;
@@ -42,7 +62,7 @@ use serde::{Deserialize, Serialize};
 // ---------------------------------------------------------------------------
 
 /// Supported authentication modes for the RomM API.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum AuthConfig {
     /// Basic authentication with username and password.
     Basic {
@@ -63,6 +83,25 @@ pub enum AuthConfig {
         /// The API key value.
         key: String,
     },
+}
+
+impl std::fmt::Debug for AuthConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        const REDACTED: &str = "<redacted>";
+        match self {
+            Self::Basic { username, .. } => f
+                .debug_struct("Basic")
+                .field("username", username)
+                .field("password", &REDACTED)
+                .finish(),
+            Self::Bearer { .. } => f.debug_struct("Bearer").field("token", &REDACTED).finish(),
+            Self::ApiKey { header, .. } => f
+                .debug_struct("ApiKey")
+                .field("header", header)
+                .field("key", &REDACTED)
+                .finish(),
+        }
+    }
 }
 
 /// Default checked state for categories in the TUI extras picker (when each row exists).
@@ -759,6 +798,29 @@ mod tests {
             super::keyring_get_password_result("API_TOKEN", Err(KeyringError::NoEntry)),
             None
         );
+    }
+
+    #[test]
+    fn auth_config_debug_redacts_secrets() {
+        let basic = AuthConfig::Basic {
+            username: "alice".to_string(),
+            password: "sekrit".to_string(),
+        };
+        let bearer = AuthConfig::Bearer {
+            token: "tok123".to_string(),
+        };
+        let api_key = AuthConfig::ApiKey {
+            header: "X-Api-Key".to_string(),
+            key: "key456".to_string(),
+        };
+        let basic_dbg = format!("{basic:?}");
+        let bearer_dbg = format!("{bearer:?}");
+        let api_key_dbg = format!("{api_key:?}");
+        assert!(!basic_dbg.contains("sekrit"));
+        assert!(basic_dbg.contains("alice"));
+        assert!(!bearer_dbg.contains("tok123"));
+        assert!(!api_key_dbg.contains("key456"));
+        assert!(api_key_dbg.contains("X-Api-Key"));
     }
 
     struct TestEnv {

@@ -273,7 +273,7 @@ impl SettingsScreen {
                 }
             ),
             SettingsRow::Theme => format!(
-                "Theme:        {} (←/→ to change)",
+                "Theme:        {} (Enter to change)",
                 self.theme_display_name()
             ),
             SettingsRow::Auth => format!("Auth:         {} (Enter to change)", self.auth_status),

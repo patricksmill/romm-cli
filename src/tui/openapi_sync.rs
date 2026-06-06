@@ -66,22 +66,22 @@ pub async fn sync_openapi_registry(
         Err(e) => {
             if let Some(body) = openapi_from_cwd() {
                 tracing::warn!(
-                    "Using ./openapi.json (could not fetch from server: {:#})",
-                    e
+                    "Using ./openapi.json (could not fetch from server: {})",
+                    e.redacted_for_log()
                 );
                 body
             } else if let Ok(cached) = std::fs::read_to_string(cache_path) {
                 tracing::warn!(
                     "Using cached OpenAPI at {} (server unreachable: {})",
                     cache_path.display(),
-                    e
+                    e.redacted_for_log()
                 );
                 cached
             } else {
                 tracing::warn!(
-                    "Using bundled OpenAPI spec (server unreachable: {:#}). \
+                    "Using bundled OpenAPI spec (server unreachable: {}). \
                      OpenAPI paths match the build-time snapshot; connect to refresh from your server.",
-                    e
+                    e.redacted_for_log()
                 );
                 EMBEDDED_OPENAPI_JSON.to_string()
             }
