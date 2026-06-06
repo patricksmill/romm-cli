@@ -11,7 +11,7 @@ use crate::endpoints::sync::TriggerPushPull;
 
 use super::super::background::types::{DeviceListDone, PlatformListDone, SyncPushPullDone};
 use super::super::{App, AppScreen};
-use crate::tui::screens::settings::{ConsolePathKind, SettingsRow, SettingsTab};
+use crate::tui::screens::settings::{ConsolePathKind, SettingsRow};
 use crate::tui::screens::setup_wizard::SetupWizard;
 use crate::tui::screens::MainMenuScreen;
 use crate::tui::theme::{resolve_theme_or_default, MessageTone};
@@ -305,26 +305,8 @@ impl App {
         match key.code {
             KeyCode::Up | KeyCode::Char('k') => settings.previous(),
             KeyCode::Down | KeyCode::Char('j') => settings.next(),
-            KeyCode::Right | KeyCode::Char('l') => {
-                if settings.selected_tab == SettingsTab::Appearance
-                    && settings.selected_row() == SettingsRow::Theme
-                {
-                    settings.cycle_theme_next();
-                    self.theme = resolve_theme_or_default(&settings.theme_id);
-                } else {
-                    settings.next_tab();
-                }
-            }
-            KeyCode::Left | KeyCode::Char('h') => {
-                if settings.selected_tab == SettingsTab::Appearance
-                    && settings.selected_row() == SettingsRow::Theme
-                {
-                    settings.cycle_theme_prev();
-                    self.theme = resolve_theme_or_default(&settings.theme_id);
-                } else {
-                    settings.previous_tab();
-                }
-            }
+            KeyCode::Right | KeyCode::Char('l') => settings.next_tab(),
+            KeyCode::Left | KeyCode::Char('h') => settings.previous_tab(),
             KeyCode::Tab => settings.next_tab(),
             KeyCode::BackTab => settings.previous_tab(),
             KeyCode::Enter => {
@@ -370,6 +352,9 @@ impl App {
                             .map_err(|e| format!("{e:#}"));
                         let _ = tx.send(DeviceListDone { result });
                     });
+                } else if row == SettingsRow::Theme {
+                    settings.cycle_theme_next();
+                    self.theme = resolve_theme_or_default(&settings.theme_id);
                 } else if row == SettingsRow::SyncNow {
                     if !settings.save_sync_supported() {
                         settings.set_save_sync_unsupported_message();
