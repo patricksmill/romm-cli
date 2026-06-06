@@ -702,9 +702,17 @@ pub fn persist_user_config(config: &Config) -> Result<(), ConfigError> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let mut perms = std::fs::metadata(&path)?.permissions();
+        let mut perms = std::fs::metadata(&path)
+            .map_err(|e| ConfigError::Io {
+                context: format!("chmod metadata {}", path.display()),
+                source: e,
+            })?
+            .permissions();
         perms.set_mode(0o600);
-        std::fs::set_permissions(&path, perms)?;
+        std::fs::set_permissions(&path, perms).map_err(|e| ConfigError::Io {
+            context: format!("chmod {}", path.display()),
+            source: e,
+        })?;
     }
 
     Ok(())
