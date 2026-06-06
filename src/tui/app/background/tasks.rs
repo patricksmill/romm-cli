@@ -1,19 +1,18 @@
 //! Background task spawn and poll helpers for [`super::App`].
 
 use std::path::PathBuf;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use crate::commands::library_scan::ScanCacheInvalidate;
 use crate::core::cache::RomCacheKey;
 use crate::core::startup_library_snapshot;
 use crate::types::SaveMetadata;
 
+use super::super::event::{BackgroundAction, AppEvent};
 use super::super::AppScreen;
 use super::types::{
-    CoverLoadDone, LibraryMetadataRefreshDone, LibraryUploadComplete, RomLoadEvent, SaveListDone,
-    SearchLoadEvent,
+    CoverLoadDone, LibraryMetadataRefreshDone, LibraryUploadComplete, SaveListDone,
 };
-use crate::tui::theme::MessageTone;
 
 impl super::super::App {
     pub(in crate::tui::app) fn spawn_library_metadata_refresh(&mut self) {
@@ -34,20 +33,32 @@ impl super::super::App {
         });
     }
 
-    /// Drain background work (e.g. library metadata refresh). Safe to call each frame.
-    pub fn poll_background_tasks(&mut self) {
-        self.poll_library_metadata_refresh();
-        self.poll_rom_load_results();
-        self.poll_collection_prefetch_results();
-        self.poll_search_load_results();
-        self.poll_cover_load_results();
-        self.poll_save_results();
-        self.poll_settings_results();
-        self.poll_library_upload();
-        self.poll_library_scan();
+    /// Drain background channels into [`AppEvent`]s. Safe to call each frame.
+    pub(crate) fn drain_background_events(&mut self) -> Vec<AppEvent> {
+        let mut events = Vec::new();
+        events.extend(self.drain_library_metadata_refresh());
+        events.extend(self.drain_rom_load_results());
+        events.extend(self.drain_collection_prefetch_results());
+        events.extend(self.drain_search_load_results());
+        events.extend(self.drain_cover_load_results());
+        events.extend(self.drain_save_results());
+        events.extend(self.drain_settings_results());
+        events.extend(self.drain_library_upload());
+        events.extend(self.drain_library_scan());
         self.drive_collection_prefetch_scheduler();
-        if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
-            lib.poll_footer_clear();
+        events.push(AppEvent::Background(BackgroundAction::DrivePrefetch));
+        events.push(AppEvent::Background(BackgroundAction::PollFooterClear));
+        events
+    }
+
+    /// Legacy test entry: drain background events and apply synchronously.
+    pub fn poll_background_tasks(&mut self) {
+        let events = self.drain_background_events();
+        for event in events {
+            if let AppEvent::Background(bg) = event {
+                let action = super::super::event::map_background(bg);
+                self.apply_background(action);
+            }
         }
     }
 
@@ -86,31 +97,20 @@ impl super::super::App {
         });
     }
 
-    fn poll_library_scan(&mut self) {
+    fn drain_library_scan(&mut self) -> Vec<AppEvent> {
         let Some(rx) = &mut self.library_scan_rx else {
-            return;
+            return Vec::new();
         };
         match rx.try_recv() {
             Ok(result) => {
-                self.library_scan_rx = None;
-                self.library_scan_inflight = false;
-                match result {
-                    Ok(()) => self.on_library_scan_completed_success(),
-                    Err(e) => {
-                        self.library_scan_pending_invalidate = None;
-                        if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
-                            lib.set_metadata_footer(Some(format!("Library scan failed: {e}")));
-                        } else {
-                            self.global_error = Some(format!("Library scan failed: {e}"));
-                        }
-                    }
-                }
+                vec![AppEvent::Background(BackgroundAction::LibraryScanDone(result))]
             }
-            Err(tokio::sync::mpsc::error::TryRecvError::Empty) => {}
+            Err(tokio::sync::mpsc::error::TryRecvError::Empty) => Vec::new(),
             Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
                 self.library_scan_rx = None;
                 self.library_scan_inflight = false;
                 self.library_scan_pending_invalidate = None;
+                Vec::new()
             }
         }
     }
@@ -201,50 +201,25 @@ impl super::super::App {
         });
     }
 
-    fn poll_library_upload(&mut self) {
+    fn drain_library_upload(&mut self) -> Vec<AppEvent> {
+        let mut events = Vec::new();
         if let Some(rx) = &mut self.library_upload_progress_rx {
             while let Ok((up, tot)) = rx.try_recv() {
-                if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
-                    lib.set_metadata_footer(Some(format!(
-                        "Uploading {} / {}…",
-                        Self::format_upload_bytes(up),
-                        Self::format_upload_bytes(tot)
-                    )));
-                }
+                events.push(AppEvent::Background(BackgroundAction::LibraryUploadProgress {
+                    uploaded: up,
+                    total: tot,
+                }));
             }
         }
 
         let Some(rx) = &mut self.library_upload_done_rx else {
-            return;
+            return events;
         };
         match rx.try_recv() {
             Ok(result) => {
-                self.library_upload_done_rx = None;
-                self.library_upload_progress_rx = None;
-                self.library_upload_inflight = false;
-                match result {
-                    Ok(done) => {
-                        if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
-                            if done.scan_after {
-                                lib.set_metadata_footer(Some(
-                                    "Upload complete. Starting library scan…".into(),
-                                ));
-                                self.spawn_library_rescan_worker(ScanCacheInvalidate::Platform(
-                                    done.platform_id,
-                                ));
-                            } else {
-                                lib.set_metadata_footer(Some("Upload complete.".into()));
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
-                            lib.set_metadata_footer(Some(format!("Upload failed: {e}")));
-                        } else {
-                            self.global_error = Some(format!("Upload failed: {e}"));
-                        }
-                    }
-                }
+                events.push(AppEvent::Background(BackgroundAction::LibraryUploadDone(
+                    result,
+                )));
             }
             Err(tokio::sync::mpsc::error::TryRecvError::Empty) => {}
             Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
@@ -253,31 +228,19 @@ impl super::super::App {
                 self.library_upload_inflight = false;
             }
         }
+        events
     }
 
-    fn poll_search_load_results(&mut self) {
+    fn drain_search_load_results(&mut self) -> Vec<AppEvent> {
+        let mut events = Vec::new();
         loop {
             match self.search_load_rx.try_recv() {
-                Ok(done) => {
-                    if let AppScreen::Search(ref mut search) = self.screen {
-                        match done.event {
-                            SearchLoadEvent::Batch(roms) => {
-                                search.set_results_for_query(done.query, roms);
-                            }
-                            SearchLoadEvent::Failed(err) => {
-                                search.loading = false;
-                                self.global_error = Some(err);
-                            }
-                            SearchLoadEvent::Complete => {
-                                search.loading = false;
-                            }
-                        }
-                    }
-                }
+                Ok(done) => events.push(AppEvent::Background(BackgroundAction::SearchLoad(done))),
                 Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
                 Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => break,
             }
         }
+        events
     }
 
     pub(in crate::tui::app) fn spawn_cover_load_worker(&mut self, rom_id: u64, url: String) {
@@ -300,27 +263,16 @@ impl super::super::App {
         }));
     }
 
-    fn poll_cover_load_results(&mut self) {
+    fn drain_cover_load_results(&mut self) -> Vec<AppEvent> {
+        let mut events = Vec::new();
         loop {
             match self.cover_load_rx.try_recv() {
-                Ok(done) => {
-                    if let AppScreen::GameDetail(detail) = &mut self.screen {
-                        if detail.rom.id != done.rom_id {
-                            continue;
-                        }
-                        match done.result {
-                            Ok(image) => detail.apply_cover_image(image),
-                            Err(err) => detail.apply_cover_error(format!(
-                                "Cover failed: {}",
-                                crate::tui::utils::truncate(&err, 120)
-                            )),
-                        }
-                    }
-                }
+                Ok(done) => events.push(AppEvent::Background(BackgroundAction::CoverLoad(done))),
                 Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
                 Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => break,
             }
         }
+        events
     }
 
     pub(in crate::tui::app) fn maybe_start_game_detail_cover_load(&mut self) {
@@ -370,162 +322,55 @@ impl super::super::App {
         }
     }
 
-    fn poll_save_results(&mut self) {
+    fn drain_save_results(&mut self) -> Vec<AppEvent> {
+        let mut events = Vec::new();
         while let Ok(done) = self.save_list_rx.try_recv() {
-            if let AppScreen::GameDetail(detail) = &mut self.screen {
-                if detail.rom.id == done.rom_id {
-                    match done.result {
-                        Ok(rows) => detail.apply_saves(rows),
-                        Err(e) => detail.apply_saves_error(e),
-                    }
-                }
-            }
+            events.push(AppEvent::Background(BackgroundAction::SaveList(done)));
         }
         while let Ok(done) = self.save_upload_rx.try_recv() {
-            if let AppScreen::GameDetail(detail) = &mut self.screen {
-                if detail.rom.id == done.rom_id {
-                    match done.result {
-                        Ok(()) => {
-                            detail.message = Some("Save uploaded. Refreshing saves...".into());
-                            detail.message_clear_at = Some(Instant::now() + Duration::from_secs(3));
-                            self.spawn_save_list_worker(done.rom_id);
-                        }
-                        Err(e) => {
-                            detail.message = Some(format!("Save upload failed: {e}"));
-                            detail.message_clear_at = Some(Instant::now() + Duration::from_secs(5));
-                        }
-                    }
-                }
-            }
+            events.push(AppEvent::Background(BackgroundAction::SaveUpload(done)));
         }
         while let Ok(done) = self.save_download_rx.try_recv() {
-            if let AppScreen::GameDetail(detail) = &mut self.screen {
-                if detail.rom.id == done.rom_id {
-                    match done.result {
-                        Ok(path) => {
-                            detail.message = Some(format!("Save downloaded: {}", path.display()));
-                            detail.message_clear_at = Some(Instant::now() + Duration::from_secs(5));
-                            self.spawn_save_list_worker(done.rom_id);
-                        }
-                        Err(e) => {
-                            detail.message = Some(format!("Save download failed: {e}"));
-                            detail.message_clear_at = Some(Instant::now() + Duration::from_secs(5));
-                        }
-                    }
-                }
-            }
+            events.push(AppEvent::Background(BackgroundAction::SaveDownload(done)));
         }
+        events
     }
 
-    fn poll_settings_results(&mut self) {
+    fn drain_settings_results(&mut self) -> Vec<AppEvent> {
+        let mut events = Vec::new();
         while let Ok(done) = self.device_list_rx.try_recv() {
-            if let AppScreen::Settings(settings) = &mut self.screen {
-                match done.result {
-                    Ok(devices) => {
-                        settings.set_devices(devices);
-                        settings.message = None;
-                    }
-                    Err(e) => {
-                        settings.set_device_error(e.clone());
-                        settings.message =
-                            Some((format!("Device load failed: {e}"), MessageTone::Error));
-                    }
-                }
-            }
+            events.push(AppEvent::Background(BackgroundAction::DeviceList(done)));
         }
         while let Ok(done) = self.platform_list_rx.try_recv() {
-            if let AppScreen::Settings(settings) = &mut self.screen {
-                match done.result {
-                    Ok(platforms) => {
-                        settings.set_console_platforms(platforms);
-                        settings.message = None;
-                    }
-                    Err(e) => {
-                        settings.set_console_platform_error(e.clone());
-                        settings.message =
-                            Some((format!("Platform load failed: {e}"), MessageTone::Error));
-                    }
-                }
-            }
+            events.push(AppEvent::Background(BackgroundAction::PlatformList(done)));
         }
         while let Ok(done) = self.sync_push_pull_rx.try_recv() {
-            if let AppScreen::Settings(settings) = &mut self.screen {
-                settings.sync_inflight = false;
-                match done.result {
-                    Ok(session) => {
-                        settings.message = Some((
-                            format!("Sync session #{}: {}", session.id, session.status),
-                            MessageTone::Success,
-                        ));
-                    }
-                    Err(e) => {
-                        settings.message = Some((format!("Sync failed: {e}"), MessageTone::Error));
-                    }
-                }
-            }
+            events.push(AppEvent::Background(BackgroundAction::SyncPushPull(done)));
         }
+        events
     }
 
-    fn poll_rom_load_results(&mut self) {
+    fn drain_rom_load_results(&mut self) -> Vec<AppEvent> {
+        let mut events = Vec::new();
         loop {
             match self.rom_load_rx.try_recv() {
-                Ok(done) => {
-                    if !crate::tui::app::rom_load::primary_rom_load_result_is_current(
-                        done.gen,
-                        self.rom_load_gen,
-                    ) {
-                        continue;
-                    }
-                    let AppScreen::LibraryBrowse(ref mut lib) = self.screen else {
-                        continue;
-                    };
-                    if !crate::tui::app::rom_load::primary_rom_load_result_matches_selection(
-                        lib, &done.key,
-                    ) {
-                        if matches!(done.event, RomLoadEvent::Complete | RomLoadEvent::Failed(_)) {
-                            lib.set_rom_loading(false);
-                        }
-                        tracing::debug!(
-                            "rom-list-render skipped stale completion context={}",
-                            done.context
-                        );
-                        continue;
-                    }
-                    match done.event {
-                        RomLoadEvent::Batch(roms) => {
-                            if let Some(ref k) = done.key {
-                                self.rom_cache
-                                    .insert(k.clone(), roms.clone(), done.expected);
-                            }
-                            lib.set_roms(roms);
-                            tracing::debug!(
-                                "rom-list-render batch context={} latency_ms={}",
-                                done.context,
-                                done.started.elapsed().as_millis()
-                            );
-                        }
-                        RomLoadEvent::Failed(e) => {
-                            lib.set_metadata_footer(Some(format!("Could not load games: {e}")));
-                            lib.set_rom_loading(false);
-                        }
-                        RomLoadEvent::Complete => {
-                            lib.set_rom_loading(false);
-                        }
-                    }
-                }
+                Ok(done) => events.push(AppEvent::Background(BackgroundAction::RomLoad(done))),
                 Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
                 Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => break,
             }
         }
+        events
     }
 
-    fn poll_library_metadata_refresh(&mut self) {
-        let mut batch = Vec::new();
+    fn drain_library_metadata_refresh(&mut self) -> Vec<AppEvent> {
+        let mut events = Vec::new();
         let mut disconnected = false;
         if let Some(rx) = &mut self.library_metadata_rx {
             loop {
                 match rx.try_recv() {
-                    Ok(msg) => batch.push(msg),
+                    Ok(msg) => events.push(AppEvent::Background(
+                        BackgroundAction::LibraryMetadataRefresh(msg),
+                    )),
                     Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
                     Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
                         disconnected = true;
@@ -537,9 +382,7 @@ impl super::super::App {
         if disconnected {
             self.library_metadata_rx = None;
         }
-        for msg in batch {
-            self.apply_library_metadata_refresh(msg);
-        }
+        events
     }
 
     pub(in crate::tui::app) fn apply_library_metadata_refresh(
@@ -630,20 +473,17 @@ impl super::super::App {
         self.queue_collection_prefetches_from_screen(1, "refresh_warmup");
     }
 
-    fn poll_collection_prefetch_results(&mut self) {
+    fn drain_collection_prefetch_results(&mut self) -> Vec<AppEvent> {
+        let mut events = Vec::new();
         loop {
             match self.collection_prefetch_rx.try_recv() {
                 Ok(done) => {
-                    self.collection_prefetch_inflight_keys.remove(&done.key);
-                    if let Some(roms) = done.roms {
-                        self.rom_cache.insert(done.key, roms, done.expected);
-                    } else if let Some(warning) = done.warning {
-                        tracing::debug!("{warning}");
-                    }
+                    events.push(AppEvent::Background(BackgroundAction::CollectionPrefetch(done)))
                 }
                 Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
                 Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => break,
             }
         }
+        events
     }
 }

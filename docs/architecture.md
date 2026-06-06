@@ -32,6 +32,23 @@ From bottom to top:
   - **TUI** (`src/tui/*`) – an event loop and a set of screens that
     present and manipulate the underlying data.
 
+### TUI event loop
+
+The TUI follows an **Event → Action → update → render** pipeline (see [Gap 5 in rust-guidelines.md](rust-guidelines.md#gap-5-tui-event--action-separation)):
+
+```text
+poll_frame_events()     # drain_background_events + crossterm input
+  → map_event()       # AppEvent → Action
+  → App::update()     # single state-mutation entry point
+  → render()          # ratatui draw (screens are render-only)
+```
+
+- [`src/tui/app/event.rs`](../src/tui/app/event.rs) – `AppEvent`, `Action`, global key mapping
+- [`src/tui/app/update.rs`](../src/tui/app/update.rs) – applies actions (navigation, spawns, background completions)
+- [`src/tui/app/run.rs`](../src/tui/app/run.rs) – thin loop using [`src/tui/runtime.rs`](../src/tui/runtime.rs) (`TuiSession`)
+- [`src/tui/app/handlers/screen_keys.rs`](../src/tui/app/handlers/screen_keys.rs) – per-screen key → action dispatch
+- First-run setup wizard reuses `TuiSession` and [`setup_wizard/event.rs`](../src/tui/screens/setup_wizard/event.rs)
+
 The CLI layer itself is split into:
 
 - `commands::mod` – top-level `Cli` and `Commands` enum plus `OutputFormat`.

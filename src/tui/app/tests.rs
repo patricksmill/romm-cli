@@ -1,5 +1,6 @@
 use super::{
     background::types::{RomLoadDone, RomLoadEvent, SearchLoadDone, SearchLoadEvent},
+    event::{map_key_to_actions, Action},
     rom_load::{primary_rom_load_result_is_current, primary_rom_load_result_matches_selection},
     App, AppScreen,
 };
@@ -634,4 +635,30 @@ async fn settings_exit_without_changes_skips_prompt() {
         .expect("leave settings");
 
     assert!(matches!(app.screen, AppScreen::MainMenu(_)));
+}
+
+async fn apply_actions(app: &mut App, actions: Vec<Action>) -> bool {
+    for action in actions {
+        if app.update(action).await.expect("update") {
+            return true;
+        }
+    }
+    false
+}
+
+#[tokio::test]
+async fn global_error_esc_dismisses_via_action_pipeline() {
+    let mut app = app_on_main_menu();
+    app.global_error = Some("test error".into());
+    let actions = map_key_to_actions(&app, &KeyEvent::new(KeyCode::Esc, KeyModifiers::empty()));
+    assert!(matches!(actions.as_slice(), [Action::DismissGlobalMessage]));
+    apply_actions(&mut app, actions).await;
+    assert!(app.global_error.is_none());
+}
+
+#[tokio::test]
+async fn main_menu_quit_maps_to_quit_action() {
+    let app = app_on_main_menu();
+    let actions = map_key_to_actions(&app, &KeyEvent::new(KeyCode::Char('q'), KeyModifiers::empty()));
+    assert!(matches!(actions.as_slice(), [Action::Quit]));
 }

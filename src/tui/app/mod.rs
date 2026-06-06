@@ -8,10 +8,12 @@
 //! - [`rom_load`] — ROM fetch and prefetch scheduling
 
 mod background;
+pub(crate) mod event;
 mod handlers;
 mod render;
 mod rom_load;
 mod run;
+mod update;
 
 #[cfg(test)]
 mod tests;
@@ -256,64 +258,13 @@ impl App {
     pub(crate) fn theme_id(&self) -> &str {
         self.theme.id()
     }
+    /// Legacy test/helper entry: map key → actions → update.
     pub async fn handle_key_event(&mut self, key: &KeyEvent) -> Result<bool> {
-        if key.kind != KeyEventKind::Press {
-            return Ok(false);
-        }
-
-        if self.global_error.is_some() || self.global_notice.is_some() {
-            if key.code == KeyCode::Esc || key.code == KeyCode::Enter {
-                self.global_error = None;
-                self.global_notice = None;
+        for action in event::map_key_to_actions(self, key) {
+            if self.update(action).await? {
+                return Ok(true);
             }
-            return Ok(false);
         }
-
-        // Dismiss the connected splash before the update prompt: the splash is drawn on top,
-        // so Enter/Esc here must not be routed to the hidden update dialog (which would quit).
-        if self.startup_splash.is_some() {
-            self.startup_splash = None;
-            return Ok(false);
-        }
-
-        if self.startup_update_prompt.is_some() {
-            return self.handle_startup_update_prompt(key).await;
-        }
-
-        if self.show_keyboard_help {
-            if matches!(
-                key.code,
-                KeyCode::Esc | KeyCode::Enter | KeyCode::F(1) | KeyCode::Char('?')
-            ) {
-                self.show_keyboard_help = false;
-            }
-            return Ok(false);
-        }
-
-        if key.code == KeyCode::F(1) {
-            self.show_keyboard_help = true;
-            return Ok(false);
-        }
-        if key.code == KeyCode::Char('?') && self.allows_global_question_help() {
-            self.show_keyboard_help = true;
-            return Ok(false);
-        }
-
-        // Global shortcut: 'd' toggles Download overlay (not on screens that need free typing / menus).
-        if key.code == KeyCode::Char('d') && !self.blocks_global_d_shortcut() {
-            self.toggle_download_screen();
-            return Ok(false);
-        }
-
-        match &self.screen {
-            AppScreen::MainMenu(_) => self.handle_main_menu(key).await,
-            AppScreen::LibraryBrowse(_) => self.handle_library_browse(key).await,
-            AppScreen::Search(_) => self.handle_search(key).await,
-            AppScreen::Settings(_) => self.handle_settings(key).await,
-            AppScreen::GameDetail(_) => self.handle_game_detail(key),
-            AppScreen::ExtrasPicker(_) => self.handle_extras_picker(key),
-            AppScreen::Download(_) => self.handle_download(key),
-            AppScreen::SetupWizard(_) => self.handle_setup_wizard(key).await,
-        }
+        Ok(false)
     }
 }

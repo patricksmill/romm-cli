@@ -18,7 +18,8 @@ impl App {
             _ => return Ok(false),
         };
 
-        if wizard.handle_key(key)? {
+        use crate::tui::screens::setup_wizard::event::SetupAction;
+        if wizard.update(SetupAction::Key(*key))? {
             // Esc pressed
             self.apply_saved_theme();
             self.screen = AppScreen::Settings(Box::new(SettingsScreen::new(

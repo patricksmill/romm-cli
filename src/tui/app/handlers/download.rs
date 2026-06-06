@@ -1,6 +1,5 @@
 //! Download overlay key handlers.
 
-use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 
 use super::super::{App, AppScreen};
@@ -27,13 +26,13 @@ impl App {
         }
     }
 
-    pub(in crate::tui::app) fn handle_download(&mut self, key: &KeyEvent) -> Result<bool> {
-        if key.code == KeyCode::Esc || key.code == KeyCode::Char('d') {
-            self.screen = self
-                .screen_before_download
-                .take()
-                .unwrap_or_else(|| AppScreen::MainMenu(MainMenuScreen::new()));
-        }
-        Ok(false)
+}
+
+pub(in crate::tui::app) fn map_download_key(key: &KeyEvent) -> Vec<super::super::event::Action> {
+    use super::super::event::Action;
+    if key.code == KeyCode::Esc || key.code == KeyCode::Char('d') {
+        vec![Action::CloseDownloadOverlay]
+    } else {
+        Vec::new()
     }
 }

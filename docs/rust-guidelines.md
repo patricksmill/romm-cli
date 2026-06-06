@@ -202,7 +202,7 @@ romm-cli/          # workspace root
 
 ### Gap 5: TUI event / action separation
 
-**Current state:** `tui/app/run.rs` mixes input polling, rendering, background task polling, and screen transitions. Handlers under `tui/app/handlers/` help, but there is no explicit `Event` → `Action` → state update pipeline.
+**Current state:** `tui/app/run.rs` delegates to `TuiSession` + `poll_frame_events` → `map_event` → `App::update`. Background work drains via `drain_background_events` → `Action`. Screen key mapping lives in `handlers/screen_keys.rs`; complex screens still use per-screen `*Key` actions applied in `update.rs`.
 
 **Recommended approach (Ratatui async template):**
 
@@ -214,9 +214,9 @@ romm-cli/          # workspace root
 
 **Acceptance criteria:**
 
-- [ ] Input handling centralized; screens do not read `crossterm` directly
-- [ ] Background completions arrive as actions on a channel
-- [ ] `run.rs` is mostly loop + dispatch, not business logic
+- [x] Input handling centralized; render screens do not read `crossterm` (widgets/path picker and setup wizard input are the boundary)
+- [x] Background completions arrive as actions via `drain_background_events` → `App::update`
+- [x] `run.rs` is loop + dispatch; business logic lives in `update.rs` / handlers
 
 **References:** [Ratatui event-driven-async template](https://github.com/ratatui/templates/blob/main/event-driven-async/README.md), [Full async actions tutorial](https://ratatui.rs/tutorials/counter-async-app/full-async-actions/), [Component template](https://ratatui.rs/templates/component/)
 
@@ -289,4 +289,4 @@ romm-cli/          # workspace root
 
 ---
 
-*Last updated: 2026-06-06 — Gap 3 complete; Gap 4 closed as deferred (single crate maintained).*
+*Last updated: 2026-06-06 — Gap 5 complete (event/action pipeline); Gap 4 closed as deferred (single crate maintained).*
