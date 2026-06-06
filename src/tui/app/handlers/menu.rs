@@ -35,61 +35,57 @@ impl App {
         match action {
             Action::MainMenuPrevious => menu.previous(),
             Action::MainMenuNext => menu.next(),
-            Action::MainMenuActivate => {
-                match menu.selected {
-                    0 => {
-                        let start = Instant::now();
-                        let snap = startup_library_snapshot::load_snapshot();
-                        let (platforms, collections, from_disk) = match snap {
-                            Some(s) => (s.platforms, s.collections, true),
-                            None => (Vec::new(), Vec::new(), false),
-                        };
-                        let mut lib = LibraryBrowseScreen::new(platforms, collections);
-                        if from_disk && lib.list_len() > 0 {
-                            lib.set_metadata_footer(Some(
-                                "Refreshing library metadata in background…".into(),
-                            ));
-                        } else if lib.list_len() == 0 {
-                            lib.set_metadata_footer(Some("Loading library metadata…".into()));
-                        }
-                        if lib.list_len() > 0 {
-                            let key = lib.cache_key();
-                            let expected = lib.expected_rom_count();
-                            let req = Self::selected_rom_request_for_library(&lib);
-                            lib.set_rom_loading(expected > 0);
-                            self.queue_primary_rom_load(key, req, expected, "startup_first_selection");
-                        }
-                        self.screen = AppScreen::LibraryBrowse(Box::new(lib));
-                        self.spawn_library_metadata_refresh();
-                        tracing::debug!(
-                            "library-open latency_ms={} snapshot_hit={}",
-                            start.elapsed().as_millis(),
-                            from_disk
-                        );
-                    }
-                    1 => self.screen = AppScreen::Search(SearchScreen::new()),
-                    2 => {
-                        self.screen_before_download =
-                            Some(AppScreen::MainMenu(MainMenuScreen::new()));
-                        self.screen = AppScreen::Download(DownloadScreen::new(
-                            self.downloads.shared(),
-                            self.downloads.shared_extras(),
+            Action::MainMenuActivate => match menu.selected {
+                0 => {
+                    let start = Instant::now();
+                    let snap = startup_library_snapshot::load_snapshot();
+                    let (platforms, collections, from_disk) = match snap {
+                        Some(s) => (s.platforms, s.collections, true),
+                        None => (Vec::new(), Vec::new(), false),
+                    };
+                    let mut lib = LibraryBrowseScreen::new(platforms, collections);
+                    if from_disk && lib.list_len() > 0 {
+                        lib.set_metadata_footer(Some(
+                            "Refreshing library metadata in background…".into(),
                         ));
+                    } else if lib.list_len() == 0 {
+                        lib.set_metadata_footer(Some("Loading library metadata…".into()));
                     }
-                    3 => {
-                        self.screen = AppScreen::Settings(Box::new(SettingsScreen::new(
-                            &self.config,
-                            self.server_version.as_deref(),
-                            self.save_sync_compat.clone(),
-                        )))
+                    if lib.list_len() > 0 {
+                        let key = lib.cache_key();
+                        let expected = lib.expected_rom_count();
+                        let req = Self::selected_rom_request_for_library(&lib);
+                        lib.set_rom_loading(expected > 0);
+                        self.queue_primary_rom_load(key, req, expected, "startup_first_selection");
                     }
-                    4 => return Ok(true),
-                    _ => {}
+                    self.screen = AppScreen::LibraryBrowse(Box::new(lib));
+                    self.spawn_library_metadata_refresh();
+                    tracing::debug!(
+                        "library-open latency_ms={} snapshot_hit={}",
+                        start.elapsed().as_millis(),
+                        from_disk
+                    );
                 }
-            }
+                1 => self.screen = AppScreen::Search(SearchScreen::new()),
+                2 => {
+                    self.screen_before_download = Some(AppScreen::MainMenu(MainMenuScreen::new()));
+                    self.screen = AppScreen::Download(DownloadScreen::new(
+                        self.downloads.shared(),
+                        self.downloads.shared_extras(),
+                    ));
+                }
+                3 => {
+                    self.screen = AppScreen::Settings(Box::new(SettingsScreen::new(
+                        &self.config,
+                        self.server_version.as_deref(),
+                        self.save_sync_compat.clone(),
+                    )))
+                }
+                4 => return Ok(true),
+                _ => {}
+            },
             _ => {}
         }
         Ok(false)
     }
-
 }

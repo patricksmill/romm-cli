@@ -25,7 +25,6 @@ impl App {
             }
         }
     }
-
 }
 
 pub(in crate::tui::app) fn map_download_key(key: &KeyEvent) -> Vec<super::super::event::Action> {

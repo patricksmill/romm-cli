@@ -4,8 +4,8 @@ use std::time::Instant;
 
 use crate::core::cache::RomCacheKey;
 use crate::core::roms::fetch_roms_paginated;
-use crate::log_redact::redact_anyhow_for_log;
 use crate::endpoints::roms::GetRoms;
+use crate::log_redact::redact_anyhow_for_log;
 use crate::tui::screens::library_browse::LibraryBrowseScreen;
 
 use super::background::types::CollectionPrefetchDone;

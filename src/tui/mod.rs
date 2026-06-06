@@ -11,10 +11,10 @@
 //! frontends (e.g. a GUI) reusing the same core logic.
 
 pub mod app;
-pub mod runtime;
 pub mod keyboard_help;
 pub mod openapi_sync;
 pub mod path_picker;
+pub mod runtime;
 pub mod screens;
 pub mod text_search;
 pub mod theme;
