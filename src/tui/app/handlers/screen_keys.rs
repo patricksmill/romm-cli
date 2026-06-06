@@ -8,7 +8,6 @@ use super::super::App;
 pub(in crate::tui::app) fn map_screen_key(app: &App, key: &KeyEvent) -> Vec<Action> {
     use super::super::AppScreen;
     match &app.screen {
-        AppScreen::MainMenu(_) => super::menu::map_main_menu_key(key),
         AppScreen::LibraryBrowse(_) => vec![Action::LibraryKey(*key)],
         AppScreen::Search(_) => vec![Action::SearchKey(*key)],
         AppScreen::Settings(_) => vec![Action::SettingsKey(*key)],

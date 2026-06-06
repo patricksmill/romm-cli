@@ -9,6 +9,7 @@ use super::App;
 
 impl App {
     pub async fn run(&mut self) -> Result<()> {
+        self.open_library_browse();
         let mut session = TuiSession::enter(RuntimeOptions::default())?;
         let mut quit = false;
 

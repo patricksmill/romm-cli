@@ -54,6 +54,8 @@ pub(crate) enum Action {
     HideKeyboardHelp,
     ToggleDownloadOverlay,
     CloseDownloadOverlay,
+    ToggleSearchOverlay,
+    ToggleSettingsOverlay,
     RescanLibrary(ScanCacheInvalidate),
     ToggleLibraryUploadPrompt,
     ProcessDeferredRomLoad,
@@ -61,9 +63,6 @@ pub(crate) enum Action {
     StartupUpdatePromptStart,
     StartupUpdatePromptOpenChangelog,
     StartupUpdatePromptDismiss,
-    MainMenuPrevious,
-    MainMenuNext,
-    MainMenuActivate,
     LibraryKey(KeyEvent),
     SearchKey(KeyEvent),
     SettingsKey(KeyEvent),
@@ -156,6 +155,14 @@ pub(crate) fn map_key_to_actions(app: &App, key: &KeyEvent) -> Vec<Action> {
 
     if key.code == KeyCode::Char('d') && !app.blocks_global_d_shortcut() {
         return vec![Action::ToggleDownloadOverlay];
+    }
+
+    if key.code == KeyCode::Char('/') && !app.blocks_global_slash_shortcut() {
+        return vec![Action::ToggleSearchOverlay];
+    }
+
+    if key.code == KeyCode::Char(',') && !app.blocks_global_comma_shortcut() {
+        return vec![Action::ToggleSettingsOverlay];
     }
 
     if key.modifiers.contains(KeyModifiers::CONTROL)

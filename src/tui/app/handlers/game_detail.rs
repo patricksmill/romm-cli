@@ -11,7 +11,7 @@ use crate::core::extras::has_update_or_dlc_extras;
 
 use super::super::background::types::{SaveDownloadDone, SaveUploadDone};
 use super::super::{App, AppScreen};
-use crate::tui::screens::{ExtrasPickerScreen, GameDetailPrevious, MainMenuScreen};
+use crate::tui::screens::{ExtrasPickerScreen, GameDetailPrevious};
 
 fn safe_path_segment(input: &str) -> String {
     let cleaned: String = input
@@ -122,8 +122,8 @@ impl App {
                 detail.message_clear_at = Some(Instant::now() + Duration::from_secs(3));
                 return Ok(false);
             }
-            let prev =
-                std::mem::replace(&mut self.screen, AppScreen::MainMenu(MainMenuScreen::new()));
+            let placeholder = self.transient_screen_placeholder();
+            let prev = std::mem::replace(&mut self.screen, placeholder);
             if let AppScreen::GameDetail(g) = prev {
                 self.screen = AppScreen::ExtrasPicker(Box::new(ExtrasPickerScreen::new(
                     g,
@@ -207,8 +207,8 @@ impl App {
             KeyCode::Char('m') => detail.toggle_technical(),
             KeyCode::Esc => {
                 detail.clear_message();
-                let prev =
-                    std::mem::replace(&mut self.screen, AppScreen::MainMenu(MainMenuScreen::new()));
+                let placeholder = self.transient_screen_placeholder();
+                let prev = std::mem::replace(&mut self.screen, placeholder);
                 if let AppScreen::GameDetail(g) = prev {
                     self.screen = match g.previous {
                         GameDetailPrevious::Library(l) => AppScreen::LibraryBrowse(l),
@@ -231,8 +231,8 @@ impl App {
 
         match key.code {
             KeyCode::Esc => {
-                let prev =
-                    std::mem::replace(&mut self.screen, AppScreen::MainMenu(MainMenuScreen::new()));
+                let placeholder = self.transient_screen_placeholder();
+                let prev = std::mem::replace(&mut self.screen, placeholder);
                 if let AppScreen::ExtrasPicker(p) = prev {
                     self.screen = AppScreen::GameDetail(p.previous);
                 }
@@ -260,8 +260,8 @@ impl App {
                     }
                 };
                 let rom = picker.rom.clone();
-                let prev =
-                    std::mem::replace(&mut self.screen, AppScreen::MainMenu(MainMenuScreen::new()));
+                let placeholder = self.transient_screen_placeholder();
+                let prev = std::mem::replace(&mut self.screen, placeholder);
                 if let AppScreen::ExtrasPicker(p) = prev {
                     match self.downloads.start_extras_download(
                         &rom,

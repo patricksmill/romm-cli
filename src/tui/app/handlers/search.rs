@@ -1,4 +1,4 @@
-//! Search screen key handler.
+//! Search overlay key handler.
 
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
@@ -8,9 +8,30 @@ use crate::types::RomList;
 
 use super::super::background::types::{SearchLoadDone, SearchLoadEvent};
 use super::super::{App, AppScreen};
-use crate::tui::screens::{GameDetailPrevious, GameDetailScreen, MainMenuScreen};
+use crate::tui::screens::{GameDetailPrevious, GameDetailScreen, SearchScreen};
 
 impl App {
+    pub(in crate::tui::app) fn toggle_search_screen(&mut self) {
+        match &self.screen {
+            AppScreen::Search(_) => self.close_search_overlay(),
+            _ => {
+                let prev =
+                    std::mem::replace(&mut self.screen, AppScreen::Search(SearchScreen::new()));
+                if !Self::is_overlay_screen(&prev) {
+                    self.screen_before_search = Some(prev);
+                }
+            }
+        }
+    }
+
+    pub(in crate::tui::app) fn close_search_overlay(&mut self) {
+        if !matches!(self.screen, AppScreen::Search(_)) {
+            return;
+        }
+        let stored = self.screen_before_search.take();
+        self.restore_screen_or_library(stored);
+    }
+
     pub(in crate::tui::app) async fn handle_search(&mut self, key: &KeyEvent) -> Result<bool> {
         let search = match &mut self.screen {
             AppScreen::Search(s) => s,
@@ -28,16 +49,15 @@ impl App {
                     // no-op (same as before: empty query does not search)
                 } else if search.result_groups.is_some() && search.results_match_current_query() {
                     if let Some((primary, others)) = search.get_selected_group() {
-                        let prev = std::mem::replace(
-                            &mut self.screen,
-                            AppScreen::MainMenu(MainMenuScreen::new()),
-                        );
+                        let placeholder = self.transient_screen_placeholder();
+                        let prev = std::mem::replace(&mut self.screen, placeholder);
                         if let AppScreen::Search(s) = prev {
                             self.screen = AppScreen::GameDetail(Box::new(GameDetailScreen::new(
                                 primary,
                                 others,
                                 GameDetailPrevious::Search(s),
                                 self.downloads.shared(),
+                                self.config.tui_layout.game_detail_cover_panel_width,
                             )));
                             self.maybe_start_game_detail_cover_load();
                             self.refresh_current_game_saves();
@@ -111,7 +131,7 @@ impl App {
                 if search.results.is_some() {
                     search.clear_results();
                 } else {
-                    self.screen = AppScreen::MainMenu(MainMenuScreen::new());
+                    self.close_search_overlay();
                 }
             }
             _ => {}

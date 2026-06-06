@@ -1,6 +1,6 @@
 use super::LibraryBrowseScreen;
-use super::LibrarySearchMode;
 use super::LibraryViewMode;
+use super::LEFT_PANEL_PERCENT_DEFAULT;
 use crate::core::utils;
 use crate::types::{Platform, Rom, RomList};
 use serde_json::json;
@@ -74,8 +74,8 @@ fn platform(id: u64, name: &str, rom_count: u64) -> Platform {
 }
 
 #[test]
-fn get_selected_group_clamps_stale_index_after_filter() {
-    let mut s = LibraryBrowseScreen::new(vec![], vec![]);
+fn get_selected_group_clamps_stale_index() {
+    let mut s = LibraryBrowseScreen::new(vec![], vec![], LEFT_PANEL_PERCENT_DEFAULT);
     let items = vec![
         rom(1, "alpha", "a.zip"),
         rom(2, "alphabet", "ab.zip"),
@@ -83,12 +83,6 @@ fn get_selected_group_clamps_stale_index_after_filter() {
     ];
     s.rom_groups = Some(utils::group_roms_by_name(&items));
     s.view_mode = LibraryViewMode::Roms;
-    s.enter_rom_search(LibrarySearchMode::Filter);
-    for c in "alp".chars() {
-        s.add_rom_search_char(c);
-    }
-    s.rom_search.mode = None;
-    s.rom_search.filter_browsing = true;
     s.rom_selected = 99;
     let (primary, _) = s
         .get_selected_group()
@@ -97,8 +91,8 @@ fn get_selected_group_clamps_stale_index_after_filter() {
 }
 
 #[test]
-fn rom_next_wraps_within_filtered_list_when_filter_browsing() {
-    let mut s = LibraryBrowseScreen::new(vec![], vec![]);
+fn rom_next_wraps_within_list() {
+    let mut s = LibraryBrowseScreen::new(vec![], vec![], LEFT_PANEL_PERCENT_DEFAULT);
     let items = vec![
         rom(1, "alpha", "a.zip"),
         rom(2, "alphabet", "ab.zip"),
@@ -106,22 +100,22 @@ fn rom_next_wraps_within_filtered_list_when_filter_browsing() {
     ];
     s.rom_groups = Some(utils::group_roms_by_name(&items));
     s.view_mode = LibraryViewMode::Roms;
-    s.enter_rom_search(LibrarySearchMode::Filter);
-    for c in "alp".chars() {
-        s.add_rom_search_char(c);
-    }
-    s.rom_search.mode = None;
-    s.rom_search.filter_browsing = true;
     assert_eq!(s.rom_selected, 0);
     s.rom_next();
     assert_eq!(s.rom_selected, 1);
+    s.rom_next();
+    assert_eq!(s.rom_selected, 2);
     s.rom_next();
     assert_eq!(s.rom_selected, 0);
 }
 
 #[test]
 fn zero_rom_platform_builds_no_rom_request() {
-    let s = LibraryBrowseScreen::new(vec![platform(1, "Empty", 0)], vec![]);
+    let s = LibraryBrowseScreen::new(
+        vec![platform(1, "Empty", 0)],
+        vec![],
+        LEFT_PANEL_PERCENT_DEFAULT,
+    );
     assert!(
         s.get_roms_request_platform().is_none(),
         "zero-rom platform should not produce ROM API request"
@@ -130,7 +124,11 @@ fn zero_rom_platform_builds_no_rom_request() {
 
 #[test]
 fn back_to_list_retains_current_rom_state() {
-    let mut s = LibraryBrowseScreen::new(vec![platform(1, "SNES", 12)], vec![]);
+    let mut s = LibraryBrowseScreen::new(
+        vec![platform(1, "SNES", 12)],
+        vec![],
+        LEFT_PANEL_PERCENT_DEFAULT,
+    );
     let items = vec![rom(1, "alpha", "a.zip")];
     let rom_list = RomList {
         total: 1,
@@ -160,7 +158,11 @@ fn back_to_list_retains_current_rom_state() {
 
 #[test]
 fn empty_state_message_shows_loading_only_when_loading_flag_is_true() {
-    let mut s = LibraryBrowseScreen::new(vec![platform(1, "SNES", 12)], vec![]);
+    let mut s = LibraryBrowseScreen::new(
+        vec![platform(1, "SNES", 12)],
+        vec![],
+        LEFT_PANEL_PERCENT_DEFAULT,
+    );
     s.clear_roms();
     s.set_rom_loading(false);
     assert_eq!(
@@ -169,4 +171,19 @@ fn empty_state_message_shows_loading_only_when_loading_flag_is_true() {
     );
     s.set_rom_loading(true);
     assert_eq!(s.empty_rom_state_message(), "Loading games...");
+}
+
+#[test]
+fn left_panel_percent_defaults_to_thirty() {
+    let s = LibraryBrowseScreen::new(vec![], vec![], LEFT_PANEL_PERCENT_DEFAULT);
+    assert_eq!(s.left_panel_percent, 30);
+}
+
+#[test]
+fn adjust_left_panel_percent_clamps_at_bounds() {
+    let mut s = LibraryBrowseScreen::new(vec![], vec![], LEFT_PANEL_PERCENT_DEFAULT);
+    s.adjust_left_panel_percent(-100);
+    assert_eq!(s.left_panel_percent, 15);
+    s.adjust_left_panel_percent(100);
+    assert_eq!(s.left_panel_percent, 50);
 }

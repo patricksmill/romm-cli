@@ -59,12 +59,13 @@ impl App {
             Action::HideKeyboardHelp => self.show_keyboard_help = false,
             Action::ToggleDownloadOverlay => self.toggle_download_screen(),
             Action::CloseDownloadOverlay => {
-                use crate::tui::screens::MainMenuScreen;
-                self.screen = self
-                    .screen_before_download
-                    .take()
-                    .unwrap_or_else(|| AppScreen::MainMenu(MainMenuScreen::new()));
+                if matches!(self.screen, AppScreen::Download(_)) {
+                    let stored = self.screen_before_download.take();
+                    self.restore_screen_or_library(stored);
+                }
             }
+            Action::ToggleSearchOverlay => self.toggle_search_screen(),
+            Action::ToggleSettingsOverlay => self.toggle_settings_screen(),
             Action::RescanLibrary(inv) => self.apply_rescan_library(inv),
             Action::ToggleLibraryUploadPrompt => self.apply_toggle_library_upload_prompt(),
             Action::ProcessDeferredRomLoad => self.process_deferred_rom_load(),
@@ -88,11 +89,6 @@ impl App {
             }
             Action::StartupUpdatePromptDismiss => {
                 self.startup_update_prompt = None;
-            }
-            Action::MainMenuPrevious | Action::MainMenuNext | Action::MainMenuActivate => {
-                if self.apply_main_menu_action(action).await? {
-                    return Ok(true);
-                }
             }
             Action::LibraryKey(key) => {
                 if self.handle_library_browse(&key).await? {
@@ -148,8 +144,7 @@ impl App {
 
     fn apply_rescan_library(&mut self, inv: ScanCacheInvalidate) {
         if let AppScreen::LibraryBrowse(ref lib) = self.screen {
-            if !lib.any_search_bar_open()
-                && !lib.any_upload_prompt_open()
+            if !lib.any_upload_prompt_open()
                 && !self.library_upload_inflight
                 && !self.library_scan_inflight
             {
@@ -162,10 +157,7 @@ impl App {
         if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
             if lib.any_upload_prompt_open() {
                 lib.close_upload_prompt();
-            } else if !lib.any_search_bar_open()
-                && !self.library_upload_inflight
-                && !self.library_scan_inflight
-            {
+            } else if !self.library_upload_inflight && !self.library_scan_inflight {
                 if lib.subsection == LibrarySubsection::ByConsole {
                     lib.open_upload_prompt();
                 } else {

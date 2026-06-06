@@ -4,21 +4,19 @@ use std::time::Duration;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use romm_cli::client::RommClient;
-use romm_cli::config::{default_theme_id, Config, ExtrasDefaults};
+use romm_cli::config::LIBRARY_LEFT_PANEL_PERCENT_DEFAULT;
+use romm_cli::config::{default_theme_id, Config, ExtrasDefaults, TuiLayoutConfig};
 use romm_cli::core::utils;
 use romm_cli::feature_compat::supported_save_sync_compatibility;
 use romm_cli::tui::app::{App, AppScreen};
-use romm_cli::tui::screens::library_browse::{
-    LibraryBrowseScreen, LibrarySearchMode, LibraryViewMode,
-};
+use romm_cli::tui::screens::library_browse::{LibraryBrowseScreen, LibraryViewMode};
 use romm_cli::types::{Rom, RomList};
 use wiremock::matchers::{method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 #[tokio::test]
-async fn test_main_menu_api_error_shows_popup() {
+async fn startup_library_api_error_shows_footer() {
     let mock_server = MockServer::start().await;
-    // Background library refresh uses collection summary endpoints (not GET /api/platforms).
     for api_path in [
         "/api/collections",
         "/api/collections/smart",
@@ -45,6 +43,7 @@ async fn test_main_menu_api_error_shows_popup() {
         save_sync: Default::default(),
         roms_layout: Default::default(),
         theme: default_theme_id(),
+        tui_layout: TuiLayoutConfig::default(),
     };
     let client = RommClient::new(&config, false).unwrap();
     let mut app = App::new(
@@ -55,15 +54,8 @@ async fn test_main_menu_api_error_shows_popup() {
         None,
         None,
     );
+    app.open_library_browse();
 
-    // Simulate pressing Enter on Main Menu (Platforms)
-    let quit = app
-        .handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()))
-        .await
-        .unwrap();
-    assert!(!quit);
-
-    // Library opens immediately; metadata refresh runs in background.
     assert!(matches!(app.screen, AppScreen::LibraryBrowse(_)));
     assert!(app.global_error.is_none());
 
@@ -90,7 +82,7 @@ async fn test_main_menu_api_error_shows_popup() {
 }
 
 #[tokio::test]
-async fn test_main_menu_success_transitions_to_library() {
+async fn startup_opens_library_browse() {
     let mock_server = MockServer::start().await;
     Mock::given(method("GET"))
         .and(path("/api/platforms"))
@@ -126,9 +118,10 @@ async fn test_main_menu_success_transitions_to_library() {
         save_sync: Default::default(),
         roms_layout: Default::default(),
         theme: default_theme_id(),
+        tui_layout: TuiLayoutConfig::default(),
     };
     let client = RommClient::new(&config, false).unwrap();
-    let mut app = App::new(
+    let app = App::new(
         client,
         config,
         supported_save_sync_compatibility(),
@@ -137,22 +130,12 @@ async fn test_main_menu_success_transitions_to_library() {
         None,
     );
 
-    // Simulate pressing Enter on Main Menu (Platforms)
-    let quit = app
-        .handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()))
-        .await
-        .unwrap();
-    assert!(!quit);
-
-    // Assert error is not set
     assert!(app.global_error.is_none());
-
-    // Assert we transitioned to LibraryBrowse
     assert!(matches!(app.screen, AppScreen::LibraryBrowse(_)));
 }
 
 #[tokio::test]
-async fn main_menu_fifth_item_is_exit() {
+async fn library_esc_quits_from_list_view() {
     let mock_server = MockServer::start().await;
     let config = Config {
         base_url: mock_server.uri(),
@@ -163,6 +146,7 @@ async fn main_menu_fifth_item_is_exit() {
         save_sync: Default::default(),
         roms_layout: Default::default(),
         theme: default_theme_id(),
+        tui_layout: TuiLayoutConfig::default(),
     };
     let client = RommClient::new(&config, false).unwrap();
     let mut app = App::new(
@@ -174,24 +158,15 @@ async fn main_menu_fifth_item_is_exit() {
         None,
     );
 
-    // Move to the 5th menu row (0-based index 4).
-    for _ in 0..4 {
-        assert!(!app
-            .handle_key_event(&KeyEvent::new(KeyCode::Down, KeyModifiers::empty()))
-            .await
-            .unwrap());
-    }
-
-    // Without API (Expert) in the menu, the 5th item should be Exit.
     let quit = app
-        .handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()))
+        .handle_key_event(&KeyEvent::new(KeyCode::Esc, KeyModifiers::empty()))
         .await
         .unwrap();
-    assert!(quit, "expected Enter on 5th item to quit");
+    assert!(quit, "expected Esc at library root to quit");
 }
 
 #[tokio::test]
-async fn library_filter_mode_d_types_in_search_bar_not_downloads() {
+async fn global_d_opens_download_overlay_from_library() {
     let mock_server = MockServer::start().await;
     let config = Config {
         base_url: mock_server.uri(),
@@ -202,6 +177,7 @@ async fn library_filter_mode_d_types_in_search_bar_not_downloads() {
         save_sync: Default::default(),
         roms_layout: Default::default(),
         theme: default_theme_id(),
+        tui_layout: TuiLayoutConfig::default(),
     };
     let client = RommClient::new(&config, false).unwrap();
     let mut app = App::new(
@@ -212,11 +188,6 @@ async fn library_filter_mode_d_types_in_search_bar_not_downloads() {
         None,
         None,
     );
-
-    let mut lib = LibraryBrowseScreen::new(vec![], vec![]);
-    lib.view_mode = LibraryViewMode::Roms;
-    lib.enter_rom_search(LibrarySearchMode::Filter);
-    app.screen = AppScreen::LibraryBrowse(Box::new(lib));
 
     let quit = app
         .handle_key_event(&KeyEvent::new(KeyCode::Char('d'), KeyModifiers::empty()))
@@ -224,9 +195,39 @@ async fn library_filter_mode_d_types_in_search_bar_not_downloads() {
         .unwrap();
     assert!(!quit);
     assert!(
-        matches!(&app.screen, AppScreen::LibraryBrowse(l) if l.rom_search.query == "d" && l.rom_search.mode.is_some()),
-        "expected 'd' in filter bar, not Download overlay"
+        matches!(app.screen, AppScreen::Download(_)),
+        "expected 'd' to open Download overlay"
     );
+}
+
+#[tokio::test]
+async fn global_slash_opens_search_overlay() {
+    let config = Config {
+        base_url: "http://127.0.0.1:9".into(),
+        download_dir: "/tmp".into(),
+        use_https: false,
+        auth: None,
+        extras_defaults: ExtrasDefaults::default(),
+        save_sync: Default::default(),
+        roms_layout: Default::default(),
+        theme: default_theme_id(),
+        tui_layout: TuiLayoutConfig::default(),
+    };
+    let client = RommClient::new(&config, false).unwrap();
+    let mut app = App::new(
+        client,
+        config,
+        supported_save_sync_compatibility(),
+        None,
+        None,
+        None,
+    );
+
+    assert!(!app
+        .handle_key_event(&KeyEvent::new(KeyCode::Char('/'), KeyModifiers::empty()))
+        .await
+        .unwrap());
+    assert!(matches!(app.screen, AppScreen::Search(_)));
 }
 
 fn sample_rom(id: u64, name: &str) -> Rom {
@@ -259,7 +260,7 @@ fn sample_rom(id: u64, name: &str) -> Rom {
 }
 
 #[tokio::test]
-async fn library_filter_enter_then_enter_opens_game_detail() {
+async fn library_enter_opens_game_detail() {
     let config = Config {
         base_url: "http://127.0.0.1:9".into(),
         download_dir: "/tmp".into(),
@@ -269,6 +270,7 @@ async fn library_filter_enter_then_enter_opens_game_detail() {
         save_sync: Default::default(),
         roms_layout: Default::default(),
         theme: default_theme_id(),
+        tui_layout: TuiLayoutConfig::default(),
     };
     let client = RommClient::new(&config, false).unwrap();
     let mut app = App::new(
@@ -288,14 +290,10 @@ async fn library_filter_enter_then_enter_opens_game_detail() {
         items: items.clone(),
     };
 
-    let mut lib = LibraryBrowseScreen::new(vec![], vec![]);
+    let mut lib = LibraryBrowseScreen::new(vec![], vec![], LIBRARY_LEFT_PANEL_PERCENT_DEFAULT);
     lib.roms = Some(rom_list);
     lib.rom_groups = Some(utils::group_roms_by_name(&items));
     lib.view_mode = LibraryViewMode::Roms;
-    lib.enter_rom_search(LibrarySearchMode::Filter);
-    for c in "al".chars() {
-        lib.add_rom_search_char(c);
-    }
     app.screen = AppScreen::LibraryBrowse(Box::new(lib));
 
     assert!(!app
@@ -303,17 +301,8 @@ async fn library_filter_enter_then_enter_opens_game_detail() {
         .await
         .unwrap());
     assert!(
-        matches!(&app.screen, AppScreen::LibraryBrowse(l) if l.rom_search.filter_browsing && l.rom_search.mode.is_none()),
-        "first Enter should commit filter browsing"
-    );
-
-    assert!(!app
-        .handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()))
-        .await
-        .unwrap());
-    assert!(
         matches!(&app.screen, AppScreen::GameDetail(d) if d.rom.name == "alpha"),
-        "second Enter should open the selected filtered game"
+        "Enter should open the selected game"
     );
 }
 
@@ -337,6 +326,7 @@ async fn game_detail_download_is_blocked_when_config_download_path_is_invalid() 
         save_sync: Default::default(),
         roms_layout: Default::default(),
         theme: default_theme_id(),
+        tui_layout: TuiLayoutConfig::default(),
     };
     let client = RommClient::new(&config, false).unwrap();
     let mut app = App::new(
@@ -356,7 +346,7 @@ async fn game_detail_download_is_blocked_when_config_download_path_is_invalid() 
         items: items.clone(),
     };
 
-    let mut lib = LibraryBrowseScreen::new(vec![], vec![]);
+    let mut lib = LibraryBrowseScreen::new(vec![], vec![], LIBRARY_LEFT_PANEL_PERCENT_DEFAULT);
     lib.roms = Some(rom_list);
     lib.rom_groups = Some(utils::group_roms_by_name(&items));
     lib.view_mode = LibraryViewMode::Roms;
@@ -401,6 +391,7 @@ async fn game_detail_download_skips_when_rom_already_exists_in_console_folder() 
         save_sync: Default::default(),
         roms_layout: Default::default(),
         theme: default_theme_id(),
+        tui_layout: TuiLayoutConfig::default(),
     };
     let client = RommClient::new(&config, false).unwrap();
     let mut app = App::new(
@@ -420,7 +411,7 @@ async fn game_detail_download_skips_when_rom_already_exists_in_console_folder() 
         items: items.clone(),
     };
 
-    let mut lib = LibraryBrowseScreen::new(vec![], vec![]);
+    let mut lib = LibraryBrowseScreen::new(vec![], vec![], LIBRARY_LEFT_PANEL_PERCENT_DEFAULT);
     lib.roms = Some(rom_list);
     lib.rom_groups = Some(utils::group_roms_by_name(&items));
     lib.view_mode = LibraryViewMode::Roms;

@@ -1,6 +1,5 @@
 use crate::core::utils::RomGroup;
 use crate::tui::path_picker::{PathPicker, PathPickerMode};
-use crate::tui::text_search::SearchState;
 use crate::types::{Collection, Platform, RomList};
 
 /// File path picker for TUI upload (single ROM file).
@@ -36,6 +35,12 @@ pub enum LibraryViewMode {
     Roms,
 }
 
+pub use crate::config::{
+    LIBRARY_LEFT_PANEL_PERCENT_DEFAULT as LEFT_PANEL_PERCENT_DEFAULT,
+    LIBRARY_LEFT_PANEL_PERCENT_MAX as LEFT_PANEL_PERCENT_MAX,
+    LIBRARY_LEFT_PANEL_PERCENT_MIN as LEFT_PANEL_PERCENT_MIN,
+};
+
 /// Main library browser: consoles/collections on the left, games on the right.
 pub struct LibraryBrowseScreen {
     pub platforms: Vec<Platform>,
@@ -50,11 +55,7 @@ pub struct LibraryBrowseScreen {
     pub scroll_offset: usize,
     /// Visible data rows in the ROM pane (updated at render time).
     pub(crate) visible_rows: usize,
-    /// Filter/jump for the consoles/collections list (left pane).
-    pub list_search: SearchState,
-    /// Filter/jump for the games table (right pane).
-    pub rom_search: SearchState,
-    /// Non-blocking status from metadata refresh (API warnings, “updated”, etc.).
+    /// Non-blocking status from metadata refresh (API warnings, "updated", etc.).
     pub metadata_footer: Option<String>,
     /// When the footer should be automatically cleared.
     pub metadata_footer_clear_at: Option<std::time::Instant>,
@@ -62,4 +63,6 @@ pub struct LibraryBrowseScreen {
     pub rom_loading: bool,
     /// Modal path entry for uploading a ROM to the selected console (`None` when closed).
     pub upload_prompt: Option<UploadPrompt>,
+    /// Horizontal split: left pane width as a percentage of the library area.
+    pub left_panel_percent: u16,
 }

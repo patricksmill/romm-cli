@@ -8,52 +8,48 @@ use crate::tui::theme::RommStyles;
 
 pub const KEYBOARD_HELP_TEXT: &str = "\
 Global
-  F1          This help (anywhere)
-  ?           This help (when not typing in a field)
-  d           Downloads overlay (toggle; disabled while typing in a field)
-
-Main menu
-  Up / k, Down / j   Move
-  Enter              Open selected item
-  Esc / q            Quit
+  F1 / ?           This help (when not typing in a field)
+  /                Server-wide ROM search overlay (toggle)
+  d                Downloads overlay (toggle; disabled while typing in a field)
+  ,                Settings overlay (toggle; disabled while typing in a field)
+  Ctrl+r           Rescan library on server (waits until done; refreshes games list)
+  q / Ctrl+c       Quit
 
 Library (consoles / games)
   Up / k, Down / j   Move in list or game rows
   Left / h           Back to console list (games view)
   Right / l, Tab     Switch panel or view
-  /                  Filter (focused pane: console/collection list or games)
-  Enter              After typing a filter: browse matches; Esc clears filter
-  f                  Jump to match (focused pane: list or games)
-  Tab                Next jump match (jump mode)
   Enter              Open games list or game detail
   t                  Switch consoles / collections
   Ctrl+u             Upload ROM (Consoles list; path browser; Ctrl+s: rescan after upload)
-  Ctrl-r             Rescan library on server (waits until done; refreshes games list)
-  Esc                Back or main menu
-  q                  Quit
+  Ctrl+Left/Right    Resize console/games split
+  Esc                Quit from list view; back from games view
 
-Search
+Search overlay
   Arrows, typing     Edit query and move in results
   Enter              Run search; open game only if the query matches the last search
-  Esc                Clear results or main menu
+  Esc                Clear results or close overlay
+  /                  Close overlay
 
 Game detail
   Enter              Download
   o                  Open cover image
   m                  Toggle technical details
+  Ctrl+Left/Right    Resize cover panel
   Esc                Back
   q                  Quit
 
 Downloads overlay
   Esc / d            Close
 
-Settings
+Settings overlay
   Tab / Shift+Tab,
   Left / h, Right / l Switch tab
   Up / k, Down / j   Move
   Enter              Edit/toggle selected setting, open pickers, or open auth wizard
   s                  Save config to disk
-  Esc                Main menu
+  Esc                Close overlay (prompts if unsaved)
+  ,                  Close overlay
   q                  Quit
 
 Setup wizard

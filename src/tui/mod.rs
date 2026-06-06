@@ -16,7 +16,6 @@ pub mod openapi_sync;
 pub mod path_picker;
 pub mod runtime;
 pub mod screens;
-pub mod text_search;
 pub mod theme;
 pub mod utils;
 
@@ -155,6 +154,7 @@ mod tests {
             save_sync: Default::default(),
             roms_layout: Default::default(),
             theme: default_theme_id(),
+            tui_layout: Default::default(),
         }
     }
 

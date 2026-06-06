@@ -116,7 +116,6 @@ impl LibraryBrowseScreen {
             self.collections = collections;
         }
 
-        self.list_search.clear();
         let new_source = old_key.as_ref().and_then(|k| match subsection {
             LibrarySubsection::ByConsole => self
                 .platforms
@@ -129,7 +128,9 @@ impl LibraryBrowseScreen {
         });
 
         self.list_index = new_source.unwrap_or(0);
-        self.clamp_list_index();
+        if self.list_index >= self.list_len() {
+            self.list_index = 0;
+        }
 
         let new_source = self.selected_list_source_index();
         let new_key = new_source.and_then(|i| self.cache_key_for_position(subsection, i));
@@ -155,24 +156,24 @@ impl LibraryBrowseScreen {
         if self.subsection != LibrarySubsection::ByCollection {
             return Vec::new();
         }
-        let visible = self.visible_list_source_indices();
-        if visible.is_empty() {
+        let len = self.collections.len();
+        if len == 0 {
             return Vec::new();
         }
-        let center = self.list_index.min(visible.len() - 1);
+        let center = self.list_index.min(len - 1);
         let start = center.saturating_sub(radius);
-        let end = (center + radius + 1).min(visible.len());
+        let end = (center + radius + 1).min(len);
         let mut out = Vec::new();
-        for (pos, source_idx) in visible[start..end].iter().enumerate() {
-            if start + pos == center {
+        for source_idx in start..end {
+            if source_idx == center {
                 continue;
             }
             if let (Some(key), Some(req)) = (
-                self.cache_key_for_position(LibrarySubsection::ByCollection, *source_idx),
-                self.get_roms_request_for_position(LibrarySubsection::ByCollection, *source_idx),
+                self.cache_key_for_position(LibrarySubsection::ByCollection, source_idx),
+                self.get_roms_request_for_position(LibrarySubsection::ByCollection, source_idx),
             ) {
                 let expected = self
-                    .expected_rom_count_for_position(LibrarySubsection::ByCollection, *source_idx);
+                    .expected_rom_count_for_position(LibrarySubsection::ByCollection, source_idx);
                 out.push((key, req, expected));
             }
         }

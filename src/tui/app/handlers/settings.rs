@@ -13,10 +13,36 @@ use super::super::background::types::{DeviceListDone, PlatformListDone, SyncPush
 use super::super::{App, AppScreen};
 use crate::tui::screens::settings::{ConsolePathKind, SettingsRow};
 use crate::tui::screens::setup_wizard::SetupWizard;
-use crate::tui::screens::MainMenuScreen;
+use crate::tui::screens::SettingsScreen;
 use crate::tui::theme::{resolve_theme_or_default, MessageTone};
 
 impl App {
+    pub(in crate::tui::app) fn toggle_settings_screen(&mut self) {
+        if matches!(&self.screen, AppScreen::Settings(_)) {
+            self.close_settings_with_unsaved_prompt();
+        } else {
+            let prev = std::mem::replace(
+                &mut self.screen,
+                AppScreen::Settings(Box::new(SettingsScreen::new(
+                    &self.config,
+                    self.server_version.as_deref(),
+                    self.save_sync_compat.clone(),
+                ))),
+            );
+            if !Self::is_overlay_screen(&prev) {
+                self.screen_before_settings = Some(prev);
+            }
+        }
+    }
+
+    pub(in crate::tui::app) fn close_settings_overlay(&mut self) {
+        if !matches!(self.screen, AppScreen::Settings(_)) {
+            return;
+        }
+        self.apply_saved_theme();
+        let stored = self.screen_before_settings.take();
+        self.restore_screen_or_library(stored);
+    }
     fn persist_settings_screen(&mut self) -> bool {
         use crate::config::persist_user_config;
 
@@ -38,6 +64,7 @@ impl App {
             save_sync: settings.save_sync_config(),
             roms_layout: settings.roms_layout_config(),
             theme: settings.theme_id.clone(),
+            tui_layout: self.config.tui_layout.clone(),
         };
         if let Err(e) = persist_user_config(&cfg) {
             if let AppScreen::Settings(s) = &mut self.screen {
@@ -55,6 +82,7 @@ impl App {
         self.config.save_sync = cfg.save_sync.clone();
         self.config.roms_layout = cfg.roms_layout.clone();
         self.config.theme = cfg.theme.clone();
+        self.config.tui_layout = cfg.tui_layout.clone();
         self.apply_saved_theme();
         if let Ok(new_client) = RommClient::new(&self.config, self.client.verbose()) {
             self.client = new_client;
@@ -62,9 +90,15 @@ impl App {
         true
     }
 
-    fn exit_settings_to_menu(&mut self) {
-        self.apply_saved_theme();
-        self.screen = AppScreen::MainMenu(MainMenuScreen::new());
+    fn close_settings_with_unsaved_prompt(&mut self) {
+        if let AppScreen::Settings(settings) = &mut self.screen {
+            if settings.has_unsaved_changes(&self.config) {
+                settings.confirm =
+                    Some(crate::tui::screens::settings::SettingsConfirm::ExitUnsaved);
+                return;
+            }
+        }
+        self.close_settings_overlay();
     }
 
     async fn refresh_settings_server_version(&mut self) -> Result<()> {
@@ -97,6 +131,7 @@ impl App {
             save_sync: self.config.save_sync.clone(),
             roms_layout: self.config.roms_layout.clone(),
             theme: self.config.theme.clone(),
+            tui_layout: self.config.tui_layout.clone(),
         };
         let client = match RommClient::new(&cfg, verbose) {
             Ok(c) => c,
@@ -264,7 +299,7 @@ impl App {
                     }
                     crate::tui::screens::settings::SettingsConfirm::ExitUnsaved => {
                         if self.persist_settings_screen() {
-                            self.exit_settings_to_menu();
+                            self.close_settings_overlay();
                         }
                     }
                 },
@@ -273,7 +308,7 @@ impl App {
                         == Some(crate::tui::screens::settings::SettingsConfirm::ExitUnsaved) =>
                 {
                     settings.confirm = None;
-                    self.exit_settings_to_menu();
+                    self.close_settings_overlay();
                 }
                 KeyCode::Esc => {
                     settings.confirm = None;
@@ -396,12 +431,7 @@ impl App {
                 self.persist_settings_screen();
             }
             KeyCode::Esc => {
-                if settings.has_unsaved_changes(&self.config) {
-                    settings.confirm =
-                        Some(crate::tui::screens::settings::SettingsConfirm::ExitUnsaved);
-                } else {
-                    self.exit_settings_to_menu();
-                }
+                self.close_settings_with_unsaved_prompt();
             }
             KeyCode::Char('q') => return Ok(true),
             _ => {}

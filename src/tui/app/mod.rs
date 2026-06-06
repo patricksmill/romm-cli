@@ -33,8 +33,8 @@ use crate::update::UpdateStatus;
 
 use super::screens::connected_splash::StartupSplash;
 use super::screens::{
-    DownloadScreen, ExtrasPickerScreen, GameDetailScreen, LibraryBrowseScreen, MainMenuScreen,
-    SearchScreen, SettingsScreen,
+    DownloadScreen, ExtrasPickerScreen, GameDetailScreen, LibraryBrowseScreen, SearchScreen,
+    SettingsScreen,
 };
 use super::theme::resolve_theme_or_default;
 use ratatui_themekit::Theme;
@@ -51,7 +51,6 @@ use background::types::{
 /// `App` holds exactly one of these at a time and delegates both
 /// rendering and key handling based on the current variant.
 pub enum AppScreen {
-    MainMenu(MainMenuScreen),
     LibraryBrowse(Box<LibraryBrowseScreen>),
     Search(SearchScreen),
     Settings(Box<SettingsScreen>),
@@ -76,6 +75,10 @@ pub struct App {
     downloads: DownloadManager,
     /// Screen to restore when closing the Download overlay.
     screen_before_download: Option<AppScreen>,
+    /// Screen to restore when closing the Search overlay.
+    screen_before_search: Option<AppScreen>,
+    /// Screen to restore when closing the Settings overlay.
+    screen_before_settings: Option<AppScreen>,
     /// Deferred ROM load: (cache_key, api_request, expected_rom_count, context, start).
     deferred_load_roms: Option<DeferredLoadRoms>,
     /// Brief “connected” banner after setup or when the server responds to heartbeat.
@@ -141,23 +144,53 @@ impl App {
 
     fn blocks_global_d_shortcut(&self) -> bool {
         let base = match &self.screen {
-            AppScreen::Search(_) | AppScreen::Settings(_) | AppScreen::SetupWizard(_) => true,
-            AppScreen::LibraryBrowse(lib) => {
-                lib.any_search_bar_open() || lib.any_upload_prompt_open()
-            }
+            AppScreen::Settings(_) | AppScreen::SetupWizard(_) => true,
+            AppScreen::LibraryBrowse(lib) => lib.any_upload_prompt_open(),
             _ => false,
         };
         base || self.library_upload_inflight || self.blocks_global_chord_shortcuts()
     }
 
+    fn blocks_global_slash_shortcut(&self) -> bool {
+        match &self.screen {
+            AppScreen::SetupWizard(_) => true,
+            AppScreen::Settings(s)
+                if s.editing
+                    || s.path_picker.is_some()
+                    || s.console_path_picker.is_some()
+                    || s.console_picker_open
+                    || s.device_picker_open
+                    || s.confirm.is_some() =>
+            {
+                true
+            }
+            AppScreen::LibraryBrowse(lib) if lib.any_upload_prompt_open() => true,
+            _ => false,
+        }
+    }
+
+    fn blocks_global_comma_shortcut(&self) -> bool {
+        match &self.screen {
+            AppScreen::SetupWizard(_) => true,
+            AppScreen::Settings(s)
+                if s.editing
+                    || s.path_picker.is_some()
+                    || s.console_path_picker.is_some()
+                    || s.console_picker_open
+                    || s.device_picker_open
+                    || s.confirm.is_some() =>
+            {
+                true
+            }
+            AppScreen::LibraryBrowse(lib) if lib.any_upload_prompt_open() => true,
+            _ => false,
+        }
+    }
+
     fn allows_global_question_help(&self) -> bool {
         match &self.screen {
-            AppScreen::Search(_) | AppScreen::SetupWizard(_) => false,
-            AppScreen::LibraryBrowse(lib)
-                if lib.any_search_bar_open() || lib.any_upload_prompt_open() =>
-            {
-                false
-            }
+            AppScreen::SetupWizard(_) => false,
+            AppScreen::LibraryBrowse(lib) if lib.any_upload_prompt_open() => false,
             AppScreen::Settings(s) if s.editing || s.path_picker.is_some() => false,
             _ => true,
         }
@@ -189,7 +222,11 @@ impl App {
         let (sync_push_pull_tx, sync_push_pull_rx) = tokio::sync::mpsc::unbounded_channel();
         let theme = resolve_theme_or_default(&config.theme);
         Self {
-            screen: AppScreen::MainMenu(MainMenuScreen::new()),
+            screen: AppScreen::LibraryBrowse(Box::new(LibraryBrowseScreen::new(
+                Vec::new(),
+                Vec::new(),
+                config.tui_layout.library_left_panel_percent,
+            ))),
             client,
             config,
             server_version,
@@ -197,6 +234,8 @@ impl App {
             rom_cache: RomCache::load(),
             downloads: DownloadManager::new(),
             screen_before_download: None,
+            screen_before_search: None,
+            screen_before_settings: None,
             deferred_load_roms: None,
             startup_splash,
             global_error: None,
@@ -252,6 +291,12 @@ impl App {
     /// Reapply the theme from persisted in-memory config (discards unsaved preview).
     pub(in crate::tui::app) fn apply_saved_theme(&mut self) {
         self.theme = resolve_theme_or_default(&self.config.theme);
+    }
+
+    pub(in crate::tui::app) fn persist_tui_layout(&self) {
+        if let Err(e) = crate::config::persist_user_config(&self.config) {
+            tracing::warn!("failed to persist TUI panel layout: {e:#}");
+        }
     }
 
     #[cfg(test)]

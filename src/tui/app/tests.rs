@@ -5,10 +5,12 @@ use super::{
     App, AppScreen,
 };
 use crate::client::RommClient;
-use crate::config::{default_theme_id, Config, ExtrasDefaults};
+use crate::config::LIBRARY_LEFT_PANEL_PERCENT_DEFAULT;
+use crate::config::{default_theme_id, Config, ExtrasDefaults, TuiLayoutConfig};
 use crate::core::cache::RomCacheKey;
 use crate::feature_compat::supported_save_sync_compatibility;
 use crate::tui::screens::connected_splash::StartupSplash;
+use crate::tui::screens::game_detail::COVER_PANEL_WIDTH_DEFAULT;
 use crate::tui::screens::library_browse::LibraryBrowseScreen;
 use crate::tui::screens::settings::{SettingsScreen, SettingsTab};
 use crate::tui::screens::{GameDetailPrevious, GameDetailScreen, SearchScreen};
@@ -67,6 +69,7 @@ fn app_with_library(platforms: Vec<Platform>) -> App {
         save_sync: Default::default(),
         roms_layout: Default::default(),
         theme: default_theme_id(),
+        tui_layout: TuiLayoutConfig::default(),
     };
     let client = RommClient::new(&config, false).expect("client");
     let mut app = App::new(
@@ -77,7 +80,11 @@ fn app_with_library(platforms: Vec<Platform>) -> App {
         None,
         None,
     );
-    app.screen = AppScreen::LibraryBrowse(Box::new(LibraryBrowseScreen::new(platforms, vec![])));
+    app.screen = AppScreen::LibraryBrowse(Box::new(LibraryBrowseScreen::new(
+        platforms,
+        vec![],
+        LIBRARY_LEFT_PANEL_PERCENT_DEFAULT,
+    )));
     app
 }
 
@@ -167,6 +174,7 @@ fn primary_rom_load_stale_key_does_not_match_selection() {
             platform(2, "Nintendo 3DS", 38),
         ],
         vec![],
+        LIBRARY_LEFT_PANEL_PERCENT_DEFAULT,
     );
     lib.list_index = 1;
     assert_eq!(
@@ -227,12 +235,17 @@ fn primary_rom_load_batch_for_wrong_platform_is_ignored() {
 #[tokio::test]
 async fn game_detail_esc_returns_to_previous_library_screen() {
     let mut app = app_with_library(vec![platform(1, "NES", 1)]);
-    let previous = LibraryBrowseScreen::new(vec![platform(1, "NES", 1)], vec![]);
+    let previous = LibraryBrowseScreen::new(
+        vec![platform(1, "NES", 1)],
+        vec![],
+        LIBRARY_LEFT_PANEL_PERCENT_DEFAULT,
+    );
     let detail = GameDetailScreen::new(
         rom_fixture(),
         Vec::new(),
         GameDetailPrevious::Library(Box::new(previous)),
         app.downloads.shared(),
+        COVER_PANEL_WIDTH_DEFAULT,
     );
     app.screen = AppScreen::GameDetail(Box::new(detail));
 
@@ -255,6 +268,7 @@ async fn startup_splash_enter_dismisses_without_quitting_when_update_pending() {
         save_sync: Default::default(),
         roms_layout: Default::default(),
         theme: default_theme_id(),
+        tui_layout: TuiLayoutConfig::default(),
     };
     let client = RommClient::new(&config, false).expect("client");
     let splash = Some(StartupSplash::new(
@@ -295,6 +309,7 @@ async fn startup_update_prompt_enter_starts_update_without_quitting() {
         save_sync: Default::default(),
         roms_layout: Default::default(),
         theme: default_theme_id(),
+        tui_layout: TuiLayoutConfig::default(),
     };
     let client = RommClient::new(&config, false).expect("client");
     let mut app = App::new(
@@ -329,6 +344,7 @@ async fn startup_update_prompt_esc_skips_without_quitting() {
         save_sync: Default::default(),
         roms_layout: Default::default(),
         theme: default_theme_id(),
+        tui_layout: TuiLayoutConfig::default(),
     };
     let client = RommClient::new(&config, false).expect("client");
     let mut app = App::new(
@@ -358,6 +374,7 @@ async fn startup_update_prompt_blocks_global_d_shortcut() {
         save_sync: Default::default(),
         roms_layout: Default::default(),
         theme: default_theme_id(),
+        tui_layout: TuiLayoutConfig::default(),
     };
     let client = RommClient::new(&config, false).expect("client");
     let app = App::new(
@@ -383,6 +400,7 @@ async fn startup_update_prompt_skip_closes_prompt() {
         save_sync: Default::default(),
         roms_layout: Default::default(),
         theme: default_theme_id(),
+        tui_layout: TuiLayoutConfig::default(),
     };
     let client = RommClient::new(&config, false).expect("client");
     let mut app = App::new(
@@ -413,6 +431,7 @@ fn search_batch_updates_results_without_stopping_loading() {
         save_sync: Default::default(),
         roms_layout: Default::default(),
         theme: default_theme_id(),
+        tui_layout: TuiLayoutConfig::default(),
     };
     let client = RommClient::new(&config, false).expect("client");
     let mut app = App::new(
@@ -457,6 +476,7 @@ fn search_complete_event_stops_loading() {
         save_sync: Default::default(),
         roms_layout: Default::default(),
         theme: default_theme_id(),
+        tui_layout: TuiLayoutConfig::default(),
     };
     let client = RommClient::new(&config, false).expect("client");
     let mut app = App::new(
@@ -491,12 +511,17 @@ fn search_complete_event_stops_loading() {
 #[tokio::test]
 async fn pressing_e_with_no_extras_shows_toast_not_picker() {
     let mut app = app_with_library(vec![platform(1, "NES", 1)]);
-    let previous = LibraryBrowseScreen::new(vec![platform(1, "NES", 1)], vec![]);
+    let previous = LibraryBrowseScreen::new(
+        vec![platform(1, "NES", 1)],
+        vec![],
+        LIBRARY_LEFT_PANEL_PERCENT_DEFAULT,
+    );
     let detail = GameDetailScreen::new(
         rom_fixture(),
         Vec::new(),
         GameDetailPrevious::Library(Box::new(previous)),
         app.downloads.shared(),
+        COVER_PANEL_WIDTH_DEFAULT,
     );
     app.screen = AppScreen::GameDetail(Box::new(detail));
 
@@ -523,12 +548,17 @@ async fn pressing_e_with_extras_opens_picker() {
     let mut rom = rom_fixture();
     rom.url_cover = Some("https://example.com/c.png".into());
     let mut app = app_with_library(vec![platform(1, "NES", 1)]);
-    let previous = LibraryBrowseScreen::new(vec![platform(1, "NES", 1)], vec![]);
+    let previous = LibraryBrowseScreen::new(
+        vec![platform(1, "NES", 1)],
+        vec![],
+        LIBRARY_LEFT_PANEL_PERCENT_DEFAULT,
+    );
     let detail = GameDetailScreen::new(
         rom,
         Vec::new(),
         GameDetailPrevious::Library(Box::new(previous)),
         app.downloads.shared(),
+        COVER_PANEL_WIDTH_DEFAULT,
     );
     app.screen = AppScreen::GameDetail(Box::new(detail));
 
@@ -542,7 +572,7 @@ async fn pressing_e_with_extras_opens_picker() {
     );
 }
 
-fn app_on_main_menu() -> App {
+fn app_on_library() -> App {
     let config = Config {
         base_url: "http://127.0.0.1:9".into(),
         download_dir: "/tmp".into(),
@@ -552,6 +582,7 @@ fn app_on_main_menu() -> App {
         save_sync: Default::default(),
         roms_layout: Default::default(),
         theme: default_theme_id(),
+        tui_layout: TuiLayoutConfig::default(),
     };
     let client = RommClient::new(&config, false).expect("client");
     App::new(
@@ -567,7 +598,7 @@ fn app_on_main_menu() -> App {
 #[tokio::test]
 async fn settings_theme_preview_reverts_when_leaving_without_save() {
     std::env::remove_var("NO_COLOR");
-    let mut app = app_on_main_menu();
+    let mut app = app_on_library();
     let saved_theme = app.config.theme.clone();
     assert_eq!(app.theme_id(), saved_theme);
 
@@ -590,14 +621,44 @@ async fn settings_theme_preview_reverts_when_leaving_without_save() {
         .await
         .expect("discard and leave");
 
-    assert!(matches!(app.screen, AppScreen::MainMenu(_)));
+    assert!(matches!(app.screen, AppScreen::LibraryBrowse(_)));
     assert_eq!(app.theme_id(), saved_theme);
+}
+
+#[tokio::test]
+async fn global_slash_toggles_search_overlay() {
+    let mut app = app_on_library();
+    assert!(matches!(app.screen, AppScreen::LibraryBrowse(_)));
+
+    app.handle_key_event(&KeyEvent::new(KeyCode::Char('/'), KeyModifiers::empty()))
+        .await
+        .expect("open search");
+    assert!(matches!(app.screen, AppScreen::Search(_)));
+
+    app.handle_key_event(&KeyEvent::new(KeyCode::Char('/'), KeyModifiers::empty()))
+        .await
+        .expect("close search");
+    assert!(matches!(app.screen, AppScreen::LibraryBrowse(_)));
+}
+
+#[tokio::test]
+async fn global_comma_toggles_settings_overlay() {
+    let mut app = app_on_library();
+    app.handle_key_event(&KeyEvent::new(KeyCode::Char(','), KeyModifiers::empty()))
+        .await
+        .expect("open settings");
+    assert!(matches!(app.screen, AppScreen::Settings(_)));
+
+    app.handle_key_event(&KeyEvent::new(KeyCode::Char(','), KeyModifiers::empty()))
+        .await
+        .expect("close settings");
+    assert!(matches!(app.screen, AppScreen::LibraryBrowse(_)));
 }
 
 #[tokio::test]
 async fn settings_exit_prompt_cancel_keeps_unsaved_preview() {
     std::env::remove_var("NO_COLOR");
-    let mut app = app_on_main_menu();
+    let mut app = app_on_library();
     let saved_theme = app.config.theme.clone();
 
     let mut settings = SettingsScreen::new(&app.config, None, supported_save_sync_compatibility());
@@ -623,7 +684,7 @@ async fn settings_exit_prompt_cancel_keeps_unsaved_preview() {
 
 #[tokio::test]
 async fn settings_exit_without_changes_skips_prompt() {
-    let mut app = app_on_main_menu();
+    let mut app = app_on_library();
     app.screen = AppScreen::Settings(Box::new(SettingsScreen::new(
         &app.config,
         None,
@@ -634,7 +695,7 @@ async fn settings_exit_without_changes_skips_prompt() {
         .await
         .expect("leave settings");
 
-    assert!(matches!(app.screen, AppScreen::MainMenu(_)));
+    assert!(matches!(app.screen, AppScreen::LibraryBrowse(_)));
 }
 
 async fn apply_actions(app: &mut App, actions: Vec<Action>) -> bool {
@@ -648,7 +709,7 @@ async fn apply_actions(app: &mut App, actions: Vec<Action>) -> bool {
 
 #[tokio::test]
 async fn global_error_esc_dismisses_via_action_pipeline() {
-    let mut app = app_on_main_menu();
+    let mut app = app_on_library();
     app.global_error = Some("test error".into());
     let actions = map_key_to_actions(&app, &KeyEvent::new(KeyCode::Esc, KeyModifiers::empty()));
     assert!(matches!(actions.as_slice(), [Action::DismissGlobalMessage]));
@@ -657,11 +718,16 @@ async fn global_error_esc_dismisses_via_action_pipeline() {
 }
 
 #[tokio::test]
-async fn main_menu_quit_maps_to_quit_action() {
-    let app = app_on_main_menu();
+async fn library_quit_maps_to_quit_action() {
+    let app = app_on_library();
     let actions = map_key_to_actions(
         &app,
         &KeyEvent::new(KeyCode::Char('q'), KeyModifiers::empty()),
     );
-    assert!(matches!(actions.as_slice(), [Action::Quit]));
+    assert!(matches!(actions.as_slice(), [Action::LibraryKey(_)]));
+    let mut app = app;
+    assert!(app
+        .handle_key_event(&KeyEvent::new(KeyCode::Char('q'), KeyModifiers::empty()))
+        .await
+        .expect("quit"));
 }

@@ -3,25 +3,26 @@
 use crossterm::event::{KeyCode, KeyEvent};
 
 use super::super::{App, AppScreen};
-use crate::tui::screens::{DownloadScreen, MainMenuScreen};
+use crate::tui::screens::DownloadScreen;
 
 impl App {
     pub(in crate::tui::app) fn toggle_download_screen(&mut self) {
-        let current =
-            std::mem::replace(&mut self.screen, AppScreen::MainMenu(MainMenuScreen::new()));
-        match current {
+        match &self.screen {
             AppScreen::Download(_) => {
-                self.screen = self
-                    .screen_before_download
-                    .take()
-                    .unwrap_or_else(|| AppScreen::MainMenu(MainMenuScreen::new()));
+                let stored = self.screen_before_download.take();
+                self.restore_screen_or_library(stored);
             }
-            other => {
-                self.screen_before_download = Some(other);
-                self.screen = AppScreen::Download(DownloadScreen::new(
-                    self.downloads.shared(),
-                    self.downloads.shared_extras(),
-                ));
+            _ => {
+                let prev = std::mem::replace(
+                    &mut self.screen,
+                    AppScreen::Download(DownloadScreen::new(
+                        self.downloads.shared(),
+                        self.downloads.shared_extras(),
+                    )),
+                );
+                if !Self::is_overlay_screen(&prev) {
+                    self.screen_before_download = Some(prev);
+                }
             }
         }
     }

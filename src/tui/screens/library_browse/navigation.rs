@@ -1,13 +1,17 @@
 use crate::core::utils::{self, RomGroup};
-use crate::tui::text_search::{
-    filter_source_indices, jump_next_index, normalize_label, LibrarySearchMode, SearchState,
-};
 use crate::types::{Collection, Platform, Rom, RomList};
 
-use super::types::{LibraryBrowseScreen, LibrarySubsection, LibraryViewMode, UploadPrompt};
+use super::types::{
+    LibraryBrowseScreen, LibrarySubsection, LibraryViewMode, UploadPrompt, LEFT_PANEL_PERCENT_MAX,
+    LEFT_PANEL_PERCENT_MIN,
+};
 
 impl LibraryBrowseScreen {
-    pub fn new(platforms: Vec<Platform>, collections: Vec<Collection>) -> Self {
+    pub fn new(
+        platforms: Vec<Platform>,
+        collections: Vec<Collection>,
+        left_panel_percent: u16,
+    ) -> Self {
         Self {
             platforms,
             collections,
@@ -19,13 +23,19 @@ impl LibraryBrowseScreen {
             rom_selected: 0,
             scroll_offset: 0,
             visible_rows: 20,
-            list_search: SearchState::new(),
-            rom_search: SearchState::new(),
             metadata_footer: None,
             metadata_footer_clear_at: None,
             rom_loading: false,
             upload_prompt: None,
+            left_panel_percent: left_panel_percent
+                .clamp(LEFT_PANEL_PERCENT_MIN, LEFT_PANEL_PERCENT_MAX),
         }
+    }
+
+    pub fn adjust_left_panel_percent(&mut self, delta: i16) {
+        let next = (self.left_panel_percent as i16 + delta)
+            .clamp(LEFT_PANEL_PERCENT_MIN as i16, LEFT_PANEL_PERCENT_MAX as i16);
+        self.left_panel_percent = next as u16;
     }
 
     pub fn set_metadata_footer(&mut self, msg: Option<String>) {
@@ -60,11 +70,6 @@ impl LibraryBrowseScreen {
         self.upload_prompt = None;
     }
 
-    /// True while either pane has the search typing bar open (blocks global shortcuts).
-    pub fn any_search_bar_open(&self) -> bool {
-        self.list_search.mode.is_some() || self.rom_search.mode.is_some()
-    }
-
     /// Display strings for each row (same text users see, without selection prefix).
     pub(crate) fn list_row_labels(&self) -> Vec<String> {
         match self.subsection {
@@ -93,30 +98,8 @@ impl LibraryBrowseScreen {
         }
     }
 
-    pub(crate) fn visible_list_source_indices(&self) -> Vec<usize> {
-        let labels = self.list_row_labels();
-        if self.list_search.filter_active() {
-            filter_source_indices(&labels, &self.list_search.normalized_query)
-        } else {
-            (0..labels.len()).collect()
-        }
-    }
-
-    pub(crate) fn clamp_list_index(&mut self) {
-        let v = self.visible_list_source_indices();
-        if v.is_empty() || self.list_index >= v.len() {
-            self.list_index = 0;
-        }
-    }
-
-    /// Source index into `platforms` / `collections` for the current list selection.
-    pub(crate) fn selected_list_source_index(&self) -> Option<usize> {
-        let v = self.visible_list_source_indices();
-        v.get(self.list_index).copied()
-    }
-
     pub fn list_len(&self) -> usize {
-        self.visible_list_source_indices().len()
+        self.list_row_labels().len()
     }
 
     pub fn list_next(&mut self) {
@@ -187,26 +170,18 @@ impl LibraryBrowseScreen {
         self.roms = None;
         self.rom_loading = false;
         self.view_mode = LibraryViewMode::List;
-        self.list_search.clear();
     }
 
     pub fn switch_view(&mut self) {
-        match self.view_mode {
-            LibraryViewMode::List => {
-                self.list_search.clear();
-                self.view_mode = LibraryViewMode::Roms;
-            }
-            LibraryViewMode::Roms => {
-                self.rom_search.clear();
-                self.view_mode = LibraryViewMode::List;
-            }
-        }
+        self.view_mode = match self.view_mode {
+            LibraryViewMode::List => LibraryViewMode::Roms,
+            LibraryViewMode::Roms => LibraryViewMode::List,
+        };
         self.rom_selected = 0;
         self.scroll_offset = 0;
     }
 
     pub fn back_to_list(&mut self) {
-        self.rom_search.clear();
         self.view_mode = LibraryViewMode::List;
     }
 
@@ -215,7 +190,6 @@ impl LibraryBrowseScreen {
         self.rom_groups = None;
         self.rom_selected = 0;
         self.scroll_offset = 0;
-        self.rom_search.clear();
     }
 
     pub fn set_rom_loading(&mut self, loading: bool) {
@@ -226,116 +200,6 @@ impl LibraryBrowseScreen {
         self.roms = Some(roms.clone());
         self.rom_groups = Some(utils::group_roms_by_name(&roms.items));
         self.rom_loading = false;
-    }
-
-    // -- List search --------------------------------------------------------
-
-    pub fn enter_list_search(&mut self, mode: LibrarySearchMode) {
-        self.list_search.enter(mode);
-        self.list_index = 0;
-    }
-
-    pub fn clear_list_search(&mut self) {
-        self.list_search.clear();
-        self.clamp_list_index();
-    }
-
-    pub fn add_list_search_char(&mut self, c: char) {
-        self.list_search.add_char(c);
-        if self.list_search.mode == Some(LibrarySearchMode::Filter) {
-            self.list_index = 0;
-        } else if self.list_search.mode == Some(LibrarySearchMode::Jump) {
-            self.list_jump_match(false);
-        }
-        self.clamp_list_index();
-    }
-
-    pub fn delete_list_search_char(&mut self) {
-        self.list_search.delete_char();
-        if self.list_search.mode == Some(LibrarySearchMode::Filter) {
-            self.list_index = 0;
-        }
-        self.clamp_list_index();
-    }
-
-    pub fn commit_list_filter_bar(&mut self) {
-        self.list_search.commit_filter_bar();
-        self.clamp_list_index();
-    }
-
-    pub fn commit_rom_filter_bar(&mut self) {
-        self.rom_search.commit_filter_bar();
-    }
-
-    pub fn list_jump_match(&mut self, next: bool) {
-        if self.list_search.normalized_query.is_empty() {
-            return;
-        }
-        let labels = self.list_row_labels();
-        if labels.is_empty() {
-            return;
-        }
-        let source = self
-            .selected_list_source_index()
-            .unwrap_or(0)
-            .min(labels.len().saturating_sub(1));
-        if let Some(new_src) =
-            jump_next_index(&labels, source, &self.list_search.normalized_query, next)
-        {
-            let visible = self.visible_list_source_indices();
-            if let Some(pos) = visible.iter().position(|&i| i == new_src) {
-                self.list_index = pos;
-            }
-        }
-    }
-
-    // -- ROM search ---------------------------------------------------------
-
-    pub fn enter_rom_search(&mut self, mode: LibrarySearchMode) {
-        self.rom_search.enter(mode);
-        self.rom_selected = 0;
-        self.scroll_offset = 0;
-    }
-
-    pub fn clear_rom_search(&mut self) {
-        self.rom_search.clear();
-    }
-
-    pub fn add_rom_search_char(&mut self, c: char) {
-        self.rom_search.add_char(c);
-        if self.rom_search.mode == Some(LibrarySearchMode::Filter) {
-            self.rom_selected = 0;
-            self.scroll_offset = 0;
-        } else if self.rom_search.mode == Some(LibrarySearchMode::Jump) {
-            self.jump_rom_match(false);
-        }
-    }
-
-    pub fn delete_rom_search_char(&mut self) {
-        self.rom_search.delete_char();
-        if self.rom_search.mode == Some(LibrarySearchMode::Filter) {
-            self.rom_selected = 0;
-            self.scroll_offset = 0;
-        }
-    }
-
-    pub fn jump_rom_match(&mut self, next: bool) {
-        if self.rom_search.normalized_query.is_empty() {
-            return;
-        }
-        let Some(ref groups) = self.rom_groups else {
-            return;
-        };
-        let labels: Vec<String> = groups.iter().map(|g| g.name.clone()).collect();
-        if labels.is_empty() {
-            return;
-        }
-        let source = self.rom_selected.min(labels.len().saturating_sub(1));
-        if let Some(idx) = jump_next_index(&labels, source, &self.rom_search.normalized_query, next)
-        {
-            self.rom_selected = idx;
-            self.update_rom_scroll(self.visible_rows);
-        }
     }
 
     pub fn get_selected_group(&self) -> Option<(Rom, Vec<Rom>)> {
@@ -354,18 +218,7 @@ impl LibraryBrowseScreen {
     }
 
     pub(crate) fn visible_rom_groups(&self) -> Vec<RomGroup> {
-        let Some(ref groups) = self.rom_groups else {
-            return Vec::new();
-        };
-        if self.rom_search.filter_active() {
-            groups
-                .iter()
-                .filter(|g| normalize_label(&g.name).contains(&self.rom_search.normalized_query))
-                .cloned()
-                .collect()
-        } else {
-            groups.clone()
-        }
+        self.rom_groups.clone().unwrap_or_default()
     }
 
     pub(crate) fn list_title(&self) -> &str {
@@ -377,10 +230,16 @@ impl LibraryBrowseScreen {
 
     pub fn selected_platform_id(&self) -> Option<u64> {
         match self.subsection {
-            LibrarySubsection::ByConsole => self
-                .selected_list_source_index()
-                .and_then(|i| self.platforms.get(i).map(|p| p.id)),
+            LibrarySubsection::ByConsole => self.platforms.get(self.list_index).map(|p| p.id),
             LibrarySubsection::ByCollection => None,
+        }
+    }
+
+    pub(crate) fn selected_list_source_index(&self) -> Option<usize> {
+        if self.list_len() == 0 {
+            None
+        } else {
+            Some(self.list_index.min(self.list_len().saturating_sub(1)))
         }
     }
 }

@@ -16,7 +16,6 @@ impl super::App {
             connected_splash::render(f, area, splash, &styles);
         } else {
             match &mut self.screen {
-                AppScreen::MainMenu(menu) => menu.render(f, area, &styles),
                 AppScreen::LibraryBrowse(lib) => {
                     lib.render(f, area, &styles);
                     if let Some((x, y)) = lib.upload_prompt_cursor(area) {
