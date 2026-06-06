@@ -44,6 +44,8 @@ pub mod core;
 pub mod endpoints;
 /// Typed error hierarchy (`ApiError`, `ConfigError`, `DownloadError`, `RommError`).
 pub mod error;
+/// Redaction helpers for tracing output (no secrets in logs).
+pub mod log_redact;
 pub use error::exit;
 /// Feature compatibility helpers based on OpenAPI endpoint availability.
 pub mod feature_compat;

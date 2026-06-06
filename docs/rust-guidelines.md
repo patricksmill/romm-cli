@@ -224,20 +224,23 @@ romm-cli/          # workspace root
 
 ### Gap 6: Layered configuration
 
-**Current state:** Config from env + `config.json` + keyring. CLI flags override some behavior per command but there is no unified precedence model documented in one place.
+**Current state:** Layered merge in [`load_config()`](../src/config.rs) (defaults → `config.json` → env → keyring) plus narrow command-specific CLI runtime overrides. Documented in module docs, README, and [architecture.md](./architecture.md).
 
-**Recommended approach:**
+**Precedence model (per field):**
 
-- Model config as serde structs with optional layers:
-  - File defaults → env overrides → CLI flags (highest precedence)
-- Use `#[serde(flatten)]` to compose global + command-specific config structs in clap where it reduces duplication.
-- Document precedence in this file and in user-facing README.
+1. Built-in defaults
+2. `config.json`
+3. Environment variables (override file)
+4. OS keyring (resolve secret sentinels after merge)
+5. Command-specific CLI runtime (`download --output`, `sync run --download-dir`; `init`/`auth login` persist to file)
+
+There is no global `CLI > env` for connection settings on normal commands.
 
 **Acceptance criteria:**
 
-- [ ] Single documented precedence order: CLI > env > config file > defaults
-- [ ] Sensitive values never logged by `tracing` (passwords, tokens, API keys)
-- [ ] `ROMM_*` env vars listed in README
+- [x] Single documented precedence order (see README *Configuration precedence* and `config.rs` module docs)
+- [x] Sensitive values never logged by `tracing` (passwords, tokens, API keys)
+- [x] `ROMM_*` env vars listed in README
 
 **References:** [Modern Rust CLI — serde flatten](https://techbytes.app/posts/modern-rust-cli-development-2026-cheat-sheet/)
 
@@ -289,4 +292,4 @@ romm-cli/          # workspace root
 
 ---
 
-*Last updated: 2026-06-06 — Gap 5 complete (event/action pipeline); Gap 4 closed as deferred (single crate maintained).*
+*Last updated: 2026-06-06 — Gap 6 complete (layered config docs + tracing redaction); Gap 5 complete (event/action pipeline); Gap 4 closed as deferred (single crate maintained).*

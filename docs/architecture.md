@@ -8,7 +8,7 @@ The project is a **single Cargo package** (not a workspace). The crate exposes a
 
 A future split into `romm-api` / `romm-cli` / `romm-tui` crates is **not planned**; see [workspace-split ADR](plans/2026-06-06-workspace-split-adr.md). Library consumers should use `romm-cli` with `--no-default-features` to avoid TUI dependencies until a split is triggered. 
 
-Configuration is loaded from the process environment, then `config.json` in the user config directory (written by `romm-cli init` or the TUI setup wizard). Secrets (like passwords and tokens) may be stored in the OS keyring via `keyring::Entry` with a `<stored-in-keyring>` sentinel in JSON only after a successful read-back verification. Note that `Commands::Init` is handled in `main.rs` *before* `load_config` so that `init` can run even if no configuration exists yet.
+Configuration is layered per field: built-in defaults → `config.json` → environment variables → OS keyring (secret sentinels) → command-specific CLI runtime overrides. See the README [*Configuration precedence*](../README.md#configuration-precedence) section and [`src/config.rs`](../src/config.rs) module documentation for the full model. Secrets (like passwords and tokens) may be stored in the OS keyring via `keyring::Entry` with a `<stored-in-keyring>` sentinel in JSON only after a successful read-back verification. Note that `Commands::Init` is handled in `main.rs` *before* `load_config` so that `init` can run even if no configuration exists yet.
 
 From bottom to top:
 

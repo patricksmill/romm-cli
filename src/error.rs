@@ -108,6 +108,32 @@ impl ApiError {
             || self.status_code().is_some_and(|s| s == 404)
             || self.to_string().contains("404 Not Found")
     }
+
+    /// Log-safe summary: status and variant only; HTTP response bodies are omitted.
+    pub fn redacted_for_log(&self) -> String {
+        match self {
+            Self::Unauthorized { .. } => "ApiError: 401 Unauthorized (body redacted)".to_string(),
+            Self::Forbidden { .. } => "ApiError: 403 Forbidden (body redacted)".to_string(),
+            Self::NotFound { path, .. } => {
+                format!("ApiError: 404 Not Found path={path} (body redacted)")
+            }
+            Self::RateLimited { retry_after, .. } => format!(
+                "ApiError: 429 Too Many Requests retry_after={retry_after:?} (body redacted)"
+            ),
+            Self::ClientError { status, .. } => {
+                format!("ApiError: client error {status} (body redacted)")
+            }
+            Self::ServerError { status, .. } => {
+                format!("ApiError: server error {status} (body redacted)")
+            }
+            Self::Request(e) => format!("ApiError: request failed: {e}"),
+            Self::Decode(e) => format!("ApiError: invalid response: {e}"),
+            Self::InvalidMethod(m) => format!("ApiError: invalid HTTP method: {m}"),
+            Self::InvalidHeader(h) => format!("ApiError: invalid HTTP header: {h}"),
+            Self::UnexpectedResponse(m) => format!("ApiError: unexpected API response: {m}"),
+            Self::Io(e) => format!("ApiError: I/O error: {e}"),
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

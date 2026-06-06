@@ -4,6 +4,7 @@ use std::time::Instant;
 
 use crate::core::cache::RomCacheKey;
 use crate::core::roms::fetch_roms_paginated;
+use crate::log_redact::redact_anyhow_for_log;
 use crate::endpoints::roms::GetRoms;
 use crate::tui::screens::library_browse::LibraryBrowseScreen;
 
@@ -97,7 +98,13 @@ impl super::App {
                 let result = fetch_roms_paginated(&client, &req).await;
                 let (roms, warning) = match result {
                     Ok(list) => (Some(list), None),
-                    Err(e) => (None, Some(format!("Collection prefetch failed: {e:#}"))),
+                    Err(e) => (
+                        None,
+                        Some(format!(
+                            "Collection prefetch failed: {}",
+                            redact_anyhow_for_log(&e)
+                        )),
+                    ),
                 };
                 let _ = tx.send(CollectionPrefetchDone {
                     key,

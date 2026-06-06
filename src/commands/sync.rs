@@ -222,7 +222,10 @@ async fn preflight_save_sync_compatibility(
     let openapi = match client.fetch_openapi_json().await {
         Ok(body) => body,
         Err(e) => {
-            tracing::warn!("Skipping save-sync compatibility preflight: {e:#}");
+            tracing::warn!(
+                "Skipping save-sync compatibility preflight: {}",
+                e.redacted_for_log()
+            );
             return Ok(());
         }
     };
