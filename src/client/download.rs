@@ -82,7 +82,11 @@ impl RommClient {
     {
         let url = self.resolve_download_url(url)?;
         let filename = filename_hint(save_path);
-        let mut headers = self.build_headers()?;
+        let mut headers = if self.should_send_auth_to_download_url(&url) {
+            self.build_headers()?
+        } else {
+            reqwest::header::HeaderMap::new()
+        };
 
         let existing_len = tokio::fs::metadata(save_path)
             .await
@@ -197,6 +201,19 @@ impl RommClient {
         })?;
         Ok(joined.to_string())
     }
+
+    fn should_send_auth_to_download_url(&self, url: &str) -> bool {
+        let Ok(download_url) = Url::parse(url) else {
+            return true;
+        };
+        let Ok(base_url) = Url::parse(&normalize_romm_origin(&self.base_url)) else {
+            return false;
+        };
+
+        download_url.scheme() == base_url.scheme()
+            && download_url.host_str() == base_url.host_str()
+            && download_url.port_or_known_default() == base_url.port_or_known_default()
+    }
 }
 
 fn filename_hint(save_path: &Path) -> String {
@@ -205,4 +222,42 @@ fn filename_hint(save_path: &Path) -> String {
         .and_then(|n| n.to_str())
         .unwrap_or("download.bin")
         .to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::config::{AuthConfig, Config, ExtrasDefaults};
+
+    use super::*;
+
+    fn client_for(base_url: &str) -> RommClient {
+        RommClient::new(
+            &Config {
+                base_url: base_url.to_string(),
+                download_dir: ".".to_string(),
+                use_https: true,
+                auth: Some(AuthConfig::Bearer {
+                    token: "secret".to_string(),
+                }),
+                extras_defaults: ExtrasDefaults::default(),
+                save_sync: Default::default(),
+                roms_layout: Default::default(),
+                theme: crate::config::default_theme_id(),
+            },
+            false,
+        )
+        .expect("client")
+    }
+
+    #[test]
+    fn download_auth_allowed_for_same_origin_absolute_url() {
+        let client = client_for("https://romm.example:8443/api");
+        assert!(client.should_send_auth_to_download_url("https://romm.example:8443/files/a.zip"));
+    }
+
+    #[test]
+    fn download_auth_blocked_for_off_origin_absolute_url() {
+        let client = client_for("https://romm.example/api");
+        assert!(!client.should_send_auth_to_download_url("https://cdn.example/files/a.zip"));
+    }
 }

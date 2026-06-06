@@ -518,3 +518,29 @@ fn extract_zip_archive_writes_files_to_destination() {
 
     let _ = std::fs::remove_dir_all(&base);
 }
+
+#[test]
+fn extract_zip_archive_rejects_path_traversal_entries() {
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let base = std::env::temp_dir().join(format!("romm-extract-traversal-{ts}"));
+    let zip_path = base.join("sample.zip");
+    let out_dir = base.join("out");
+    std::fs::create_dir_all(&base).unwrap();
+
+    let zip_file = std::fs::File::create(&zip_path).unwrap();
+    let mut writer = ZipWriter::new(zip_file);
+    writer
+        .start_file("../escape.rom", SimpleFileOptions::default())
+        .unwrap();
+    writer.write_all(b"escape").unwrap();
+    writer.finish().unwrap();
+
+    assert!(extract_zip_archive(&zip_path, &out_dir).is_err());
+    assert!(
+        !base.join("escape.rom").exists(),
+        "archive entry escaped extraction directory"
+    );
+}

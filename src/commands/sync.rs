@@ -194,6 +194,25 @@ struct PreparedSave {
     client: ClientSaveState,
 }
 
+fn safe_download_file_name(input: &str, save_id: u64) -> String {
+    let cleaned: String = input
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || matches!(c, ' ' | '-' | '_' | '.') {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    let trimmed = cleaned.trim().trim_matches('.').trim();
+    if trimmed.is_empty() {
+        format!("save-{save_id}.sav")
+    } else {
+        trimmed.to_string()
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default)]
 struct RunCounts {
     uploaded: u64,
@@ -412,7 +431,8 @@ async fn handle_run(args: SyncRunArgs, client: &RommClient, format: OutputFormat
                     .await
                 {
                     Ok(bytes) => {
-                        let target = download_base.join(&op.file_name);
+                        let target =
+                            download_base.join(safe_download_file_name(&op.file_name, save_id));
                         if let Some(parent) = target.parent() {
                             std::fs::create_dir_all(parent).with_context(|| {
                                 format!("failed to create parent folder {}", parent.display())
@@ -773,5 +793,22 @@ mod tests {
         let err = prepared_by_key(&prepared).expect_err("duplicate should fail");
         assert!(err.to_string().contains("duplicate manifest mapping"));
         let _ = fs::remove_file(p);
+    }
+
+    #[test]
+    fn safe_download_file_name_removes_path_separators() {
+        assert_eq!(
+            safe_download_file_name("../folder/evil.sav", 12),
+            "_folder_evil.sav"
+        );
+        assert_eq!(
+            safe_download_file_name(r"..\folder\evil.sav", 12),
+            "_folder_evil.sav"
+        );
+    }
+
+    #[test]
+    fn safe_download_file_name_falls_back_when_empty() {
+        assert_eq!(safe_download_file_name("...", 42), "save-42.sav");
     }
 }

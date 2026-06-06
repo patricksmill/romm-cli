@@ -1,5 +1,6 @@
 //! ROM/save path resolution and zip extraction helpers.
 
+use std::io;
 use std::path::{Path, PathBuf};
 
 use crate::config::RomsLayoutConfig;
@@ -245,14 +246,58 @@ pub fn extract_zip_archive(zip_path: &Path, destination_dir: &Path) -> Result<()
         context: format!("Invalid ZIP archive {}", zip_path.display()),
         source: std::io::Error::new(std::io::ErrorKind::InvalidData, e),
     })?;
-    archive
-        .extract(&destination_dir)
-        .map_err(|e| DownloadError::IoContext {
-            context: format!(
-                "Could not extract archive into {}",
-                destination_dir.display()
-            ),
-            source: std::io::Error::new(std::io::ErrorKind::InvalidData, e),
+    for i in 0..archive.len() {
+        let mut entry = archive.by_index(i).map_err(|e| DownloadError::IoContext {
+            context: format!("Could not read zip entry {i} in {}", zip_path.display()),
+            source: io::Error::new(io::ErrorKind::InvalidData, e),
         })?;
+        let enclosed_name = entry
+            .enclosed_name()
+            .ok_or_else(|| DownloadError::IoContext {
+                context: format!(
+                    "Refusing to extract unsafe zip entry {:?} from {}",
+                    entry.name(),
+                    zip_path.display()
+                ),
+                source: io::Error::new(io::ErrorKind::InvalidData, "unsafe zip entry path"),
+            })?;
+        if entry
+            .unix_mode()
+            .is_some_and(|mode| mode & 0o170000 == 0o120000)
+        {
+            return Err(DownloadError::IoContext {
+                context: format!(
+                    "Refusing to extract symlink zip entry {:?} from {}",
+                    entry.name(),
+                    zip_path.display()
+                ),
+                source: io::Error::new(io::ErrorKind::InvalidData, "zip symlink entry"),
+            });
+        }
+
+        let target = destination_dir.join(enclosed_name);
+        if entry.is_dir() {
+            std::fs::create_dir_all(&target).map_err(|e| DownloadError::IoContext {
+                context: format!("Could not create extracted directory {}", target.display()),
+                source: e,
+            })?;
+            continue;
+        }
+
+        if let Some(parent) = target.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| DownloadError::IoContext {
+                context: format!("Could not create extracted parent {}", parent.display()),
+                source: e,
+            })?;
+        }
+        let mut out = File::create(&target).map_err(|e| DownloadError::IoContext {
+            context: format!("Could not create extracted file {}", target.display()),
+            source: e,
+        })?;
+        io::copy(&mut entry, &mut out).map_err(|e| DownloadError::IoContext {
+            context: format!("Could not write extracted file {}", target.display()),
+            source: e,
+        })?;
+    }
     Ok(())
 }
