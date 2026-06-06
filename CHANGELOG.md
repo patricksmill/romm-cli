@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.40.0](https://github.com/patricksmill/romm-cli/compare/v0.39.0...v0.40.0) (2026-06-06)
+
+
+### Features
+
+* **download:** implement authentication header logic for download URLs ([9f80ffc](https://github.com/patricksmill/romm-cli/commit/9f80ffcfdf4b0470ce2192c3e8327cd4390e83ce))
+* **sync:** add safe_download_file_name function to sanitize file names ([9f80ffc](https://github.com/patricksmill/romm-cli/commit/9f80ffcfdf4b0470ce2192c3e8327cd4390e83ce))
+* **tui:** add persisted panel layout and fix overlay keyboard handling ([e526ad5](https://github.com/patricksmill/romm-cli/commit/e526ad5458c0c7f6525a3746acab31038953058f))
+* **tui:** replace main menu with global search and keybinding navigation ([e8fbc36](https://github.com/patricksmill/romm-cli/commit/e8fbc3638f5dc96522d739f0dc630ad0cfbe0b72))
+
+
+### Bug Fixes
+
+* **paths:** enhance zip extraction to reject path traversal entries ([9f80ffc](https://github.com/patricksmill/romm-cli/commit/9f80ffcfdf4b0470ce2192c3e8327cd4390e83ce))
+
 ## [0.39.0](https://github.com/patricksmill/romm-cli/compare/v0.38.0...v0.39.0) (2026-06-06)
 
 
