@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.38.0](https://github.com/patricksmill/romm-cli/compare/v0.37.0...v0.38.0) (2026-06-06)
+
+
+### Features
+
+* **completions:** add shell completion scripts and build script ([f54d761](https://github.com/patricksmill/romm-cli/commit/f54d76119e99694c4ce41797f3b9488a3b4843f8))
+* **completions:** enhance shell completion support and CI integration ([9d2db49](https://github.com/patricksmill/romm-cli/commit/9d2db490891ddeca1201c485893f7895da1fb988))
+* **errors:** implement typed error handling across the codebase ([fcae759](https://github.com/patricksmill/romm-cli/commit/fcae75915d175462775c6a952bc36d15535366ed))
+
+
+### Bug Fixes
+
+* **config:** improve error handling in persist_user_config function ([920ee3c](https://github.com/patricksmill/romm-cli/commit/920ee3cab35cefd05b89903b18d6c9dcfeb340a5))
+
 ## [0.37.0](https://github.com/patricksmill/romm-cli/compare/v0.36.0...v0.37.0) (2026-05-28)
 
 
