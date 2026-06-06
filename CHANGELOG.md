@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.39.0](https://github.com/patricksmill/romm-cli/compare/v0.38.0...v0.39.0) (2026-06-06)
+
+
+### Features
+
+* **cli:** close Gap 7 with CliPresentation and JSON-safe output ([4dcfdad](https://github.com/patricksmill/romm-cli/commit/4dcfdad39d8bf280e1d70b3fa6a2a5d9d54b2781))
+* **errors:** implement distinct exit codes for improved error handling ([6d521e7](https://github.com/patricksmill/romm-cli/commit/6d521e7b1f11299c7381385ea955f04dbf21a32a))
+* **tui:** implement event/action pipeline for improved TUI architecture ([c24ef8a](https://github.com/patricksmill/romm-cli/commit/c24ef8ab0b1c19805978eb42499a838bc830720d))
+
+
+### Bug Fixes
+
+* **tui:** restore tab navigation on settings Appearance tab ([2ee3457](https://github.com/patricksmill/romm-cli/commit/2ee3457a5616b27abad6662fba9abb6c0a48c11e))
+
 ## [0.38.0](https://github.com/patricksmill/romm-cli/compare/v0.37.0...v0.38.0) (2026-06-06)
 
 
