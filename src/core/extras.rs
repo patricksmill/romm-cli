@@ -5,12 +5,12 @@
 use std::path::{Path, PathBuf};
 
 use crate::client::RommClient;
-use crate::error::DownloadError;
 use crate::config::RomsLayoutConfig;
 use crate::core::download::resolve_console_roms_dir;
 use crate::core::utils;
 use crate::endpoints::roms::GetRom;
 use crate::endpoints::roms::GetRoms;
+use crate::error::DownloadError;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
 use crate::types::{Rom, RomFile, RomFileCategory};

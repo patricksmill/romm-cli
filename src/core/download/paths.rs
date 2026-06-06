@@ -11,7 +11,9 @@ use std::fs::File;
 use zip::ZipArchive;
 
 /// Directory for ROM storage (`ROMM_ROMS_DIR`, `ROMM_DOWNLOAD_DIR`, or configured path).
-pub fn resolve_download_directory(configured_download_dir: Option<&str>) -> Result<PathBuf, DownloadError> {
+pub fn resolve_download_directory(
+    configured_download_dir: Option<&str>,
+) -> Result<PathBuf, DownloadError> {
     let env_override = std::env::var("ROMM_ROMS_DIR")
         .ok()
         .or_else(|| std::env::var("ROMM_DOWNLOAD_DIR").ok());
@@ -65,7 +67,10 @@ pub(crate) fn resolve_download_directory_from_inputs(
     }
 
     std::fs::create_dir_all(&normalized).map_err(|e| DownloadError::IoContext {
-        context: format!("Could not create download directory {}", normalized.display()),
+        context: format!(
+            "Could not create download directory {}",
+            normalized.display()
+        ),
         source: e,
     })?;
 
@@ -240,12 +245,14 @@ pub fn extract_zip_archive(zip_path: &Path, destination_dir: &Path) -> Result<()
         context: format!("Invalid ZIP archive {}", zip_path.display()),
         source: std::io::Error::new(std::io::ErrorKind::InvalidData, e),
     })?;
-    archive.extract(&destination_dir).map_err(|e| DownloadError::IoContext {
-        context: format!(
-            "Could not extract archive into {}",
-            destination_dir.display()
-        ),
-        source: std::io::Error::new(std::io::ErrorKind::InvalidData, e),
-    })?;
+    archive
+        .extract(&destination_dir)
+        .map_err(|e| DownloadError::IoContext {
+            context: format!(
+                "Could not extract archive into {}",
+                destination_dir.display()
+            ),
+            source: std::io::Error::new(std::io::ErrorKind::InvalidData, e),
+        })?;
     Ok(())
 }

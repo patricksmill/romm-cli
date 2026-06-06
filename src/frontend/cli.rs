@@ -11,7 +11,11 @@ fn map_anyhow<T>(result: Result<T, anyhow::Error>) -> Result<T, RommError> {
 }
 
 /// Execute one non-TUI CLI command.
-pub async fn run(command: Commands, client: &RommClient, global_json: bool) -> Result<(), RommError> {
+pub async fn run(
+    command: Commands,
+    client: &RommClient,
+    global_json: bool,
+) -> Result<(), RommError> {
     match command {
         Commands::Api(cmd) => {
             let format = OutputFormat::from_flags(global_json, false);
@@ -53,5 +57,8 @@ pub async fn run(command: Commands, client: &RommClient, global_json: bool) -> R
             let interrupt = InterruptContext::new();
             map_anyhow(crate::commands::update::handle(Some(interrupt)).await)
         }
+        Commands::Completions(_) => Err(RommError::Other(
+            "internal routing error: completions command in CLI frontend".into(),
+        )),
     }
 }

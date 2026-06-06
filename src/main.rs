@@ -1,6 +1,7 @@
 //! Binary entrypoint for `romm-cli`.
 
 use clap::Parser;
+use romm_cli::commands::completions;
 use romm_cli::commands::init;
 use romm_cli::commands::{run, Cli, Commands};
 use romm_cli::config::{load_config, should_check_updates};
@@ -45,6 +46,7 @@ async fn run_app() -> Result<(), RommError> {
     maybe_prompt_for_startup_update(&command).await?;
 
     match command {
+        Commands::Completions(cmd) => completions::handle(cmd),
         Commands::Init(cmd) => map_anyhow(init::handle(cmd, verbose).await),
         #[cfg(feature = "tui")]
         Commands::Tui { mock_update } => {
@@ -54,9 +56,7 @@ async fn run_app() -> Result<(), RommError> {
                     .with_writer(std::io::stderr)
                     .init();
             }
-            map_anyhow(
-                romm_cli::frontend::tui::run_interactive(verbose, mock_update).await,
-            )
+            map_anyhow(romm_cli::frontend::tui::run_interactive(verbose, mock_update).await)
         }
         command => {
             if !command_requires_config(&command) {
@@ -101,7 +101,10 @@ fn is_interactive_terminal() -> bool {
 
 fn should_skip_startup_update_check(command: &Commands) -> bool {
     // Skip for `update` (redundant) and `tui` (has its own graphical update prompt).
-    matches!(command, Commands::Update | Commands::Tui { .. })
+    matches!(
+        command,
+        Commands::Update | Commands::Tui { .. } | Commands::Completions(_)
+    )
 }
 
 fn read_update_choice() -> Result<String, RommError> {
@@ -109,7 +112,9 @@ fn read_update_choice() -> Result<String, RommError> {
         "New romm-cli version is available.\n\
          Choose: [u]pdate now, [c]hangelog, [s]kip (default: s): "
     );
-    io::stdout().flush().map_err(|e| RommError::Other(e.to_string()))?;
+    io::stdout()
+        .flush()
+        .map_err(|e| RommError::Other(e.to_string()))?;
     let mut choice = String::new();
     io::stdin()
         .read_line(&mut choice)
@@ -185,7 +190,9 @@ fn command_requires_config(command: &Commands) -> bool {
         | Commands::Download(_)
         | Commands::Scan(_)
         | Commands::Sync(_) => true,
-        Commands::Cache(_) | Commands::Auth(_) | Commands::Update => false,
+        Commands::Cache(_) | Commands::Auth(_) | Commands::Update | Commands::Completions(_) => {
+            false
+        }
         Commands::Init(_) | Commands::Tui { .. } => false,
     }
 }

@@ -2,8 +2,8 @@ use crate::client::RommClient;
 use crate::config::RomsLayoutConfig;
 use crate::core::extras::build_base_rom_file_targets;
 use crate::core::interrupt::is_cancelled_download;
-use crate::error::DownloadError;
 use crate::core::utils;
+use crate::error::DownloadError;
 use crate::types::Rom;
 
 use super::super::job::{DownloadJob, DownloadStatus};

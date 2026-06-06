@@ -35,10 +35,7 @@ pub(crate) fn api_error_from_response_truncated(
     body: &str,
     max_chars: usize,
 ) -> ApiError {
-    ApiError::from_http_response(
-        status,
-        body.chars().take(max_chars).collect::<String>(),
-    )
+    ApiError::from_http_response(status, body.chars().take(max_chars).collect::<String>())
 }
 
 pub(crate) fn version_from_heartbeat_json(v: &Value) -> Option<String> {

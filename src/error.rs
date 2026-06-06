@@ -105,9 +105,7 @@ impl ApiError {
     /// True when the error body or display text indicates a 404 (URL fallback logic).
     pub fn is_not_found(&self) -> bool {
         matches!(self, Self::NotFound { .. })
-            || self
-                .status_code()
-                .is_some_and(|s| s == 404)
+            || self.status_code().is_some_and(|s| s == 404)
             || self.to_string().contains("404 Not Found")
     }
 }
@@ -258,10 +256,7 @@ pub enum RommError {
 impl RommError {
     /// True when the user cancelled a long-running operation.
     pub fn is_cancelled(&self) -> bool {
-        matches!(
-            self,
-            RommError::Download(DownloadError::Cancelled(_))
-        )
+        matches!(self, RommError::Download(DownloadError::Cancelled(_)))
     }
 
     /// True for auth-related API or config failures.
@@ -381,9 +376,7 @@ mod tests {
 
     #[test]
     fn exit_code_auth_vs_network() {
-        let auth = RommError::Api(ApiError::Unauthorized {
-            body: "x".into(),
-        });
+        let auth = RommError::Api(ApiError::Unauthorized { body: "x".into() });
         assert_eq!(exit_code(&auth), 3);
 
         let net = RommError::Api(ApiError::ServerError {

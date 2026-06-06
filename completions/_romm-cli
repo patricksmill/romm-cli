@@ -1,0 +1,3749 @@
+#compdef romm-cli
+
+autoload -U is-at-least
+
+_romm-cli() {
+    typeset -A opt_args
+    typeset -a _arguments_options
+    local ret=1
+
+    if is-at-least 5.2; then
+        _arguments_options=(-s -S -C)
+    else
+        _arguments_options=(-s -C)
+    fi
+
+    local context curcontext="$curcontext" state line
+    _arguments "${_arguments_options[@]}" : \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'--json[Output JSON instead of human-readable text where supported]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+'-V[Print version]' \
+'--version[Print version]' \
+":: :_romm-cli_commands" \
+"*::: :->romm-cli" \
+&& ret=0
+    case $state in
+    (romm-cli)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-command-$line[1]:"
+        case $line[1] in
+            (init)
+_arguments "${_arguments_options[@]}" : \
+'--url=[RomM origin URL (e.g. <https\://romm.example>). If provided with a token, skips interactive prompts]:URL:_default' \
+'--token=[Bearer token string (discouraged\: visible in process list)]:TOKEN:_default' \
+'--token-file=[Read Bearer token from a UTF-8 file. Use '\''-'\'' for stdin]:TOKEN_FILE:_default' \
+'--download-dir=[ROMs directory]:DOWNLOAD_DIR:_default' \
+'--force[Overwrite existing user config \`config.json\` without asking]' \
+'--print-path[Print the path to the user config \`config.json\` and exit]' \
+'--no-https[Disable HTTPS (use HTTP instead)]' \
+'--check[Verify URL and token by fetching OpenAPI after saving]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'--json[Output JSON instead of human-readable text where supported]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(setup)
+_arguments "${_arguments_options[@]}" : \
+'--url=[RomM origin URL (e.g. <https\://romm.example>). If provided with a token, skips interactive prompts]:URL:_default' \
+'--token=[Bearer token string (discouraged\: visible in process list)]:TOKEN:_default' \
+'--token-file=[Read Bearer token from a UTF-8 file. Use '\''-'\'' for stdin]:TOKEN_FILE:_default' \
+'--download-dir=[ROMs directory]:DOWNLOAD_DIR:_default' \
+'--force[Overwrite existing user config \`config.json\` without asking]' \
+'--print-path[Print the path to the user config \`config.json\` and exit]' \
+'--no-https[Disable HTTPS (use HTTP instead)]' \
+'--check[Verify URL and token by fetching OpenAPI after saving]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'--json[Output JSON instead of human-readable text where supported]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(tui)
+_arguments "${_arguments_options[@]}" : \
+'--mock-update[Force show a fake update prompt for UI testing]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'--json[Output JSON instead of human-readable text where supported]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(api)
+_arguments "${_arguments_options[@]}" : \
+'*--query=[Query parameters as key=value, repeatable]:QUERY:_default' \
+'--data=[JSON request body as a string]:DATA:_default' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'--json[Output JSON instead of human-readable text where supported]' \
+'-h[Print help]' \
+'--help[Print help]' \
+'::method -- HTTP method (legacy, use '\''api call `<method>` `<path>`'\''):_default' \
+'::path -- API path (legacy, use '\''api call `<method>` `<path>`'\''):_default' \
+":: :_romm-cli__subcmd__api_commands" \
+"*::: :->api" \
+&& ret=0
+
+    case $state in
+    (api)
+        words=($line[3] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-api-command-$line[3]:"
+        case $line[3] in
+            (call)
+_arguments "${_arguments_options[@]}" : \
+'*--query=[Query parameters as key=value, repeatable]:QUERY:_default' \
+'--data=[JSON request body as a string]:DATA:_default' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'--json[Output JSON instead of human-readable text where supported]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':method -- HTTP method (GET, POST, etc.):_default' \
+':path -- API path (e.g. /api/roms):_default' \
+&& ret=0
+;;
+(get)
+_arguments "${_arguments_options[@]}" : \
+'*--query=[Query parameters as key=value, repeatable]:QUERY:_default' \
+'--data=[JSON request body as a string]:DATA:_default' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'--json[Output JSON instead of human-readable text where supported]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':path -- API path:_default' \
+&& ret=0
+;;
+(post)
+_arguments "${_arguments_options[@]}" : \
+'*--query=[Query parameters as key=value, repeatable]:QUERY:_default' \
+'--data=[JSON request body as a string]:DATA:_default' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'--json[Output JSON instead of human-readable text where supported]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':path -- API path:_default' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_romm-cli__subcmd__api__subcmd__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-api-help-command-$line[1]:"
+        case $line[1] in
+            (call)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(get)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(post)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(call)
+_arguments "${_arguments_options[@]}" : \
+'*--query=[Query parameters as key=value, repeatable]:QUERY:_default' \
+'--data=[JSON request body as a string]:DATA:_default' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'--json[Output JSON instead of human-readable text where supported]' \
+'-h[Print help]' \
+'--help[Print help]' \
+'::method -- HTTP method (legacy, use '\''api call `<method>` `<path>`'\''):_default' \
+'::path -- API path (legacy, use '\''api call `<method>` `<path>`'\''):_default' \
+":: :_romm-cli__subcmd__api_commands" \
+"*::: :->api" \
+&& ret=0
+
+    case $state in
+    (api)
+        words=($line[3] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-api-command-$line[3]:"
+        case $line[3] in
+            (call)
+_arguments "${_arguments_options[@]}" : \
+'*--query=[Query parameters as key=value, repeatable]:QUERY:_default' \
+'--data=[JSON request body as a string]:DATA:_default' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'--json[Output JSON instead of human-readable text where supported]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':method -- HTTP method (GET, POST, etc.):_default' \
+':path -- API path (e.g. /api/roms):_default' \
+&& ret=0
+;;
+(get)
+_arguments "${_arguments_options[@]}" : \
+'*--query=[Query parameters as key=value, repeatable]:QUERY:_default' \
+'--data=[JSON request body as a string]:DATA:_default' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'--json[Output JSON instead of human-readable text where supported]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':path -- API path:_default' \
+&& ret=0
+;;
+(post)
+_arguments "${_arguments_options[@]}" : \
+'*--query=[Query parameters as key=value, repeatable]:QUERY:_default' \
+'--data=[JSON request body as a string]:DATA:_default' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'--json[Output JSON instead of human-readable text where supported]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':path -- API path:_default' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_romm-cli__subcmd__api__subcmd__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-api-help-command-$line[1]:"
+        case $line[1] in
+            (call)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(get)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(post)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(platforms)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_romm-cli__subcmd__platforms_commands" \
+"*::: :->platforms" \
+&& ret=0
+
+    case $state in
+    (platforms)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-platforms-command-$line[1]:"
+        case $line[1] in
+            (list)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(ls)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(get)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':id -- The ID of the platform:_default' \
+&& ret=0
+;;
+(info)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':id -- The ID of the platform:_default' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_romm-cli__subcmd__platforms__subcmd__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-platforms-help-command-$line[1]:"
+        case $line[1] in
+            (list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(get)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(platform)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_romm-cli__subcmd__platforms_commands" \
+"*::: :->platforms" \
+&& ret=0
+
+    case $state in
+    (platforms)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-platforms-command-$line[1]:"
+        case $line[1] in
+            (list)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(ls)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(get)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':id -- The ID of the platform:_default' \
+&& ret=0
+;;
+(info)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':id -- The ID of the platform:_default' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_romm-cli__subcmd__platforms__subcmd__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-platforms-help-command-$line[1]:"
+        case $line[1] in
+            (list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(get)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(p)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_romm-cli__subcmd__platforms_commands" \
+"*::: :->platforms" \
+&& ret=0
+
+    case $state in
+    (platforms)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-platforms-command-$line[1]:"
+        case $line[1] in
+            (list)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(ls)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(get)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':id -- The ID of the platform:_default' \
+&& ret=0
+;;
+(info)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':id -- The ID of the platform:_default' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_romm-cli__subcmd__platforms__subcmd__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-platforms-help-command-$line[1]:"
+        case $line[1] in
+            (list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(get)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(plats)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_romm-cli__subcmd__platforms_commands" \
+"*::: :->platforms" \
+&& ret=0
+
+    case $state in
+    (platforms)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-platforms-command-$line[1]:"
+        case $line[1] in
+            (list)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(ls)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(get)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':id -- The ID of the platform:_default' \
+&& ret=0
+;;
+(info)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':id -- The ID of the platform:_default' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_romm-cli__subcmd__platforms__subcmd__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-platforms-help-command-$line[1]:"
+        case $line[1] in
+            (list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(get)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(roms)
+_arguments "${_arguments_options[@]}" : \
+'--search-term=[]:SEARCH_TERM:_default' \
+'--query=[]:SEARCH_TERM:_default' \
+'--q=[]:SEARCH_TERM:_default' \
+'*--platform=[Platform slug or name; repeat for multiple \`platform_ids\`]:PLATFORM:_default' \
+'*--p=[Platform slug or name; repeat for multiple \`platform_ids\`]:PLATFORM:_default' \
+'--collection=[Manual collection id or exact name]:COLLECTION:_default' \
+'--smart-collection=[Smart collection id or exact name]:SMART_COLLECTION:_default' \
+'--virtual-collection=[Virtual collection id (e.g. recent)]:VIRTUAL_COLLECTION:_default' \
+'--limit=[]:LIMIT:_default' \
+'--offset=[]:OFFSET:_default' \
+'--matched=[]:MATCHED:_default' \
+'--favorite=[]:FAVORITE:_default' \
+'--duplicate=[]:DUPLICATE:_default' \
+'--last-played=[]:LAST_PLAYED:_default' \
+'--playable=[]:PLAYABLE:_default' \
+'--missing=[]:MISSING:_default' \
+'--has-ra=[]:HAS_RA:_default' \
+'--verified=[]:VERIFIED:_default' \
+'--group-by-meta-id=[]:GROUP_BY_META_ID:_default' \
+'--with-char-index=[]:WITH_CHAR_INDEX:_default' \
+'--with-filter-values=[]:WITH_FILTER_VALUES:_default' \
+'*--genre=[]:GENRES:_default' \
+'*--franchise=[]:FRANCHISES:_default' \
+'*--collection-tag=[]:COLLECTION_TAGS:_default' \
+'*--company=[]:COMPANIES:_default' \
+'*--age-rating=[]:AGE_RATINGS:_default' \
+'*--status=[]:STATUSES:_default' \
+'*--region=[]:REGIONS:_default' \
+'*--language=[]:LANGUAGES:_default' \
+'*--player-count=[]:PLAYER_COUNTS:_default' \
+'--genres-logic=[]:GENRES_LOGIC:_default' \
+'--franchises-logic=[]:FRANCHISES_LOGIC:_default' \
+'--collections-logic=[]:COLLECTIONS_LOGIC:_default' \
+'--companies-logic=[]:COMPANIES_LOGIC:_default' \
+'--age-ratings-logic=[]:AGE_RATINGS_LOGIC:_default' \
+'--regions-logic=[]:REGIONS_LOGIC:_default' \
+'--languages-logic=[]:LANGUAGES_LOGIC:_default' \
+'--statuses-logic=[]:STATUSES_LOGIC:_default' \
+'--player-counts-logic=[]:PLAYER_COUNTS_LOGIC:_default' \
+'--order-by=[]:ORDER_BY:_default' \
+'--order-dir=[]:ORDER_DIR:_default' \
+'--updated-after=[]:UPDATED_AFTER:_default' \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_romm-cli__subcmd__roms_commands" \
+"*::: :->roms" \
+&& ret=0
+
+    case $state in
+    (roms)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-roms-command-$line[1]:"
+        case $line[1] in
+            (get)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':id -- The ID of the ROM:_default' \
+&& ret=0
+;;
+(info)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':id -- The ID of the ROM:_default' \
+&& ret=0
+;;
+(find)
+_arguments "${_arguments_options[@]}" : \
+'--crc=[]:CRC:_default' \
+'--md5=[]:MD5:_default' \
+'--sha1=[]:SHA1:_default' \
+'--igdb-id=[]:IGDB_ID:_default' \
+'--moby-id=[]:MOBY_ID:_default' \
+'--ss-id=[]:SS_ID:_default' \
+'--ra-id=[]:RA_ID:_default' \
+'--launchbox-id=[]:LAUNCHBOX_ID:_default' \
+'--hasheous-id=[]:HASHEOUS_ID:_default' \
+'--tgdb-id=[]:TGDB_ID:_default' \
+'--flashpoint-id=[]:FLASHPOINT_ID:_default' \
+'--hltb-id=[]:HLTB_ID:_default' \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(filters)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(delete)
+_arguments "${_arguments_options[@]}" : \
+'*--delete-from-fs=[Also delete these ROM ids from disk (repeat ids as needed)]:DELETE_FROM_FS:_default' \
+'--yes[Skip confirmation]' \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+'*::rom_ids -- ROM ids to remove from the database:_default' \
+&& ret=0
+;;
+(props)
+_arguments "${_arguments_options[@]}" : \
+'--is-main-sibling=[]:IS_MAIN_SIBLING:_default' \
+'--backlogged=[]:BACKLOGGED:_default' \
+'--now-playing=[]:NOW_PLAYING:_default' \
+'--hidden=[]:HIDDEN:_default' \
+'--rating=[]:RATING:_default' \
+'--difficulty=[]:DIFFICULTY:_default' \
+'--completion=[]:COMPLETION:_default' \
+'--status=[]:STATUS:_default' \
+'--update-last-played[]' \
+'--remove-last-played[]' \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':id:_default' \
+&& ret=0
+;;
+(notes-list)
+_arguments "${_arguments_options[@]}" : \
+'--public-only=[]:PUBLIC_ONLY:_default' \
+'--search=[]:SEARCH:_default' \
+'*--tag=[]:TAGS:_default' \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':rom_id:_default' \
+&& ret=0
+;;
+(notes-add)
+_arguments "${_arguments_options[@]}" : \
+'--json=[JSON object]:JSON:_default' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':rom_id:_default' \
+&& ret=0
+;;
+(notes-update)
+_arguments "${_arguments_options[@]}" : \
+'--json=[]:JSON:_default' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':rom_id:_default' \
+':note_id:_default' \
+&& ret=0
+;;
+(notes-delete)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':rom_id:_default' \
+':note_id:_default' \
+&& ret=0
+;;
+(manuals-add)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':rom_id:_default' \
+':file:_files' \
+&& ret=0
+;;
+(cover-search)
+_arguments "${_arguments_options[@]}" : \
+'--query=[]:QUERY:_default' \
+'--search-by=[]:SEARCH_BY:_default' \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':rom_id:_default' \
+&& ret=0
+;;
+(upload)
+_arguments "${_arguments_options[@]}" : \
+'--platform=[Platform slug or name (e.g. "3ds", "Nintendo 3DS")]:PLATFORM:_default' \
+'--wait-timeout-secs=[Max seconds to wait when \`--wait\` is set (default\: 3600)]:WAIT_TIMEOUT_SECS:_default' \
+'-s[Trigger a library scan after upload completes]' \
+'--scan[Trigger a library scan after upload completes]' \
+'--wait[Wait until the library scan finishes (requires \`--scan\`; polls every 2 seconds)]' \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':file -- File or directory to upload:_files' \
+&& ret=0
+;;
+(up)
+_arguments "${_arguments_options[@]}" : \
+'--platform=[Platform slug or name (e.g. "3ds", "Nintendo 3DS")]:PLATFORM:_default' \
+'--wait-timeout-secs=[Max seconds to wait when \`--wait\` is set (default\: 3600)]:WAIT_TIMEOUT_SECS:_default' \
+'-s[Trigger a library scan after upload completes]' \
+'--scan[Trigger a library scan after upload completes]' \
+'--wait[Wait until the library scan finishes (requires \`--scan\`; polls every 2 seconds)]' \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':file -- File or directory to upload:_files' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_romm-cli__subcmd__roms__subcmd__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-roms-help-command-$line[1]:"
+        case $line[1] in
+            (get)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(find)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(filters)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(delete)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(props)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notes-list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notes-add)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notes-update)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notes-delete)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(manuals-add)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(cover-search)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(upload)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(rom)
+_arguments "${_arguments_options[@]}" : \
+'--search-term=[]:SEARCH_TERM:_default' \
+'--query=[]:SEARCH_TERM:_default' \
+'--q=[]:SEARCH_TERM:_default' \
+'*--platform=[Platform slug or name; repeat for multiple \`platform_ids\`]:PLATFORM:_default' \
+'*--p=[Platform slug or name; repeat for multiple \`platform_ids\`]:PLATFORM:_default' \
+'--collection=[Manual collection id or exact name]:COLLECTION:_default' \
+'--smart-collection=[Smart collection id or exact name]:SMART_COLLECTION:_default' \
+'--virtual-collection=[Virtual collection id (e.g. recent)]:VIRTUAL_COLLECTION:_default' \
+'--limit=[]:LIMIT:_default' \
+'--offset=[]:OFFSET:_default' \
+'--matched=[]:MATCHED:_default' \
+'--favorite=[]:FAVORITE:_default' \
+'--duplicate=[]:DUPLICATE:_default' \
+'--last-played=[]:LAST_PLAYED:_default' \
+'--playable=[]:PLAYABLE:_default' \
+'--missing=[]:MISSING:_default' \
+'--has-ra=[]:HAS_RA:_default' \
+'--verified=[]:VERIFIED:_default' \
+'--group-by-meta-id=[]:GROUP_BY_META_ID:_default' \
+'--with-char-index=[]:WITH_CHAR_INDEX:_default' \
+'--with-filter-values=[]:WITH_FILTER_VALUES:_default' \
+'*--genre=[]:GENRES:_default' \
+'*--franchise=[]:FRANCHISES:_default' \
+'*--collection-tag=[]:COLLECTION_TAGS:_default' \
+'*--company=[]:COMPANIES:_default' \
+'*--age-rating=[]:AGE_RATINGS:_default' \
+'*--status=[]:STATUSES:_default' \
+'*--region=[]:REGIONS:_default' \
+'*--language=[]:LANGUAGES:_default' \
+'*--player-count=[]:PLAYER_COUNTS:_default' \
+'--genres-logic=[]:GENRES_LOGIC:_default' \
+'--franchises-logic=[]:FRANCHISES_LOGIC:_default' \
+'--collections-logic=[]:COLLECTIONS_LOGIC:_default' \
+'--companies-logic=[]:COMPANIES_LOGIC:_default' \
+'--age-ratings-logic=[]:AGE_RATINGS_LOGIC:_default' \
+'--regions-logic=[]:REGIONS_LOGIC:_default' \
+'--languages-logic=[]:LANGUAGES_LOGIC:_default' \
+'--statuses-logic=[]:STATUSES_LOGIC:_default' \
+'--player-counts-logic=[]:PLAYER_COUNTS_LOGIC:_default' \
+'--order-by=[]:ORDER_BY:_default' \
+'--order-dir=[]:ORDER_DIR:_default' \
+'--updated-after=[]:UPDATED_AFTER:_default' \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_romm-cli__subcmd__roms_commands" \
+"*::: :->roms" \
+&& ret=0
+
+    case $state in
+    (roms)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-roms-command-$line[1]:"
+        case $line[1] in
+            (get)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':id -- The ID of the ROM:_default' \
+&& ret=0
+;;
+(info)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':id -- The ID of the ROM:_default' \
+&& ret=0
+;;
+(find)
+_arguments "${_arguments_options[@]}" : \
+'--crc=[]:CRC:_default' \
+'--md5=[]:MD5:_default' \
+'--sha1=[]:SHA1:_default' \
+'--igdb-id=[]:IGDB_ID:_default' \
+'--moby-id=[]:MOBY_ID:_default' \
+'--ss-id=[]:SS_ID:_default' \
+'--ra-id=[]:RA_ID:_default' \
+'--launchbox-id=[]:LAUNCHBOX_ID:_default' \
+'--hasheous-id=[]:HASHEOUS_ID:_default' \
+'--tgdb-id=[]:TGDB_ID:_default' \
+'--flashpoint-id=[]:FLASHPOINT_ID:_default' \
+'--hltb-id=[]:HLTB_ID:_default' \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(filters)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(delete)
+_arguments "${_arguments_options[@]}" : \
+'*--delete-from-fs=[Also delete these ROM ids from disk (repeat ids as needed)]:DELETE_FROM_FS:_default' \
+'--yes[Skip confirmation]' \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+'*::rom_ids -- ROM ids to remove from the database:_default' \
+&& ret=0
+;;
+(props)
+_arguments "${_arguments_options[@]}" : \
+'--is-main-sibling=[]:IS_MAIN_SIBLING:_default' \
+'--backlogged=[]:BACKLOGGED:_default' \
+'--now-playing=[]:NOW_PLAYING:_default' \
+'--hidden=[]:HIDDEN:_default' \
+'--rating=[]:RATING:_default' \
+'--difficulty=[]:DIFFICULTY:_default' \
+'--completion=[]:COMPLETION:_default' \
+'--status=[]:STATUS:_default' \
+'--update-last-played[]' \
+'--remove-last-played[]' \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':id:_default' \
+&& ret=0
+;;
+(notes-list)
+_arguments "${_arguments_options[@]}" : \
+'--public-only=[]:PUBLIC_ONLY:_default' \
+'--search=[]:SEARCH:_default' \
+'*--tag=[]:TAGS:_default' \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':rom_id:_default' \
+&& ret=0
+;;
+(notes-add)
+_arguments "${_arguments_options[@]}" : \
+'--json=[JSON object]:JSON:_default' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':rom_id:_default' \
+&& ret=0
+;;
+(notes-update)
+_arguments "${_arguments_options[@]}" : \
+'--json=[]:JSON:_default' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':rom_id:_default' \
+':note_id:_default' \
+&& ret=0
+;;
+(notes-delete)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':rom_id:_default' \
+':note_id:_default' \
+&& ret=0
+;;
+(manuals-add)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':rom_id:_default' \
+':file:_files' \
+&& ret=0
+;;
+(cover-search)
+_arguments "${_arguments_options[@]}" : \
+'--query=[]:QUERY:_default' \
+'--search-by=[]:SEARCH_BY:_default' \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':rom_id:_default' \
+&& ret=0
+;;
+(upload)
+_arguments "${_arguments_options[@]}" : \
+'--platform=[Platform slug or name (e.g. "3ds", "Nintendo 3DS")]:PLATFORM:_default' \
+'--wait-timeout-secs=[Max seconds to wait when \`--wait\` is set (default\: 3600)]:WAIT_TIMEOUT_SECS:_default' \
+'-s[Trigger a library scan after upload completes]' \
+'--scan[Trigger a library scan after upload completes]' \
+'--wait[Wait until the library scan finishes (requires \`--scan\`; polls every 2 seconds)]' \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':file -- File or directory to upload:_files' \
+&& ret=0
+;;
+(up)
+_arguments "${_arguments_options[@]}" : \
+'--platform=[Platform slug or name (e.g. "3ds", "Nintendo 3DS")]:PLATFORM:_default' \
+'--wait-timeout-secs=[Max seconds to wait when \`--wait\` is set (default\: 3600)]:WAIT_TIMEOUT_SECS:_default' \
+'-s[Trigger a library scan after upload completes]' \
+'--scan[Trigger a library scan after upload completes]' \
+'--wait[Wait until the library scan finishes (requires \`--scan\`; polls every 2 seconds)]' \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':file -- File or directory to upload:_files' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_romm-cli__subcmd__roms__subcmd__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-roms-help-command-$line[1]:"
+        case $line[1] in
+            (get)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(find)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(filters)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(delete)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(props)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notes-list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notes-add)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notes-update)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notes-delete)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(manuals-add)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(cover-search)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(upload)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(r)
+_arguments "${_arguments_options[@]}" : \
+'--search-term=[]:SEARCH_TERM:_default' \
+'--query=[]:SEARCH_TERM:_default' \
+'--q=[]:SEARCH_TERM:_default' \
+'*--platform=[Platform slug or name; repeat for multiple \`platform_ids\`]:PLATFORM:_default' \
+'*--p=[Platform slug or name; repeat for multiple \`platform_ids\`]:PLATFORM:_default' \
+'--collection=[Manual collection id or exact name]:COLLECTION:_default' \
+'--smart-collection=[Smart collection id or exact name]:SMART_COLLECTION:_default' \
+'--virtual-collection=[Virtual collection id (e.g. recent)]:VIRTUAL_COLLECTION:_default' \
+'--limit=[]:LIMIT:_default' \
+'--offset=[]:OFFSET:_default' \
+'--matched=[]:MATCHED:_default' \
+'--favorite=[]:FAVORITE:_default' \
+'--duplicate=[]:DUPLICATE:_default' \
+'--last-played=[]:LAST_PLAYED:_default' \
+'--playable=[]:PLAYABLE:_default' \
+'--missing=[]:MISSING:_default' \
+'--has-ra=[]:HAS_RA:_default' \
+'--verified=[]:VERIFIED:_default' \
+'--group-by-meta-id=[]:GROUP_BY_META_ID:_default' \
+'--with-char-index=[]:WITH_CHAR_INDEX:_default' \
+'--with-filter-values=[]:WITH_FILTER_VALUES:_default' \
+'*--genre=[]:GENRES:_default' \
+'*--franchise=[]:FRANCHISES:_default' \
+'*--collection-tag=[]:COLLECTION_TAGS:_default' \
+'*--company=[]:COMPANIES:_default' \
+'*--age-rating=[]:AGE_RATINGS:_default' \
+'*--status=[]:STATUSES:_default' \
+'*--region=[]:REGIONS:_default' \
+'*--language=[]:LANGUAGES:_default' \
+'*--player-count=[]:PLAYER_COUNTS:_default' \
+'--genres-logic=[]:GENRES_LOGIC:_default' \
+'--franchises-logic=[]:FRANCHISES_LOGIC:_default' \
+'--collections-logic=[]:COLLECTIONS_LOGIC:_default' \
+'--companies-logic=[]:COMPANIES_LOGIC:_default' \
+'--age-ratings-logic=[]:AGE_RATINGS_LOGIC:_default' \
+'--regions-logic=[]:REGIONS_LOGIC:_default' \
+'--languages-logic=[]:LANGUAGES_LOGIC:_default' \
+'--statuses-logic=[]:STATUSES_LOGIC:_default' \
+'--player-counts-logic=[]:PLAYER_COUNTS_LOGIC:_default' \
+'--order-by=[]:ORDER_BY:_default' \
+'--order-dir=[]:ORDER_DIR:_default' \
+'--updated-after=[]:UPDATED_AFTER:_default' \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_romm-cli__subcmd__roms_commands" \
+"*::: :->roms" \
+&& ret=0
+
+    case $state in
+    (roms)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-roms-command-$line[1]:"
+        case $line[1] in
+            (get)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':id -- The ID of the ROM:_default' \
+&& ret=0
+;;
+(info)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':id -- The ID of the ROM:_default' \
+&& ret=0
+;;
+(find)
+_arguments "${_arguments_options[@]}" : \
+'--crc=[]:CRC:_default' \
+'--md5=[]:MD5:_default' \
+'--sha1=[]:SHA1:_default' \
+'--igdb-id=[]:IGDB_ID:_default' \
+'--moby-id=[]:MOBY_ID:_default' \
+'--ss-id=[]:SS_ID:_default' \
+'--ra-id=[]:RA_ID:_default' \
+'--launchbox-id=[]:LAUNCHBOX_ID:_default' \
+'--hasheous-id=[]:HASHEOUS_ID:_default' \
+'--tgdb-id=[]:TGDB_ID:_default' \
+'--flashpoint-id=[]:FLASHPOINT_ID:_default' \
+'--hltb-id=[]:HLTB_ID:_default' \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(filters)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(delete)
+_arguments "${_arguments_options[@]}" : \
+'*--delete-from-fs=[Also delete these ROM ids from disk (repeat ids as needed)]:DELETE_FROM_FS:_default' \
+'--yes[Skip confirmation]' \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+'*::rom_ids -- ROM ids to remove from the database:_default' \
+&& ret=0
+;;
+(props)
+_arguments "${_arguments_options[@]}" : \
+'--is-main-sibling=[]:IS_MAIN_SIBLING:_default' \
+'--backlogged=[]:BACKLOGGED:_default' \
+'--now-playing=[]:NOW_PLAYING:_default' \
+'--hidden=[]:HIDDEN:_default' \
+'--rating=[]:RATING:_default' \
+'--difficulty=[]:DIFFICULTY:_default' \
+'--completion=[]:COMPLETION:_default' \
+'--status=[]:STATUS:_default' \
+'--update-last-played[]' \
+'--remove-last-played[]' \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':id:_default' \
+&& ret=0
+;;
+(notes-list)
+_arguments "${_arguments_options[@]}" : \
+'--public-only=[]:PUBLIC_ONLY:_default' \
+'--search=[]:SEARCH:_default' \
+'*--tag=[]:TAGS:_default' \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':rom_id:_default' \
+&& ret=0
+;;
+(notes-add)
+_arguments "${_arguments_options[@]}" : \
+'--json=[JSON object]:JSON:_default' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':rom_id:_default' \
+&& ret=0
+;;
+(notes-update)
+_arguments "${_arguments_options[@]}" : \
+'--json=[]:JSON:_default' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':rom_id:_default' \
+':note_id:_default' \
+&& ret=0
+;;
+(notes-delete)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':rom_id:_default' \
+':note_id:_default' \
+&& ret=0
+;;
+(manuals-add)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':rom_id:_default' \
+':file:_files' \
+&& ret=0
+;;
+(cover-search)
+_arguments "${_arguments_options[@]}" : \
+'--query=[]:QUERY:_default' \
+'--search-by=[]:SEARCH_BY:_default' \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':rom_id:_default' \
+&& ret=0
+;;
+(upload)
+_arguments "${_arguments_options[@]}" : \
+'--platform=[Platform slug or name (e.g. "3ds", "Nintendo 3DS")]:PLATFORM:_default' \
+'--wait-timeout-secs=[Max seconds to wait when \`--wait\` is set (default\: 3600)]:WAIT_TIMEOUT_SECS:_default' \
+'-s[Trigger a library scan after upload completes]' \
+'--scan[Trigger a library scan after upload completes]' \
+'--wait[Wait until the library scan finishes (requires \`--scan\`; polls every 2 seconds)]' \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':file -- File or directory to upload:_files' \
+&& ret=0
+;;
+(up)
+_arguments "${_arguments_options[@]}" : \
+'--platform=[Platform slug or name (e.g. "3ds", "Nintendo 3DS")]:PLATFORM:_default' \
+'--wait-timeout-secs=[Max seconds to wait when \`--wait\` is set (default\: 3600)]:WAIT_TIMEOUT_SECS:_default' \
+'-s[Trigger a library scan after upload completes]' \
+'--scan[Trigger a library scan after upload completes]' \
+'--wait[Wait until the library scan finishes (requires \`--scan\`; polls every 2 seconds)]' \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':file -- File or directory to upload:_files' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_romm-cli__subcmd__roms__subcmd__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-roms-help-command-$line[1]:"
+        case $line[1] in
+            (get)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(find)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(filters)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(delete)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(props)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notes-list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notes-add)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notes-update)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notes-delete)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(manuals-add)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(cover-search)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(upload)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(scan)
+_arguments "${_arguments_options[@]}" : \
+'--platform=[Restrict scan to one or more platform slugs (comma-separated); passed as \`platform_slugs\` task kwargs]:PLATFORM:_default' \
+'--wait-timeout-secs=[Max seconds to wait when \`--wait\` is set (default\: 3600)]:WAIT_TIMEOUT_SECS:_default' \
+'--wait[Wait until the scan task completes (polls every 2 seconds)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'--json[Output JSON instead of human-readable text where supported]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(sync)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_romm-cli__subcmd__sync_commands" \
+"*::: :->sync" \
+&& ret=0
+
+    case $state in
+    (sync)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-sync-command-$line[1]:"
+        case $line[1] in
+            (device)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_romm-cli__subcmd__sync__subcmd__device_commands" \
+"*::: :->device" \
+&& ret=0
+
+    case $state in
+    (device)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-sync-device-command-$line[1]:"
+        case $line[1] in
+            (register)
+_arguments "${_arguments_options[@]}" : \
+'--name=[]:NAME:_default' \
+'--platform=[]:PLATFORM:_default' \
+'--client=[]:CLIENT:_default' \
+'--client-version=[]:CLIENT_VERSION:_default' \
+'--hostname=[]:HOSTNAME:_default' \
+'--mac-address=[]:MAC_ADDRESS:_default' \
+'--ip-address=[]:IP_ADDRESS:_default' \
+'--sync-mode=[]:SYNC_MODE:(api file-transfer push-pull)' \
+'--sync-config-json=[Optional JSON object string for \`sync_config\`]:SYNC_CONFIG_JSON:_default' \
+'--allow-duplicate[]' \
+'--reset-syncs[]' \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(list)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(get)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':device_id -- Device ID:_default' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_romm-cli__subcmd__sync__subcmd__device__subcmd__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-sync-device-help-command-$line[1]:"
+        case $line[1] in
+            (register)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(get)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(plan)
+_arguments "${_arguments_options[@]}" : \
+'--device-id=[]:DEVICE_ID:_default' \
+'--manifest=[]:MANIFEST:_files' \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(run)
+_arguments "${_arguments_options[@]}" : \
+'--device-id=[]:DEVICE_ID:_default' \
+'--manifest=[]:MANIFEST:_files' \
+'--download-dir=[Folder for downloaded saves (defaults to the manifest directory)]:DOWNLOAD_DIR:_files' \
+'--conflict=[]:CONFLICT:(fail skip)' \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(sessions)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_romm-cli__subcmd__sync__subcmd__sessions_commands" \
+"*::: :->sessions" \
+&& ret=0
+
+    case $state in
+    (sessions)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-sync-sessions-command-$line[1]:"
+        case $line[1] in
+            (list)
+_arguments "${_arguments_options[@]}" : \
+'--device-id=[]:DEVICE_ID:_default' \
+'--limit=[]:LIMIT:_default' \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(get)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':session_id:_default' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_romm-cli__subcmd__sync__subcmd__sessions__subcmd__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-sync-sessions-help-command-$line[1]:"
+        case $line[1] in
+            (list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(get)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(push-pull)
+_arguments "${_arguments_options[@]}" : \
+'--json[Output as JSON (overrides global --json when set)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':device_id -- Device ID:_default' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_romm-cli__subcmd__sync__subcmd__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-sync-help-command-$line[1]:"
+        case $line[1] in
+            (device)
+_arguments "${_arguments_options[@]}" : \
+":: :_romm-cli__subcmd__sync__subcmd__help__subcmd__device_commands" \
+"*::: :->device" \
+&& ret=0
+
+    case $state in
+    (device)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-sync-help-device-command-$line[1]:"
+        case $line[1] in
+            (register)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(get)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(plan)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(run)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(sessions)
+_arguments "${_arguments_options[@]}" : \
+":: :_romm-cli__subcmd__sync__subcmd__help__subcmd__sessions_commands" \
+"*::: :->sessions" \
+&& ret=0
+
+    case $state in
+    (sessions)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-sync-help-sessions-command-$line[1]:"
+        case $line[1] in
+            (list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(get)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(push-pull)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(download)
+_arguments "${_arguments_options[@]}" : \
+'-o+[Directory to save the ROM zip(s) to]:OUTPUT:_files' \
+'--output=[Directory to save the ROM zip(s) to]:OUTPUT:_files' \
+'--platform=[Filter by platform slug or title (e.g. "3ds")]:PLATFORM:_default' \
+'--search-term=[Filter by search term]:SEARCH_TERM:_default' \
+'--jobs=[Maximum concurrent downloads (default\: 4)]:JOBS:_default' \
+'--extract-layout=[Layout for extracted files when --extract is set (default\: platform)]:EXTRACT_LAYOUT:((platform\:"Extract to \`<output>/<platform_slug>/\`"
+flat\:"Extract to \`<output>/\`"
+rom\:"Extract to \`<output>/<platform_slug>/<rom_name>/\`"))' \
+'--extract[Extract each downloaded ZIP after download completes (batch mode only)]' \
+'--delete-zip-after-extract[Delete ZIP files after successful extraction (batch mode only)]' \
+'--with-extras[Include updates and DLC after downloading the base game (single-ROM mode)]' \
+'--no-extras[Skip updates and DLC (single-ROM mode)]' \
+'-y[Assume yes for extras prompt (single-ROM mode)]' \
+'--yes[Assume yes for extras prompt (single-ROM mode)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'--json[Output JSON instead of human-readable text where supported]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+'::rom_id -- ID of the ROM to download in single-ROM mode:_default' \
+":: :_romm-cli__subcmd__download_commands" \
+"*::: :->download" \
+&& ret=0
+
+    case $state in
+    (download)
+        words=($line[2] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-download-command-$line[2]:"
+        case $line[2] in
+            (batch)
+_arguments "${_arguments_options[@]}" : \
+'-o+[Directory to save the ROM zip(s) to]:OUTPUT:_files' \
+'--output=[Directory to save the ROM zip(s) to]:OUTPUT:_files' \
+'--platform=[Filter by platform slug or title (e.g. "3ds")]:PLATFORM:_default' \
+'--search-term=[Filter by search term]:SEARCH_TERM:_default' \
+'--jobs=[Maximum concurrent downloads (default\: 4)]:JOBS:_default' \
+'--extract-layout=[Layout for extracted files when --extract is set (default\: platform)]:EXTRACT_LAYOUT:((platform\:"Extract to \`<output>/<platform_slug>/\`"
+flat\:"Extract to \`<output>/\`"
+rom\:"Extract to \`<output>/<platform_slug>/<rom_name>/\`"))' \
+'--extract[Extract each downloaded ZIP after download completes (batch mode only)]' \
+'--delete-zip-after-extract[Delete ZIP files after successful extraction (batch mode only)]' \
+'--with-extras[Include updates and DLC after downloading the base game (single-ROM mode)]' \
+'--no-extras[Skip updates and DLC (single-ROM mode)]' \
+'-y[Assume yes for extras prompt (single-ROM mode)]' \
+'--yes[Assume yes for extras prompt (single-ROM mode)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'--json[Output JSON instead of human-readable text where supported]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+&& ret=0
+;;
+(all)
+_arguments "${_arguments_options[@]}" : \
+'-o+[Directory to save the ROM zip(s) to]:OUTPUT:_files' \
+'--output=[Directory to save the ROM zip(s) to]:OUTPUT:_files' \
+'--platform=[Filter by platform slug or title (e.g. "3ds")]:PLATFORM:_default' \
+'--search-term=[Filter by search term]:SEARCH_TERM:_default' \
+'--jobs=[Maximum concurrent downloads (default\: 4)]:JOBS:_default' \
+'--extract-layout=[Layout for extracted files when --extract is set (default\: platform)]:EXTRACT_LAYOUT:((platform\:"Extract to \`<output>/<platform_slug>/\`"
+flat\:"Extract to \`<output>/\`"
+rom\:"Extract to \`<output>/<platform_slug>/<rom_name>/\`"))' \
+'--extract[Extract each downloaded ZIP after download completes (batch mode only)]' \
+'--delete-zip-after-extract[Delete ZIP files after successful extraction (batch mode only)]' \
+'--with-extras[Include updates and DLC after downloading the base game (single-ROM mode)]' \
+'--no-extras[Skip updates and DLC (single-ROM mode)]' \
+'-y[Assume yes for extras prompt (single-ROM mode)]' \
+'--yes[Assume yes for extras prompt (single-ROM mode)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'--json[Output JSON instead of human-readable text where supported]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+&& ret=0
+;;
+(extras)
+_arguments "${_arguments_options[@]}" : \
+'-o+[Directory to save the ROM zip(s) to]:OUTPUT:_files' \
+'--output=[Directory to save the ROM zip(s) to]:OUTPUT:_files' \
+'--platform=[Filter by platform slug or title (e.g. "3ds")]:PLATFORM:_default' \
+'--search-term=[Filter by search term]:SEARCH_TERM:_default' \
+'--jobs=[Maximum concurrent downloads (default\: 4)]:JOBS:_default' \
+'--extract-layout=[Layout for extracted files when --extract is set (default\: platform)]:EXTRACT_LAYOUT:((platform\:"Extract to \`<output>/<platform_slug>/\`"
+flat\:"Extract to \`<output>/\`"
+rom\:"Extract to \`<output>/<platform_slug>/<rom_name>/\`"))' \
+'--extract[Extract each downloaded ZIP after download completes (batch mode only)]' \
+'--delete-zip-after-extract[Delete ZIP files after successful extraction (batch mode only)]' \
+'--with-extras[Include updates and DLC after downloading the base game (single-ROM mode)]' \
+'--no-extras[Skip updates and DLC (single-ROM mode)]' \
+'-y[Assume yes for extras prompt (single-ROM mode)]' \
+'--yes[Assume yes for extras prompt (single-ROM mode)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'--json[Output JSON instead of human-readable text where supported]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+':rom_id -- ID of the ROM/game to download extras for:_default' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_romm-cli__subcmd__download__subcmd__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-download-help-command-$line[1]:"
+        case $line[1] in
+            (batch)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(extras)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(dl)
+_arguments "${_arguments_options[@]}" : \
+'-o+[Directory to save the ROM zip(s) to]:OUTPUT:_files' \
+'--output=[Directory to save the ROM zip(s) to]:OUTPUT:_files' \
+'--platform=[Filter by platform slug or title (e.g. "3ds")]:PLATFORM:_default' \
+'--search-term=[Filter by search term]:SEARCH_TERM:_default' \
+'--jobs=[Maximum concurrent downloads (default\: 4)]:JOBS:_default' \
+'--extract-layout=[Layout for extracted files when --extract is set (default\: platform)]:EXTRACT_LAYOUT:((platform\:"Extract to \`<output>/<platform_slug>/\`"
+flat\:"Extract to \`<output>/\`"
+rom\:"Extract to \`<output>/<platform_slug>/<rom_name>/\`"))' \
+'--extract[Extract each downloaded ZIP after download completes (batch mode only)]' \
+'--delete-zip-after-extract[Delete ZIP files after successful extraction (batch mode only)]' \
+'--with-extras[Include updates and DLC after downloading the base game (single-ROM mode)]' \
+'--no-extras[Skip updates and DLC (single-ROM mode)]' \
+'-y[Assume yes for extras prompt (single-ROM mode)]' \
+'--yes[Assume yes for extras prompt (single-ROM mode)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'--json[Output JSON instead of human-readable text where supported]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+'::rom_id -- ID of the ROM to download in single-ROM mode:_default' \
+":: :_romm-cli__subcmd__download_commands" \
+"*::: :->download" \
+&& ret=0
+
+    case $state in
+    (download)
+        words=($line[2] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-download-command-$line[2]:"
+        case $line[2] in
+            (batch)
+_arguments "${_arguments_options[@]}" : \
+'-o+[Directory to save the ROM zip(s) to]:OUTPUT:_files' \
+'--output=[Directory to save the ROM zip(s) to]:OUTPUT:_files' \
+'--platform=[Filter by platform slug or title (e.g. "3ds")]:PLATFORM:_default' \
+'--search-term=[Filter by search term]:SEARCH_TERM:_default' \
+'--jobs=[Maximum concurrent downloads (default\: 4)]:JOBS:_default' \
+'--extract-layout=[Layout for extracted files when --extract is set (default\: platform)]:EXTRACT_LAYOUT:((platform\:"Extract to \`<output>/<platform_slug>/\`"
+flat\:"Extract to \`<output>/\`"
+rom\:"Extract to \`<output>/<platform_slug>/<rom_name>/\`"))' \
+'--extract[Extract each downloaded ZIP after download completes (batch mode only)]' \
+'--delete-zip-after-extract[Delete ZIP files after successful extraction (batch mode only)]' \
+'--with-extras[Include updates and DLC after downloading the base game (single-ROM mode)]' \
+'--no-extras[Skip updates and DLC (single-ROM mode)]' \
+'-y[Assume yes for extras prompt (single-ROM mode)]' \
+'--yes[Assume yes for extras prompt (single-ROM mode)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'--json[Output JSON instead of human-readable text where supported]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+&& ret=0
+;;
+(all)
+_arguments "${_arguments_options[@]}" : \
+'-o+[Directory to save the ROM zip(s) to]:OUTPUT:_files' \
+'--output=[Directory to save the ROM zip(s) to]:OUTPUT:_files' \
+'--platform=[Filter by platform slug or title (e.g. "3ds")]:PLATFORM:_default' \
+'--search-term=[Filter by search term]:SEARCH_TERM:_default' \
+'--jobs=[Maximum concurrent downloads (default\: 4)]:JOBS:_default' \
+'--extract-layout=[Layout for extracted files when --extract is set (default\: platform)]:EXTRACT_LAYOUT:((platform\:"Extract to \`<output>/<platform_slug>/\`"
+flat\:"Extract to \`<output>/\`"
+rom\:"Extract to \`<output>/<platform_slug>/<rom_name>/\`"))' \
+'--extract[Extract each downloaded ZIP after download completes (batch mode only)]' \
+'--delete-zip-after-extract[Delete ZIP files after successful extraction (batch mode only)]' \
+'--with-extras[Include updates and DLC after downloading the base game (single-ROM mode)]' \
+'--no-extras[Skip updates and DLC (single-ROM mode)]' \
+'-y[Assume yes for extras prompt (single-ROM mode)]' \
+'--yes[Assume yes for extras prompt (single-ROM mode)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'--json[Output JSON instead of human-readable text where supported]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+&& ret=0
+;;
+(extras)
+_arguments "${_arguments_options[@]}" : \
+'-o+[Directory to save the ROM zip(s) to]:OUTPUT:_files' \
+'--output=[Directory to save the ROM zip(s) to]:OUTPUT:_files' \
+'--platform=[Filter by platform slug or title (e.g. "3ds")]:PLATFORM:_default' \
+'--search-term=[Filter by search term]:SEARCH_TERM:_default' \
+'--jobs=[Maximum concurrent downloads (default\: 4)]:JOBS:_default' \
+'--extract-layout=[Layout for extracted files when --extract is set (default\: platform)]:EXTRACT_LAYOUT:((platform\:"Extract to \`<output>/<platform_slug>/\`"
+flat\:"Extract to \`<output>/\`"
+rom\:"Extract to \`<output>/<platform_slug>/<rom_name>/\`"))' \
+'--extract[Extract each downloaded ZIP after download completes (batch mode only)]' \
+'--delete-zip-after-extract[Delete ZIP files after successful extraction (batch mode only)]' \
+'--with-extras[Include updates and DLC after downloading the base game (single-ROM mode)]' \
+'--no-extras[Skip updates and DLC (single-ROM mode)]' \
+'-y[Assume yes for extras prompt (single-ROM mode)]' \
+'--yes[Assume yes for extras prompt (single-ROM mode)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'--json[Output JSON instead of human-readable text where supported]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+':rom_id -- ID of the ROM/game to download extras for:_default' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_romm-cli__subcmd__download__subcmd__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-download-help-command-$line[1]:"
+        case $line[1] in
+            (batch)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(extras)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(get)
+_arguments "${_arguments_options[@]}" : \
+'-o+[Directory to save the ROM zip(s) to]:OUTPUT:_files' \
+'--output=[Directory to save the ROM zip(s) to]:OUTPUT:_files' \
+'--platform=[Filter by platform slug or title (e.g. "3ds")]:PLATFORM:_default' \
+'--search-term=[Filter by search term]:SEARCH_TERM:_default' \
+'--jobs=[Maximum concurrent downloads (default\: 4)]:JOBS:_default' \
+'--extract-layout=[Layout for extracted files when --extract is set (default\: platform)]:EXTRACT_LAYOUT:((platform\:"Extract to \`<output>/<platform_slug>/\`"
+flat\:"Extract to \`<output>/\`"
+rom\:"Extract to \`<output>/<platform_slug>/<rom_name>/\`"))' \
+'--extract[Extract each downloaded ZIP after download completes (batch mode only)]' \
+'--delete-zip-after-extract[Delete ZIP files after successful extraction (batch mode only)]' \
+'--with-extras[Include updates and DLC after downloading the base game (single-ROM mode)]' \
+'--no-extras[Skip updates and DLC (single-ROM mode)]' \
+'-y[Assume yes for extras prompt (single-ROM mode)]' \
+'--yes[Assume yes for extras prompt (single-ROM mode)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'--json[Output JSON instead of human-readable text where supported]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+'::rom_id -- ID of the ROM to download in single-ROM mode:_default' \
+":: :_romm-cli__subcmd__download_commands" \
+"*::: :->download" \
+&& ret=0
+
+    case $state in
+    (download)
+        words=($line[2] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-download-command-$line[2]:"
+        case $line[2] in
+            (batch)
+_arguments "${_arguments_options[@]}" : \
+'-o+[Directory to save the ROM zip(s) to]:OUTPUT:_files' \
+'--output=[Directory to save the ROM zip(s) to]:OUTPUT:_files' \
+'--platform=[Filter by platform slug or title (e.g. "3ds")]:PLATFORM:_default' \
+'--search-term=[Filter by search term]:SEARCH_TERM:_default' \
+'--jobs=[Maximum concurrent downloads (default\: 4)]:JOBS:_default' \
+'--extract-layout=[Layout for extracted files when --extract is set (default\: platform)]:EXTRACT_LAYOUT:((platform\:"Extract to \`<output>/<platform_slug>/\`"
+flat\:"Extract to \`<output>/\`"
+rom\:"Extract to \`<output>/<platform_slug>/<rom_name>/\`"))' \
+'--extract[Extract each downloaded ZIP after download completes (batch mode only)]' \
+'--delete-zip-after-extract[Delete ZIP files after successful extraction (batch mode only)]' \
+'--with-extras[Include updates and DLC after downloading the base game (single-ROM mode)]' \
+'--no-extras[Skip updates and DLC (single-ROM mode)]' \
+'-y[Assume yes for extras prompt (single-ROM mode)]' \
+'--yes[Assume yes for extras prompt (single-ROM mode)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'--json[Output JSON instead of human-readable text where supported]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+&& ret=0
+;;
+(all)
+_arguments "${_arguments_options[@]}" : \
+'-o+[Directory to save the ROM zip(s) to]:OUTPUT:_files' \
+'--output=[Directory to save the ROM zip(s) to]:OUTPUT:_files' \
+'--platform=[Filter by platform slug or title (e.g. "3ds")]:PLATFORM:_default' \
+'--search-term=[Filter by search term]:SEARCH_TERM:_default' \
+'--jobs=[Maximum concurrent downloads (default\: 4)]:JOBS:_default' \
+'--extract-layout=[Layout for extracted files when --extract is set (default\: platform)]:EXTRACT_LAYOUT:((platform\:"Extract to \`<output>/<platform_slug>/\`"
+flat\:"Extract to \`<output>/\`"
+rom\:"Extract to \`<output>/<platform_slug>/<rom_name>/\`"))' \
+'--extract[Extract each downloaded ZIP after download completes (batch mode only)]' \
+'--delete-zip-after-extract[Delete ZIP files after successful extraction (batch mode only)]' \
+'--with-extras[Include updates and DLC after downloading the base game (single-ROM mode)]' \
+'--no-extras[Skip updates and DLC (single-ROM mode)]' \
+'-y[Assume yes for extras prompt (single-ROM mode)]' \
+'--yes[Assume yes for extras prompt (single-ROM mode)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'--json[Output JSON instead of human-readable text where supported]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+&& ret=0
+;;
+(extras)
+_arguments "${_arguments_options[@]}" : \
+'-o+[Directory to save the ROM zip(s) to]:OUTPUT:_files' \
+'--output=[Directory to save the ROM zip(s) to]:OUTPUT:_files' \
+'--platform=[Filter by platform slug or title (e.g. "3ds")]:PLATFORM:_default' \
+'--search-term=[Filter by search term]:SEARCH_TERM:_default' \
+'--jobs=[Maximum concurrent downloads (default\: 4)]:JOBS:_default' \
+'--extract-layout=[Layout for extracted files when --extract is set (default\: platform)]:EXTRACT_LAYOUT:((platform\:"Extract to \`<output>/<platform_slug>/\`"
+flat\:"Extract to \`<output>/\`"
+rom\:"Extract to \`<output>/<platform_slug>/<rom_name>/\`"))' \
+'--extract[Extract each downloaded ZIP after download completes (batch mode only)]' \
+'--delete-zip-after-extract[Delete ZIP files after successful extraction (batch mode only)]' \
+'--with-extras[Include updates and DLC after downloading the base game (single-ROM mode)]' \
+'--no-extras[Skip updates and DLC (single-ROM mode)]' \
+'-y[Assume yes for extras prompt (single-ROM mode)]' \
+'--yes[Assume yes for extras prompt (single-ROM mode)]' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'--json[Output JSON instead of human-readable text where supported]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+':rom_id -- ID of the ROM/game to download extras for:_default' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_romm-cli__subcmd__download__subcmd__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-download-help-command-$line[1]:"
+        case $line[1] in
+            (batch)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(extras)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(cache)
+_arguments "${_arguments_options[@]}" : \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'--json[Output JSON instead of human-readable text where supported]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_romm-cli__subcmd__cache_commands" \
+"*::: :->cache" \
+&& ret=0
+
+    case $state in
+    (cache)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-cache-command-$line[1]:"
+        case $line[1] in
+            (path)
+_arguments "${_arguments_options[@]}" : \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'--json[Output JSON instead of human-readable text where supported]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(info)
+_arguments "${_arguments_options[@]}" : \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'--json[Output JSON instead of human-readable text where supported]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(clear)
+_arguments "${_arguments_options[@]}" : \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'--json[Output JSON instead of human-readable text where supported]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_romm-cli__subcmd__cache__subcmd__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-cache-help-command-$line[1]:"
+        case $line[1] in
+            (path)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(info)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(clear)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(auth)
+_arguments "${_arguments_options[@]}" : \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'--json[Output JSON instead of human-readable text where supported]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_romm-cli__subcmd__auth_commands" \
+"*::: :->auth" \
+&& ret=0
+
+    case $state in
+    (auth)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-auth-command-$line[1]:"
+        case $line[1] in
+            (login)
+_arguments "${_arguments_options[@]}" : \
+'--token=[API token (Bearer). Skips interactive prompts]:TOKEN:_default' \
+'--token-file=[Read API token (Bearer) from UTF-8 file. Use '\''-'\'' for stdin]:TOKEN_FILE:_default' \
+'--username=[Basic auth username]:USERNAME:_default' \
+'--password=[Basic auth password (discouraged\: visible in process list)]:PASSWORD:_default' \
+'--password-file=[Read Basic auth password from a UTF-8 file. Use '\''-'\'' for stdin]:PASSWORD_FILE:_default' \
+'--api-key-header=[API key header name (e.g. X-API-Key)]:API_KEY_HEADER:_default' \
+'--api-key=[API key value]:API_KEY:_default' \
+'--pairing-code=[Web UI pairing code (8 characters)]:PAIRING_CODE:_default' \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'--json[Output JSON instead of human-readable text where supported]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(logout)
+_arguments "${_arguments_options[@]}" : \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'--json[Output JSON instead of human-readable text where supported]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(status)
+_arguments "${_arguments_options[@]}" : \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'--json[Output JSON instead of human-readable text where supported]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_romm-cli__subcmd__auth__subcmd__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-auth-help-command-$line[1]:"
+        case $line[1] in
+            (login)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(logout)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(status)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(update)
+_arguments "${_arguments_options[@]}" : \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'--json[Output JSON instead of human-readable text where supported]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(completions)
+_arguments "${_arguments_options[@]}" : \
+'-v[Increase output verbosity (logs requests to stderr)]' \
+'--verbose[Increase output verbosity (logs requests to stderr)]' \
+'--json[Output JSON instead of human-readable text where supported]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':shell -- Shell to generate completions for:(bash elvish fish powershell zsh)' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_romm-cli__subcmd__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-help-command-$line[1]:"
+        case $line[1] in
+            (init)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(tui)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(api)
+_arguments "${_arguments_options[@]}" : \
+":: :_romm-cli__subcmd__help__subcmd__api_commands" \
+"*::: :->api" \
+&& ret=0
+
+    case $state in
+    (api)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-help-api-command-$line[1]:"
+        case $line[1] in
+            (call)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(get)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(post)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(platforms)
+_arguments "${_arguments_options[@]}" : \
+":: :_romm-cli__subcmd__help__subcmd__platforms_commands" \
+"*::: :->platforms" \
+&& ret=0
+
+    case $state in
+    (platforms)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-help-platforms-command-$line[1]:"
+        case $line[1] in
+            (list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(get)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(roms)
+_arguments "${_arguments_options[@]}" : \
+":: :_romm-cli__subcmd__help__subcmd__roms_commands" \
+"*::: :->roms" \
+&& ret=0
+
+    case $state in
+    (roms)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-help-roms-command-$line[1]:"
+        case $line[1] in
+            (get)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(find)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(filters)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(delete)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(props)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notes-list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notes-add)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notes-update)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notes-delete)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(manuals-add)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(cover-search)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(upload)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(scan)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(sync)
+_arguments "${_arguments_options[@]}" : \
+":: :_romm-cli__subcmd__help__subcmd__sync_commands" \
+"*::: :->sync" \
+&& ret=0
+
+    case $state in
+    (sync)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-help-sync-command-$line[1]:"
+        case $line[1] in
+            (device)
+_arguments "${_arguments_options[@]}" : \
+":: :_romm-cli__subcmd__help__subcmd__sync__subcmd__device_commands" \
+"*::: :->device" \
+&& ret=0
+
+    case $state in
+    (device)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-help-sync-device-command-$line[1]:"
+        case $line[1] in
+            (register)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(get)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(plan)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(run)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(sessions)
+_arguments "${_arguments_options[@]}" : \
+":: :_romm-cli__subcmd__help__subcmd__sync__subcmd__sessions_commands" \
+"*::: :->sessions" \
+&& ret=0
+
+    case $state in
+    (sessions)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-help-sync-sessions-command-$line[1]:"
+        case $line[1] in
+            (list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(get)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(push-pull)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(download)
+_arguments "${_arguments_options[@]}" : \
+":: :_romm-cli__subcmd__help__subcmd__download_commands" \
+"*::: :->download" \
+&& ret=0
+
+    case $state in
+    (download)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-help-download-command-$line[1]:"
+        case $line[1] in
+            (batch)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(extras)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(cache)
+_arguments "${_arguments_options[@]}" : \
+":: :_romm-cli__subcmd__help__subcmd__cache_commands" \
+"*::: :->cache" \
+&& ret=0
+
+    case $state in
+    (cache)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-help-cache-command-$line[1]:"
+        case $line[1] in
+            (path)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(info)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(clear)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(auth)
+_arguments "${_arguments_options[@]}" : \
+":: :_romm-cli__subcmd__help__subcmd__auth_commands" \
+"*::: :->auth" \
+&& ret=0
+
+    case $state in
+    (auth)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:romm-cli-help-auth-command-$line[1]:"
+        case $line[1] in
+            (login)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(logout)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(status)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(update)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(completions)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+}
+
+(( $+functions[_romm-cli_commands] )) ||
+_romm-cli_commands() {
+    local commands; commands=(
+'init:Create or update user configuration' \
+'setup:Create or update user configuration' \
+'tui:Launch the interactive Terminal User Interface (TUI)' \
+'api:Low-level access to any RomM API endpoint' \
+'call:Low-level access to any RomM API endpoint' \
+'platforms:Manage gaming platforms' \
+'platform:Manage gaming platforms' \
+'p:Manage gaming platforms' \
+'plats:Manage gaming platforms' \
+'roms:Manage ROM files and metadata' \
+'rom:Manage ROM files and metadata' \
+'r:Manage ROM files and metadata' \
+'scan:Trigger a library scan on the RomM server' \
+'sync:Save-sync workflows (device registration, planning, and execution)' \
+'download:Download a ROM or related extras from the server' \
+'dl:Download a ROM or related extras from the server' \
+'get:Download a ROM or related extras from the server' \
+'cache:Manage the local persistent cache' \
+'auth:Manage authentication credentials' \
+'update:Check for and install application updates' \
+'completions:Generate shell completion scripts' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'romm-cli commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__api_commands] )) ||
+_romm-cli__subcmd__api_commands() {
+    local commands; commands=(
+'call:Make a generic API call' \
+'get:Shortcut for GET request' \
+'post:Shortcut for POST request' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'romm-cli api commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__api__subcmd__call_commands] )) ||
+_romm-cli__subcmd__api__subcmd__call_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli api call commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__api__subcmd__get_commands] )) ||
+_romm-cli__subcmd__api__subcmd__get_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli api get commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__api__subcmd__help_commands] )) ||
+_romm-cli__subcmd__api__subcmd__help_commands() {
+    local commands; commands=(
+'call:Make a generic API call' \
+'get:Shortcut for GET request' \
+'post:Shortcut for POST request' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'romm-cli api help commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__api__subcmd__help__subcmd__call_commands] )) ||
+_romm-cli__subcmd__api__subcmd__help__subcmd__call_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli api help call commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__api__subcmd__help__subcmd__get_commands] )) ||
+_romm-cli__subcmd__api__subcmd__help__subcmd__get_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli api help get commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__api__subcmd__help__subcmd__help_commands] )) ||
+_romm-cli__subcmd__api__subcmd__help__subcmd__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli api help help commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__api__subcmd__help__subcmd__post_commands] )) ||
+_romm-cli__subcmd__api__subcmd__help__subcmd__post_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli api help post commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__api__subcmd__post_commands] )) ||
+_romm-cli__subcmd__api__subcmd__post_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli api post commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__auth_commands] )) ||
+_romm-cli__subcmd__auth_commands() {
+    local commands; commands=(
+'login:Set/rotate authentication credentials (Bearer, Basic, API key, or pairing code)' \
+'logout:Remove stored authentication (leaves non-auth config untouched)' \
+'status:Show current authentication mode and where it comes from (env/config/keyring)' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'romm-cli auth commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__auth__subcmd__help_commands] )) ||
+_romm-cli__subcmd__auth__subcmd__help_commands() {
+    local commands; commands=(
+'login:Set/rotate authentication credentials (Bearer, Basic, API key, or pairing code)' \
+'logout:Remove stored authentication (leaves non-auth config untouched)' \
+'status:Show current authentication mode and where it comes from (env/config/keyring)' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'romm-cli auth help commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__auth__subcmd__help__subcmd__help_commands] )) ||
+_romm-cli__subcmd__auth__subcmd__help__subcmd__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli auth help help commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__auth__subcmd__help__subcmd__login_commands] )) ||
+_romm-cli__subcmd__auth__subcmd__help__subcmd__login_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli auth help login commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__auth__subcmd__help__subcmd__logout_commands] )) ||
+_romm-cli__subcmd__auth__subcmd__help__subcmd__logout_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli auth help logout commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__auth__subcmd__help__subcmd__status_commands] )) ||
+_romm-cli__subcmd__auth__subcmd__help__subcmd__status_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli auth help status commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__auth__subcmd__login_commands] )) ||
+_romm-cli__subcmd__auth__subcmd__login_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli auth login commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__auth__subcmd__logout_commands] )) ||
+_romm-cli__subcmd__auth__subcmd__logout_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli auth logout commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__auth__subcmd__status_commands] )) ||
+_romm-cli__subcmd__auth__subcmd__status_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli auth status commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__cache_commands] )) ||
+_romm-cli__subcmd__cache_commands() {
+    local commands; commands=(
+'path:Print the effective ROM cache file path' \
+'info:Show ROM cache metadata and parse status' \
+'clear:Delete the ROM cache file if it exists' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'romm-cli cache commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__cache__subcmd__clear_commands] )) ||
+_romm-cli__subcmd__cache__subcmd__clear_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli cache clear commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__cache__subcmd__help_commands] )) ||
+_romm-cli__subcmd__cache__subcmd__help_commands() {
+    local commands; commands=(
+'path:Print the effective ROM cache file path' \
+'info:Show ROM cache metadata and parse status' \
+'clear:Delete the ROM cache file if it exists' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'romm-cli cache help commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__cache__subcmd__help__subcmd__clear_commands] )) ||
+_romm-cli__subcmd__cache__subcmd__help__subcmd__clear_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli cache help clear commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__cache__subcmd__help__subcmd__help_commands] )) ||
+_romm-cli__subcmd__cache__subcmd__help__subcmd__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli cache help help commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__cache__subcmd__help__subcmd__info_commands] )) ||
+_romm-cli__subcmd__cache__subcmd__help__subcmd__info_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli cache help info commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__cache__subcmd__help__subcmd__path_commands] )) ||
+_romm-cli__subcmd__cache__subcmd__help__subcmd__path_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli cache help path commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__cache__subcmd__info_commands] )) ||
+_romm-cli__subcmd__cache__subcmd__info_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli cache info commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__cache__subcmd__path_commands] )) ||
+_romm-cli__subcmd__cache__subcmd__path_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli cache path commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__completions_commands] )) ||
+_romm-cli__subcmd__completions_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli completions commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__download_commands] )) ||
+_romm-cli__subcmd__download_commands() {
+    local commands; commands=(
+'batch:Download multiple ROMs matching filters' \
+'all:Download multiple ROMs matching filters' \
+'extras:Download covers, manuals, updates, and DLC for one game' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'romm-cli download commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__download__subcmd__batch_commands] )) ||
+_romm-cli__subcmd__download__subcmd__batch_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli download batch commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__download__subcmd__extras_commands] )) ||
+_romm-cli__subcmd__download__subcmd__extras_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli download extras commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__download__subcmd__help_commands] )) ||
+_romm-cli__subcmd__download__subcmd__help_commands() {
+    local commands; commands=(
+'batch:Download multiple ROMs matching filters' \
+'extras:Download covers, manuals, updates, and DLC for one game' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'romm-cli download help commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__download__subcmd__help__subcmd__batch_commands] )) ||
+_romm-cli__subcmd__download__subcmd__help__subcmd__batch_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli download help batch commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__download__subcmd__help__subcmd__extras_commands] )) ||
+_romm-cli__subcmd__download__subcmd__help__subcmd__extras_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli download help extras commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__download__subcmd__help__subcmd__help_commands] )) ||
+_romm-cli__subcmd__download__subcmd__help__subcmd__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli download help help commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help_commands] )) ||
+_romm-cli__subcmd__help_commands() {
+    local commands; commands=(
+'init:Create or update user configuration' \
+'tui:Launch the interactive Terminal User Interface (TUI)' \
+'api:Low-level access to any RomM API endpoint' \
+'platforms:Manage gaming platforms' \
+'roms:Manage ROM files and metadata' \
+'scan:Trigger a library scan on the RomM server' \
+'sync:Save-sync workflows (device registration, planning, and execution)' \
+'download:Download a ROM or related extras from the server' \
+'cache:Manage the local persistent cache' \
+'auth:Manage authentication credentials' \
+'update:Check for and install application updates' \
+'completions:Generate shell completion scripts' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'romm-cli help commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__api_commands] )) ||
+_romm-cli__subcmd__help__subcmd__api_commands() {
+    local commands; commands=(
+'call:Make a generic API call' \
+'get:Shortcut for GET request' \
+'post:Shortcut for POST request' \
+    )
+    _describe -t commands 'romm-cli help api commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__api__subcmd__call_commands] )) ||
+_romm-cli__subcmd__help__subcmd__api__subcmd__call_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help api call commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__api__subcmd__get_commands] )) ||
+_romm-cli__subcmd__help__subcmd__api__subcmd__get_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help api get commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__api__subcmd__post_commands] )) ||
+_romm-cli__subcmd__help__subcmd__api__subcmd__post_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help api post commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__auth_commands] )) ||
+_romm-cli__subcmd__help__subcmd__auth_commands() {
+    local commands; commands=(
+'login:Set/rotate authentication credentials (Bearer, Basic, API key, or pairing code)' \
+'logout:Remove stored authentication (leaves non-auth config untouched)' \
+'status:Show current authentication mode and where it comes from (env/config/keyring)' \
+    )
+    _describe -t commands 'romm-cli help auth commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__auth__subcmd__login_commands] )) ||
+_romm-cli__subcmd__help__subcmd__auth__subcmd__login_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help auth login commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__auth__subcmd__logout_commands] )) ||
+_romm-cli__subcmd__help__subcmd__auth__subcmd__logout_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help auth logout commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__auth__subcmd__status_commands] )) ||
+_romm-cli__subcmd__help__subcmd__auth__subcmd__status_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help auth status commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__cache_commands] )) ||
+_romm-cli__subcmd__help__subcmd__cache_commands() {
+    local commands; commands=(
+'path:Print the effective ROM cache file path' \
+'info:Show ROM cache metadata and parse status' \
+'clear:Delete the ROM cache file if it exists' \
+    )
+    _describe -t commands 'romm-cli help cache commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__cache__subcmd__clear_commands] )) ||
+_romm-cli__subcmd__help__subcmd__cache__subcmd__clear_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help cache clear commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__cache__subcmd__info_commands] )) ||
+_romm-cli__subcmd__help__subcmd__cache__subcmd__info_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help cache info commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__cache__subcmd__path_commands] )) ||
+_romm-cli__subcmd__help__subcmd__cache__subcmd__path_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help cache path commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__completions_commands] )) ||
+_romm-cli__subcmd__help__subcmd__completions_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help completions commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__download_commands] )) ||
+_romm-cli__subcmd__help__subcmd__download_commands() {
+    local commands; commands=(
+'batch:Download multiple ROMs matching filters' \
+'extras:Download covers, manuals, updates, and DLC for one game' \
+    )
+    _describe -t commands 'romm-cli help download commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__download__subcmd__batch_commands] )) ||
+_romm-cli__subcmd__help__subcmd__download__subcmd__batch_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help download batch commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__download__subcmd__extras_commands] )) ||
+_romm-cli__subcmd__help__subcmd__download__subcmd__extras_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help download extras commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__help_commands] )) ||
+_romm-cli__subcmd__help__subcmd__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help help commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__init_commands] )) ||
+_romm-cli__subcmd__help__subcmd__init_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help init commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__platforms_commands] )) ||
+_romm-cli__subcmd__help__subcmd__platforms_commands() {
+    local commands; commands=(
+'list:List all platforms (default)' \
+'get:Get details for a specific platform' \
+    )
+    _describe -t commands 'romm-cli help platforms commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__platforms__subcmd__get_commands] )) ||
+_romm-cli__subcmd__help__subcmd__platforms__subcmd__get_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help platforms get commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__platforms__subcmd__list_commands] )) ||
+_romm-cli__subcmd__help__subcmd__platforms__subcmd__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help platforms list commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__roms_commands] )) ||
+_romm-cli__subcmd__help__subcmd__roms_commands() {
+    local commands; commands=(
+'get:Get detailed information for a single ROM' \
+'find:Lookup ROM by file hash or metadata provider id' \
+'filters:Print canonical filter values from \`GET /api/roms/filters\`' \
+'delete:Delete ROMs from the database (optional filesystem delete)' \
+'props:Update per-user ROM properties (\`PUT /api/roms/{id}/props\`)' \
+'notes-list:List notes for a ROM' \
+'notes-add:Add a note (JSON body string, e.g. {\\"title\\"\:\\"t\\",\\"content\\"\:\\"c\\"})' \
+'notes-update:Update a note' \
+'notes-delete:Delete a note' \
+'manuals-add:Upload a manual file (\`POST /api/roms/{id}/manuals\`)' \
+'cover-search:Search covers and metadata matches' \
+'upload:Upload a ROM file to a platform' \
+    )
+    _describe -t commands 'romm-cli help roms commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__roms__subcmd__cover-search_commands] )) ||
+_romm-cli__subcmd__help__subcmd__roms__subcmd__cover-search_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help roms cover-search commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__roms__subcmd__delete_commands] )) ||
+_romm-cli__subcmd__help__subcmd__roms__subcmd__delete_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help roms delete commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__roms__subcmd__filters_commands] )) ||
+_romm-cli__subcmd__help__subcmd__roms__subcmd__filters_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help roms filters commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__roms__subcmd__find_commands] )) ||
+_romm-cli__subcmd__help__subcmd__roms__subcmd__find_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help roms find commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__roms__subcmd__get_commands] )) ||
+_romm-cli__subcmd__help__subcmd__roms__subcmd__get_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help roms get commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__roms__subcmd__manuals-add_commands] )) ||
+_romm-cli__subcmd__help__subcmd__roms__subcmd__manuals-add_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help roms manuals-add commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__roms__subcmd__notes-add_commands] )) ||
+_romm-cli__subcmd__help__subcmd__roms__subcmd__notes-add_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help roms notes-add commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__roms__subcmd__notes-delete_commands] )) ||
+_romm-cli__subcmd__help__subcmd__roms__subcmd__notes-delete_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help roms notes-delete commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__roms__subcmd__notes-list_commands] )) ||
+_romm-cli__subcmd__help__subcmd__roms__subcmd__notes-list_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help roms notes-list commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__roms__subcmd__notes-update_commands] )) ||
+_romm-cli__subcmd__help__subcmd__roms__subcmd__notes-update_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help roms notes-update commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__roms__subcmd__props_commands] )) ||
+_romm-cli__subcmd__help__subcmd__roms__subcmd__props_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help roms props commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__roms__subcmd__upload_commands] )) ||
+_romm-cli__subcmd__help__subcmd__roms__subcmd__upload_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help roms upload commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__scan_commands] )) ||
+_romm-cli__subcmd__help__subcmd__scan_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help scan commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__sync_commands] )) ||
+_romm-cli__subcmd__help__subcmd__sync_commands() {
+    local commands; commands=(
+'device:Manage sync devices' \
+'plan:Negotiate sync operations without modifying files' \
+'run:Execute one-shot sync operations' \
+'sessions:Inspect sync sessions' \
+'push-pull:Trigger push-pull mode on a registered device' \
+    )
+    _describe -t commands 'romm-cli help sync commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__sync__subcmd__device_commands] )) ||
+_romm-cli__subcmd__help__subcmd__sync__subcmd__device_commands() {
+    local commands; commands=(
+'register:Register a device (\`POST /api/devices\`)' \
+'list:List devices (\`GET /api/devices\`)' \
+'get:Get one device (\`GET /api/devices/{id}\`)' \
+    )
+    _describe -t commands 'romm-cli help sync device commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__sync__subcmd__device__subcmd__get_commands] )) ||
+_romm-cli__subcmd__help__subcmd__sync__subcmd__device__subcmd__get_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help sync device get commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__sync__subcmd__device__subcmd__list_commands] )) ||
+_romm-cli__subcmd__help__subcmd__sync__subcmd__device__subcmd__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help sync device list commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__sync__subcmd__device__subcmd__register_commands] )) ||
+_romm-cli__subcmd__help__subcmd__sync__subcmd__device__subcmd__register_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help sync device register commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__sync__subcmd__plan_commands] )) ||
+_romm-cli__subcmd__help__subcmd__sync__subcmd__plan_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help sync plan commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__sync__subcmd__push-pull_commands] )) ||
+_romm-cli__subcmd__help__subcmd__sync__subcmd__push-pull_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help sync push-pull commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__sync__subcmd__run_commands] )) ||
+_romm-cli__subcmd__help__subcmd__sync__subcmd__run_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help sync run commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__sync__subcmd__sessions_commands] )) ||
+_romm-cli__subcmd__help__subcmd__sync__subcmd__sessions_commands() {
+    local commands; commands=(
+'list:List sessions (\`GET /api/sync/sessions\`)' \
+'get:Get one session (\`GET /api/sync/sessions/{id}\`)' \
+    )
+    _describe -t commands 'romm-cli help sync sessions commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__sync__subcmd__sessions__subcmd__get_commands] )) ||
+_romm-cli__subcmd__help__subcmd__sync__subcmd__sessions__subcmd__get_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help sync sessions get commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__sync__subcmd__sessions__subcmd__list_commands] )) ||
+_romm-cli__subcmd__help__subcmd__sync__subcmd__sessions__subcmd__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help sync sessions list commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__tui_commands] )) ||
+_romm-cli__subcmd__help__subcmd__tui_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help tui commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__help__subcmd__update_commands] )) ||
+_romm-cli__subcmd__help__subcmd__update_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli help update commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__init_commands] )) ||
+_romm-cli__subcmd__init_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli init commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__platforms_commands] )) ||
+_romm-cli__subcmd__platforms_commands() {
+    local commands; commands=(
+'list:List all platforms (default)' \
+'ls:List all platforms (default)' \
+'get:Get details for a specific platform' \
+'info:Get details for a specific platform' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'romm-cli platforms commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__platforms__subcmd__get_commands] )) ||
+_romm-cli__subcmd__platforms__subcmd__get_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli platforms get commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__platforms__subcmd__help_commands] )) ||
+_romm-cli__subcmd__platforms__subcmd__help_commands() {
+    local commands; commands=(
+'list:List all platforms (default)' \
+'get:Get details for a specific platform' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'romm-cli platforms help commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__platforms__subcmd__help__subcmd__get_commands] )) ||
+_romm-cli__subcmd__platforms__subcmd__help__subcmd__get_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli platforms help get commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__platforms__subcmd__help__subcmd__help_commands] )) ||
+_romm-cli__subcmd__platforms__subcmd__help__subcmd__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli platforms help help commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__platforms__subcmd__help__subcmd__list_commands] )) ||
+_romm-cli__subcmd__platforms__subcmd__help__subcmd__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli platforms help list commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__platforms__subcmd__list_commands] )) ||
+_romm-cli__subcmd__platforms__subcmd__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli platforms list commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__roms_commands] )) ||
+_romm-cli__subcmd__roms_commands() {
+    local commands; commands=(
+'get:Get detailed information for a single ROM' \
+'info:Get detailed information for a single ROM' \
+'find:Lookup ROM by file hash or metadata provider id' \
+'filters:Print canonical filter values from \`GET /api/roms/filters\`' \
+'delete:Delete ROMs from the database (optional filesystem delete)' \
+'props:Update per-user ROM properties (\`PUT /api/roms/{id}/props\`)' \
+'notes-list:List notes for a ROM' \
+'notes-add:Add a note (JSON body string, e.g. {\\"title\\"\:\\"t\\",\\"content\\"\:\\"c\\"})' \
+'notes-update:Update a note' \
+'notes-delete:Delete a note' \
+'manuals-add:Upload a manual file (\`POST /api/roms/{id}/manuals\`)' \
+'cover-search:Search covers and metadata matches' \
+'upload:Upload a ROM file to a platform' \
+'up:Upload a ROM file to a platform' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'romm-cli roms commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__roms__subcmd__cover-search_commands] )) ||
+_romm-cli__subcmd__roms__subcmd__cover-search_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli roms cover-search commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__roms__subcmd__delete_commands] )) ||
+_romm-cli__subcmd__roms__subcmd__delete_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli roms delete commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__roms__subcmd__filters_commands] )) ||
+_romm-cli__subcmd__roms__subcmd__filters_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli roms filters commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__roms__subcmd__find_commands] )) ||
+_romm-cli__subcmd__roms__subcmd__find_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli roms find commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__roms__subcmd__get_commands] )) ||
+_romm-cli__subcmd__roms__subcmd__get_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli roms get commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__roms__subcmd__help_commands] )) ||
+_romm-cli__subcmd__roms__subcmd__help_commands() {
+    local commands; commands=(
+'get:Get detailed information for a single ROM' \
+'find:Lookup ROM by file hash or metadata provider id' \
+'filters:Print canonical filter values from \`GET /api/roms/filters\`' \
+'delete:Delete ROMs from the database (optional filesystem delete)' \
+'props:Update per-user ROM properties (\`PUT /api/roms/{id}/props\`)' \
+'notes-list:List notes for a ROM' \
+'notes-add:Add a note (JSON body string, e.g. {\\"title\\"\:\\"t\\",\\"content\\"\:\\"c\\"})' \
+'notes-update:Update a note' \
+'notes-delete:Delete a note' \
+'manuals-add:Upload a manual file (\`POST /api/roms/{id}/manuals\`)' \
+'cover-search:Search covers and metadata matches' \
+'upload:Upload a ROM file to a platform' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'romm-cli roms help commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__roms__subcmd__help__subcmd__cover-search_commands] )) ||
+_romm-cli__subcmd__roms__subcmd__help__subcmd__cover-search_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli roms help cover-search commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__roms__subcmd__help__subcmd__delete_commands] )) ||
+_romm-cli__subcmd__roms__subcmd__help__subcmd__delete_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli roms help delete commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__roms__subcmd__help__subcmd__filters_commands] )) ||
+_romm-cli__subcmd__roms__subcmd__help__subcmd__filters_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli roms help filters commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__roms__subcmd__help__subcmd__find_commands] )) ||
+_romm-cli__subcmd__roms__subcmd__help__subcmd__find_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli roms help find commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__roms__subcmd__help__subcmd__get_commands] )) ||
+_romm-cli__subcmd__roms__subcmd__help__subcmd__get_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli roms help get commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__roms__subcmd__help__subcmd__help_commands] )) ||
+_romm-cli__subcmd__roms__subcmd__help__subcmd__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli roms help help commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__roms__subcmd__help__subcmd__manuals-add_commands] )) ||
+_romm-cli__subcmd__roms__subcmd__help__subcmd__manuals-add_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli roms help manuals-add commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__roms__subcmd__help__subcmd__notes-add_commands] )) ||
+_romm-cli__subcmd__roms__subcmd__help__subcmd__notes-add_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli roms help notes-add commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__roms__subcmd__help__subcmd__notes-delete_commands] )) ||
+_romm-cli__subcmd__roms__subcmd__help__subcmd__notes-delete_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli roms help notes-delete commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__roms__subcmd__help__subcmd__notes-list_commands] )) ||
+_romm-cli__subcmd__roms__subcmd__help__subcmd__notes-list_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli roms help notes-list commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__roms__subcmd__help__subcmd__notes-update_commands] )) ||
+_romm-cli__subcmd__roms__subcmd__help__subcmd__notes-update_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli roms help notes-update commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__roms__subcmd__help__subcmd__props_commands] )) ||
+_romm-cli__subcmd__roms__subcmd__help__subcmd__props_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli roms help props commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__roms__subcmd__help__subcmd__upload_commands] )) ||
+_romm-cli__subcmd__roms__subcmd__help__subcmd__upload_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli roms help upload commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__roms__subcmd__manuals-add_commands] )) ||
+_romm-cli__subcmd__roms__subcmd__manuals-add_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli roms manuals-add commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__roms__subcmd__notes-add_commands] )) ||
+_romm-cli__subcmd__roms__subcmd__notes-add_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli roms notes-add commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__roms__subcmd__notes-delete_commands] )) ||
+_romm-cli__subcmd__roms__subcmd__notes-delete_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli roms notes-delete commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__roms__subcmd__notes-list_commands] )) ||
+_romm-cli__subcmd__roms__subcmd__notes-list_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli roms notes-list commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__roms__subcmd__notes-update_commands] )) ||
+_romm-cli__subcmd__roms__subcmd__notes-update_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli roms notes-update commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__roms__subcmd__props_commands] )) ||
+_romm-cli__subcmd__roms__subcmd__props_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli roms props commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__roms__subcmd__upload_commands] )) ||
+_romm-cli__subcmd__roms__subcmd__upload_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli roms upload commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__scan_commands] )) ||
+_romm-cli__subcmd__scan_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli scan commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__sync_commands] )) ||
+_romm-cli__subcmd__sync_commands() {
+    local commands; commands=(
+'device:Manage sync devices' \
+'plan:Negotiate sync operations without modifying files' \
+'run:Execute one-shot sync operations' \
+'sessions:Inspect sync sessions' \
+'push-pull:Trigger push-pull mode on a registered device' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'romm-cli sync commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__sync__subcmd__device_commands] )) ||
+_romm-cli__subcmd__sync__subcmd__device_commands() {
+    local commands; commands=(
+'register:Register a device (\`POST /api/devices\`)' \
+'list:List devices (\`GET /api/devices\`)' \
+'get:Get one device (\`GET /api/devices/{id}\`)' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'romm-cli sync device commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__sync__subcmd__device__subcmd__get_commands] )) ||
+_romm-cli__subcmd__sync__subcmd__device__subcmd__get_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli sync device get commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__sync__subcmd__device__subcmd__help_commands] )) ||
+_romm-cli__subcmd__sync__subcmd__device__subcmd__help_commands() {
+    local commands; commands=(
+'register:Register a device (\`POST /api/devices\`)' \
+'list:List devices (\`GET /api/devices\`)' \
+'get:Get one device (\`GET /api/devices/{id}\`)' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'romm-cli sync device help commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__sync__subcmd__device__subcmd__help__subcmd__get_commands] )) ||
+_romm-cli__subcmd__sync__subcmd__device__subcmd__help__subcmd__get_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli sync device help get commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__sync__subcmd__device__subcmd__help__subcmd__help_commands] )) ||
+_romm-cli__subcmd__sync__subcmd__device__subcmd__help__subcmd__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli sync device help help commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__sync__subcmd__device__subcmd__help__subcmd__list_commands] )) ||
+_romm-cli__subcmd__sync__subcmd__device__subcmd__help__subcmd__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli sync device help list commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__sync__subcmd__device__subcmd__help__subcmd__register_commands] )) ||
+_romm-cli__subcmd__sync__subcmd__device__subcmd__help__subcmd__register_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli sync device help register commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__sync__subcmd__device__subcmd__list_commands] )) ||
+_romm-cli__subcmd__sync__subcmd__device__subcmd__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli sync device list commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__sync__subcmd__device__subcmd__register_commands] )) ||
+_romm-cli__subcmd__sync__subcmd__device__subcmd__register_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli sync device register commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__sync__subcmd__help_commands] )) ||
+_romm-cli__subcmd__sync__subcmd__help_commands() {
+    local commands; commands=(
+'device:Manage sync devices' \
+'plan:Negotiate sync operations without modifying files' \
+'run:Execute one-shot sync operations' \
+'sessions:Inspect sync sessions' \
+'push-pull:Trigger push-pull mode on a registered device' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'romm-cli sync help commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__sync__subcmd__help__subcmd__device_commands] )) ||
+_romm-cli__subcmd__sync__subcmd__help__subcmd__device_commands() {
+    local commands; commands=(
+'register:Register a device (\`POST /api/devices\`)' \
+'list:List devices (\`GET /api/devices\`)' \
+'get:Get one device (\`GET /api/devices/{id}\`)' \
+    )
+    _describe -t commands 'romm-cli sync help device commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__sync__subcmd__help__subcmd__device__subcmd__get_commands] )) ||
+_romm-cli__subcmd__sync__subcmd__help__subcmd__device__subcmd__get_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli sync help device get commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__sync__subcmd__help__subcmd__device__subcmd__list_commands] )) ||
+_romm-cli__subcmd__sync__subcmd__help__subcmd__device__subcmd__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli sync help device list commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__sync__subcmd__help__subcmd__device__subcmd__register_commands] )) ||
+_romm-cli__subcmd__sync__subcmd__help__subcmd__device__subcmd__register_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli sync help device register commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__sync__subcmd__help__subcmd__help_commands] )) ||
+_romm-cli__subcmd__sync__subcmd__help__subcmd__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli sync help help commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__sync__subcmd__help__subcmd__plan_commands] )) ||
+_romm-cli__subcmd__sync__subcmd__help__subcmd__plan_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli sync help plan commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__sync__subcmd__help__subcmd__push-pull_commands] )) ||
+_romm-cli__subcmd__sync__subcmd__help__subcmd__push-pull_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli sync help push-pull commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__sync__subcmd__help__subcmd__run_commands] )) ||
+_romm-cli__subcmd__sync__subcmd__help__subcmd__run_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli sync help run commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__sync__subcmd__help__subcmd__sessions_commands] )) ||
+_romm-cli__subcmd__sync__subcmd__help__subcmd__sessions_commands() {
+    local commands; commands=(
+'list:List sessions (\`GET /api/sync/sessions\`)' \
+'get:Get one session (\`GET /api/sync/sessions/{id}\`)' \
+    )
+    _describe -t commands 'romm-cli sync help sessions commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__sync__subcmd__help__subcmd__sessions__subcmd__get_commands] )) ||
+_romm-cli__subcmd__sync__subcmd__help__subcmd__sessions__subcmd__get_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli sync help sessions get commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__sync__subcmd__help__subcmd__sessions__subcmd__list_commands] )) ||
+_romm-cli__subcmd__sync__subcmd__help__subcmd__sessions__subcmd__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli sync help sessions list commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__sync__subcmd__plan_commands] )) ||
+_romm-cli__subcmd__sync__subcmd__plan_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli sync plan commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__sync__subcmd__push-pull_commands] )) ||
+_romm-cli__subcmd__sync__subcmd__push-pull_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli sync push-pull commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__sync__subcmd__run_commands] )) ||
+_romm-cli__subcmd__sync__subcmd__run_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli sync run commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__sync__subcmd__sessions_commands] )) ||
+_romm-cli__subcmd__sync__subcmd__sessions_commands() {
+    local commands; commands=(
+'list:List sessions (\`GET /api/sync/sessions\`)' \
+'get:Get one session (\`GET /api/sync/sessions/{id}\`)' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'romm-cli sync sessions commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__sync__subcmd__sessions__subcmd__get_commands] )) ||
+_romm-cli__subcmd__sync__subcmd__sessions__subcmd__get_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli sync sessions get commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__sync__subcmd__sessions__subcmd__help_commands] )) ||
+_romm-cli__subcmd__sync__subcmd__sessions__subcmd__help_commands() {
+    local commands; commands=(
+'list:List sessions (\`GET /api/sync/sessions\`)' \
+'get:Get one session (\`GET /api/sync/sessions/{id}\`)' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'romm-cli sync sessions help commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__sync__subcmd__sessions__subcmd__help__subcmd__get_commands] )) ||
+_romm-cli__subcmd__sync__subcmd__sessions__subcmd__help__subcmd__get_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli sync sessions help get commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__sync__subcmd__sessions__subcmd__help__subcmd__help_commands] )) ||
+_romm-cli__subcmd__sync__subcmd__sessions__subcmd__help__subcmd__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli sync sessions help help commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__sync__subcmd__sessions__subcmd__help__subcmd__list_commands] )) ||
+_romm-cli__subcmd__sync__subcmd__sessions__subcmd__help__subcmd__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli sync sessions help list commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__sync__subcmd__sessions__subcmd__list_commands] )) ||
+_romm-cli__subcmd__sync__subcmd__sessions__subcmd__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli sync sessions list commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__tui_commands] )) ||
+_romm-cli__subcmd__tui_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli tui commands' commands "$@"
+}
+(( $+functions[_romm-cli__subcmd__update_commands] )) ||
+_romm-cli__subcmd__update_commands() {
+    local commands; commands=()
+    _describe -t commands 'romm-cli update commands' commands "$@"
+}
+
+if [ "$funcstack[1]" = "_romm-cli" ]; then
+    _romm-cli "$@"
+else
+    compdef _romm-cli romm-cli
+fi

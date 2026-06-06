@@ -85,28 +85,33 @@ impl RommClient {
                     let value = format!("Basic {encoded}");
                     headers.insert(
                         AUTHORIZATION,
-                        HeaderValue::from_str(&value)
-                            .map_err(|_| ApiError::InvalidHeader("invalid basic auth header value".into()))?,
+                        HeaderValue::from_str(&value).map_err(|_| {
+                            ApiError::InvalidHeader("invalid basic auth header value".into())
+                        })?,
                     );
                 }
                 AuthConfig::Bearer { token } => {
                     let value = format!("Bearer {token}");
                     headers.insert(
                         AUTHORIZATION,
-                        HeaderValue::from_str(&value)
-                            .map_err(|_| ApiError::InvalidHeader("invalid bearer auth header value".into()))?,
+                        HeaderValue::from_str(&value).map_err(|_| {
+                            ApiError::InvalidHeader("invalid bearer auth header value".into())
+                        })?,
                     );
                 }
                 AuthConfig::ApiKey { header, key } => {
                     let name = reqwest::header::HeaderName::from_bytes(header.as_bytes()).map_err(
-                        |_| ApiError::InvalidHeader(
-                            "invalid API_KEY_HEADER, must be a valid HTTP header name".into(),
-                        ),
+                        |_| {
+                            ApiError::InvalidHeader(
+                                "invalid API_KEY_HEADER, must be a valid HTTP header name".into(),
+                            )
+                        },
                     )?;
                     headers.insert(
                         name,
-                        HeaderValue::from_str(key)
-                            .map_err(|_| ApiError::InvalidHeader("invalid API_KEY header value".into()))?,
+                        HeaderValue::from_str(key).map_err(|_| {
+                            ApiError::InvalidHeader("invalid API_KEY header value".into())
+                        })?,
                     );
                 }
             }

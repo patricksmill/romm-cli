@@ -32,8 +32,6 @@
 //! }
 //! ```
 
-/// Typed error hierarchy (`ApiError`, `ConfigError`, `DownloadError`, `RommError`).
-pub mod error;
 /// HTTP client implementation for the RomM API.
 pub mod client;
 /// CLI command handlers.
@@ -44,6 +42,8 @@ pub mod config;
 pub mod core;
 /// Type-safe API endpoint definitions.
 pub mod endpoints;
+/// Typed error hierarchy (`ApiError`, `ConfigError`, `DownloadError`, `RommError`).
+pub mod error;
 /// Feature compatibility helpers based on OpenAPI endpoint availability.
 pub mod feature_compat;
 /// Frontend-specific logic (shared between CLI and TUI).

@@ -97,16 +97,22 @@ impl RommClient {
         }
 
         if let Some(parent) = save_path.parent() {
-            tokio::fs::create_dir_all(parent).await.map_err(|e| {
-                DownloadError::IoContext {
+            tokio::fs::create_dir_all(parent)
+                .await
+                .map_err(|e| DownloadError::IoContext {
                     context: format!("create download parent dir {parent:?}"),
                     source: e,
-                }
-            })?;
+                })?;
         }
 
         let t0 = Instant::now();
-        let mut resp = self.http.get(&url).headers(headers).query(query).send().await?;
+        let mut resp = self
+            .http
+            .get(&url)
+            .headers(headers)
+            .query(query)
+            .send()
+            .await?;
 
         let status = resp.status();
         if self.verbose {
@@ -137,12 +143,13 @@ impl RommClient {
             (existing_len, total, file)
         } else {
             let total = resp.content_length().unwrap_or(0);
-            let file = tokio::fs::File::create(save_path).await.map_err(|e| {
-                DownloadError::IoContext {
-                    context: format!("create file {save_path:?}"),
-                    source: e,
-                }
-            })?;
+            let file =
+                tokio::fs::File::create(save_path)
+                    .await
+                    .map_err(|e| DownloadError::IoContext {
+                        context: format!("create file {save_path:?}"),
+                        source: e,
+                    })?;
             (0u64, total, file)
         };
 
@@ -154,10 +161,12 @@ impl RommClient {
             if is_cancelled(received, total) {
                 return Err(DownloadError::Cancelled(CancelledByUser));
             }
-            file.write_all(&chunk).await.map_err(|e| DownloadError::IoContext {
-                context: format!("write chunk {save_path:?}"),
-                source: e,
-            })?;
+            file.write_all(&chunk)
+                .await
+                .map_err(|e| DownloadError::IoContext {
+                    context: format!("write chunk {save_path:?}"),
+                    source: e,
+                })?;
             received += chunk.len() as u64;
             on_progress(received, total);
         }

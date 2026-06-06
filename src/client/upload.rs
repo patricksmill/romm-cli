@@ -7,7 +7,9 @@ use tokio::io::AsyncReadExt as _;
 
 use crate::error::ApiError;
 
-use super::response::{api_error_from_response, decode_json_response_body, read_error_response_text};
+use super::response::{
+    api_error_from_response, decode_json_response_body, read_error_response_text,
+};
 use super::{RommClient, SaveUploadOptions};
 
 fn header_value(s: &str) -> Result<HeaderValue, ApiError> {
@@ -421,7 +423,11 @@ impl RommClient {
     }
 
     /// `POST /api/roms/{id}/manuals` — raw file body with `x-upload-filename` header.
-    pub async fn upload_rom_manual(&self, rom_id: u64, file_path: &Path) -> Result<Value, ApiError> {
+    pub async fn upload_rom_manual(
+        &self,
+        rom_id: u64,
+        file_path: &Path,
+    ) -> Result<Value, ApiError> {
         let fname = file_path
             .file_name()
             .and_then(|n| n.to_str())
@@ -445,7 +451,13 @@ impl RommClient {
             reqwest::header::HeaderName::from_static("x-upload-filename"),
             header_value(&fname)?,
         );
-        let resp = self.http.post(&url).headers(headers).body(bytes).send().await?;
+        let resp = self
+            .http
+            .post(&url)
+            .headers(headers)
+            .body(bytes)
+            .send()
+            .await?;
         let status = resp.status();
         if !status.is_success() {
             let body = read_error_response_text(resp).await;

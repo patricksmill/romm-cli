@@ -277,14 +277,12 @@ pub async fn handle(
     }
 
     // Ensure output directory exists.
-    tokio::fs::create_dir_all(&output_dir)
-        .await
-        .map_err(|e| {
-            RommError::Download(DownloadError::IoContext {
-                context: format!("create download dir {output_dir:?}"),
-                source: e,
-            })
-        })?;
+    tokio::fs::create_dir_all(&output_dir).await.map_err(|e| {
+        RommError::Download(DownloadError::IoContext {
+            context: format!("create download dir {output_dir:?}"),
+            source: e,
+        })
+    })?;
 
     if let Some(DownloadAction::Extras(extras)) = action.clone() {
         return handle_extras(extras, client, interrupt, &layout, output_dir, cmd.jobs).await;
@@ -335,13 +333,9 @@ pub async fn handle(
             if interrupt.is_cancelled() {
                 break 'enqueue;
             }
-            let permit = semaphore
-                .clone()
-                .acquire_owned()
-                .await
-                .map_err(|_| {
-                    RommError::Other("download worker semaphore closed unexpectedly".into())
-                })?;
+            let permit = semaphore.clone().acquire_owned().await.map_err(|_| {
+                RommError::Other("download worker semaphore closed unexpectedly".into())
+            })?;
             let client = client.clone();
             let base_dir = output_dir.clone();
             let layout = layout.clone();
@@ -352,14 +346,12 @@ pub async fn handle(
             let name = rom.name.clone();
             let rom_id = rom.id;
             let console_dir = resolve_console_roms_dir(&layout, &base_dir, &rom)?;
-            tokio::fs::create_dir_all(&console_dir)
-                .await
-                .map_err(|e| {
-                    RommError::Download(DownloadError::IoContext {
-                        context: format!("create console download dir {console_dir:?}"),
-                        source: e,
-                    })
-                })?;
+            tokio::fs::create_dir_all(&console_dir).await.map_err(|e| {
+                RommError::Download(DownloadError::IoContext {
+                    context: format!("create console download dir {console_dir:?}"),
+                    source: e,
+                })
+            })?;
             let platform_slug = rom
                 .platform_fs_slug
                 .clone()
@@ -402,7 +394,9 @@ pub async fn handle(
                         extraction_target_dir(&console_dir, &platform_slug, &stem, extract_layout);
                     if let Err(err) = tokio::fs::create_dir_all(&extract_dir).await {
                         result = Err(DownloadError::IoContext {
-                            context: format!("failed to create extraction directory {extract_dir:?}"),
+                            context: format!(
+                                "failed to create extraction directory {extract_dir:?}"
+                            ),
                             source: err,
                         });
                     } else if let Err(err) = extract_zip_archive(&save_path, &extract_dir) {
@@ -474,14 +468,12 @@ pub async fn handle(
             println!("Base game files downloaded.");
         } else {
             let console_dir = resolve_console_roms_dir(&layout, &output_dir, &rom)?;
-            tokio::fs::create_dir_all(&console_dir)
-                .await
-                .map_err(|e| {
-                    RommError::Download(DownloadError::IoContext {
-                        context: format!("create console download dir {console_dir:?}"),
-                        source: e,
-                    })
-                })?;
+            tokio::fs::create_dir_all(&console_dir).await.map_err(|e| {
+                RommError::Download(DownloadError::IoContext {
+                    context: format!("create console download dir {console_dir:?}"),
+                    source: e,
+                })
+            })?;
             let save_path = console_dir.join(format!("rom_{rom_id}.zip"));
             let mp = MultiProgress::new();
             let pb = mp.add(ProgressBar::new(0));
@@ -555,13 +547,9 @@ async fn run_targets(
         if interrupt.is_cancelled() {
             break 'enqueue;
         }
-        let permit = semaphore
-            .clone()
-            .acquire_owned()
-            .await
-            .map_err(|_| {
-                RommError::Other("download worker semaphore closed unexpectedly".into())
-            })?;
+        let permit = semaphore.clone().acquire_owned().await.map_err(|_| {
+            RommError::Other("download worker semaphore closed unexpectedly".into())
+        })?;
         let client = client.clone();
         let interrupt = interrupt.clone();
         let pb = mp.add(ProgressBar::new(0));

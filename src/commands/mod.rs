@@ -13,6 +13,7 @@ use crate::error::RommError;
 pub mod api;
 pub mod auth;
 pub mod cache;
+pub mod completions;
 pub mod download;
 pub mod init;
 pub mod library_scan;
@@ -113,6 +114,8 @@ pub enum Commands {
     Auth(auth::AuthCommand),
     /// Check for and install application updates.
     Update,
+    /// Generate shell completion scripts.
+    Completions(completions::CompletionsCommand),
 }
 
 /// Main entrypoint for running a CLI command.
@@ -123,6 +126,9 @@ pub async fn run(cli: Cli, config: Config) -> Result<(), RommError> {
     let client = RommClient::new(&config, cli.verbose)?;
 
     match cli.command {
+        Commands::Completions(_) => Err(RommError::Other(
+            "internal error: completions must be handled in main".into(),
+        )),
         Commands::Init(_) => Err(RommError::Other(
             "internal error: init must be handled before load_config".into(),
         )),
@@ -131,9 +137,7 @@ pub async fn run(cli: Cli, config: Config) -> Result<(), RommError> {
             "internal error: TUI must be started via run_interactive from main".into(),
         )),
         #[cfg(not(feature = "tui"))]
-        Commands::Tui { .. } => Err(RommError::Other(
-            "this feature requires the tui".into(),
-        )),
+        Commands::Tui { .. } => Err(RommError::Other("this feature requires the tui".into())),
         command => crate::frontend::cli::run(command, &client, cli.json).await,
     }
 }

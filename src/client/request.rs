@@ -6,7 +6,9 @@ use std::time::Instant;
 use crate::endpoints::Endpoint;
 use crate::error::ApiError;
 
-use super::response::{api_error_from_response, decode_json_response_body, read_error_response_text};
+use super::response::{
+    api_error_from_response, decode_json_response_body, read_error_response_text,
+};
 use super::RommClient;
 
 impl RommClient {

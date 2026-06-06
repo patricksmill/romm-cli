@@ -1,13 +1,16 @@
 //! Shared name/slug → ID resolution for platforms and collections.
 
 use crate::client::RommClient;
-use crate::error::RommError;
 use crate::endpoints::collections::{ListCollections, ListSmartCollections};
 use crate::endpoints::platforms::ListPlatforms;
+use crate::error::RommError;
 use crate::types::{Collection, Platform};
 
 /// Resolves a platform ID from a string query by matching against slugs, names, and custom names.
-pub fn resolve_platform_id_from_list(query: &str, platforms: &[Platform]) -> Result<u64, RommError> {
+pub fn resolve_platform_id_from_list(
+    query: &str,
+    platforms: &[Platform],
+) -> Result<u64, RommError> {
     let normalized = query.trim().to_ascii_lowercase();
 
     if let Some(platform) = platforms.iter().find(|p| {

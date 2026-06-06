@@ -190,7 +190,10 @@ pub fn resolve_console_save_dir(
 }
 
 /// Resolve the directory where a specific game's saves should be downloaded.
-pub fn resolve_game_save_dir(config: &Config, rom: &crate::types::Rom) -> Result<PathBuf, DownloadError> {
+pub fn resolve_game_save_dir(
+    config: &Config,
+    rom: &crate::types::Rom,
+) -> Result<PathBuf, DownloadError> {
     crate::core::download::resolve_game_save_dir(config, rom)
 }
 
@@ -689,10 +692,11 @@ pub fn persist_user_config(config: &Config) -> Result<(), ConfigError> {
             context: format!("write {}", path.display()),
             source: e,
         })?;
-        f.write_all(content.as_bytes()).map_err(|e| ConfigError::Io {
-            context: format!("write {}", path.display()),
-            source: e,
-        })?;
+        f.write_all(content.as_bytes())
+            .map_err(|e| ConfigError::Io {
+                context: format!("write {}", path.display()),
+                source: e,
+            })?;
     }
 
     #[cfg(unix)]

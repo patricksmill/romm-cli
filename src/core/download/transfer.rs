@@ -7,7 +7,9 @@ use crate::core::extras::DownloadTarget;
 use crate::core::utils;
 use crate::error::DownloadError;
 
-pub async fn prepare_download_target_destination(target: &DownloadTarget) -> Result<bool, DownloadError> {
+pub async fn prepare_download_target_destination(
+    target: &DownloadTarget,
+) -> Result<bool, DownloadError> {
     let Some(expected_size) = target.expected_size_bytes else {
         return Ok(false);
     };
@@ -23,8 +25,9 @@ pub async fn prepare_download_target_destination(target: &DownloadTarget) -> Res
         return Ok(true);
     }
     if current_size > expected_size {
-        tokio::fs::remove_file(&target.destination).await.map_err(|e| {
-            DownloadError::IoContext {
+        tokio::fs::remove_file(&target.destination)
+            .await
+            .map_err(|e| DownloadError::IoContext {
                 context: format!(
                     "remove oversized stale download {} ({} > {} bytes)",
                     target.destination.display(),
@@ -32,8 +35,7 @@ pub async fn prepare_download_target_destination(target: &DownloadTarget) -> Res
                     expected_size
                 ),
                 source: e,
-            }
-        })?;
+            })?;
     }
     Ok(false)
 }
@@ -141,39 +143,44 @@ pub(crate) async fn finalize_download(
     match tokio::fs::rename(temp_path, final_path).await {
         Ok(()) => Ok(FinalizeResult::Done),
         Err(rename_err) if is_cross_device_rename_error(&rename_err) => {
-            tokio::fs::copy(temp_path, final_path).await.map_err(|e| {
-                DownloadError::IoContext {
+            tokio::fs::copy(temp_path, final_path)
+                .await
+                .map_err(|e| DownloadError::IoContext {
                     context: format!(
                         "Could not copy temp ROM {} to final destination {}",
                         temp_path.display(),
                         final_path.display()
                     ),
                     source: e,
-                }
-            })?;
-            let file = tokio::fs::File::open(final_path).await.map_err(|e| {
-                DownloadError::IoContext {
+                })?;
+            let file =
+                tokio::fs::File::open(final_path)
+                    .await
+                    .map_err(|e| DownloadError::IoContext {
+                        context: format!(
+                            "Could not open finalized ROM for sync: {}",
+                            final_path.display()
+                        ),
+                        source: e,
+                    })?;
+            file.sync_all()
+                .await
+                .map_err(|e| DownloadError::IoContext {
                     context: format!(
-                        "Could not open finalized ROM for sync: {}",
+                        "Could not sync finalized ROM to disk: {}",
                         final_path.display()
                     ),
                     source: e,
-                }
-            })?;
-            file.sync_all().await.map_err(|e| DownloadError::IoContext {
-                context: format!(
-                    "Could not sync finalized ROM to disk: {}",
-                    final_path.display()
-                ),
-                source: e,
-            })?;
-            tokio::fs::remove_file(temp_path).await.map_err(|e| DownloadError::IoContext {
-                context: format!(
-                    "Could not remove temp ROM after copy: {}",
-                    temp_path.display()
-                ),
-                source: e,
-            })?;
+                })?;
+            tokio::fs::remove_file(temp_path)
+                .await
+                .map_err(|e| DownloadError::IoContext {
+                    context: format!(
+                        "Could not remove temp ROM after copy: {}",
+                        temp_path.display()
+                    ),
+                    source: e,
+                })?;
             Ok(FinalizeResult::Done)
         }
         Err(rename_err) => Err(DownloadError::RenameFailed {
