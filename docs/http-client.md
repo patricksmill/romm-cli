@@ -58,6 +58,8 @@ HTTP failures are classified by status code (`Unauthorized`, `Forbidden`, `NotFo
 
 `load_config()` returns `ConfigError`. Library consumers should use `RommError` as the composed type; the binary maps it to user messages via `user_message()` and exit codes via `exit_code()`.
 
+Exit code constants live in `romm_cli::exit` (`SUCCESS`, `GENERAL`, `USAGE`, `CONFIG`, `API`). Config and auth failures exit with `CONFIG` (3); API, network, and download failures exit with `API` (4). See README "Exit codes".
+
 ## Streaming downloads
 
 `download_rom` demonstrates how to:

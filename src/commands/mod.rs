@@ -57,7 +57,8 @@ impl OutputFormat {
     version,
     about = "Rust CLI and TUI for the ROMM API",
     infer_subcommands = true,
-    arg_required_else_help = true
+    arg_required_else_help = true,
+    after_help = "Exit codes: 0 success, 1 general failure, 2 usage, 3 config/auth, 4 API/network.\nSee README \"Exit codes\" for scripting examples."
 )]
 pub struct Cli {
     /// Increase output verbosity (logs requests to stderr).

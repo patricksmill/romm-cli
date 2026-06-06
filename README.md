@@ -282,6 +282,34 @@ After installing, start a new shell session (or reload your shell config) for co
 
 ---
 
+## Exit codes
+
+`romm-cli` uses distinct exit codes so scripts can branch on failure type:
+
+| Code | Meaning | Typical cause |
+|------|---------|---------------|
+| 0 | Success | Command completed (including user-cancelled downloads) |
+| 1 | General failure | Unexpected error, app-level validation |
+| 2 | Usage error | Invalid flags or arguments (clap) |
+| 3 | Config / auth | Missing `API_BASE_URL`, bad credentials |
+| 4 | API / network | Server errors, connection failures, download failures |
+
+Example:
+
+```bash
+romm-cli platforms
+case $? in
+  0) echo ok ;;
+  3) echo "fix config or auth" ;;
+  4) echo "API or network issue" ;;
+  *) echo "other failure" ;;
+esac
+```
+
+Errors are printed to stderr with a short actionable message (for example, suggesting `romm-cli init` or `romm-cli auth`).
+
+---
+
 ## Project layout
 
 - **`src/frontend`**: Routing between CLI and TUI execution.

@@ -146,7 +146,7 @@ pub enum ApiError {
 
 ### Gap 3: Meaningful exit codes
 
-**Current state:** `main.rs` exits with `1` on any error.
+**Current state:** `exit_code()` in `src/error.rs` maps `RommError` to `romm_cli::exit::{SUCCESS,GENERAL,USAGE,CONFIG,API}`. `main.rs` calls `std::process::exit(exit_code(&e))`. Legacy command handlers still return `anyhow::Result`; `from_anyhow()` downcasts typed domain errors at the CLI boundary. Clap parse errors exit with `2` before `run_app()` runs.
 
 **Recommended approach:**
 
@@ -161,9 +161,9 @@ pub enum ApiError {
 
 **Acceptance criteria:**
 
-- [ ] Scripts can distinguish auth/config failures from generic errors
-- [ ] Exit codes documented in README or `--help` long about text
-- [ ] Integration tests assert expected exit codes where relevant
+- [x] Scripts can distinguish auth/config failures from generic errors
+- [x] Exit codes documented in README or `--help` long about text
+- [x] Integration tests assert expected exit codes where relevant
 
 **References:** [Rust CLI error handling with clap](https://oneuptime.com/blog/post/2026-01-07-rust-cli-clap-error-handling/view)
 
@@ -171,7 +171,7 @@ pub enum ApiError {
 
 ### Gap 4: Workspace split (when scope grows)
 
-**Current state:** Single crate with multiple binaries (`romm-cli`, `romm-tui`, `romm-openapi-gen`). Works well at current size.
+**Current state:** Single crate with multiple binaries (`romm-cli`, `romm-tui`, `romm-openapi-gen`, `romm-complete-gen`). TUI is feature-gated; CI runs `--no-default-features`. Split is **deferred** — see [workspace-split ADR](plans/2026-06-06-workspace-split-adr.md) and [migration playbook](plans/2026-06-06-workspace-split-migration.md).
 
 **Recommended approach (future):**
 
@@ -187,11 +187,11 @@ romm-cli/          # workspace root
 - Keep `openapi_gen` as a bin in `romm-api` or a small `tools/` crate.
 - Share types and `RommClient` from `romm-api`; frontends depend on it.
 
-**When to do it:** Multiple frontends, external consumers of the API client, or CI needing to test core logic without pulling TUI deps.
+**When to do it:** Any ADR trigger — external `RommClient` consumer, compile-time pain, third frontend, or separate crates.io publish. Revisit quarterly.
 
 **Acceptance criteria:**
 
-- [ ] N/A until split is triggered — document decision criteria above
+- [x] N/A until split is triggered — document decision criteria above
 - [ ] If split: `cargo test -p romm-api` runs without TUI feature graph
 
 **References:** [Rust project structure best practices](https://www.djamware.com/post/rust-project-structure-and-best-practices-for-clean-scalable-code)

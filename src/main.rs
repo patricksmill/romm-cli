@@ -5,13 +5,13 @@ use romm_cli::commands::completions;
 use romm_cli::commands::init;
 use romm_cli::commands::{run, Cli, Commands};
 use romm_cli::config::{load_config, should_check_updates};
-use romm_cli::error::{exit_code, user_message, RommError};
+use romm_cli::error::{exit_code, from_anyhow, user_message, RommError};
 use std::io::{self, IsTerminal, Write};
 use std::time::Duration;
 use tracing_subscriber::{fmt, EnvFilter};
 
 fn map_anyhow<T>(result: Result<T, anyhow::Error>) -> Result<T, RommError> {
-    result.map_err(|e| RommError::Other(e.to_string()))
+    result.map_err(from_anyhow)
 }
 
 #[tokio::main]

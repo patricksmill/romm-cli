@@ -1,7 +1,7 @@
 //! Typed error hierarchy for the romm-cli library.
 //!
 //! Domain enums use `thiserror`; the binary boundary converts [`RommError`] to
-//! user-facing messages and exit codes via [`user_message`] and [`exit_code`].
+//! user-facing messages and exit codes via [`user_message`], [`exit_code`], and [`exit`].
 
 use reqwest::StatusCode;
 use thiserror::Error;
@@ -253,6 +253,24 @@ pub enum RommError {
     Other(String),
 }
 
+/// Converts a binary-boundary `anyhow::Error` into [`RommError`], preserving typed
+/// domain errors that were bubbled via `?` from legacy command handlers.
+pub fn from_anyhow(err: anyhow::Error) -> RommError {
+    match err.downcast::<ApiError>() {
+        Ok(api) => RommError::Api(api),
+        Err(err) => match err.downcast::<ConfigError>() {
+            Ok(cfg) => RommError::Config(cfg),
+            Err(err) => match err.downcast::<DownloadError>() {
+                Ok(dl) => RommError::Download(dl),
+                Err(err) => match err.downcast::<RommError>() {
+                    Ok(re) => re,
+                    Err(err) => RommError::Other(err.to_string()),
+                },
+            },
+        },
+    }
+}
+
 impl RommError {
     /// True when the user cancelled a long-running operation.
     pub fn is_cancelled(&self) -> bool {
@@ -316,18 +334,32 @@ pub fn user_message(err: &RommError) -> String {
     }
 }
 
-/// Process exit code (Gap 3 partial).
+/// Process exit codes for scripting (see README "Exit codes").
+pub mod exit {
+    /// Command completed successfully (including user-cancelled downloads).
+    pub const SUCCESS: i32 = 0;
+    /// Unexpected or app-level validation failure.
+    pub const GENERAL: i32 = 1;
+    /// Invalid flags or arguments (clap parse errors only).
+    pub const USAGE: i32 = 2;
+    /// Configuration or authentication failure.
+    pub const CONFIG: i32 = 3;
+    /// API, network, or download failure.
+    pub const API: i32 = 4;
+}
+
+/// Maps a [`RommError`] to a process exit code for the `romm-cli` binary.
 pub fn exit_code(err: &RommError) -> i32 {
     if err.is_cancelled() {
-        return 0;
+        return exit::SUCCESS;
     }
     match err {
-        RommError::Config(_) => 3,
-        RommError::Api(api) if api.is_auth_failure() => 3,
-        RommError::Api(ApiError::Request(_)) => 4,
-        RommError::Api(_) => 4,
-        RommError::Download(_) => 4,
-        RommError::Other(_) => 1,
+        RommError::Config(_) => exit::CONFIG,
+        RommError::Api(api) if api.is_auth_failure() => exit::CONFIG,
+        RommError::Api(ApiError::Request(_)) => exit::API,
+        RommError::Api(_) => exit::API,
+        RommError::Download(_) => exit::API,
+        RommError::Other(_) => exit::GENERAL,
     }
 }
 
@@ -377,12 +409,39 @@ mod tests {
     #[test]
     fn exit_code_auth_vs_network() {
         let auth = RommError::Api(ApiError::Unauthorized { body: "x".into() });
-        assert_eq!(exit_code(&auth), 3);
+        assert_eq!(exit_code(&auth), exit::CONFIG);
 
         let net = RommError::Api(ApiError::ServerError {
             status: 503,
             body: "down".into(),
         });
-        assert_eq!(exit_code(&net), 4);
+        assert_eq!(exit_code(&net), exit::API);
+    }
+
+    #[test]
+    fn exit_code_maps_all_variants() {
+        assert_eq!(
+            exit_code(&RommError::Config(ConfigError::MissingBaseUrl)),
+            exit::CONFIG
+        );
+
+        let forbidden = RommError::Api(ApiError::Forbidden {
+            body: "denied".into(),
+        });
+        assert_eq!(exit_code(&forbidden), exit::CONFIG);
+
+        // `Request` branch is covered by CLI integration tests; `ClientError` shares the API arm.
+        let api = RommError::Api(ApiError::ClientError {
+            status: 502,
+            body: "bad gateway".into(),
+        });
+        assert_eq!(exit_code(&api), exit::API);
+
+        assert_eq!(
+            exit_code(&RommError::Download(DownloadError::PathNotConfigured)),
+            exit::API
+        );
+
+        assert_eq!(exit_code(&RommError::Other("x".into())), exit::GENERAL);
     }
 }

@@ -44,6 +44,7 @@ pub mod core;
 pub mod endpoints;
 /// Typed error hierarchy (`ApiError`, `ConfigError`, `DownloadError`, `RommError`).
 pub mod error;
+pub use error::exit;
 /// Feature compatibility helpers based on OpenAPI endpoint availability.
 pub mod feature_compat;
 /// Frontend-specific logic (shared between CLI and TUI).

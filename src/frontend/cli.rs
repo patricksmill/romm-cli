@@ -1,4 +1,4 @@
-use crate::error::RommError;
+use crate::error::{from_anyhow, RommError};
 
 use crate::client::RommClient;
 use crate::commands::{
@@ -7,7 +7,7 @@ use crate::commands::{
 use crate::core::interrupt::InterruptContext;
 
 fn map_anyhow<T>(result: Result<T, anyhow::Error>) -> Result<T, RommError> {
-    result.map_err(|e| RommError::Other(e.to_string()))
+    result.map_err(from_anyhow)
 }
 
 /// Execute one non-TUI CLI command.
