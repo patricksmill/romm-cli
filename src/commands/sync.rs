@@ -526,6 +526,7 @@ async fn negotiate(
             }),
         })
         .await
+        .map_err(Into::into)
 }
 
 fn print_output<T: Serialize>(format: OutputFormat, value: &T) -> Result<()> {

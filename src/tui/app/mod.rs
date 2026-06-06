@@ -243,8 +243,8 @@ impl App {
             theme,
         }
     }
-    pub fn set_error(&mut self, err: anyhow::Error) {
-        self.global_error = Some(format!("{:#}", err));
+    pub fn set_error(&mut self, err: crate::error::RommError) {
+        self.global_error = Some(crate::error::user_message(&err));
     }
 
     /// Reapply the theme from persisted in-memory config (discards unsaved preview).

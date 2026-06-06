@@ -18,19 +18,22 @@
 //! ```no_run
 //! use romm_cli::config::load_config;
 //! use romm_cli::client::RommClient;
+//! use romm_cli::error::RommError;
 //!
 //! #[tokio::main]
-//! async fn main() -> anyhow::Result<()> {
+//! async fn main() -> Result<(), RommError> {
 //!     let config = load_config()?;
 //!     let client = RommClient::new(&config, false)?;
-//!     
+//!
 //!     let version = client.rom_server_version_from_heartbeat().await;
 //!     println!("Connected to RomM server version: {:?}", version);
-//!     
+//!
 //!     Ok(())
 //! }
 //! ```
 
+/// Typed error hierarchy (`ApiError`, `ConfigError`, `DownloadError`, `RommError`).
+pub mod error;
 /// HTTP client implementation for the RomM API.
 pub mod client;
 /// CLI command handlers.

@@ -1,4 +1,3 @@
-use anyhow::{anyhow, Result};
 use reqwest::header::HeaderValue;
 use reqwest::multipart;
 use serde_json::Value;
@@ -6,8 +5,14 @@ use std::path::Path;
 use std::time::Instant;
 use tokio::io::AsyncReadExt as _;
 
-use super::response::{decode_json_response_body, read_error_response_text, romm_api_error};
+use crate::error::ApiError;
+
+use super::response::{api_error_from_response, decode_json_response_body, read_error_response_text};
 use super::{RommClient, SaveUploadOptions};
+
+fn header_value(s: &str) -> Result<HeaderValue, ApiError> {
+    HeaderValue::from_str(s).map_err(|_| ApiError::InvalidHeader(s.to_string()))
+}
 
 impl RommClient {
     /// Uploads a ROM file to the server using the RomM chunked upload API.
@@ -16,18 +21,21 @@ impl RommClient {
         platform_id: u64,
         file_path: &Path,
         mut on_progress: F,
-    ) -> Result<()>
+    ) -> Result<(), ApiError>
     where
         F: FnMut(u64, u64) + Send,
     {
         let filename = file_path
             .file_name()
             .and_then(|n| n.to_str())
-            .ok_or_else(|| anyhow!("Invalid filename for upload"))?;
+            .ok_or_else(|| ApiError::UnexpectedResponse("Invalid filename for upload".into()))?;
 
-        let metadata = tokio::fs::metadata(file_path)
-            .await
-            .map_err(|e| anyhow!("Failed to read file metadata {:?}: {}", file_path, e))?;
+        let metadata = tokio::fs::metadata(file_path).await.map_err(|e| {
+            ApiError::Io(std::io::Error::new(
+                e.kind(),
+                format!("Failed to read file metadata {file_path:?}: {e}"),
+            ))
+        })?;
         let total_size = metadata.len();
 
         let chunk_size: u64 = 2 * 1024 * 1024;
@@ -40,19 +48,19 @@ impl RommClient {
         let mut start_headers = self.build_headers()?;
         start_headers.insert(
             reqwest::header::HeaderName::from_static("x-upload-platform"),
-            reqwest::header::HeaderValue::from_str(&platform_id.to_string())?,
+            header_value(&platform_id.to_string())?,
         );
         start_headers.insert(
             reqwest::header::HeaderName::from_static("x-upload-filename"),
-            reqwest::header::HeaderValue::from_str(filename)?,
+            header_value(filename)?,
         );
         start_headers.insert(
             reqwest::header::HeaderName::from_static("x-upload-total-size"),
-            reqwest::header::HeaderValue::from_str(&total_size.to_string())?,
+            header_value(&total_size.to_string())?,
         );
         start_headers.insert(
             reqwest::header::HeaderName::from_static("x-upload-total-chunks"),
-            reqwest::header::HeaderValue::from_str(&total_chunks.to_string())?,
+            header_value(&total_chunks.to_string())?,
         );
 
         let start_url = format!(
@@ -66,8 +74,7 @@ impl RommClient {
             .post(&start_url)
             .headers(start_headers)
             .send()
-            .await
-            .map_err(|e| anyhow!("upload start request error: {}", e))?;
+            .await?;
 
         let status = resp.status();
         if self.verbose {
@@ -80,17 +87,18 @@ impl RommClient {
 
         if !status.is_success() {
             let body = read_error_response_text(resp).await;
-            return Err(romm_api_error(status, &body));
+            return Err(api_error_from_response(status, &body));
         }
 
-        let start_resp: Value = resp
-            .json()
-            .await
-            .map_err(|e| anyhow!("failed to parse start upload response: {}", e))?;
+        let start_resp: Value = resp.json().await?;
         let upload_id = start_resp
             .get("upload_id")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow!("Missing upload_id in start response: {}", start_resp))?
+            .ok_or_else(|| {
+                ApiError::UnexpectedResponse(format!(
+                    "Missing upload_id in start response: {start_resp}"
+                ))
+            })?
             .to_string();
 
         let mut file = tokio::fs::File::open(file_path).await?;
@@ -113,7 +121,7 @@ impl RommClient {
             let mut chunk_headers = self.build_headers()?;
             chunk_headers.insert(
                 reqwest::header::HeaderName::from_static("x-chunk-index"),
-                reqwest::header::HeaderValue::from_str(&chunk_index.to_string())?,
+                header_value(&chunk_index.to_string())?,
             );
 
             let chunk_url = format!(
@@ -128,8 +136,7 @@ impl RommClient {
                 .headers(chunk_headers)
                 .body(chunk_data.clone())
                 .send()
-                .await
-                .map_err(|e| anyhow!("chunk upload request error: {}", e))?;
+                .await?;
 
             if !chunk_resp.status().is_success() {
                 let body = read_error_response_text(chunk_resp).await;
@@ -145,7 +152,9 @@ impl RommClient {
                     .send()
                     .await;
 
-                return Err(anyhow!("Failed to upload chunk {}: {}", chunk_index, body));
+                return Err(ApiError::UnexpectedResponse(format!(
+                    "Failed to upload chunk {chunk_index}: {body}"
+                )));
             }
 
             uploaded_bytes += chunk_data.len() as u64;
@@ -162,12 +171,13 @@ impl RommClient {
             .post(&complete_url)
             .headers(self.build_headers()?)
             .send()
-            .await
-            .map_err(|e| anyhow!("upload complete request error: {}", e))?;
+            .await?;
 
         if !complete_resp.status().is_success() {
             let body = read_error_response_text(complete_resp).await;
-            return Err(anyhow!("Failed to complete upload: {}", body));
+            return Err(ApiError::UnexpectedResponse(format!(
+                "Failed to complete upload: {body}"
+            )));
         }
 
         Ok(())
@@ -179,7 +189,7 @@ impl RommClient {
         rom_id: u64,
         emulator: Option<&str>,
         file_path: &Path,
-    ) -> Result<Value> {
+    ) -> Result<Value, ApiError> {
         let options = SaveUploadOptions {
             emulator,
             ..Default::default()
@@ -194,15 +204,20 @@ impl RommClient {
         rom_id: u64,
         file_path: &Path,
         options: &SaveUploadOptions<'_>,
-    ) -> Result<Value> {
+    ) -> Result<Value, ApiError> {
         let url = format!("{}/api/saves", self.base_url.trim_end_matches('/'));
-        let bytes = tokio::fs::read(file_path)
-            .await
-            .map_err(|e| anyhow!("read {}: {e}", file_path.display()))?;
+        let bytes = tokio::fs::read(file_path).await.map_err(|e| {
+            ApiError::Io(std::io::Error::new(
+                e.kind(),
+                format!("read {}: {e}", file_path.display()),
+            ))
+        })?;
         let fname = file_path
             .file_name()
             .and_then(|n| n.to_str())
-            .ok_or_else(|| anyhow!("upload path must have a unicode filename"))?;
+            .ok_or_else(|| {
+                ApiError::UnexpectedResponse("upload path must have a unicode filename".into())
+            })?;
         let part = multipart::Part::bytes(bytes).file_name(fname.to_string());
         let form = multipart::Form::new().part("saveFile", part);
         let mut query: Vec<(String, String)> = vec![("rom_id".into(), rom_id.to_string())];
@@ -240,8 +255,7 @@ impl RommClient {
             .query(&query_refs)
             .multipart(form)
             .send()
-            .await
-            .map_err(|e| anyhow!("save upload request: {e}"))?;
+            .await?;
         let status = resp.status();
         if self.verbose {
             tracing::info!(
@@ -252,12 +266,9 @@ impl RommClient {
         }
         if !status.is_success() {
             let body = read_error_response_text(resp).await;
-            return Err(romm_api_error(status, &body));
+            return Err(api_error_from_response(status, &body));
         }
-        let bytes = resp
-            .bytes()
-            .await
-            .map_err(|e| anyhow!("read save upload body: {e}"))?;
+        let bytes = resp.bytes().await?;
         Ok(decode_json_response_body(&bytes))
     }
 
@@ -267,7 +278,7 @@ impl RommClient {
         save_id: u64,
         device_id: Option<&str>,
         session_id: Option<u64>,
-    ) -> Result<Vec<u8>> {
+    ) -> Result<Vec<u8>, ApiError> {
         let path = format!("/api/saves/{save_id}/content");
         let mut query = Vec::new();
         if let Some(device_id) = device_id {
@@ -287,15 +298,20 @@ impl RommClient {
         rom_id: u64,
         emulator: Option<&str>,
         file_path: &Path,
-    ) -> Result<Value> {
+    ) -> Result<Value, ApiError> {
         let url = format!("{}/api/states", self.base_url.trim_end_matches('/'));
-        let bytes = tokio::fs::read(file_path)
-            .await
-            .map_err(|e| anyhow!("read {}: {e}", file_path.display()))?;
+        let bytes = tokio::fs::read(file_path).await.map_err(|e| {
+            ApiError::Io(std::io::Error::new(
+                e.kind(),
+                format!("read {}: {e}", file_path.display()),
+            ))
+        })?;
         let fname = file_path
             .file_name()
             .and_then(|n| n.to_str())
-            .ok_or_else(|| anyhow!("upload path must have a unicode filename"))?;
+            .ok_or_else(|| {
+                ApiError::UnexpectedResponse("upload path must have a unicode filename".into())
+            })?;
         let part = multipart::Part::bytes(bytes).file_name(fname.to_string());
         let form = multipart::Form::new().part("stateFile", part);
         let mut query: Vec<(String, String)> = vec![("rom_id".into(), rom_id.to_string())];
@@ -316,30 +332,35 @@ impl RommClient {
             .query(&query_refs)
             .multipart(form)
             .send()
-            .await
-            .map_err(|e| anyhow!("state upload request: {e}"))?;
+            .await?;
         let status = resp.status();
         if !status.is_success() {
             let body = read_error_response_text(resp).await;
-            return Err(romm_api_error(status, &body));
+            return Err(api_error_from_response(status, &body));
         }
-        let bytes = resp
-            .bytes()
-            .await
-            .map_err(|e| anyhow!("read state upload body: {e}"))?;
+        let bytes = resp.bytes().await?;
         Ok(decode_json_response_body(&bytes))
     }
 
     /// `POST /api/screenshots` with multipart field `screenshotFile`.
-    pub async fn upload_screenshot_file(&self, rom_id: u64, file_path: &Path) -> Result<Value> {
+    pub async fn upload_screenshot_file(
+        &self,
+        rom_id: u64,
+        file_path: &Path,
+    ) -> Result<Value, ApiError> {
         let url = format!("{}/api/screenshots", self.base_url.trim_end_matches('/'));
-        let bytes = tokio::fs::read(file_path)
-            .await
-            .map_err(|e| anyhow!("read {}: {e}", file_path.display()))?;
+        let bytes = tokio::fs::read(file_path).await.map_err(|e| {
+            ApiError::Io(std::io::Error::new(
+                e.kind(),
+                format!("read {}: {e}", file_path.display()),
+            ))
+        })?;
         let fname = file_path
             .file_name()
             .and_then(|n| n.to_str())
-            .ok_or_else(|| anyhow!("upload path must have a unicode filename"))?;
+            .ok_or_else(|| {
+                ApiError::UnexpectedResponse("upload path must have a unicode filename".into())
+            })?;
         let part = multipart::Part::bytes(bytes).file_name(fname.to_string());
         let form = multipart::Form::new().part("screenshotFile", part);
         let headers = self.build_headers()?;
@@ -350,30 +371,35 @@ impl RommClient {
             .query(&[("rom_id", rom_id.to_string().as_str())])
             .multipart(form)
             .send()
-            .await
-            .map_err(|e| anyhow!("screenshot upload: {e}"))?;
+            .await?;
         let status = resp.status();
         if !status.is_success() {
             let body = read_error_response_text(resp).await;
-            return Err(romm_api_error(status, &body));
+            return Err(api_error_from_response(status, &body));
         }
-        let bytes = resp
-            .bytes()
-            .await
-            .map_err(|e| anyhow!("read screenshot body: {e}"))?;
+        let bytes = resp.bytes().await?;
         Ok(decode_json_response_body(&bytes))
     }
 
     /// `POST /api/firmware?platform_id=` with multipart `files`.
-    pub async fn upload_firmware_file(&self, platform_id: u64, file_path: &Path) -> Result<Value> {
+    pub async fn upload_firmware_file(
+        &self,
+        platform_id: u64,
+        file_path: &Path,
+    ) -> Result<Value, ApiError> {
         let url = format!("{}/api/firmware", self.base_url.trim_end_matches('/'));
-        let bytes = tokio::fs::read(file_path)
-            .await
-            .map_err(|e| anyhow!("read {}: {e}", file_path.display()))?;
+        let bytes = tokio::fs::read(file_path).await.map_err(|e| {
+            ApiError::Io(std::io::Error::new(
+                e.kind(),
+                format!("read {}: {e}", file_path.display()),
+            ))
+        })?;
         let fname = file_path
             .file_name()
             .and_then(|n| n.to_str())
-            .ok_or_else(|| anyhow!("upload path must have a unicode filename"))?;
+            .ok_or_else(|| {
+                ApiError::UnexpectedResponse("upload path must have a unicode filename".into())
+            })?;
         let part = multipart::Part::bytes(bytes).file_name(fname.to_string());
         let form = multipart::Form::new().part("files", part);
         let headers = self.build_headers()?;
@@ -384,52 +410,46 @@ impl RommClient {
             .query(&[("platform_id", platform_id.to_string())])
             .multipart(form)
             .send()
-            .await
-            .map_err(|e| anyhow!("firmware upload: {e}"))?;
+            .await?;
         let status = resp.status();
         if !status.is_success() {
             let body = read_error_response_text(resp).await;
-            return Err(romm_api_error(status, &body));
+            return Err(api_error_from_response(status, &body));
         }
-        let bytes = resp
-            .bytes()
-            .await
-            .map_err(|e| anyhow!("read firmware body: {e}"))?;
+        let bytes = resp.bytes().await?;
         Ok(decode_json_response_body(&bytes))
     }
 
     /// `POST /api/roms/{id}/manuals` — raw file body with `x-upload-filename` header.
-    pub async fn upload_rom_manual(&self, rom_id: u64, file_path: &Path) -> Result<Value> {
+    pub async fn upload_rom_manual(&self, rom_id: u64, file_path: &Path) -> Result<Value, ApiError> {
         let fname = file_path
             .file_name()
             .and_then(|n| n.to_str())
-            .ok_or_else(|| anyhow!("manual path must have a unicode filename"))?
+            .ok_or_else(|| {
+                ApiError::UnexpectedResponse("manual path must have a unicode filename".into())
+            })?
             .to_string();
         let url = format!(
             "{}/api/roms/{}/manuals",
             self.base_url.trim_end_matches('/'),
             rom_id
         );
-        let bytes = tokio::fs::read(file_path)
-            .await
-            .map_err(|e| anyhow!("read {}: {e}", file_path.display()))?;
+        let bytes = tokio::fs::read(file_path).await.map_err(|e| {
+            ApiError::Io(std::io::Error::new(
+                e.kind(),
+                format!("read {}: {e}", file_path.display()),
+            ))
+        })?;
         let mut headers = self.build_headers()?;
         headers.insert(
             reqwest::header::HeaderName::from_static("x-upload-filename"),
-            HeaderValue::from_str(&fname).map_err(|_| anyhow!("invalid x-upload-filename"))?,
+            header_value(&fname)?,
         );
-        let resp = self
-            .http
-            .post(&url)
-            .headers(headers)
-            .body(bytes)
-            .send()
-            .await
-            .map_err(|e| anyhow!("manual upload: {e}"))?;
+        let resp = self.http.post(&url).headers(headers).body(bytes).send().await?;
         let status = resp.status();
         if !status.is_success() {
             let body = read_error_response_text(resp).await;
-            return Err(romm_api_error(status, &body));
+            return Err(api_error_from_response(status, &body));
         }
         let out = resp.bytes().await?;
         Ok(decode_json_response_body(&out))

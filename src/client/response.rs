@@ -1,4 +1,4 @@
-use anyhow::anyhow;
+use crate::error::ApiError;
 use reqwest::Response;
 use reqwest::StatusCode;
 use serde_json::Value;
@@ -26,25 +26,18 @@ pub(crate) async fn read_error_response_text(resp: Response) -> String {
     }
 }
 
-pub(crate) fn romm_api_error(status: StatusCode, body: &str) -> anyhow::Error {
-    anyhow!(
-        "ROMM API error: {} {} - {}",
-        status.as_u16(),
-        status.canonical_reason().unwrap_or(""),
-        body
-    )
+pub(crate) fn api_error_from_response(status: StatusCode, body: &str) -> ApiError {
+    ApiError::from_http_response(status, body.to_string())
 }
 
-pub(crate) fn romm_api_error_truncated(
+pub(crate) fn api_error_from_response_truncated(
     status: StatusCode,
     body: &str,
     max_chars: usize,
-) -> anyhow::Error {
-    anyhow!(
-        "ROMM API error: {} {} - {}",
-        status.as_u16(),
-        status.canonical_reason().unwrap_or(""),
-        body.chars().take(max_chars).collect::<String>()
+) -> ApiError {
+    ApiError::from_http_response(
+        status,
+        body.chars().take(max_chars).collect::<String>(),
     )
 }
 

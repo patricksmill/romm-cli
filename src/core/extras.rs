@@ -4,9 +4,8 @@
 
 use std::path::{Path, PathBuf};
 
-use anyhow::Result;
-
 use crate::client::RommClient;
+use crate::error::DownloadError;
 use crate::config::RomsLayoutConfig;
 use crate::core::download::resolve_console_roms_dir;
 use crate::core::utils;
@@ -67,7 +66,7 @@ pub async fn build_extras_targets(
     rom_id: u64,
     layout: &RomsLayoutConfig,
     base_dir: &Path,
-) -> Result<Vec<DownloadTarget>> {
+) -> Result<Vec<DownloadTarget>, DownloadError> {
     let rom = client.call(&GetRom { id: rom_id }).await?;
     let extras_root = extras_root_dir(layout, base_dir, &rom)?;
 
@@ -90,7 +89,7 @@ pub async fn build_update_dlc_targets_for_rom(
     rom: &Rom,
     layout: &RomsLayoutConfig,
     base_dir: &Path,
-) -> Result<Vec<DownloadTarget>> {
+) -> Result<Vec<DownloadTarget>, DownloadError> {
     let extras_root = extras_root_dir(layout, base_dir, rom)?;
     let related_rows = related_rom_rows(client, rom).await?;
     build_update_dlc_targets_from_related_rows(rom, &related_rows, layout, base_dir, &extras_root)
@@ -106,7 +105,7 @@ pub fn build_base_rom_file_targets(
     rom: &Rom,
     layout: &RomsLayoutConfig,
     base_dir: &Path,
-) -> Result<Vec<DownloadTarget>> {
+) -> Result<Vec<DownloadTarget>, DownloadError> {
     let base_files = internal_file_subset(rom, InternalRomFileGroup::BaseGame);
     if base_files.is_empty() {
         return Ok(Vec::new());
@@ -124,7 +123,7 @@ pub fn build_update_dlc_file_targets_for_rom(
     rom: &Rom,
     layout: &RomsLayoutConfig,
     base_dir: &Path,
-) -> Result<Vec<DownloadTarget>> {
+) -> Result<Vec<DownloadTarget>, DownloadError> {
     build_internal_extra_targets(rom, layout, base_dir)
 }
 
@@ -138,7 +137,7 @@ async fn build_related_rom_targets(
     client: &RommClient,
     rom: &Rom,
     extras_root: &Path,
-) -> Result<Vec<DownloadTarget>> {
+) -> Result<Vec<DownloadTarget>, DownloadError> {
     let related_rows = related_rom_rows(client, rom).await?;
     Ok(related_rows
         .iter()
@@ -146,7 +145,7 @@ async fn build_related_rom_targets(
         .collect())
 }
 
-async fn related_rom_rows(client: &RommClient, rom: &Rom) -> Result<Vec<Rom>> {
+async fn related_rom_rows(client: &RommClient, rom: &Rom) -> Result<Vec<Rom>, DownloadError> {
     let ep = GetRoms {
         search_term: Some(rom.name.clone()),
         platform_id: Some(rom.platform_id),
@@ -181,7 +180,7 @@ pub fn build_update_dlc_targets_from_related_rows(
     layout: &RomsLayoutConfig,
     base_dir: &Path,
     extras_root: &Path,
-) -> Result<Vec<DownloadTarget>> {
+) -> Result<Vec<DownloadTarget>, DownloadError> {
     let mut targets = build_internal_extra_targets(rom, layout, base_dir)?;
     targets.extend(
         related_rows
@@ -195,7 +194,7 @@ fn build_internal_extra_targets(
     rom: &Rom,
     layout: &RomsLayoutConfig,
     base_dir: &Path,
-) -> Result<Vec<DownloadTarget>> {
+) -> Result<Vec<DownloadTarget>, DownloadError> {
     let updates = internal_file_subset(rom, InternalRomFileGroup::Update);
     let dlc = internal_file_subset(rom, InternalRomFileGroup::Dlc);
     let mut out = Vec::with_capacity(updates.len() + dlc.len());
@@ -304,7 +303,11 @@ pub fn build_manual_target(rom: &Rom, extras_root: &Path) -> Option<DownloadTarg
     })
 }
 
-pub fn extras_root_dir(layout: &RomsLayoutConfig, base_dir: &Path, rom: &Rom) -> Result<PathBuf> {
+pub fn extras_root_dir(
+    layout: &RomsLayoutConfig,
+    base_dir: &Path,
+    rom: &Rom,
+) -> Result<PathBuf, DownloadError> {
     let platform_dir = resolve_console_roms_dir(layout, base_dir, rom)?;
     let game_slug = sanitized_extra_game_name(&rom.name, rom.id);
     Ok(platform_dir.join(game_slug).join("extras"))

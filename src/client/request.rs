@@ -1,17 +1,17 @@
-use anyhow::{anyhow, Result};
 use reqwest::header::HeaderMap;
 use reqwest::Method;
 use serde_json::Value;
 use std::time::Instant;
 
 use crate::endpoints::Endpoint;
+use crate::error::ApiError;
 
-use super::response::{decode_json_response_body, read_error_response_text, romm_api_error};
+use super::response::{api_error_from_response, decode_json_response_body, read_error_response_text};
 use super::RommClient;
 
 impl RommClient {
     /// Executes a typed [`Endpoint`] and returns its deserialized output.
-    pub async fn call<E>(&self, ep: &E) -> anyhow::Result<E::Output>
+    pub async fn call<E>(&self, ep: &E) -> Result<E::Output, ApiError>
     where
         E: Endpoint,
         E::Output: serde::de::DeserializeOwned,
@@ -22,8 +22,11 @@ impl RommClient {
         let body = ep.body();
 
         let value = self.request_json(method, &path, &query, body).await?;
-        let output = serde_json::from_value(value)
-            .map_err(|e| anyhow!("failed to decode response for {} {}: {}", method, path, e))?;
+        let output = serde_json::from_value(value).map_err(|e| {
+            ApiError::UnexpectedResponse(format!(
+                "failed to decode response for {method} {path}: {e}"
+            ))
+        })?;
 
         Ok(output)
     }
@@ -35,7 +38,7 @@ impl RommClient {
         path: &str,
         query: &[(String, String)],
         body: Option<Value>,
-    ) -> Result<Value> {
+    ) -> Result<Value, ApiError> {
         self.request_json_with_headers(method, path, query, body, self.build_headers()?)
             .await
     }
@@ -46,7 +49,7 @@ impl RommClient {
         path: &str,
         query: &[(String, String)],
         body: Option<Value>,
-    ) -> Result<Value> {
+    ) -> Result<Value, ApiError> {
         self.request_json_with_headers(method, path, query, body, HeaderMap::new())
             .await
     }
@@ -58,7 +61,7 @@ impl RommClient {
         query: &[(String, String)],
         body: Option<Value>,
         headers: HeaderMap,
-    ) -> Result<Value> {
+    ) -> Result<Value, ApiError> {
         let url = format!(
             "{}/{}",
             self.base_url.trim_end_matches('/'),
@@ -66,7 +69,7 @@ impl RommClient {
         );
 
         let http_method = Method::from_bytes(method.as_bytes())
-            .map_err(|_| anyhow!("invalid HTTP method: {method}"))?;
+            .map_err(|_| ApiError::InvalidMethod(method.to_string()))?;
 
         let query_refs: Vec<(&str, &str)> = query
             .iter()
@@ -84,10 +87,7 @@ impl RommClient {
         }
 
         let t0 = Instant::now();
-        let resp = req
-            .send()
-            .await
-            .map_err(|e| anyhow!("request error: {e}"))?;
+        let resp = req.send().await?;
 
         let status = resp.status();
         if self.verbose {
@@ -103,19 +103,19 @@ impl RommClient {
         }
         if !status.is_success() {
             let body = read_error_response_text(resp).await;
-            return Err(romm_api_error(status, &body));
+            return Err(api_error_from_response(status, &body));
         }
 
-        let bytes = resp
-            .bytes()
-            .await
-            .map_err(|e| anyhow!("read response body: {e}"))?;
-
+        let bytes = resp.bytes().await?;
         Ok(decode_json_response_body(&bytes))
     }
 
     /// Authenticated GET returning raw bytes.
-    pub async fn get_bytes(&self, path: &str, query: &[(String, String)]) -> Result<Vec<u8>> {
+    pub async fn get_bytes(
+        &self,
+        path: &str,
+        query: &[(String, String)],
+    ) -> Result<Vec<u8>, ApiError> {
         let url = format!(
             "{}/{}",
             self.base_url.trim_end_matches('/'),
@@ -132,12 +132,11 @@ impl RommClient {
             .headers(headers)
             .query(&query_refs)
             .send()
-            .await
-            .map_err(|e| anyhow!("GET {path}: {e}"))?;
+            .await?;
         let status = resp.status();
         if !status.is_success() {
             let body = read_error_response_text(resp).await;
-            return Err(romm_api_error(status, &body));
+            return Err(api_error_from_response(status, &body));
         }
         Ok(resp.bytes().await?.to_vec())
     }
@@ -148,7 +147,7 @@ impl RommClient {
         path: &str,
         query: &[(String, String)],
         json_body: Option<Value>,
-    ) -> Result<Vec<u8>> {
+    ) -> Result<Vec<u8>, ApiError> {
         let url = format!(
             "{}/{}",
             self.base_url.trim_end_matches('/'),
@@ -163,11 +162,11 @@ impl RommClient {
         if let Some(b) = json_body {
             req = req.json(&b);
         }
-        let resp = req.send().await.map_err(|e| anyhow!("POST {path}: {e}"))?;
+        let resp = req.send().await?;
         let status = resp.status();
         if !status.is_success() {
             let body = read_error_response_text(resp).await;
-            return Err(romm_api_error(status, &body));
+            return Err(api_error_from_response(status, &body));
         }
         Ok(resp.bytes().await?.to_vec())
     }

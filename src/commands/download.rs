@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use crate::error::{DownloadError, RommError};
 use clap::{Args, Subcommand, ValueEnum};
 use dialoguer::Confirm;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
@@ -17,7 +17,9 @@ use crate::core::extras::{
     build_base_rom_file_targets, build_extras_targets, build_update_dlc_targets_for_rom,
     DownloadTarget,
 };
-use crate::core::interrupt::{cancelled_error, is_cancelled_error, InterruptContext};
+use crate::core::interrupt::{
+    cancelled_download_error, is_cancelled_download, is_cancelled_error, InterruptContext,
+};
 use crate::core::resolve::resolve_platform_id;
 use crate::core::utils;
 use crate::endpoints::roms::{GetRom, GetRoms};
@@ -124,7 +126,7 @@ async fn download_one(
     name: &str,
     save_path: &std::path::Path,
     pb: ProgressBar,
-) -> Result<()> {
+) -> Result<(), RommError> {
     pb.set_message(name.to_string());
 
     client
@@ -148,7 +150,7 @@ async fn download_target(
     target: &DownloadTarget,
     interrupt: &InterruptContext,
     pb: ProgressBar,
-) -> Result<()> {
+) -> Result<(), RommError> {
     pb.set_message(format!("{}: {}", target.kind.label(), target.title));
 
     let mut progress = {
@@ -162,7 +164,7 @@ async fn download_target(
     };
 
     let urls = candidate_download_urls(target);
-    let mut last_err: Option<anyhow::Error> = None;
+    let mut last_err: Option<DownloadError> = None;
     if prepare_download_target_destination(target).await? {
         if let Some(expected_size) = target.expected_size_bytes {
             progress(expected_size, expected_size);
@@ -186,15 +188,15 @@ async fn download_target(
                 break;
             }
             Err(err) => {
-                if !err.to_string().contains("404 Not Found") {
-                    return Err(err);
+                if !err.is_not_found() {
+                    return Err(err.into());
                 }
                 last_err = Some(err);
             }
         }
     }
     if let Some(err) = last_err {
-        return Err(err);
+        return Err(err.into());
     }
 
     pb.finish_with_message(format!("✓ {}: {}", target.kind.label(), target.title));
@@ -258,7 +260,7 @@ pub async fn handle(
     cmd: DownloadCommand,
     client: &RommClient,
     interrupt: Option<InterruptContext>,
-) -> Result<()> {
+) -> Result<(), RommError> {
     let interrupt = interrupt.unwrap_or_default();
     let config = load_config()?;
     let layout = config.roms_layout.clone();
@@ -269,15 +271,20 @@ pub async fn handle(
     let action = cmd.action.clone();
 
     if cmd.with_extras && cmd.no_extras {
-        return Err(anyhow!(
-            "--with-extras and --no-extras are mutually exclusive"
+        return Err(RommError::Other(
+            "--with-extras and --no-extras are mutually exclusive".into(),
         ));
     }
 
     // Ensure output directory exists.
     tokio::fs::create_dir_all(&output_dir)
         .await
-        .map_err(|e| anyhow!("create download dir {:?}: {e}", output_dir))?;
+        .map_err(|e| {
+            RommError::Download(DownloadError::IoContext {
+                context: format!("create download dir {output_dir:?}"),
+                source: e,
+            })
+        })?;
 
     if let Some(DownloadAction::Extras(extras)) = action.clone() {
         return handle_extras(extras, client, interrupt, &layout, output_dir, cmd.jobs).await;
@@ -289,8 +296,9 @@ pub async fn handle(
     if is_batch {
         // ── Batch mode ─────────────────────────────────────────────────
         if cmd.platform.is_none() && cmd.search_term.is_none() {
-            return Err(anyhow!(
+            return Err(RommError::Other(
                 "Batch download requires at least --platform or --search-term to scope the download"
+                    .into(),
             ));
         }
         let resolved_platform_id = resolve_platform_id(client, cmd.platform.as_deref()).await?;
@@ -331,7 +339,9 @@ pub async fn handle(
                 .clone()
                 .acquire_owned()
                 .await
-                .map_err(|_| anyhow!("download worker semaphore closed unexpectedly"))?;
+                .map_err(|_| {
+                    RommError::Other("download worker semaphore closed unexpectedly".into())
+                })?;
             let client = client.clone();
             let base_dir = output_dir.clone();
             let layout = layout.clone();
@@ -344,7 +354,12 @@ pub async fn handle(
             let console_dir = resolve_console_roms_dir(&layout, &base_dir, &rom)?;
             tokio::fs::create_dir_all(&console_dir)
                 .await
-                .map_err(|e| anyhow!("create console download dir {:?}: {e}", console_dir))?;
+                .map_err(|e| {
+                    RommError::Download(DownloadError::IoContext {
+                        context: format!("create console download dir {console_dir:?}"),
+                        source: e,
+                    })
+                })?;
             let platform_slug = rom
                 .platform_fs_slug
                 .clone()
@@ -386,32 +401,27 @@ pub async fn handle(
                     let extract_dir =
                         extraction_target_dir(&console_dir, &platform_slug, &stem, extract_layout);
                     if let Err(err) = tokio::fs::create_dir_all(&extract_dir).await {
-                        result = Err(anyhow!(
-                            "failed to create extraction directory {:?}: {}",
-                            extract_dir,
-                            err
-                        ));
+                        result = Err(DownloadError::IoContext {
+                            context: format!("failed to create extraction directory {extract_dir:?}"),
+                            source: err,
+                        });
                     } else if let Err(err) = extract_zip_archive(&save_path, &extract_dir) {
-                        result = Err(anyhow!(
-                            "failed to extract {:?} to {:?}: {}",
-                            save_path,
-                            extract_dir,
-                            err
-                        ));
+                        result = Err(err);
                     } else if delete_zip_after_extract {
-                        tokio::fs::remove_file(&save_path).await.map_err(|err| {
-                            anyhow!(
-                                "failed to delete zip {:?} after extraction: {}",
-                                save_path,
-                                err
-                            )
-                        })?;
+                        if let Err(err) = tokio::fs::remove_file(&save_path).await {
+                            result = Err(DownloadError::IoContext {
+                                context: format!(
+                                    "failed to delete zip {save_path:?} after extraction"
+                                ),
+                                source: err,
+                            });
+                        }
                     }
                 }
 
                 drop(permit);
                 if let Err(e) = &result {
-                    if !is_cancelled_error(e) {
+                    if !is_cancelled_download(e) {
                         eprintln!("error downloading {name} (id={rom_id}): {e}");
                     }
                 }
@@ -432,7 +442,7 @@ pub async fn handle(
             };
             match task_result {
                 Ok(Ok(())) => successes += 1,
-                Ok(Err(e)) if is_cancelled_error(&e) => cancelled += 1,
+                Ok(Err(e)) if is_cancelled_download(&e) => cancelled += 1,
                 _ => failures += 1,
             }
         }
@@ -446,8 +456,9 @@ pub async fn handle(
     } else {
         // ── Single ROM mode ────────────────────────────────────────────
         let rom_id = cmd.rom_id.ok_or_else(|| {
-            anyhow!(
+            RommError::Other(
                 "ROM ID is required (e.g. 'download 123' or 'download batch --search-term ...')"
+                    .into(),
             )
         })?;
         let rom = client.call(&GetRom { id: rom_id }).await?;
@@ -456,8 +467,8 @@ pub async fn handle(
         if !base_targets.is_empty() {
             let summary = run_targets(base_targets, client, interrupt.clone(), 1).await?;
             if summary.failures > 0 || summary.cancelled > 0 || summary.successes == 0 {
-                return Err(anyhow!(
-                    "base game download failed; not prompting for updates/DLC"
+                return Err(RommError::Other(
+                    "base game download failed; not prompting for updates/DLC".into(),
                 ));
             }
             println!("Base game files downloaded.");
@@ -465,13 +476,18 @@ pub async fn handle(
             let console_dir = resolve_console_roms_dir(&layout, &output_dir, &rom)?;
             tokio::fs::create_dir_all(&console_dir)
                 .await
-                .map_err(|e| anyhow!("create console download dir {:?}: {e}", console_dir))?;
+                .map_err(|e| {
+                    RommError::Download(DownloadError::IoContext {
+                        context: format!("create console download dir {console_dir:?}"),
+                        source: e,
+                    })
+                })?;
             let save_path = console_dir.join(format!("rom_{rom_id}.zip"));
             let mp = MultiProgress::new();
             let pb = mp.add(ProgressBar::new(0));
             pb.set_style(make_progress_style());
             if interrupt.is_cancelled() {
-                return Err(cancelled_error());
+                return Err(cancelled_download_error().into());
             }
             download_one(client, rom_id, &format!("ROM {rom_id}"), &save_path, pb).await?;
             println!("Saved to {:?}", save_path);
@@ -497,7 +513,7 @@ async fn handle_extras(
     layout: &RomsLayoutConfig,
     output_dir: PathBuf,
     jobs: usize,
-) -> Result<()> {
+) -> Result<(), RommError> {
     let targets = build_extras_targets(client, cmd.rom_id, layout, &output_dir).await?;
     run_targets(targets, client, interrupt, jobs).await?;
     Ok(())
@@ -515,7 +531,7 @@ async fn run_targets(
     client: &RommClient,
     interrupt: InterruptContext,
     jobs: usize,
-) -> Result<DownloadRunSummary> {
+) -> Result<DownloadRunSummary, RommError> {
     if targets.is_empty() {
         println!("No downloadable extras were found.");
         return Ok(DownloadRunSummary {
@@ -543,7 +559,9 @@ async fn run_targets(
             .clone()
             .acquire_owned()
             .await
-            .map_err(|_| anyhow!("download worker semaphore closed unexpectedly"))?;
+            .map_err(|_| {
+                RommError::Other("download worker semaphore closed unexpectedly".into())
+            })?;
         let client = client.clone();
         let interrupt = interrupt.clone();
         let pb = mp.add(ProgressBar::new(0));
@@ -596,7 +614,7 @@ async fn run_targets(
     })
 }
 
-fn resolve_include_extras_choice(cmd: &DownloadCommand) -> Result<bool> {
+fn resolve_include_extras_choice(cmd: &DownloadCommand) -> Result<bool, RommError> {
     if cmd.with_extras || cmd.yes {
         return Ok(true);
     }
@@ -610,7 +628,7 @@ fn resolve_include_extras_choice(cmd: &DownloadCommand) -> Result<bool> {
         .with_prompt("Updates/DLC are available. Download them now as extras?")
         .default(false)
         .interact()
-        .map_err(|e| anyhow!("extras prompt failed: {e}"))
+        .map_err(|e| RommError::Other(format!("extras prompt failed: {e}")))
 }
 
 fn is_interactive_terminal() -> bool {

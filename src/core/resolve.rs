@@ -1,14 +1,13 @@
 //! Shared name/slug → ID resolution for platforms and collections.
 
-use anyhow::{anyhow, Result};
-
 use crate::client::RommClient;
+use crate::error::RommError;
 use crate::endpoints::collections::{ListCollections, ListSmartCollections};
 use crate::endpoints::platforms::ListPlatforms;
 use crate::types::{Collection, Platform};
 
 /// Resolves a platform ID from a string query by matching against slugs, names, and custom names.
-pub fn resolve_platform_id_from_list(query: &str, platforms: &[Platform]) -> Result<u64> {
+pub fn resolve_platform_id_from_list(query: &str, platforms: &[Platform]) -> Result<u64, RommError> {
     let normalized = query.trim().to_ascii_lowercase();
 
     if let Some(platform) = platforms.iter().find(|p| {
@@ -32,21 +31,18 @@ pub fn resolve_platform_id_from_list(query: &str, platforms: &[Platform]) -> Res
 
     match exact_name_matches.len() {
         1 => Ok(exact_name_matches[0].id),
-        0 => Err(anyhow!(
-            "No platform found for '{}'. Use 'romm-cli platforms list' to inspect available values.",
-            query
-        )),
+        0 => Err(RommError::Other(format!(
+            "No platform found for '{query}'. Use 'romm-cli platforms list' to inspect available values."
+        ))),
         _ => {
             let names = exact_name_matches
                 .iter()
                 .map(|p| format!("{} ({})", p.name, p.id))
                 .collect::<Vec<_>>()
                 .join(", ");
-            Err(anyhow!(
-                "Platform '{}' is ambiguous. Matches: {}. Please use a more specific --platform value.",
-                query,
-                names
-            ))
+            Err(RommError::Other(format!(
+                "Platform '{query}' is ambiguous. Matches: {names}. Please use a more specific --platform value."
+            )))
         }
     }
 }
@@ -55,7 +51,7 @@ pub fn resolve_platform_id_from_list(query: &str, platforms: &[Platform]) -> Res
 pub async fn resolve_platform_id(
     client: &RommClient,
     platform_query: Option<&str>,
-) -> Result<Option<u64>> {
+) -> Result<Option<u64>, RommError> {
     let Some(query) = platform_query.map(str::trim).filter(|q| !q.is_empty()) else {
         return Ok(None);
     };
@@ -64,7 +60,10 @@ pub async fn resolve_platform_id(
 }
 
 /// Resolves multiple platform queries to a list of unique numeric IDs.
-pub async fn resolve_platform_ids(client: &RommClient, names: &[String]) -> Result<Vec<u64>> {
+pub async fn resolve_platform_ids(
+    client: &RommClient,
+    names: &[String],
+) -> Result<Vec<u64>, RommError> {
     if names.is_empty() {
         return Ok(Vec::new());
     }
@@ -91,7 +90,7 @@ fn match_collections_by_name<'a>(q: &str, collections: &'a [Collection]) -> Vec<
 pub async fn resolve_manual_collection_id(
     client: &RommClient,
     query: Option<&str>,
-) -> Result<Option<u64>> {
+) -> Result<Option<u64>, RommError> {
     let Some(q) = query.map(str::trim).filter(|s| !s.is_empty()) else {
         return Ok(None);
     };
@@ -101,16 +100,14 @@ pub async fn resolve_manual_collection_id(
     let list = client.call(&ListCollections).await?.into_vec();
     let matches = match_collections_by_name(q, &list);
     match matches.len() {
-        0 => Err(anyhow!(
-            "No manual collection named '{}'. Use `romm-cli collections list`.",
-            q
-        )),
+        0 => Err(RommError::Other(format!(
+            "No manual collection named '{q}'. Use `romm-cli collections list`."
+        ))),
         1 => Ok(Some(matches[0].id)),
-        _ => Err(anyhow!(
-            "Manual collection '{}' is ambiguous among {} matches; use a numeric id.",
-            q,
+        _ => Err(RommError::Other(format!(
+            "Manual collection '{q}' is ambiguous among {} matches; use a numeric id.",
             matches.len()
-        )),
+        ))),
     }
 }
 
@@ -118,7 +115,7 @@ pub async fn resolve_manual_collection_id(
 pub async fn resolve_smart_collection_id(
     client: &RommClient,
     query: Option<&str>,
-) -> Result<Option<u64>> {
+) -> Result<Option<u64>, RommError> {
     let Some(q) = query.map(str::trim).filter(|s| !s.is_empty()) else {
         return Ok(None);
     };
@@ -128,15 +125,13 @@ pub async fn resolve_smart_collection_id(
     let list = client.call(&ListSmartCollections).await?.into_vec();
     let matches = match_collections_by_name(q, &list);
     match matches.len() {
-        0 => Err(anyhow!(
-            "No smart collection named '{}'. Use `romm-cli collections list`.",
-            q
-        )),
+        0 => Err(RommError::Other(format!(
+            "No smart collection named '{q}'. Use `romm-cli collections list`."
+        ))),
         1 => Ok(Some(matches[0].id)),
-        _ => Err(anyhow!(
-            "Smart collection '{}' is ambiguous among {} matches; use a numeric id.",
-            q,
+        _ => Err(RommError::Other(format!(
+            "Smart collection '{q}' is ambiguous among {} matches; use a numeric id.",
             matches.len()
-        )),
+        ))),
     }
 }

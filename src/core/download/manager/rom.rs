@@ -1,9 +1,8 @@
-use anyhow::{anyhow, Result};
-
 use crate::client::RommClient;
 use crate::config::RomsLayoutConfig;
 use crate::core::extras::build_base_rom_file_targets;
-use crate::core::interrupt::is_cancelled_error;
+use crate::core::interrupt::is_cancelled_download;
+use crate::error::DownloadError;
 use crate::core::utils;
 use crate::types::Rom;
 
@@ -22,7 +21,7 @@ impl DownloadManager {
         client: RommClient,
         layout: &RomsLayoutConfig,
         configured_download_dir: Option<&str>,
-    ) -> Result<()> {
+    ) -> Result<(), DownloadError> {
         let platform = rom
             .platform_display_name
             .as_deref()
@@ -41,7 +40,7 @@ impl DownloadManager {
             Ok(mut jobs) => jobs.push(job),
             Err(err) => {
                 eprintln!("warning: download job list lock poisoned: {}", err);
-                return Err(anyhow!("download job list lock poisoned: {err}"));
+                return Err(DownloadError::JobListPoisoned(err.to_string()));
             }
         }
 
@@ -202,7 +201,7 @@ impl DownloadManager {
                 Err(e) => {
                     if let Ok(mut list) = jobs.lock() {
                         if let Some(j) = list.iter_mut().find(|j| j.id == job_id) {
-                            if is_cancelled_error(&e) {
+                            if is_cancelled_download(&e) {
                                 j.status = DownloadStatus::Cancelled;
                             } else {
                                 j.status = DownloadStatus::Error(e.to_string());

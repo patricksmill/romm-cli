@@ -304,7 +304,7 @@ async fn download_url_to_file(
     show_progress: bool,
 ) -> Result<()> {
     if interrupt.is_cancelled() {
-        return Err(cancelled_error());
+        return Err(cancelled_error().into());
     }
 
     let response = client
@@ -339,7 +339,7 @@ async fn download_url_to_file(
     let mut response = response;
     while let Some(chunk) = response.chunk().await.context("read download chunk")? {
         if interrupt.is_cancelled() {
-            return Err(cancelled_error());
+            return Err(cancelled_error().into());
         }
         file.write_all(&chunk)
             .await
@@ -471,7 +471,7 @@ pub async fn apply_update(
     let client = reqwest::Client::new();
 
     if interrupt.is_cancelled() {
-        return Err(cancelled_error());
+        return Err(cancelled_error().into());
     }
     let checksums_content = client
         .get(&resolved.checksums_download_url)
@@ -504,7 +504,7 @@ pub async fn apply_update(
     let installed_version = tokio::select! {
         out = install_task => out
             .map_err(|e| anyhow!("update install task failed: {e}"))??,
-        _ = interrupt.cancelled() => return Err(cancelled_error()),
+        _ = interrupt.cancelled() => return Err(cancelled_error().into()),
     };
 
     Ok(ApplyUpdateOutcome::Updated(installed_version))

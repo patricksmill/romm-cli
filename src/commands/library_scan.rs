@@ -141,7 +141,7 @@ pub async fn wait_for_task_terminal(
         if let Some(ctx) = interrupt {
             tokio::select! {
                 _ = tokio::time::sleep(Duration::from_secs(2)) => {},
-                _ = ctx.cancelled() => return Err(cancelled_error()),
+                _ = ctx.cancelled() => return Err(cancelled_error().into()),
             }
         } else {
             tokio::time::sleep(Duration::from_secs(2)).await;

@@ -147,7 +147,7 @@ fn resolve_download_directory_fails_when_target_is_a_file() {
     let err = resolve_download_directory_from_inputs(Some(&input), None)
         .expect_err("file target must fail");
     assert!(
-        err.to_string().contains("not a directory"),
+        err.to_string().contains("not valid") || err.to_string().contains("not a directory"),
         "unexpected error: {err:#}"
     );
 

@@ -13,12 +13,12 @@ mod upload;
 
 pub use openapi::{api_root_url, openapi_spec_urls, resolve_openapi_root};
 
-use anyhow::{anyhow, Result};
 use base64::{engine::general_purpose, Engine as _};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use reqwest::Client as HttpClient;
 
 use crate::config::{AuthConfig, Config};
+use crate::error::ApiError;
 
 /// Optional query fields for save uploads used in sync flows.
 #[derive(Debug, Clone, Default)]
@@ -56,7 +56,7 @@ pub(crate) fn http_user_agent() -> String {
 
 impl RommClient {
     /// Construct a new client from the high-level [`Config`].
-    pub fn new(config: &Config, verbose: bool) -> Result<Self> {
+    pub fn new(config: &Config, verbose: bool) -> Result<Self, ApiError> {
         let http = HttpClient::builder()
             .user_agent(http_user_agent())
             .build()?;
@@ -74,7 +74,7 @@ impl RommClient {
     }
 
     /// Build the HTTP headers for the current authentication mode.
-    pub(crate) fn build_headers(&self) -> Result<HeaderMap> {
+    pub(crate) fn build_headers(&self) -> Result<HeaderMap, ApiError> {
         let mut headers = HeaderMap::new();
 
         if let Some(auth) = &self.auth {
@@ -86,7 +86,7 @@ impl RommClient {
                     headers.insert(
                         AUTHORIZATION,
                         HeaderValue::from_str(&value)
-                            .map_err(|_| anyhow!("invalid basic auth header value"))?,
+                            .map_err(|_| ApiError::InvalidHeader("invalid basic auth header value".into()))?,
                     );
                 }
                 AuthConfig::Bearer { token } => {
@@ -94,17 +94,19 @@ impl RommClient {
                     headers.insert(
                         AUTHORIZATION,
                         HeaderValue::from_str(&value)
-                            .map_err(|_| anyhow!("invalid bearer auth header value"))?,
+                            .map_err(|_| ApiError::InvalidHeader("invalid bearer auth header value".into()))?,
                     );
                 }
                 AuthConfig::ApiKey { header, key } => {
                     let name = reqwest::header::HeaderName::from_bytes(header.as_bytes()).map_err(
-                        |_| anyhow!("invalid API_KEY_HEADER, must be a valid HTTP header name"),
+                        |_| ApiError::InvalidHeader(
+                            "invalid API_KEY_HEADER, must be a valid HTTP header name".into(),
+                        ),
                     )?;
                     headers.insert(
                         name,
                         HeaderValue::from_str(key)
-                            .map_err(|_| anyhow!("invalid API_KEY header value"))?,
+                            .map_err(|_| ApiError::InvalidHeader("invalid API_KEY header value".into()))?,
                     );
                 }
             }

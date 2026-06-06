@@ -1,8 +1,8 @@
-use anyhow::{anyhow, Result};
 use std::sync::Arc;
 
 use crate::client::RommClient;
 use crate::core::extras::DownloadTarget;
+use crate::error::DownloadError;
 use crate::types::Rom;
 
 use super::super::extras_job::{finalize_extras_job_status, ExtrasItemResult, ExtrasJob};
@@ -17,9 +17,9 @@ impl DownloadManager {
         selected: Vec<DownloadTarget>,
         client: RommClient,
         configured_download_dir: Option<&str>,
-    ) -> Result<()> {
+    ) -> Result<(), DownloadError> {
         if selected.is_empty() {
-            return Err(anyhow!("no extras targets selected"));
+            return Err(DownloadError::NoExtrasTargets);
         }
 
         let _ = resolve_download_directory(configured_download_dir)?;
@@ -39,7 +39,7 @@ impl DownloadManager {
             Ok(mut jobs) => jobs.push(job),
             Err(err) => {
                 eprintln!("warning: extras job list lock poisoned: {}", err);
-                return Err(anyhow!("extras job list lock poisoned: {err}"));
+                return Err(DownloadError::ExtrasJobListPoisoned(err.to_string()));
             }
         }
 

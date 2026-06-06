@@ -5,13 +5,13 @@ use std::path::{Path, PathBuf};
 use crate::config::RomsLayoutConfig;
 use crate::config::{resolved_save_dir, Config, SaveSyncConfig};
 use crate::core::utils;
+use crate::error::DownloadError;
 use crate::types::Rom;
-use anyhow::{anyhow, Context, Result};
 use std::fs::File;
 use zip::ZipArchive;
 
 /// Directory for ROM storage (`ROMM_ROMS_DIR`, `ROMM_DOWNLOAD_DIR`, or configured path).
-pub fn resolve_download_directory(configured_download_dir: Option<&str>) -> Result<PathBuf> {
+pub fn resolve_download_directory(configured_download_dir: Option<&str>) -> Result<PathBuf, DownloadError> {
     let env_override = std::env::var("ROMM_ROMS_DIR")
         .ok()
         .or_else(|| std::env::var("ROMM_DOWNLOAD_DIR").ok());
@@ -19,7 +19,9 @@ pub fn resolve_download_directory(configured_download_dir: Option<&str>) -> Resu
 }
 
 /// Validate configured download path without env override fallback.
-pub fn validate_configured_download_directory(configured_download_dir: &str) -> Result<PathBuf> {
+pub fn validate_configured_download_directory(
+    configured_download_dir: &str,
+) -> Result<PathBuf, DownloadError> {
     resolve_download_directory_from_inputs(Some(configured_download_dir), None)
 }
 
@@ -34,39 +36,37 @@ pub fn download_directory() -> PathBuf {
 pub(crate) fn resolve_download_directory_from_inputs(
     configured_download_dir: Option<&str>,
     env_override: Option<&str>,
-) -> Result<PathBuf> {
+) -> Result<PathBuf, DownloadError> {
     let raw = env_override
         .or(configured_download_dir)
         .map(str::trim)
-        .ok_or_else(|| {
-            anyhow!("ROMs directory is not configured. Run setup to set a ROMs path.")
-        })?;
+        .ok_or(DownloadError::PathNotConfigured)?;
 
     if raw.is_empty() {
-        return Err(anyhow!("ROMs directory cannot be empty"));
+        return Err(DownloadError::RomsDirEmpty);
     }
 
     let input_path = PathBuf::from(raw);
     let normalized = if input_path.is_relative() {
         std::env::current_dir()
-            .context("Could not resolve current working directory")?
+            .map_err(|e| DownloadError::IoContext {
+                context: "Could not resolve current working directory".into(),
+                source: e,
+            })?
             .join(input_path)
     } else {
         input_path
     };
 
     if normalized.exists() && !normalized.is_dir() {
-        return Err(anyhow!(
-            "Download path is not a directory: {}",
-            normalized.display()
-        ));
+        return Err(DownloadError::InvalidRomsDir {
+            path: normalized.display().to_string(),
+        });
     }
 
-    std::fs::create_dir_all(&normalized).with_context(|| {
-        format!(
-            "Could not create download directory {}",
-            normalized.display()
-        )
+    std::fs::create_dir_all(&normalized).map_err(|e| DownloadError::IoContext {
+        context: format!("Could not create download directory {}", normalized.display()),
+        source: e,
     })?;
 
     let probe_name = format!(
@@ -81,7 +81,10 @@ pub(crate) fn resolve_download_directory_from_inputs(
         .write(true)
         .create_new(true)
         .open(&probe_path)
-        .with_context(|| format!("ROMs directory is not writable: {}", normalized.display()))?;
+        .map_err(|e| DownloadError::IoContext {
+            context: format!("ROMs directory is not writable: {}", normalized.display()),
+            source: e,
+        })?;
     drop(probe);
     let _ = std::fs::remove_file(&probe_path);
 
@@ -105,7 +108,7 @@ pub fn resolve_console_roms_dir(
     layout: &RomsLayoutConfig,
     base_download_dir: &Path,
     rom: &Rom,
-) -> Result<PathBuf> {
+) -> Result<PathBuf, DownloadError> {
     if let Some(raw) = layout
         .platform_dirs
         .get(&rom.platform_id)
@@ -150,7 +153,7 @@ pub fn resolve_console_save_dir(
     platform_id: u64,
     platform_fs_slug: Option<&str>,
     platform_slug: Option<&str>,
-) -> Result<PathBuf> {
+) -> Result<PathBuf, DownloadError> {
     if let Some(raw) = save_sync
         .platform_dirs
         .get(&platform_id)
@@ -188,7 +191,7 @@ fn safe_game_path_segment(input: &str) -> String {
 }
 
 /// Resolve the directory where a specific game's saves should be downloaded.
-pub fn resolve_game_save_dir(config: &Config, rom: &Rom) -> Result<PathBuf> {
+pub fn resolve_game_save_dir(config: &Config, rom: &Rom) -> Result<PathBuf, DownloadError> {
     let base = resolved_save_dir(config);
     let console_dir = resolve_console_save_dir(
         &config.save_sync,
@@ -218,25 +221,31 @@ pub fn unique_zip_path(dir: &Path, stem: &str) -> PathBuf {
 }
 
 /// Extract a ZIP archive into `destination_dir`.
-pub fn extract_zip_archive(zip_path: &Path, destination_dir: &Path) -> Result<()> {
+pub fn extract_zip_archive(zip_path: &Path, destination_dir: &Path) -> Result<(), DownloadError> {
     let zip_path = zip_path.to_path_buf();
     let destination_dir = destination_dir.to_path_buf();
-    std::fs::create_dir_all(&destination_dir).with_context(|| {
-        format!(
+    std::fs::create_dir_all(&destination_dir).map_err(|e| DownloadError::IoContext {
+        context: format!(
             "Could not create extraction directory {}",
             destination_dir.display()
-        )
+        ),
+        source: e,
     })?;
 
-    let file = File::open(&zip_path)
-        .with_context(|| format!("Could not open zip archive {}", zip_path.display()))?;
-    let mut archive = ZipArchive::new(file)
-        .with_context(|| format!("Invalid ZIP archive {}", zip_path.display()))?;
-    archive.extract(&destination_dir).with_context(|| {
-        format!(
+    let file = File::open(&zip_path).map_err(|e| DownloadError::IoContext {
+        context: format!("Could not open zip archive {}", zip_path.display()),
+        source: e,
+    })?;
+    let mut archive = ZipArchive::new(file).map_err(|e| DownloadError::IoContext {
+        context: format!("Invalid ZIP archive {}", zip_path.display()),
+        source: std::io::Error::new(std::io::ErrorKind::InvalidData, e),
+    })?;
+    archive.extract(&destination_dir).map_err(|e| DownloadError::IoContext {
+        context: format!(
             "Could not extract archive into {}",
             destination_dir.display()
-        )
+        ),
+        source: std::io::Error::new(std::io::ErrorKind::InvalidData, e),
     })?;
     Ok(())
 }

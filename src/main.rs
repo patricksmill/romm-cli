@@ -1,23 +1,27 @@
 //! Binary entrypoint for `romm-cli`.
 
-use anyhow::Result;
 use clap::Parser;
 use romm_cli::commands::init;
 use romm_cli::commands::{run, Cli, Commands};
 use romm_cli::config::{load_config, should_check_updates};
+use romm_cli::error::{exit_code, user_message, RommError};
 use std::io::{self, IsTerminal, Write};
 use std::time::Duration;
 use tracing_subscriber::{fmt, EnvFilter};
 
+fn map_anyhow<T>(result: Result<T, anyhow::Error>) -> Result<T, RommError> {
+    result.map_err(|e| RommError::Other(e.to_string()))
+}
+
 #[tokio::main]
 async fn main() {
     if let Err(e) = run_app().await {
-        eprintln!("Error: {:#}", e);
-        std::process::exit(1);
+        eprintln!("Error: {}", user_message(&e));
+        std::process::exit(exit_code(&e));
     }
 }
 
-async fn run_app() -> Result<()> {
+async fn run_app() -> Result<(), RommError> {
     let Cli {
         verbose,
         json,
@@ -41,7 +45,7 @@ async fn run_app() -> Result<()> {
     maybe_prompt_for_startup_update(&command).await?;
 
     match command {
-        Commands::Init(cmd) => init::handle(cmd, verbose).await,
+        Commands::Init(cmd) => map_anyhow(init::handle(cmd, verbose).await),
         #[cfg(feature = "tui")]
         Commands::Tui { mock_update } => {
             if verbose {
@@ -50,7 +54,9 @@ async fn run_app() -> Result<()> {
                     .with_writer(std::io::stderr)
                     .init();
             }
-            romm_cli::frontend::tui::run_interactive(verbose, mock_update).await
+            map_anyhow(
+                romm_cli::frontend::tui::run_interactive(verbose, mock_update).await,
+            )
         }
         command => {
             if !command_requires_config(&command) {
@@ -98,18 +104,20 @@ fn should_skip_startup_update_check(command: &Commands) -> bool {
     matches!(command, Commands::Update | Commands::Tui { .. })
 }
 
-fn read_update_choice() -> Result<String> {
+fn read_update_choice() -> Result<String, RommError> {
     print!(
         "New romm-cli version is available.\n\
          Choose: [u]pdate now, [c]hangelog, [s]kip (default: s): "
     );
-    io::stdout().flush()?;
+    io::stdout().flush().map_err(|e| RommError::Other(e.to_string()))?;
     let mut choice = String::new();
-    io::stdin().read_line(&mut choice)?;
+    io::stdin()
+        .read_line(&mut choice)
+        .map_err(|e| RommError::Other(e.to_string()))?;
     Ok(choice.trim().to_lowercase())
 }
 
-async fn maybe_prompt_for_startup_update(command: &Commands) -> Result<()> {
+async fn maybe_prompt_for_startup_update(command: &Commands) -> Result<(), RommError> {
     if should_skip_startup_update_check(command)
         || !should_check_updates()
         || !is_interactive_terminal()
@@ -143,7 +151,7 @@ async fn maybe_prompt_for_startup_update(command: &Commands) -> Result<()> {
                     no_confirm: true,
                     target_version_tag: Some(check.release_tag.clone()),
                 };
-                match romm_cli::update::apply_update(None, options).await? {
+                match map_anyhow(romm_cli::update::apply_update(None, options).await)? {
                     romm_cli::update::ApplyUpdateOutcome::Updated(version) => {
                         println!("Updated successfully to `{version}`.");
                         println!("Restart romm-cli to use the new version.");

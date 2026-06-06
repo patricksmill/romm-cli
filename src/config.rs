@@ -31,8 +31,9 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 
-use anyhow::{anyhow, Context, Result};
 use keyring_core::{Entry, Error as KeyringError, Result as KeyringResult};
+
+use crate::error::{ConfigError, DownloadError};
 
 use serde::{Deserialize, Serialize};
 
@@ -178,7 +179,7 @@ pub fn resolve_console_save_dir(
     platform_id: u64,
     platform_fs_slug: Option<&str>,
     platform_slug: Option<&str>,
-) -> Result<PathBuf> {
+) -> Result<PathBuf, DownloadError> {
     crate::core::download::resolve_console_save_dir(
         save_sync,
         base_save_dir,
@@ -189,7 +190,7 @@ pub fn resolve_console_save_dir(
 }
 
 /// Resolve the directory where a specific game's saves should be downloaded.
-pub fn resolve_game_save_dir(config: &Config, rom: &crate::types::Rom) -> Result<PathBuf> {
+pub fn resolve_game_save_dir(config: &Config, rom: &crate::types::Rom) -> Result<PathBuf, DownloadError> {
     crate::core::download::resolve_game_save_dir(config, rom)
 }
 
@@ -232,12 +233,17 @@ const KEYRING_SERVICE: &str = "romm-cli";
 ///
 /// This is used to securely persist passwords, tokens, and API keys without
 /// writing them in plaintext to `config.json`.
-pub fn keyring_store(key: &str, value: &str) -> Result<()> {
-    let entry =
-        Entry::new(KEYRING_SERVICE, key).map_err(|e| anyhow!("keyring entry error: {e}"))?;
+pub fn keyring_store(key: &str, value: &str) -> Result<(), ConfigError> {
+    let entry = Entry::new(KEYRING_SERVICE, key).map_err(|e| ConfigError::KeyringEntry {
+        key: key.to_string(),
+        message: e.to_string(),
+    })?;
     entry
         .set_password(value)
-        .map_err(|e| anyhow!("keyring set error: {e}"))
+        .map_err(|e| ConfigError::KeyringStore {
+            key: key.to_string(),
+            message: e.to_string(),
+        })
 }
 
 /// Map `get_password` result: [`keyring::Error::NoEntry`] is normal when no credential exists (no log).
@@ -333,13 +339,11 @@ pub fn auth_for_persist_merge(in_memory: Option<AuthConfig>) -> Option<AuthConfi
 /// Where the OpenAPI spec is cached (`.../romm-cli/openapi.json`).
 ///
 /// Override with `ROMM_OPENAPI_PATH` (absolute or relative path).
-pub fn openapi_cache_path() -> Result<PathBuf> {
+pub fn openapi_cache_path() -> Result<PathBuf, ConfigError> {
     if let Ok(p) = std::env::var("ROMM_OPENAPI_PATH") {
         return Ok(PathBuf::from(p));
     }
-    let dir = user_config_dir().ok_or_else(|| {
-        anyhow!("Could not resolve config directory. Set ROMM_OPENAPI_PATH to store openapi.json.")
-    })?;
+    let dir = user_config_dir().ok_or(ConfigError::ConfigDirUnavailable)?;
     Ok(dir.join("openapi.json"))
 }
 
@@ -369,7 +373,7 @@ pub fn should_check_updates() -> bool {
 const MAX_TOKEN_FILE_BYTES: usize = 64 * 1024;
 
 /// Bearer token: `API_TOKEN` env, else UTF-8 file at `ROMM_TOKEN_FILE` or `API_TOKEN_FILE` path.
-fn token_from_env_or_file() -> Result<Option<String>> {
+fn token_from_env_or_file() -> Result<Option<String>, ConfigError> {
     if let Some(t) = env_nonempty("API_TOKEN") {
         return Ok(Some(t));
     }
@@ -378,20 +382,23 @@ fn token_from_env_or_file() -> Result<Option<String>> {
         return Ok(None);
     };
     let path = path.trim();
-    let bytes = fs::read(path).with_context(|| format!("read bearer token file {path}"))?;
+    let bytes = fs::read(path).map_err(|e| ConfigError::TokenFileRead {
+        path: path.to_string(),
+        source: e,
+    })?;
     if bytes.len() > MAX_TOKEN_FILE_BYTES {
-        return Err(anyhow!(
-            "bearer token file exceeds max size of {} bytes",
-            MAX_TOKEN_FILE_BYTES
-        ));
+        return Err(ConfigError::TokenFileTooLarge {
+            max: MAX_TOKEN_FILE_BYTES,
+        });
     }
-    let s = String::from_utf8(bytes)
-        .map_err(|e| anyhow!("bearer token file must be valid UTF-8: {e}"))?;
+    let s = String::from_utf8(bytes).map_err(|_| ConfigError::TokenFileInvalidUtf8 {
+        path: path.to_string(),
+    })?;
     let t = s.trim();
     if t.is_empty() {
-        return Err(anyhow!(
-            "bearer token file is empty after trimming whitespace"
-        ));
+        return Err(ConfigError::TokenFileEmpty {
+            path: path.to_string(),
+        });
     }
     Ok(Some(t.to_string()))
 }
@@ -423,7 +430,7 @@ pub fn disk_has_unresolved_keyring_sentinel(config: &Config) -> bool {
 /// # Errors
 ///
 /// Returns an error if `API_BASE_URL` is not set or if there are issues reading token files.
-pub fn load_config() -> Result<Config> {
+pub fn load_config() -> Result<Config, ConfigError> {
     // 1. Load from JSON first (if it exists)
     let mut json_config = None;
     if let Some(path) = user_config_json_path() {
@@ -439,11 +446,7 @@ pub fn load_config() -> Result<Config> {
     // 2. Resolve base_url
     let base_raw = env_nonempty("API_BASE_URL")
         .or_else(|| json_config.as_ref().map(|c| c.base_url.clone()))
-        .ok_or_else(|| {
-            anyhow!(
-                "API_BASE_URL is not set. Set it in the environment, a config.json file, or run: romm-cli init"
-            )
-        })?;
+        .ok_or(ConfigError::MissingBaseUrl)?;
     let mut base_url = normalize_romm_origin(&base_raw);
 
     // 3. Resolve ROM storage directory
@@ -630,16 +633,15 @@ pub fn load_config() -> Result<Config> {
 ///
 /// If a secret cannot be stored in the keyring, it is written in plaintext to `config.json`
 /// as a fallback, and a warning is logged.
-pub fn persist_user_config(config: &Config) -> Result<()> {
+pub fn persist_user_config(config: &Config) -> Result<(), ConfigError> {
     let Some(path) = user_config_json_path() else {
-        return Err(anyhow!(
-            "Could not determine config directory (no HOME / APPDATA?)."
-        ));
+        return Err(ConfigError::ConfigDirNotFound);
     };
-    let dir = path
-        .parent()
-        .ok_or_else(|| anyhow!("invalid config path"))?;
-    std::fs::create_dir_all(dir).with_context(|| format!("create {}", dir.display()))?;
+    let dir = path.parent().ok_or(ConfigError::InvalidConfigPath)?;
+    std::fs::create_dir_all(dir).map_err(|e| ConfigError::Io {
+        context: format!("create {}", dir.display()),
+        source: e,
+    })?;
 
     let mut config_to_save = config.clone();
 
@@ -683,9 +685,14 @@ pub fn persist_user_config(config: &Config) -> Result<()> {
     let content = serde_json::to_string_pretty(&config_to_save)?;
     {
         use std::io::Write;
-        let mut f =
-            std::fs::File::create(&path).with_context(|| format!("write {}", path.display()))?;
-        f.write_all(content.as_bytes())?;
+        let mut f = std::fs::File::create(&path).map_err(|e| ConfigError::Io {
+            context: format!("write {}", path.display()),
+            source: e,
+        })?;
+        f.write_all(content.as_bytes()).map_err(|e| ConfigError::Io {
+            context: format!("write {}", path.display()),
+            source: e,
+        })?;
     }
 
     #[cfg(unix)]
@@ -700,7 +707,7 @@ pub fn persist_user_config(config: &Config) -> Result<()> {
 }
 
 /// Deletes the config.json file and clears the secrets from the OS keyring.
-pub fn reset_all_settings() -> Result<()> {
+pub fn reset_all_settings() -> Result<(), ConfigError> {
     if let Some(path) = user_config_json_path() {
         if path.exists() {
             let _ = std::fs::remove_file(&path);

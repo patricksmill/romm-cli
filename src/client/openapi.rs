@@ -1,10 +1,10 @@
-use anyhow::{anyhow, Result};
 use std::time::Instant;
 
 use crate::config::normalize_romm_origin;
+use crate::error::ApiError;
 
 use super::response::{
-    read_error_response_text, romm_api_error_truncated, version_from_heartbeat_json,
+    api_error_from_response_truncated, read_error_response_text, version_from_heartbeat_json,
 };
 use super::RommClient;
 
@@ -63,34 +63,28 @@ impl RommClient {
     }
 
     /// GET the OpenAPI spec from the server.
-    pub async fn fetch_openapi_json(&self) -> Result<String> {
+    pub async fn fetch_openapi_json(&self) -> Result<String, ApiError> {
         let root = resolve_openapi_root(&self.base_url);
         let urls = openapi_spec_urls(&root);
         let mut failures = Vec::new();
         for url in &urls {
             match self.fetch_openapi_json_once(url).await {
                 Ok(body) => return Ok(body),
-                Err(e) => failures.push(format!("{url}: {e:#}")),
+                Err(e) => failures.push(format!("{url}: {e}")),
             }
         }
-        Err(anyhow!(
+        Err(ApiError::UnexpectedResponse(format!(
             "could not download OpenAPI ({} attempt(s)): {}",
             failures.len(),
             failures.join(" | ")
-        ))
+        )))
     }
 
-    async fn fetch_openapi_json_once(&self, url: &str) -> Result<String> {
+    async fn fetch_openapi_json_once(&self, url: &str) -> Result<String, ApiError> {
         let headers = self.build_headers()?;
 
         let t0 = Instant::now();
-        let resp = self
-            .http
-            .get(url)
-            .headers(headers)
-            .send()
-            .await
-            .map_err(|e| anyhow!("request failed: {e}"))?;
+        let resp = self.http.get(url).headers(headers).send().await?;
 
         let status = resp.status();
         if self.verbose {
@@ -103,11 +97,9 @@ impl RommClient {
         }
         if !status.is_success() {
             let body = read_error_response_text(resp).await;
-            return Err(romm_api_error_truncated(status, &body, 500));
+            return Err(api_error_from_response_truncated(status, &body, 500));
         }
 
-        resp.text()
-            .await
-            .map_err(|e| anyhow!("read OpenAPI body: {e}"))
+        resp.text().await.map_err(ApiError::from)
     }
 }

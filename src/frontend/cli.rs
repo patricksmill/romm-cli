@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use crate::error::RommError;
 
 use crate::client::RommClient;
 use crate::commands::{
@@ -6,48 +6,52 @@ use crate::commands::{
 };
 use crate::core::interrupt::InterruptContext;
 
+fn map_anyhow<T>(result: Result<T, anyhow::Error>) -> Result<T, RommError> {
+    result.map_err(|e| RommError::Other(e.to_string()))
+}
+
 /// Execute one non-TUI CLI command.
-pub async fn run(command: Commands, client: &RommClient, global_json: bool) -> Result<()> {
+pub async fn run(command: Commands, client: &RommClient, global_json: bool) -> Result<(), RommError> {
     match command {
         Commands::Api(cmd) => {
             let format = OutputFormat::from_flags(global_json, false);
-            api::handle(cmd, client, format).await
+            map_anyhow(api::handle(cmd, client, format).await)
         }
         Commands::Platforms(cmd) => {
             let format = OutputFormat::from_flags(global_json, cmd.json);
-            platforms::handle(cmd, client, format).await
+            map_anyhow(platforms::handle(cmd, client, format).await)
         }
         Commands::Roms(cmd) => {
             let format = OutputFormat::from_flags(global_json, cmd.json);
-            roms::handle(*cmd, client, format).await
+            map_anyhow(roms::handle(*cmd, client, format).await)
         }
         Commands::Scan(cmd) => {
             let format = OutputFormat::from_flags(global_json, false);
             let interrupt = InterruptContext::new();
-            scan::handle(cmd, client, format, Some(interrupt)).await
+            map_anyhow(scan::handle(cmd, client, format, Some(interrupt)).await)
         }
         Commands::Sync(cmd) => {
             let format = OutputFormat::from_flags(global_json, cmd.json);
-            sync::handle(cmd, client, format).await
+            map_anyhow(sync::handle(cmd, client, format).await)
         }
         Commands::Download(cmd) => {
             let interrupt = InterruptContext::new();
             download::handle(cmd, client, Some(interrupt)).await
         }
-        Commands::Cache(cmd) => cache::handle(cmd),
+        Commands::Cache(cmd) => map_anyhow(cache::handle(cmd)),
         Commands::Auth(cmd) => {
             let format = OutputFormat::from_flags(global_json, false);
-            auth::handle(cmd, client, format).await
+            map_anyhow(auth::handle(cmd, client, format).await)
         }
-        Commands::Init(_) => Err(anyhow!(
-            "internal routing error: init command in CLI frontend"
+        Commands::Init(_) => Err(RommError::Other(
+            "internal routing error: init command in CLI frontend".into(),
         )),
-        Commands::Tui { .. } => Err(anyhow!(
-            "internal routing error: TUI command in CLI frontend"
+        Commands::Tui { .. } => Err(RommError::Other(
+            "internal routing error: TUI command in CLI frontend".into(),
         )),
         Commands::Update => {
             let interrupt = InterruptContext::new();
-            crate::commands::update::handle(Some(interrupt)).await
+            map_anyhow(crate::commands::update::handle(Some(interrupt)).await)
         }
     }
 }

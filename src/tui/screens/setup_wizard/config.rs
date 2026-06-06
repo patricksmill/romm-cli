@@ -295,6 +295,6 @@ impl SetupWizard {
         let client = RommClient::new(&cfg, verbose)?;
         client.fetch_openapi_json().await?;
         persist_user_config(&cfg)?;
-        load_config()
+        load_config().map_err(Into::into)
     }
 }

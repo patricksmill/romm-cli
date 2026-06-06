@@ -45,6 +45,19 @@ The client includes logic to automatically discover and fetch the server's OpenA
 
 The idea is that frontends never touch `reqwest` directly; they use `RommClient` and endpoint types instead.
 
+### Error contract
+
+Public `RommClient` methods return typed errors from `src/error.rs`:
+
+| Method family | Error type |
+|---------------|------------|
+| `call`, `request_json`, `get_bytes`, `post_bytes`, uploads, tasks, OpenAPI | `ApiError` |
+| `download_rom`, `download_url_*` | `DownloadError` (includes `Api` and `Cancelled` variants) |
+
+HTTP failures are classified by status code (`Unauthorized`, `Forbidden`, `NotFound`, `RateLimited`, `ClientError`, `ServerError`). Use `ApiError::status_code()` and `ApiError::is_auth_failure()` instead of string matching.
+
+`load_config()` returns `ConfigError`. Library consumers should use `RommError` as the composed type; the binary maps it to user messages via `user_message()` and exit codes via `exit_code()`.
+
 ## Streaming downloads
 
 `download_rom` demonstrates how to:

@@ -4,11 +4,11 @@
 //! interface. Each subcommand lives in its own module and is free to use
 //! `RommClient` directly. The TUI is just another subcommand.
 
-use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 use crate::client::RommClient;
 use crate::config::Config;
+use crate::error::RommError;
 
 pub mod api;
 pub mod auth;
@@ -119,21 +119,21 @@ pub enum Commands {
 ///
 /// This function initializes the [`RommClient`] and dispatches the
 /// chosen command to its respective handler.
-pub async fn run(cli: Cli, config: Config) -> Result<()> {
+pub async fn run(cli: Cli, config: Config) -> Result<(), RommError> {
     let client = RommClient::new(&config, cli.verbose)?;
 
     match cli.command {
-        Commands::Init(_) => {
-            anyhow::bail!("internal error: init must be handled before load_config");
-        }
+        Commands::Init(_) => Err(RommError::Other(
+            "internal error: init must be handled before load_config".into(),
+        )),
         #[cfg(feature = "tui")]
-        Commands::Tui { .. } => {
-            anyhow::bail!("internal error: TUI must be started via run_interactive from main");
-        }
+        Commands::Tui { .. } => Err(RommError::Other(
+            "internal error: TUI must be started via run_interactive from main".into(),
+        )),
         #[cfg(not(feature = "tui"))]
-        Commands::Tui { .. } => anyhow::bail!("this feature requires the tui"),
-        command => crate::frontend::cli::run(command, &client, cli.json).await?,
+        Commands::Tui { .. } => Err(RommError::Other(
+            "this feature requires the tui".into(),
+        )),
+        command => crate::frontend::cli::run(command, &client, cli.json).await,
     }
-
-    Ok(())
 }

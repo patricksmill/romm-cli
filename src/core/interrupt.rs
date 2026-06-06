@@ -1,20 +1,14 @@
-use std::fmt;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use anyhow::Error;
+use thiserror::Error;
 use tokio::sync::Notify;
 
-#[derive(Debug)]
+use crate::error::{DownloadError, RommError};
+
+#[derive(Debug, Error)]
+#[error("operation cancelled by user")]
 pub struct CancelledByUser;
-
-impl fmt::Display for CancelledByUser {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "operation cancelled by user")
-    }
-}
-
-impl std::error::Error for CancelledByUser {}
 
 #[derive(Clone, Debug)]
 pub struct InterruptContext {
@@ -60,12 +54,21 @@ impl Default for InterruptContext {
     }
 }
 
-pub fn cancelled_error() -> Error {
-    Error::new(CancelledByUser)
+pub fn cancelled_download_error() -> DownloadError {
+    DownloadError::Cancelled(CancelledByUser)
 }
 
-pub fn is_cancelled_error(err: &Error) -> bool {
-    err.downcast_ref::<CancelledByUser>().is_some()
+/// Legacy alias used during migration from `anyhow`.
+pub fn cancelled_error() -> DownloadError {
+    cancelled_download_error()
+}
+
+pub fn is_cancelled_download(err: &DownloadError) -> bool {
+    matches!(err, DownloadError::Cancelled(_))
+}
+
+pub fn is_cancelled_error(err: &RommError) -> bool {
+    err.is_cancelled()
 }
 
 #[cfg(test)]
@@ -74,8 +77,9 @@ mod tests {
 
     #[test]
     fn cancelled_error_is_classified() {
-        let err = cancelled_error();
+        let err = RommError::from(cancelled_download_error());
         assert!(is_cancelled_error(&err));
+        assert!(is_cancelled_download(&cancelled_download_error()));
     }
 
     #[tokio::test]
