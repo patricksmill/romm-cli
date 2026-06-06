@@ -1,6 +1,6 @@
 # Workspace split migration playbook
 
-**Status:** Document only — execute when an [ADR trigger](./2026-06-06-workspace-split-adr.md) fires.  
+**Status:** Reference only — **not scheduled.** Execute only when an [ADR trigger](./2026-06-06-workspace-split-adr.md) fires and maintainers explicitly approve the migration.  
 **Date:** 2026-06-06
 
 ## Target layout

@@ -1,7 +1,11 @@
 # ADR: Workspace split deferred
 
 **Date:** 2026-06-06  
-**Status:** Accepted — split deferred
+**Status:** Accepted — no workspace split planned
+
+## Maintainer decision
+
+The project **stays a single Cargo package** for the foreseeable future. A multi-crate workspace (`romm-api` / `romm-cli` / `romm-tui`) is documented as a future option only; do not start a split unless an explicit trigger below is met. The [migration playbook](./2026-06-06-workspace-split-migration.md) is reference material, not scheduled work.
 
 ## Context
 

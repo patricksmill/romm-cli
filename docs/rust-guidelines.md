@@ -35,7 +35,7 @@ Modern Rust CLI tools (ripgrep, bat, starship, uv-style) generally follow:
 
 ## Target architecture (API client + CLI + TUI)
 
-Ideal layout for a project like romm-cli:
+**Current layout** (single crate — maintained; see Gap 4 for why a workspace split is not planned):
 
 ```text
 romm-cli/
@@ -169,11 +169,13 @@ pub enum ApiError {
 
 ---
 
-### Gap 4: Workspace split (when scope grows)
+### Gap 4: Workspace split (not planned)
 
-**Current state:** Single crate with multiple binaries (`romm-cli`, `romm-tui`, `romm-openapi-gen`, `romm-complete-gen`). TUI is feature-gated; CI runs `--no-default-features`. Split is **deferred** — see [workspace-split ADR](plans/2026-06-06-workspace-split-adr.md) and [migration playbook](plans/2026-06-06-workspace-split-migration.md).
+**Current state:** **Single crate is the maintained approach.** One package hosts the library plus binaries (`romm-cli`, `romm-tui`, `romm-openapi-gen`, `romm-complete-gen`). TUI is feature-gated (`default = ["tui"]`); CI runs `--no-default-features` for headless builds. A workspace split is **not on the roadmap** until an ADR trigger fires — see [workspace-split ADR](plans/2026-06-06-workspace-split-adr.md). The [migration playbook](plans/2026-06-06-workspace-split-migration.md) is reference only.
 
-**Recommended approach (future):**
+**Do not split preemptively.** Prefer the `tui` feature flag and module boundaries (`core/` vs `tui/`) until compile times, external library consumers, or a third frontend force the issue.
+
+**Recommended approach (if a trigger fires later):**
 
 Split only when compile times or API boundaries justify it:
 
@@ -187,12 +189,12 @@ romm-cli/          # workspace root
 - Keep `openapi_gen` as a bin in `romm-api` or a small `tools/` crate.
 - Share types and `RommClient` from `romm-api`; frontends depend on it.
 
-**When to do it:** Any ADR trigger — external `RommClient` consumer, compile-time pain, third frontend, or separate crates.io publish. Revisit quarterly.
+**When to do it:** Only after an ADR trigger — external `RommClient` consumer, compile-time pain, third frontend, or separate crates.io publish. Revisit quarterly; otherwise treat Gap 4 as **done (deferred by design)**.
 
 **Acceptance criteria:**
 
-- [x] N/A until split is triggered — document decision criteria above
-- [ ] If split: `cargo test -p romm-api` runs without TUI feature graph
+- [x] N/A until split is triggered — decision criteria documented; maintainers chose to wait
+- [ ] If split: `cargo test -p romm-api` runs without TUI feature graph *(out of scope until triggered)*
 
 **References:** [Rust project structure best practices](https://www.djamware.com/post/rust-project-structure-and-best-practices-for-clean-scalable-code)
 
@@ -287,4 +289,4 @@ romm-cli/          # workspace root
 
 ---
 
-*Last updated: 2026-06-06 — based on codebase review and published Rust CLI/TUI guidance.*
+*Last updated: 2026-06-06 — Gap 3 complete; Gap 4 closed as deferred (single crate maintained).*

@@ -312,6 +312,8 @@ Errors are printed to stderr with a short actionable message (for example, sugge
 
 ## Project layout
 
+The repo is one Cargo package (library + binaries), not a multi-crate workspace. TUI code is optional via the `tui` feature; see [docs/plans/2026-06-06-workspace-split-adr.md](docs/plans/2026-06-06-workspace-split-adr.md) if you are wondering about a future `romm-api` split.
+
 - **`src/frontend`**: Routing between CLI and TUI execution.
 - **`src/commands`**: CLI argument parsing and non-TUI command logic.
 - **`src/endpoints`**: Typed RomM API routes (`Endpoint` trait).
