@@ -507,6 +507,7 @@ mod tests {
             save_sync: Default::default(),
             roms_layout: Default::default(),
             theme: crate::config::default_theme_id(),
+            tui_layout: Default::default(),
         };
         let content = serde_json::to_string_pretty(&cfg).unwrap();
         fs::write(path.join("config.json"), content).unwrap();
@@ -540,6 +541,7 @@ mod tests {
             save_sync: Default::default(),
             roms_layout: Default::default(),
             theme: crate::config::default_theme_id(),
+            tui_layout: Default::default(),
         };
 
         assert!(disk_has_unresolved_keyring_sentinel(&effective));
@@ -569,6 +571,7 @@ mod tests {
                 save_sync: Default::default(),
                 roms_layout: Default::default(),
                 theme: crate::config::default_theme_id(),
+                tui_layout: Default::default(),
             },
             false,
         )
@@ -611,6 +614,7 @@ mod tests {
                 save_sync: Default::default(),
                 roms_layout: Default::default(),
                 theme: crate::config::default_theme_id(),
+                tui_layout: Default::default(),
             },
             false,
         )

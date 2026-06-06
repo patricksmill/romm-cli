@@ -4,7 +4,9 @@ use ratatui_image::picker::ProtocolType;
 
 use super::cover::detect_cover_protocol_from_env;
 use super::saves::save_lines;
-use super::types::{CoverState, GameDetailPrevious, GameDetailScreen, SaveListState};
+use super::types::{
+    CoverState, GameDetailPrevious, GameDetailScreen, SaveListState, COVER_PANEL_WIDTH_DEFAULT,
+};
 use crate::tui::screens::SearchScreen;
 use crate::types::SaveMetadata;
 
@@ -55,7 +57,13 @@ fn missing_protocol_still_requests_cover_load() {
     };
     let previous = GameDetailPrevious::Search(SearchScreen::new());
     let downloads = Arc::new(Mutex::new(Vec::new()));
-    let mut detail = GameDetailScreen::new(rom, Vec::new(), previous, downloads);
+    let mut detail = GameDetailScreen::new(
+        rom,
+        Vec::new(),
+        previous,
+        downloads,
+        COVER_PANEL_WIDTH_DEFAULT,
+    );
     detail.cover_protocol = None;
     assert!(detail.should_request_cover_load());
     detail.set_cover_loading();
@@ -73,6 +81,7 @@ fn has_any_extras_false_when_no_assets() {
 fn footer_help_text_mentions_extras_shortcut() {
     let detail = new_detail(test_rom(1, None));
     assert!(detail.footer_help_text().contains("e: Extras"));
+    assert!(detail.footer_help_text().contains("Ctrl+←/→: Resize cover"));
 }
 
 #[test]
@@ -84,6 +93,21 @@ fn footer_help_text_tracks_technical_mode() {
     detail.show_technical = true;
     let technical = detail.footer_help_text();
     assert!(technical.contains("Hide technical"));
+}
+
+#[test]
+fn cover_panel_width_defaults_to_forty_two() {
+    let detail = new_detail(test_rom(1, None));
+    assert_eq!(detail.cover_panel_width, 42);
+}
+
+#[test]
+fn adjust_cover_panel_width_clamps_at_bounds() {
+    let mut detail = new_detail(test_rom(1, None));
+    detail.adjust_cover_panel_width(-100);
+    assert_eq!(detail.cover_panel_width, 20);
+    detail.adjust_cover_panel_width(100);
+    assert_eq!(detail.cover_panel_width, 60);
 }
 
 #[test]
@@ -164,5 +188,6 @@ fn new_detail(rom: crate::types::Rom) -> GameDetailScreen {
         Vec::new(),
         GameDetailPrevious::Search(SearchScreen::new()),
         Arc::new(Mutex::new(Vec::new())),
+        COVER_PANEL_WIDTH_DEFAULT,
     )
 }

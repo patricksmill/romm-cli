@@ -125,6 +125,64 @@ impl Default for ExtrasDefaults {
     }
 }
 
+/// Default library browse split: left pane width as a percentage.
+pub const LIBRARY_LEFT_PANEL_PERCENT_DEFAULT: u16 = 30;
+/// Minimum library left pane width (percent).
+pub const LIBRARY_LEFT_PANEL_PERCENT_MIN: u16 = 15;
+/// Maximum library left pane width (percent).
+pub const LIBRARY_LEFT_PANEL_PERCENT_MAX: u16 = 50;
+
+/// Default game detail cover column width in terminal cells.
+pub const GAME_DETAIL_COVER_PANEL_WIDTH_DEFAULT: u16 = 42;
+/// Minimum game detail cover column width.
+pub const GAME_DETAIL_COVER_PANEL_WIDTH_MIN: u16 = 20;
+/// Maximum game detail cover column width.
+pub const GAME_DETAIL_COVER_PANEL_WIDTH_MAX: u16 = 60;
+
+fn default_library_left_panel_percent() -> u16 {
+    LIBRARY_LEFT_PANEL_PERCENT_DEFAULT
+}
+
+fn default_game_detail_cover_panel_width() -> u16 {
+    GAME_DETAIL_COVER_PANEL_WIDTH_DEFAULT
+}
+
+/// TUI panel layout preferences (library split and game detail cover width).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TuiLayoutConfig {
+    /// Library browse: consoles/collections pane width as a percentage.
+    #[serde(default = "default_library_left_panel_percent")]
+    pub library_left_panel_percent: u16,
+    /// Game detail: cover column width in terminal cells.
+    #[serde(default = "default_game_detail_cover_panel_width")]
+    pub game_detail_cover_panel_width: u16,
+}
+
+impl Default for TuiLayoutConfig {
+    fn default() -> Self {
+        Self {
+            library_left_panel_percent: LIBRARY_LEFT_PANEL_PERCENT_DEFAULT,
+            game_detail_cover_panel_width: GAME_DETAIL_COVER_PANEL_WIDTH_DEFAULT,
+        }
+    }
+}
+
+impl TuiLayoutConfig {
+    /// Clamp values to supported bounds (e.g. after manual JSON edits).
+    pub fn normalized(self) -> Self {
+        Self {
+            library_left_panel_percent: self.library_left_panel_percent.clamp(
+                LIBRARY_LEFT_PANEL_PERCENT_MIN,
+                LIBRARY_LEFT_PANEL_PERCENT_MAX,
+            ),
+            game_detail_cover_panel_width: self.game_detail_cover_panel_width.clamp(
+                GAME_DETAIL_COVER_PANEL_WIDTH_MIN,
+                GAME_DETAIL_COVER_PANEL_WIDTH_MAX,
+            ),
+        }
+    }
+}
+
 /// Legacy `roms_layout.mode` values accepted when reading older configs.
 #[derive(Debug, Clone, Copy, Deserialize, Default, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -191,6 +249,9 @@ pub struct Config {
     /// TUI color theme ID (see ratatui-themekit `available_theme_ids`).
     #[serde(default = "default_theme_id")]
     pub theme: String,
+    /// TUI panel layout (library split, game detail cover width).
+    #[serde(default)]
+    pub tui_layout: TuiLayoutConfig,
 }
 
 /// Default TUI theme ID when none is configured.
@@ -653,6 +714,11 @@ pub fn load_config() -> Result<Config, ConfigError> {
         .or_else(|| json_config.as_ref().map(|c| c.theme.clone()))
         .unwrap_or_else(default_theme_id);
 
+    let tui_layout = json_config
+        .as_ref()
+        .map(|c| c.tui_layout.clone().normalized())
+        .unwrap_or_default();
+
     Ok(Config {
         base_url,
         download_dir,
@@ -662,6 +728,7 @@ pub fn load_config() -> Result<Config, ConfigError> {
         save_sync,
         roms_layout,
         theme,
+        tui_layout,
     })
 }
 
@@ -873,6 +940,32 @@ mod tests {
             r#"{"base_url":"http://x","download_dir":"/tmp","use_https":false,"theme":"dracula"}"#;
         let cfg: Config = serde_json::from_str(json).unwrap();
         assert_eq!(cfg.theme, "dracula");
+    }
+
+    #[test]
+    fn config_tui_layout_defaults_when_missing() {
+        let cfg: Config = serde_json::from_str(
+            r#"{"base_url":"http://x","download_dir":"/tmp","use_https":false}"#,
+        )
+        .unwrap();
+        assert_eq!(cfg.tui_layout, TuiLayoutConfig::default());
+    }
+
+    #[test]
+    fn config_tui_layout_normalizes_out_of_range_values() {
+        let cfg = TuiLayoutConfig {
+            library_left_panel_percent: 5,
+            game_detail_cover_panel_width: 999,
+        }
+        .normalized();
+        assert_eq!(
+            cfg.library_left_panel_percent,
+            LIBRARY_LEFT_PANEL_PERCENT_MIN
+        );
+        assert_eq!(
+            cfg.game_detail_cover_panel_width,
+            GAME_DETAIL_COVER_PANEL_WIDTH_MAX
+        );
     }
 
     fn clear_auth_env() {
@@ -1114,6 +1207,7 @@ mod tests {
             save_sync: SaveSyncConfig::default(),
             roms_layout: RomsLayoutConfig::default(),
             theme: default_theme_id(),
+            tui_layout: TuiLayoutConfig::default(),
         };
         assert_eq!(
             resolved_save_dir(&cfg),
@@ -1157,6 +1251,7 @@ mod tests {
             },
             roms_layout: RomsLayoutConfig::default(),
             theme: default_theme_id(),
+            tui_layout: TuiLayoutConfig::default(),
         };
         let json = serde_json::to_string(&cfg.save_sync).expect("serialize");
         assert!(json.contains("platform_dirs"));
@@ -1348,6 +1443,7 @@ mod tests {
             save_sync: SaveSyncConfig::default(),
             roms_layout: RomsLayoutConfig::default(),
             theme: default_theme_id(),
+            tui_layout: TuiLayoutConfig::default(),
         })
         .expect("persist bearer sentinel");
 
@@ -1374,6 +1470,7 @@ mod tests {
             save_sync: SaveSyncConfig::default(),
             roms_layout: RomsLayoutConfig::default(),
             theme: default_theme_id(),
+            tui_layout: TuiLayoutConfig::default(),
         })
         .expect("persist api key sentinel");
 
@@ -1399,6 +1496,7 @@ mod tests {
             save_sync: SaveSyncConfig::default(),
             roms_layout: RomsLayoutConfig::default(),
             theme: default_theme_id(),
+            tui_layout: TuiLayoutConfig::default(),
         })
         .expect("persist basic password sentinel");
 

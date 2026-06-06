@@ -141,6 +141,7 @@ pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
             save_sync: Default::default(),
             roms_layout: Default::default(),
             theme: default_theme_id(),
+            tui_layout: Default::default(),
         };
         persist_user_config(&config)?;
         println!("Wrote {}", path.display());
@@ -274,6 +275,7 @@ pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
                 save_sync: Default::default(),
                 roms_layout: Default::default(),
                 theme: default_theme_id(),
+                tui_layout: Default::default(),
             };
             let client = RommClient::new(&temp_config, verbose)?;
             let endpoint = crate::endpoints::client_tokens::ExchangeClientToken { code };
@@ -306,6 +308,7 @@ pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
                 save_sync: Default::default(),
                 roms_layout: Default::default(),
                 theme: default_theme_id(),
+                tui_layout: Default::default(),
             };
             let client = RommClient::new(&temp_config, verbose)?;
             let platforms = client
@@ -327,6 +330,7 @@ pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
         save_sync: Default::default(),
         roms_layout,
         theme: default_theme_id(),
+        tui_layout: Default::default(),
     };
     persist_user_config(&config)?;
 

@@ -74,6 +74,7 @@ async fn run_app(cli: Cli) -> Result<(), RommError> {
                     save_sync: Default::default(),
                     roms_layout: Default::default(),
                     theme: romm_cli::config::default_theme_id(),
+                    tui_layout: Default::default(),
                 };
                 return run(
                     Cli {

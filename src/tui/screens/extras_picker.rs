@@ -285,7 +285,9 @@ impl ExtrasPickerScreen {
 mod tests {
     use super::*;
     use crate::core::download::DownloadJob;
-    use crate::tui::screens::game_detail::{GameDetailPrevious, GameDetailScreen};
+    use crate::tui::screens::game_detail::{
+        GameDetailPrevious, GameDetailScreen, COVER_PANEL_WIDTH_DEFAULT,
+    };
     use crate::tui::screens::SearchScreen;
     use std::path::PathBuf;
     use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
@@ -332,7 +334,13 @@ mod tests {
 
         let prev = GameDetailPrevious::Search(SearchScreen::new());
         let downloads = Arc::new(Mutex::new(Vec::<DownloadJob>::new()));
-        GameDetailScreen::new(primary, vec![other], prev, downloads)
+        GameDetailScreen::new(
+            primary,
+            vec![other],
+            prev,
+            downloads,
+            COVER_PANEL_WIDTH_DEFAULT,
+        )
     }
 
     fn test_download_dir(label: &str) -> PathBuf {

@@ -140,60 +140,55 @@ impl App {
             || self.startup_update_prompt.is_some()
             || self.global_error.is_some()
             || self.global_notice.is_some()
+            || self.typing_in_text_field()
+    }
+
+    /// True while the active screen is accepting typed text (global overlay keys route to the field instead).
+    fn typing_in_text_field(&self) -> bool {
+        match &self.screen {
+            AppScreen::Search(_) | AppScreen::SetupWizard(_) => true,
+            AppScreen::Settings(s) => {
+                s.editing
+                    || s.path_picker.is_some()
+                    || s.console_path_picker.is_some()
+                    || s.console_picker_open
+                    || s.device_picker_open
+                    || s.confirm.is_some()
+            }
+            AppScreen::LibraryBrowse(lib) => lib.any_upload_prompt_open(),
+            _ => false,
+        }
     }
 
     fn blocks_global_d_shortcut(&self) -> bool {
-        let base = match &self.screen {
-            AppScreen::Settings(_) | AppScreen::SetupWizard(_) => true,
-            AppScreen::LibraryBrowse(lib) => lib.any_upload_prompt_open(),
-            _ => false,
-        };
-        base || self.library_upload_inflight || self.blocks_global_chord_shortcuts()
+        self.typing_in_text_field()
+            || self.library_upload_inflight
+            || self.startup_splash.is_some()
+            || self.startup_update_prompt.is_some()
+            || self.global_error.is_some()
+            || self.global_notice.is_some()
     }
 
     fn blocks_global_slash_shortcut(&self) -> bool {
-        match &self.screen {
-            AppScreen::SetupWizard(_) => true,
-            AppScreen::Settings(s)
-                if s.editing
-                    || s.path_picker.is_some()
-                    || s.console_path_picker.is_some()
-                    || s.console_picker_open
-                    || s.device_picker_open
-                    || s.confirm.is_some() =>
-            {
-                true
-            }
-            AppScreen::LibraryBrowse(lib) if lib.any_upload_prompt_open() => true,
-            _ => false,
-        }
+        self.typing_in_text_field()
+            || self.startup_splash.is_some()
+            || self.startup_update_prompt.is_some()
+            || self.global_error.is_some()
+            || self.global_notice.is_some()
     }
 
     fn blocks_global_comma_shortcut(&self) -> bool {
-        match &self.screen {
-            AppScreen::SetupWizard(_) => true,
-            AppScreen::Settings(s)
-                if s.editing
-                    || s.path_picker.is_some()
-                    || s.console_path_picker.is_some()
-                    || s.console_picker_open
-                    || s.device_picker_open
-                    || s.confirm.is_some() =>
-            {
-                true
-            }
-            AppScreen::LibraryBrowse(lib) if lib.any_upload_prompt_open() => true,
-            _ => false,
-        }
+        self.typing_in_text_field()
+            || self.startup_splash.is_some()
+            || self.startup_update_prompt.is_some()
+            || self.global_error.is_some()
+            || self.global_notice.is_some()
     }
 
     fn allows_global_question_help(&self) -> bool {
-        match &self.screen {
-            AppScreen::SetupWizard(_) => false,
-            AppScreen::LibraryBrowse(lib) if lib.any_upload_prompt_open() => false,
-            AppScreen::Settings(s) if s.editing || s.path_picker.is_some() => false,
-            _ => true,
-        }
+        !self.typing_in_text_field()
+            && self.startup_splash.is_none()
+            && self.startup_update_prompt.is_none()
     }
 
     pub(crate) fn is_force_quit_key(key: &crossterm::event::KeyEvent) -> bool {

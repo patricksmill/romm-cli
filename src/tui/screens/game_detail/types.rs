@@ -38,6 +38,12 @@ pub enum SaveListState {
     Failed(String),
 }
 
+pub use crate::config::{
+    GAME_DETAIL_COVER_PANEL_WIDTH_DEFAULT as COVER_PANEL_WIDTH_DEFAULT,
+    GAME_DETAIL_COVER_PANEL_WIDTH_MAX as COVER_PANEL_WIDTH_MAX,
+    GAME_DETAIL_COVER_PANEL_WIDTH_MIN as COVER_PANEL_WIDTH_MIN,
+};
+
 /// Detailed view for a single ROM (and its related files).
 pub struct GameDetailScreen {
     pub rom: Rom,
@@ -61,4 +67,6 @@ pub struct GameDetailScreen {
     pub saves_state: SaveListState,
     pub selected_save_index: usize,
     pub save_upload_picker: Option<PathPicker>,
+    /// Width of the cover column in terminal cells.
+    pub cover_panel_width: u16,
 }

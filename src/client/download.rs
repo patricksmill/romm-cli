@@ -243,6 +243,7 @@ mod tests {
                 save_sync: Default::default(),
                 roms_layout: Default::default(),
                 theme: crate::config::default_theme_id(),
+                tui_layout: Default::default(),
             },
             false,
         )

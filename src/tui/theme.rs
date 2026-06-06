@@ -3,7 +3,7 @@
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Line;
-use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
+use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph};
 use ratatui::Frame;
 use ratatui_themekit::{available_theme_ids, resolve_theme, Theme};
 
@@ -90,6 +90,7 @@ impl<'a> RommStyles<'a> {
 
     /// Fill a region (e.g. popup) with the panel surface color.
     pub fn fill_surface(&self, f: &mut Frame, area: Rect) {
+        f.render_widget(Clear, area);
         if self.uses_native_terminal() {
             return;
         }

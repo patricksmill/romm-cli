@@ -12,6 +12,7 @@ use crate::types::{Rom, SaveMetadata};
 use super::cover::detect_cover_protocol;
 use super::types::{
     CoverRenderMode, CoverState, GameDetailPrevious, GameDetailScreen, SaveListState,
+    COVER_PANEL_WIDTH_MAX, COVER_PANEL_WIDTH_MIN,
 };
 
 impl GameDetailScreen {
@@ -20,6 +21,7 @@ impl GameDetailScreen {
         other_files: Vec<Rom>,
         previous: GameDetailPrevious,
         downloads: Arc<Mutex<Vec<DownloadJob>>>,
+        cover_panel_width: u16,
     ) -> Self {
         let cover_last_url = rom.url_cover.clone();
         let cover_protocol = detect_cover_protocol();
@@ -46,7 +48,15 @@ impl GameDetailScreen {
             saves_state: SaveListState::Idle,
             selected_save_index: 0,
             save_upload_picker: None,
+            cover_panel_width: cover_panel_width
+                .clamp(COVER_PANEL_WIDTH_MIN, COVER_PANEL_WIDTH_MAX),
         }
+    }
+
+    pub fn adjust_cover_panel_width(&mut self, delta: i16) {
+        let next = (self.cover_panel_width as i16 + delta)
+            .clamp(COVER_PANEL_WIDTH_MIN as i16, COVER_PANEL_WIDTH_MAX as i16);
+        self.cover_panel_width = next as u16;
     }
 
     pub fn toggle_technical(&mut self) {
@@ -136,9 +146,9 @@ impl GameDetailScreen {
 
     pub(crate) fn footer_help_text(&self) -> &'static str {
         if self.show_technical {
-            "Enter: Download ROM | e: Extras | u: Upload save | D: Download save | m: Hide technical | Esc: Back"
+            "Enter: Download ROM | e: Extras | u: Upload save | D: Download save | m: Hide technical | Ctrl+←/→: Resize cover | Esc: Back"
         } else {
-            "Enter: Download ROM | e: Extras | u: Upload save | D: Download save | m: More technical details | Esc: Back"
+            "Enter: Download ROM | e: Extras | u: Upload save | D: Download save | m: More technical details | Ctrl+←/→: Resize cover | Esc: Back"
         }
     }
 

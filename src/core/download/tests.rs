@@ -275,6 +275,7 @@ fn resolve_game_save_dir_appends_game_folder() {
         },
         roms_layout: Default::default(),
         theme: default_theme_id(),
+        tui_layout: Default::default(),
     };
     let dir = resolve_game_save_dir(&cfg, &rom).unwrap();
     assert_eq!(dir, PathBuf::from("/saves/switch/Game"));

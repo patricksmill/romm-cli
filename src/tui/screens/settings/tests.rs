@@ -22,6 +22,7 @@ fn test_config() -> Config {
         },
         roms_layout: RomsLayoutConfig::default(),
         theme: default_theme_id(),
+        tui_layout: Default::default(),
     }
 }
 

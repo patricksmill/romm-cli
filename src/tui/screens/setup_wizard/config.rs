@@ -6,6 +6,7 @@ use crate::client::RommClient;
 use crate::config::{
     default_theme_id, is_keyring_placeholder, load_config, normalize_romm_origin,
     persist_user_config, read_user_config_json_from_disk, AuthConfig, Config, RomsLayoutConfig,
+    TuiLayoutConfig,
 };
 use crate::core::download::validate_configured_download_directory;
 use crate::endpoints::client_tokens::ExchangeClientToken;
@@ -13,6 +14,12 @@ use crate::tui::path_picker::{PathPicker, PathPickerMode};
 
 use super::layout::extras_defaults_from_disk;
 use super::types::{AuthKind, SetupWizard, Step};
+
+fn tui_layout_from_disk() -> TuiLayoutConfig {
+    read_user_config_json_from_disk()
+        .map(|c| c.tui_layout.normalized())
+        .unwrap_or_default()
+}
 
 impl SetupWizard {
     pub fn new() -> Self {
@@ -180,6 +187,7 @@ impl SetupWizard {
             theme: read_user_config_json_from_disk()
                 .map(|c| c.theme)
                 .unwrap_or_else(default_theme_id),
+            tui_layout: tui_layout_from_disk(),
         };
         let client = RommClient::new(&temp_config, verbose)?;
         let response = client
@@ -201,6 +209,7 @@ impl SetupWizard {
             theme: read_user_config_json_from_disk()
                 .map(|c| c.theme)
                 .unwrap_or_else(default_theme_id),
+            tui_layout: tui_layout_from_disk(),
         })
     }
 
@@ -283,6 +292,7 @@ impl SetupWizard {
             theme: read_user_config_json_from_disk()
                 .map(|c| c.theme)
                 .unwrap_or_else(default_theme_id),
+            tui_layout: tui_layout_from_disk(),
         })
     }
 

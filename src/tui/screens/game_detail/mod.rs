@@ -9,4 +9,7 @@ mod types;
 #[cfg(test)]
 mod tests;
 
-pub use types::{GameDetailPrevious, GameDetailScreen};
+pub use types::{
+    GameDetailPrevious, GameDetailScreen, COVER_PANEL_WIDTH_DEFAULT, COVER_PANEL_WIDTH_MAX,
+    COVER_PANEL_WIDTH_MIN,
+};

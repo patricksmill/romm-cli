@@ -29,8 +29,9 @@ Search overlay
   Arrows, typing     Edit query and move in results
   Enter              Run search; open game only if the query matches the last search
   Esc                Clear results or close overlay
-  /                  Close overlay
+  d / , /            Typed into query (overlay shortcuts disabled while typing)";
 
+const KEYBOARD_HELP_TEXT_RIGHT: &str = "\
 Game detail
   Enter              Download
   o                  Open cover image
@@ -55,12 +56,13 @@ Settings overlay
 Setup wizard
   Follow on-screen prompts; Esc returns when offered.
 
-Press Esc, Enter, F1, or ? to close this help.
-";
+Press Esc, Enter, F1, or ? to close this help.";
 
 pub fn render_keyboard_help(f: &mut Frame, area: Rect, styles: &RommStyles) {
-    let popup_w = (area.width * 4 / 5).max(40).min(area.width);
-    let popup_h = (area.height * 4 / 5).max(15).min(area.height);
+    use ratatui::layout::{Constraint, Direction, Layout};
+
+    let popup_w = (area.width * 9 / 10).max(72).min(area.width);
+    let popup_h = (area.height * 9 / 10).max(20).min(area.height);
     let popup_area = Rect {
         x: area.width.saturating_sub(popup_w) / 2,
         y: area.height.saturating_sub(popup_h) / 2,
@@ -68,10 +70,93 @@ pub fn render_keyboard_help(f: &mut Frame, area: Rect, styles: &RommStyles) {
         height: popup_h,
     };
     styles.fill_surface(f, popup_area);
+
     let block = styles.panel_block("Keyboard shortcuts");
-    let paragraph = Paragraph::new(KEYBOARD_HELP_TEXT)
-        .block(block)
-        .style(styles.text())
-        .wrap(Wrap { trim: true });
-    f.render_widget(paragraph, popup_area);
+    let inner = block.inner(popup_area);
+    f.render_widget(block, popup_area);
+
+    let columns = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .margin(1)
+        .split(inner);
+
+    let wrap = Wrap { trim: true };
+    f.render_widget(
+        Paragraph::new(KEYBOARD_HELP_TEXT)
+            .style(styles.text())
+            .wrap(wrap),
+        columns[0],
+    );
+    f.render_widget(
+        Paragraph::new(KEYBOARD_HELP_TEXT_RIGHT)
+            .style(styles.text())
+            .wrap(wrap),
+        columns[1],
+    );
+}
+
+#[cfg(test)]
+mod tests {
+    use ratatui::backend::TestBackend;
+    use ratatui::layout::Rect;
+    use ratatui::Terminal;
+
+    use crate::config::default_theme_id;
+    use crate::tui::theme::{resolve_theme_or_default, RommStyles};
+
+    use super::*;
+
+    #[test]
+    fn keyboard_help_clears_background_inside_popup() {
+        let backend = TestBackend::new(120, 40);
+        let mut terminal = Terminal::new(backend).expect("terminal");
+        let theme = resolve_theme_or_default(&default_theme_id());
+        let styles = RommStyles::new(theme.as_ref());
+
+        terminal
+            .draw(|frame| {
+                let area = frame.area();
+                let leak_area = Rect {
+                    x: 20,
+                    y: 10,
+                    width: 40,
+                    height: 20,
+                };
+                frame.render_widget(Paragraph::new("Air Raid || Background leak"), leak_area);
+                render_keyboard_help(frame, area, &styles);
+            })
+            .expect("draw");
+
+        let buffer = terminal.backend().buffer();
+        let popup_w = 108_u16;
+        let popup_h = 36_u16;
+        let popup_x = 6_u16;
+        let popup_y = 2_u16;
+        let block = styles.panel_block("Keyboard shortcuts");
+        let inner = block.inner(Rect {
+            x: popup_x,
+            y: popup_y,
+            width: popup_w,
+            height: popup_h,
+        });
+
+        for y in inner.y..inner.y.saturating_add(inner.height) {
+            for x in inner.x..inner.x.saturating_add(inner.width) {
+                let cell = buffer[(x, y)].symbol();
+                assert_ne!(
+                    cell, "|",
+                    "background table content leaked into help popup at ({x},{y})"
+                );
+            }
+        }
+
+        let text = buffer
+            .content()
+            .iter()
+            .map(|c| c.symbol())
+            .collect::<String>();
+        assert!(text.contains("Global"), "help text should render");
+        assert!(text.contains("Game detail"), "right column should render");
+    }
 }

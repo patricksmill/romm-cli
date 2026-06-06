@@ -30,7 +30,10 @@ impl GameDetailScreen {
             .split(area);
         let body = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Min(10), Constraint::Length(42)])
+            .constraints([
+                Constraint::Min(10),
+                Constraint::Length(self.cover_panel_width),
+            ])
             .split(chunks[0]);
 
         self.render_metadata_panel(f, body[0], styles);

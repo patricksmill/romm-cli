@@ -363,6 +363,23 @@ async fn startup_update_prompt_esc_skips_without_quitting() {
     assert!(app.startup_update_prompt.is_none());
 }
 
+#[test]
+fn search_overlay_blocks_global_char_shortcuts() {
+    let mut app = app_on_library();
+    app.screen = AppScreen::Search(SearchScreen::new());
+    assert!(app.blocks_global_d_shortcut());
+    assert!(app.blocks_global_slash_shortcut());
+    assert!(app.blocks_global_comma_shortcut());
+    assert!(!app.allows_global_question_help());
+
+    let d_key = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::empty());
+    let actions = map_key_to_actions(&app, &d_key);
+    assert!(
+        matches!(actions.as_slice(), [Action::SearchKey(k)] if *k == d_key),
+        "d should reach search input, not open downloads"
+    );
+}
+
 #[tokio::test]
 async fn startup_update_prompt_blocks_global_d_shortcut() {
     let config = Config {
@@ -637,8 +654,30 @@ async fn global_slash_toggles_search_overlay() {
 
     app.handle_key_event(&KeyEvent::new(KeyCode::Char('/'), KeyModifiers::empty()))
         .await
+        .expect("type slash in query");
+    if let AppScreen::Search(search) = &app.screen {
+        assert_eq!(search.query, "/");
+    } else {
+        panic!("expected search overlay");
+    }
+
+    app.handle_key_event(&KeyEvent::new(KeyCode::Esc, KeyModifiers::empty()))
+        .await
         .expect("close search");
     assert!(matches!(app.screen, AppScreen::LibraryBrowse(_)));
+}
+
+#[tokio::test]
+async fn search_overlay_d_types_into_query_not_downloads() {
+    let mut app = app_on_library();
+    app.handle_key_event(&KeyEvent::new(KeyCode::Char('/'), KeyModifiers::empty()))
+        .await
+        .expect("open search");
+
+    app.handle_key_event(&KeyEvent::new(KeyCode::Char('d'), KeyModifiers::empty()))
+        .await
+        .expect("type d in query");
+    assert!(matches!(app.screen, AppScreen::Search(search) if search.query == "d"));
 }
 
 #[tokio::test]
