@@ -3,3 +3,9 @@ romm_cli = "1.0.0"
 romm_tui = "1.0.0"
 min_romm_api = "1.0.0"
 notes = "Workspace fresh start at 1.0.0 after split and TUI decoupling"
+
+[[combination]]
+romm_cli = "1.0.0"
+romm_tui = "1.1.0"
+min_romm_api = "1.0.0"
+notes = "romm-tui 1.1.0: library pane filter on f and keyboard help layout"
