@@ -1,0 +1,59 @@
+# Android release scaffold — enable when android/ Gradle project lands.
+# Until then, run manually via workflow_dispatch only.
+
+name: Android Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Android release tag (example: android-v0.1.0)"
+        required: false
+        type: string
+      romm_api_version:
+        description: "romm-api FFI version to embed (defaults to romm-api/Cargo.toml)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  placeholder:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Check android/ project exists
+        id: check
+        shell: bash
+        run: |
+          if [ ! -d android ]; then
+            echo "Android project not present yet. See docs/releases.md and docs/plans/2026-06-06-android-frontend-design.md."
+            echo "ready=false" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          echo "ready=true" >> "${GITHUB_OUTPUT}"
+
+      - name: Resolve romm-api version
+        if: steps.check.outputs.ready == 'true'
+        id: api_version
+        shell: bash
+        run: |
+          version="${{ inputs.romm_api_version }}"
+          if [ -z "${version}" ]; then
+            version="$(grep -E '^version = ' romm-api/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')"
+          fi
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "Embedding romm-api version: ${version}"
+
+      - name: Build Android release (stub)
+        if: steps.check.outputs.ready == 'true'
+        run: |
+          echo "TODO: ./android/gradlew bundleRelease with rommApiVersion=${{ steps.api_version.outputs.version }}"
+          echo "Attach AAB/APK to GitHub release tag: ${{ inputs.tag }}"
+
+      - name: Scaffold notice
+        if: steps.check.outputs.ready != 'true'
+        run: |
+          echo "android-release workflow is scaffolded. Add android/ and implement Gradle release steps."

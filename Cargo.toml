@@ -3,14 +3,13 @@ members = ["romm-api", "romm-cli", "romm-tui"]
 resolver = "2"
 
 [workspace.package]
-version = "0.40.0"
 edition = "2021"
 repository = "https://github.com/patricksmill/romm-cli"
 license = "MIT"
 
 [workspace.dependencies]
-romm-api = { path = "romm-api", version = "0.40.0" }
-romm-tui = { path = "romm-tui", version = "0.40.0" }
+romm-api = { path = "romm-api", version = "0.40" }
+romm-tui = { path = "romm-tui", version = "0.40" }
 
 [profile.release]
 strip = true

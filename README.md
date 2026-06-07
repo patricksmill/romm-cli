@@ -19,6 +19,7 @@ Rust clients for managing a game library through the [RomM API](https://github.c
 
 ### Shared topics
 
+- [Releases](docs/releases.md) — per-crate versioning, tags, and maintainer runbook
 - [Architecture](docs/architecture.md) — workspace layout, layers, TUI state machine
 - [HTTP client](docs/http-client.md) — `RommClient`, endpoints, streaming downloads
 - [Save sync](docs/save-sync.md) — manifest format, `sync` subcommands
@@ -55,7 +56,7 @@ romm-api = "0.40"
 
 See [docs/api.md](docs/api.md) for a minimal `RommClient` example.
 
-Prebuilt binaries: [Releases](https://github.com/patricksmill/romm-cli/releases).
+Prebuilt binaries: [GitHub Releases](https://github.com/patricksmill/romm-cli/releases) (`romm-cli-v*` ships both binaries; `romm-tui-v*` ships the TUI only). See [docs/releases.md](docs/releases.md).
 
 ---
 

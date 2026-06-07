@@ -95,7 +95,8 @@ fn update_status_fixture() -> UpdateStatus {
         release_tag: "v0.26.0".into(),
         should_update: true,
         release_url: "https://github.com/patricksmill/romm-cli/releases/tag/v0.26.0".into(),
-        changelog_url: "https://github.com/patricksmill/romm-cli/blob/main/CHANGELOG.md".into(),
+        changelog_url: "https://github.com/patricksmill/romm-cli/blob/main/romm-tui/CHANGELOG.md"
+            .into(),
     }
 }
 

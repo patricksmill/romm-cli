@@ -1,7 +1,7 @@
 use crate::cli_presentation::CliPresentation;
+use crate::update::{self, ApplyUpdateOptions, ApplyUpdateOutcome};
 use anyhow::Result;
 use romm_api::core::interrupt::InterruptContext;
-use romm_api::update::{self, ApplyUpdateOptions, ApplyUpdateOutcome};
 use serde::Serialize;
 
 #[derive(Serialize)]

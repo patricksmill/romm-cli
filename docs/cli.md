@@ -25,10 +25,15 @@ cargo install romm-cli --no-default-features
 
 ### Binary releases
 
-Prebuilt archives for Windows, Linux, and macOS are on the [Releases page](https://github.com/patricksmill/romm-cli/releases). Each archive includes:
+Prebuilt archives for Windows, Linux, and macOS are on the [Releases page](https://github.com/patricksmill/romm-cli/releases).
 
-- `romm-cli` — full command-line tool, including `romm-cli tui`
-- `romm-tui` — shortcut executable that opens the TUI directly
+| Tag | Archives contain |
+|-----|------------------|
+| `romm-cli-v*` | `romm-cli` and `romm-tui` (primary distribution) |
+| `romm-tui-v*` | `romm-tui` only |
+| Legacy `v*` | Both binaries (unified-era tags) |
+
+Release process and versioning: [releases.md](releases.md).
 
 ---
 

@@ -20,7 +20,7 @@ pub use romm_api::feature_compat;
 pub use romm_api::log_redact;
 pub use romm_api::openapi;
 pub use romm_api::types;
-pub use romm_api::update;
+pub mod update;
 
 #[cfg(feature = "tui")]
 pub use romm_tui::tui;

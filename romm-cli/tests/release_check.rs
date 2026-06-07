@@ -1,9 +1,9 @@
 #![allow(deprecated)]
 
 use assert_cmd::Command;
-use httpmock::Method::GET;
-use httpmock::MockServer;
-use romm_cli::update;
+use romm_api::update::{self, ReleaseComponent, UpdateContext};
+use wiremock::matchers::{method, path};
+use wiremock::{Mock, MockServer, ResponseTemplate};
 
 #[test]
 fn update_subcommand_is_registered() {
@@ -13,36 +13,43 @@ fn update_subcommand_is_registered() {
 }
 
 #[tokio::test]
-async fn check_for_update_reads_mocked_github_latest() {
-    let server = MockServer::start_async().await;
+async fn check_for_update_reads_mocked_component_releases() {
+    let server = MockServer::start().await;
 
-    let _mock = server
-        .mock_async(|when, then| {
-            when.method(GET)
-                .path("/repos/patricksmill/romm-cli/releases/latest");
-            then.status(200)
-                .header("content-type", "application/json")
-                .body(
-                    r#"{
-                        "tag_name": "v999.0.0",
-                        "html_url": "https://github.com/patricksmill/romm-cli/releases/tag/v999.0.0"
-                    }"#,
-                );
-        })
+    Mock::given(method("GET"))
+        .and(path("/repos/patricksmill/romm-cli/releases"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([
+            {
+                "tag_name": "romm-cli-v999.0.0",
+                "html_url": "https://github.com/patricksmill/romm-cli/releases/tag/romm-cli-v999.0.0"
+            }
+        ])))
+        .mount(&server)
         .await;
 
-    let api_url = format!(
-        "{}/repos/patricksmill/romm-cli/releases/latest",
-        server.base_url()
+    std::env::set_var(
+        "ROMM_GITHUB_RELEASES_API",
+        format!("{}/repos/patricksmill/romm-cli/releases", server.uri()),
     );
-    std::env::set_var("ROMM_GITHUB_LATEST_RELEASE_API", &api_url);
 
-    let status = update::check_for_update().await.expect("check_for_update");
+    let ctx = UpdateContext::for_running_binary(env!("CARGO_PKG_VERSION"));
+    let status = update::check_for_update(ctx)
+        .await
+        .expect("check_for_update");
     assert!(status.should_update);
     assert_eq!(status.latest_version, "999.0.0");
-    assert_eq!(status.release_tag, "v999.0.0");
+    assert_eq!(status.release_tag, "romm-cli-v999.0.0");
 
-    std::env::remove_var("ROMM_GITHUB_LATEST_RELEASE_API");
+    std::env::remove_var("ROMM_GITHUB_RELEASES_API");
+}
+
+#[test]
+fn select_latest_release_tag_cli_component() {
+    let tags = ["romm-cli-v0.40.0", "romm-cli-v999.0.0", "romm-tui-v1.0.0"];
+    assert_eq!(
+        update::select_latest_release_tag(ReleaseComponent::RommCli, tags.iter().copied()),
+        Some("romm-cli-v999.0.0".to_string())
+    );
 }
 
 #[test]

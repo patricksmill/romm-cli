@@ -20,7 +20,7 @@ Modern Rust CLI tools (ripgrep, bat, starship, uv-style) generally follow:
 | **HTTP** | `reqwest` + `rustls` (avoid OpenSSL), typed endpoints, serde models |
 | **TUI** | `ratatui` + `crossterm`, event loop + channels for background work |
 | **Testing** | `assert_cmd` + `wiremock` / `httpmock` for integration tests |
-| **Distribution** | `strip = true`, cross-compiled release artifacts, optional self-update |
+| **Distribution** | `strip = true`, cross-compiled release artifacts, optional self-update — see [releases.md](releases.md) |
 
 ### External references
 
@@ -272,4 +272,4 @@ There is no global `CLI > env` for connection settings on normal commands.
 
 ---
 
-*Last updated: 2026-06-07 — Documentation split into [api.md](api.md), [cli.md](cli.md), [tui.md](tui.md); Gap 4 complete (workspace split for Android prep).*
+*Last updated: 2026-06-06 — Independent per-crate releases; see [releases.md](releases.md) and [release coordination design](plans/2026-06-06-release-coordination-design.md).*

@@ -88,17 +88,16 @@ async fn run_started(
     let (registry, server_version) = sync_openapi_registry(&client, &cache_path).await?;
 
     let startup_update = if mock_update {
-        Some(romm_api::update::UpdateStatus {
+        Some(crate::update::UpdateStatus {
             current_version: format!("{} (dev)", env!("CARGO_PKG_VERSION")),
             latest_version: "9.9.9-mock".into(),
             release_tag: "v9.9.9-mock".into(),
             should_update: true,
             release_url: "https://github.com/patricksmill/romm-cli".into(),
-            changelog_url: romm_api::update::changelog_url().to_string(),
+            changelog_url: crate::update::changelog_url().to_string(),
         })
     } else if should_check_updates() {
-        match tokio::time::timeout(Duration::from_secs(2), romm_api::update::check_for_update())
-            .await
+        match tokio::time::timeout(Duration::from_secs(2), crate::update::check_for_update()).await
         {
             Ok(Ok(status)) if status.should_update => Some(status),
             _ => None,

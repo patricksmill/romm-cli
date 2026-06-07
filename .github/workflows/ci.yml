@@ -123,12 +123,23 @@ jobs:
             exit 1
           }
 
-  package-dry-run:
-    name: Package dry-run
+  version-consistency:
+    name: Version consistency
     runs-on: ubuntu-latest
     needs: [fmt, clippy, clippy-cli-only, test-romm-api, test, test-cli-only, build, completions]
     steps:
       - uses: actions/checkout@v6
+      - name: Run release-check.sh (versions only)
+        run: bash ./tools/release-check.sh versions-only
+
+  package-dry-run:
+    name: Package dry-run
+    runs-on: ubuntu-latest
+    needs: [version-consistency]
+    steps:
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo publish -p romm-api --dry-run
-      # romm-cli publish dry-run requires romm-api on crates.io (publish romm-api first on initial release).
+      - run: cargo publish -p romm-tui --dry-run
+      # romm-cli publish dry-run requires romm-api and romm-tui on crates.io (publish api -> tui -> cli).
+      - run: cargo publish -p romm-cli --dry-run

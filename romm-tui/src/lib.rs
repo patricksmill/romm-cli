@@ -2,3 +2,4 @@
 
 pub mod frontend;
 pub mod tui;
+pub mod update;

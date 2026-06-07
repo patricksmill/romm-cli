@@ -125,7 +125,8 @@ Prefer `--token-file` over `--token` to keep secrets out of shell history. The C
 | `ROMM_CHECK_UPDATES` | Set to `false`/`0`/`no`/`off` to disable update checks |
 | `ROMM_THEME` | TUI color theme ID (see [TUI documentation](tui.md)) |
 | `ROMM_GITHUB_API_BASE` | Override GitHub API base for self-update |
-| `ROMM_GITHUB_LATEST_RELEASE_API` | Override latest-release endpoint URL |
+| `ROMM_GITHUB_RELEASES_API` | Override GitHub releases list URL (component tag filtering) |
+| `ROMM_GITHUB_LATEST_RELEASE_API` | Legacy override; redirects to releases list when it points at `/releases/latest` |
 
 Test-only variables (`ROMM_TEST_*`) are omitted. For auth precedence and keyring behavior, see [troubleshooting-auth.md](troubleshooting-auth.md).
 

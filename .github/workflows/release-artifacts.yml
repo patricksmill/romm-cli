@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag to publish artifacts for (example: v0.26.0)"
+        description: "Tag to publish artifacts for (example: romm-cli-v0.40.0)"
         required: true
         type: string
 
@@ -22,6 +22,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.resolve.outputs.tag }}
+      component: ${{ steps.resolve.outputs.component }}
+      crate: ${{ steps.resolve.outputs.crate }}
+      publish_binaries: ${{ steps.resolve.outputs.publish_binaries }}
     steps:
       - name: Resolve release tag
         id: resolve
@@ -32,37 +35,74 @@ jobs:
             echo "Unable to resolve release tag."
             exit 1
           fi
+
+          component=""
+          crate=""
+          publish_binaries="false"
+
+          case "${tag}" in
+            romm-api-v*)
+              component="romm-api"
+              crate="romm-api"
+              ;;
+            romm-cli-v*)
+              component="romm-cli"
+              crate="romm-cli"
+              publish_binaries="true"
+              ;;
+            romm-tui-v*)
+              component="romm-tui"
+              crate="romm-tui"
+              publish_binaries="true"
+              ;;
+            v*)
+              # Legacy unified tag: treat as CLI distribution release.
+              component="romm-cli"
+              crate="romm-cli"
+              publish_binaries="true"
+              ;;
+            *)
+              echo "Unrecognized release tag format: ${tag}"
+              exit 1
+              ;;
+          esac
+
           echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+          echo "component=${component}" >> "${GITHUB_OUTPUT}"
+          echo "crate=${crate}" >> "${GITHUB_OUTPUT}"
+          echo "publish_binaries=${publish_binaries}" >> "${GITHUB_OUTPUT}"
 
   build:
     needs: resolve-tag
+    if: needs.resolve-tag.outputs.publish_binaries == 'true'
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            artifact_name: romm-cli-linux-x86_64
+            asset_key: linux-x86_64
             archive: tar.gz
           - os: ubuntu-latest
             target: aarch64-unknown-linux-gnu
-            artifact_name: romm-cli-linux-aarch64
+            asset_key: linux-aarch64
             archive: tar.gz
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            artifact_name: romm-cli-windows-x86_64
+            asset_key: windows-x86_64
             archive: zip
           - os: macos-latest
             target: x86_64-apple-darwin
-            artifact_name: romm-cli-macos-x86_64
+            asset_key: macos-x86_64
             archive: tar.gz
           - os: macos-latest
             target: aarch64-apple-darwin
-            artifact_name: romm-cli-macos-aarch64
+            asset_key: macos-aarch64
             archive: tar.gz
     runs-on: ${{ matrix.os }}
     env:
       CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+      RELEASE_COMPONENT: ${{ needs.resolve-tag.outputs.component }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -76,7 +116,7 @@ jobs:
       - name: Cache cargo registry and target
         uses: Swatinem/rust-cache@v2
         with:
-          key: release-${{ matrix.target }}
+          key: release-${{ matrix.target }}-${{ env.RELEASE_COMPONENT }}
 
       - name: Install cross-compiler (Linux aarch64)
         if: ${{ matrix.target == 'aarch64-unknown-linux-gnu' }}
@@ -86,41 +126,61 @@ jobs:
         run: cargo build --workspace --release --target ${{ matrix.target }} --bins
 
       - name: Prepare artifact directory
+        shell: bash
         run: |
           mkdir -p artifact
           TGT="target/${{ matrix.target }}/release"
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            cp "$TGT/romm-cli.exe" artifact/
-            cp "$TGT/romm-tui.exe" artifact/
+            if [ "${RELEASE_COMPONENT}" = "romm-tui" ]; then
+              cp "$TGT/romm-tui.exe" artifact/
+            else
+              cp "$TGT/romm-cli.exe" artifact/
+              cp "$TGT/romm-tui.exe" artifact/
+            fi
           else
-            cp "$TGT/romm-cli" artifact/
-            cp "$TGT/romm-tui" artifact/
+            if [ "${RELEASE_COMPONENT}" = "romm-tui" ]; then
+              cp "$TGT/romm-tui" artifact/
+            else
+              cp "$TGT/romm-cli" artifact/
+              cp "$TGT/romm-tui" artifact/
+            fi
           fi
-        shell: bash
 
       - name: Fix permissions (Unix)
         if: ${{ matrix.os != 'windows-latest' }}
-        run: chmod +x artifact/romm-cli artifact/romm-tui
+        shell: bash
+        run: |
+          if [ "${RELEASE_COMPONENT}" = "romm-tui" ]; then
+            chmod +x artifact/romm-tui
+          else
+            chmod +x artifact/romm-cli artifact/romm-tui
+          fi
 
       - name: Create archive (Unix)
         if: ${{ matrix.os != 'windows-latest' }}
-        run: |
-          cd artifact && tar czvf ../${{ matrix.artifact_name }}.${{ matrix.archive }} * && cd ..
         shell: bash
+        run: |
+          artifact_name="${RELEASE_COMPONENT}-${{ matrix.asset_key }}.${{ matrix.archive }}"
+          cd artifact && tar czvf "../${artifact_name}" * && cd ..
+          echo "ARTIFACT_NAME=${artifact_name}" >> "${GITHUB_ENV}"
 
       - name: Create archive (Windows)
         if: ${{ matrix.os == 'windows-latest' }}
-        run: Compress-Archive -Path artifact\* -DestinationPath ${{ matrix.artifact_name }}.${{ matrix.archive }}
         shell: pwsh
+        run: |
+          $artifactName = "$env:RELEASE_COMPONENT-${{ matrix.asset_key }}.${{ matrix.archive }}"
+          Compress-Archive -Path artifact\* -DestinationPath $artifactName
+          echo "ARTIFACT_NAME=$artifactName" >> $env:GITHUB_ENV
 
       - name: Upload artifact
         uses: actions/upload-artifact@v6
         with:
-          name: ${{ matrix.artifact_name }}
-          path: ${{ matrix.artifact_name }}.${{ matrix.archive }}
+          name: ${{ env.RELEASE_COMPONENT }}-${{ matrix.asset_key }}
+          path: ${{ env.ARTIFACT_NAME }}
 
   upload-assets:
     needs: [resolve-tag, build]
+    if: needs.resolve-tag.outputs.publish_binaries == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -153,7 +213,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   publish-crates-io:
-    needs: [resolve-tag, build, upload-assets]
+    needs: [resolve-tag, build]
+    if: always() && needs.resolve-tag.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -162,6 +223,6 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Verify crates.io package
-        run: cargo publish --dry-run
+        run: cargo publish -p ${{ needs.resolve-tag.outputs.crate }} --dry-run
       - name: Publish to crates.io
-        run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish -p ${{ needs.resolve-tag.outputs.crate }} --token ${{ secrets.CARGO_REGISTRY_TOKEN }}

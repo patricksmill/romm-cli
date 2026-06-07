@@ -1,5 +1,4 @@
 use anyhow::{anyhow, bail, Context, Result};
-use self_update::cargo_crate_version;
 use self_update::update::ReleaseUpdate;
 use self_update::Extract;
 use serde::Deserialize;
@@ -15,9 +14,80 @@ use crate::core::interrupt::{cancelled_error, InterruptContext};
 const REPO_OWNER: &str = "patricksmill";
 const REPO_NAME: &str = "romm-cli";
 const DEFAULT_BIN_NAME: &str = "romm-cli";
-const SHIPPED_BINARIES: &[&str] = &["romm-cli", "romm-tui"];
-const CHANGELOG_URL: &str = "https://github.com/patricksmill/romm-cli/blob/main/CHANGELOG.md";
+const LEGACY_TAG_PREFIX: &str = "v";
 const CHECKSUMS_ASSET_NAME: &str = "checksums.txt";
+
+/// Distribution component for GitHub releases and self-update.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReleaseComponent {
+    RommCli,
+    RommTui,
+}
+
+impl ReleaseComponent {
+    pub fn from_binary_stem(stem: &str) -> Self {
+        if stem == "romm-tui" {
+            Self::RommTui
+        } else {
+            Self::RommCli
+        }
+    }
+
+    pub fn tag_prefix(self) -> &'static str {
+        match self {
+            Self::RommCli => "romm-cli-v",
+            Self::RommTui => "romm-tui-v",
+        }
+    }
+
+    pub fn archive_prefix(self) -> &'static str {
+        match self {
+            Self::RommCli => "romm-cli",
+            Self::RommTui => "romm-tui",
+        }
+    }
+
+    pub fn shipped_binaries(self) -> &'static [&'static str] {
+        match self {
+            Self::RommCli => &["romm-cli", "romm-tui"],
+            Self::RommTui => &["romm-tui"],
+        }
+    }
+
+    pub fn changelog_url(self) -> &'static str {
+        match self {
+            Self::RommCli => {
+                "https://github.com/patricksmill/romm-cli/blob/main/romm-cli/CHANGELOG.md"
+            }
+            Self::RommTui => {
+                "https://github.com/patricksmill/romm-cli/blob/main/romm-tui/CHANGELOG.md"
+            }
+        }
+    }
+
+    pub fn user_agent_prefix(self) -> &'static str {
+        match self {
+            Self::RommCli => "romm-cli",
+            Self::RommTui => "romm-tui",
+        }
+    }
+}
+
+/// Frontend crate version and distribution component for self-update.
+#[derive(Debug, Clone, Copy)]
+pub struct UpdateContext {
+    pub component: ReleaseComponent,
+    pub package_version: &'static str,
+}
+
+impl UpdateContext {
+    pub fn for_running_binary(package_version: &'static str) -> Self {
+        Self {
+            component: ReleaseComponent::from_binary_stem(&current_binary_name()),
+            package_version,
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct UpdateStatus {
@@ -55,7 +125,7 @@ pub enum ApplyUpdateOutcome {
 }
 
 #[derive(Debug, Deserialize)]
-struct GithubLatestRelease {
+struct GithubRelease {
     tag_name: String,
     html_url: String,
 }
@@ -72,15 +142,13 @@ pub fn github_api_base_url() -> String {
     std::env::var("ROMM_GITHUB_API_BASE").unwrap_or_else(|_| "https://api.github.com".to_string())
 }
 
-fn github_latest_release_api_url() -> String {
-    std::env::var("ROMM_GITHUB_LATEST_RELEASE_API").unwrap_or_else(|_| {
-        format!(
-            "{}/repos/{}/{}/releases/latest",
-            github_api_base_url(),
-            REPO_OWNER,
-            REPO_NAME
-        )
-    })
+fn github_releases_list_api_url() -> String {
+    format!(
+        "{}/repos/{}/{}/releases?per_page=100",
+        github_api_base_url(),
+        REPO_OWNER,
+        REPO_NAME
+    )
 }
 
 pub fn github_release_asset_key() -> Result<&'static str> {
@@ -98,6 +166,17 @@ fn normalize_version_tag(version: &str) -> &str {
     version.trim().trim_start_matches('v')
 }
 
+fn version_from_tag(tag: &str, component: ReleaseComponent) -> String {
+    let prefix = component.tag_prefix();
+    if let Some(rest) = tag.strip_prefix(prefix) {
+        return rest.to_string();
+    }
+    if component == ReleaseComponent::RommCli && tag.starts_with(LEGACY_TAG_PREFIX) {
+        return tag.trim_start_matches(LEGACY_TAG_PREFIX).to_string();
+    }
+    tag.to_string()
+}
+
 fn is_latest_newer(latest: &str, current: &str) -> bool {
     self_update::version::bump_is_greater(
         normalize_version_tag(current),
@@ -106,8 +185,8 @@ fn is_latest_newer(latest: &str, current: &str) -> bool {
     .unwrap_or(false)
 }
 
-pub fn changelog_url() -> &'static str {
-    CHANGELOG_URL
+pub fn changelog_url_for(component: ReleaseComponent) -> &'static str {
+    component.changelog_url()
 }
 
 pub fn open_url_in_browser(url: &str) -> Result<()> {
@@ -142,8 +221,8 @@ pub fn open_url_in_browser(url: &str) -> Result<()> {
     Err(anyhow!("unsupported OS for opening browser"))
 }
 
-pub fn open_changelog_in_browser() -> Result<()> {
-    open_url_in_browser(changelog_url())
+pub fn open_changelog_in_browser(component: ReleaseComponent) -> Result<()> {
+    open_url_in_browser(changelog_url_for(component))
 }
 
 fn binary_name_from_path(path: &Path) -> Option<String> {
@@ -170,7 +249,49 @@ fn shipped_binary_file_name(stem: &str) -> String {
     format!("{stem}{EXE_SUFFIX}")
 }
 
-fn build_release_updater(options: &ApplyUpdateOptions) -> Result<Box<dyn ReleaseUpdate>> {
+fn expected_archive_name(component: ReleaseComponent, target: &str) -> String {
+    let ext = if std::env::consts::OS == "windows" {
+        "zip"
+    } else {
+        "tar.gz"
+    };
+    format!("{}-{}.{}", component.archive_prefix(), target, ext)
+}
+
+fn tag_matches_component(tag: &str, component: ReleaseComponent) -> bool {
+    if tag.starts_with(component.tag_prefix()) {
+        return true;
+    }
+    component == ReleaseComponent::RommCli
+        && tag.starts_with(LEGACY_TAG_PREFIX)
+        && tag[1..].chars().next().is_some_and(|c| c.is_ascii_digit())
+}
+
+pub fn select_latest_release_tag<'a>(
+    component: ReleaseComponent,
+    tags: impl IntoIterator<Item = &'a str>,
+) -> Option<String> {
+    let mut best: Option<(String, String)> = None;
+    for tag in tags {
+        if !tag_matches_component(tag, component) {
+            continue;
+        }
+        let version = version_from_tag(tag, component);
+        let replace = match &best {
+            None => true,
+            Some((_, current_best)) => is_latest_newer(&version, current_best),
+        };
+        if replace {
+            best = Some((tag.to_string(), version));
+        }
+    }
+    best.map(|(tag, _)| tag)
+}
+
+fn build_release_updater(
+    ctx: UpdateContext,
+    options: &ApplyUpdateOptions,
+) -> Result<Box<dyn ReleaseUpdate>> {
     let target = github_release_asset_key()?;
     let bin_name = current_binary_name();
     let mut builder = self_update::backends::github::Update::configure();
@@ -179,8 +300,8 @@ fn build_release_updater(options: &ApplyUpdateOptions) -> Result<Box<dyn Release
         .repo_name(REPO_NAME)
         .bin_name(&bin_name)
         .target(target)
-        .identifier(DEFAULT_BIN_NAME)
-        .current_version(cargo_crate_version!())
+        .identifier(ctx.component.archive_prefix())
+        .current_version(ctx.package_version)
         .with_url(&github_api_base_url())
         .show_download_progress(false)
         .show_output(options.show_output)
@@ -195,24 +316,88 @@ fn build_release_updater(options: &ApplyUpdateOptions) -> Result<Box<dyn Release
         .map_err(|e| anyhow!("build self_update config: {e}"))
 }
 
-fn resolve_release(options: &ApplyUpdateOptions) -> Result<Option<ResolvedRelease>> {
-    let current_version = cargo_crate_version!().to_string();
+async fn fetch_github_releases(user_agent: &str) -> Result<Vec<GithubRelease>> {
+    let api_url = std::env::var("ROMM_GITHUB_RELEASES_API").unwrap_or_else(|_| {
+        if let Ok(single) = std::env::var("ROMM_GITHUB_LATEST_RELEASE_API") {
+            if single.contains("/releases/latest") {
+                return github_releases_list_api_url();
+            }
+        }
+        github_releases_list_api_url()
+    });
+
+    let response = reqwest::Client::new()
+        .get(api_url)
+        .header(reqwest::header::USER_AGENT, user_agent)
+        .send()
+        .await
+        .context("failed to query GitHub releases")?
+        .error_for_status()
+        .context("GitHub releases endpoint returned an error status")?;
+
+    response
+        .json()
+        .await
+        .context("failed to parse GitHub releases response")
+}
+
+async fn resolve_latest_component_release(ctx: UpdateContext) -> Result<Option<GithubRelease>> {
+    let user_agent = format!(
+        "{}/{}",
+        ctx.component.user_agent_prefix(),
+        ctx.package_version
+    );
+    let releases = fetch_github_releases(&user_agent).await?;
+    let tag = select_latest_release_tag(
+        ctx.component,
+        releases.iter().map(|release| release.tag_name.as_str()),
+    );
+    Ok(tag.and_then(|tag_name| {
+        releases
+            .into_iter()
+            .find(|release| release.tag_name == tag_name)
+    }))
+}
+
+fn resolve_release(
+    ctx: UpdateContext,
+    options: &ApplyUpdateOptions,
+) -> Result<Option<ResolvedRelease>> {
+    let current_version = ctx.package_version.to_string();
     let target = github_release_asset_key()?;
-    let updater = build_release_updater(options)?;
+    let updater = build_release_updater(ctx, options)?;
 
     let release = if let Some(ref tag) = options.target_version_tag {
         updater.get_release_version(tag)?
     } else {
-        let latest = updater.get_latest_release()?;
-        if !is_latest_newer(&latest.version, &current_version) {
+        let rt = tokio::runtime::Handle::try_current()
+            .map_err(|_| anyhow!("resolve_release requires a Tokio runtime"))?;
+        let latest = rt.block_on(resolve_latest_component_release(ctx))?;
+        let Some(latest) = latest else {
+            return Ok(None);
+        };
+        let version = version_from_tag(&latest.tag_name, ctx.component);
+        if !is_latest_newer(&version, &current_version) {
             return Ok(None);
         }
-        latest
+        updater.get_release_version(&latest.tag_name)?
     };
 
+    let expected_name = expected_archive_name(ctx.component, target);
+    let archive_prefix = format!("{}-", ctx.component.archive_prefix());
     let archive = release
-        .asset_for(target, Some(DEFAULT_BIN_NAME))
-        .ok_or_else(|| anyhow!("no release asset found for target `{target}`"))?;
+        .assets
+        .iter()
+        .find(|asset| asset.name == expected_name)
+        .or_else(|| {
+            release
+                .assets
+                .iter()
+                .find(|asset| asset.name.starts_with(&archive_prefix))
+        })
+        .ok_or_else(|| {
+            anyhow!("no release asset found for target `{target}` (expected `{expected_name}`)")
+        })?;
 
     let checksums_download_url = release
         .assets
@@ -224,8 +409,8 @@ fn resolve_release(options: &ApplyUpdateOptions) -> Result<Option<ResolvedReleas
 
     Ok(Some(ResolvedRelease {
         version: release.version,
-        archive_name: archive.name,
-        archive_download_url: archive.download_url,
+        archive_name: archive.name.clone(),
+        archive_download_url: archive.download_url.clone(),
         checksums_download_url,
     }))
 }
@@ -357,7 +542,11 @@ async fn download_url_to_file(
     Ok(())
 }
 
-fn install_extracted_binaries(extract_dir: &Path, running_bin_stem: &str) -> Result<()> {
+fn install_extracted_binaries(
+    extract_dir: &Path,
+    running_bin_stem: &str,
+    component: ReleaseComponent,
+) -> Result<()> {
     let current_exe = std::env::current_exe().context("resolve current executable path")?;
     let install_dir = current_exe
         .parent()
@@ -365,7 +554,7 @@ fn install_extracted_binaries(extract_dir: &Path, running_bin_stem: &str) -> Res
 
     let mut running_source = None;
 
-    for stem in SHIPPED_BINARIES {
+    for stem in component.shipped_binaries() {
         let file_name = shipped_binary_file_name(stem);
         let source = extract_dir.join(&file_name);
         if !source.is_file() {
@@ -403,6 +592,7 @@ fn install_from_archive(
     archive_path: &Path,
     archive_name: &str,
     checksums_content: &str,
+    component: ReleaseComponent,
 ) -> Result<()> {
     verify_archive_checksum(archive_path, archive_name, checksums_content)?;
 
@@ -411,52 +601,52 @@ fn install_from_archive(
         .extract_into(extract_dir.path())
         .with_context(|| format!("extract `{archive_name}`"))?;
 
-    install_extracted_binaries(extract_dir.path(), &current_binary_name())?;
+    install_extracted_binaries(extract_dir.path(), &current_binary_name(), component)?;
     Ok(())
 }
 
-pub async fn check_for_update() -> Result<UpdateStatus> {
-    let current_version = cargo_crate_version!().to_string();
-    let response = reqwest::Client::new()
-        .get(github_latest_release_api_url())
-        .header(
-            reqwest::header::USER_AGENT,
-            format!("romm-cli/{current_version}"),
-        )
-        .send()
-        .await
-        .context("failed to query latest release")?
-        .error_for_status()
-        .context("latest release endpoint returned an error status")?;
+pub async fn check_for_update(ctx: UpdateContext) -> Result<UpdateStatus> {
+    let current_version = ctx.package_version.to_string();
 
-    let latest_release: GithubLatestRelease = response
-        .json()
+    let latest_release = resolve_latest_component_release(ctx)
         .await
-        .context("failed to parse latest release response")?;
+        .context("failed to query component releases")?;
+
+    let Some(latest_release) = latest_release else {
+        return Ok(UpdateStatus {
+            should_update: false,
+            current_version: current_version.clone(),
+            latest_version: current_version,
+            release_tag: String::new(),
+            release_url: String::new(),
+            changelog_url: changelog_url_for(ctx.component).to_string(),
+        });
+    };
 
     let release_tag = latest_release.tag_name.clone();
-    let latest_version = release_tag.trim_start_matches('v').to_string();
+    let latest_version = version_from_tag(&release_tag, ctx.component);
     Ok(UpdateStatus {
         should_update: is_latest_newer(&latest_version, &current_version),
         current_version,
         latest_version,
         release_tag,
         release_url: latest_release.html_url,
-        changelog_url: changelog_url().to_string(),
+        changelog_url: changelog_url_for(ctx.component).to_string(),
     })
 }
 
 pub async fn apply_update(
     interrupt: Option<InterruptContext>,
     options: ApplyUpdateOptions,
+    ctx: UpdateContext,
 ) -> Result<ApplyUpdateOutcome> {
     let interrupt = interrupt.unwrap_or_default();
-    let current_version = cargo_crate_version!().to_string();
-    let user_agent = format!("romm-cli/{current_version}");
+    let current_version = ctx.package_version.to_string();
+    let user_agent = format!("{}/{}", ctx.component.user_agent_prefix(), current_version);
 
     let resolved = tokio::task::spawn_blocking({
         let options = options.clone();
-        move || resolve_release(&options)
+        move || resolve_release(ctx, &options)
     })
     .await
     .map_err(|e| anyhow!("update resolve task failed: {e}"))??;
@@ -497,8 +687,10 @@ pub async fn apply_update(
 
     let version = resolved.version.clone();
     let archive_name = resolved.archive_name.clone();
+    let component = ctx.component;
     let install_task = tokio::task::spawn_blocking(move || {
-        install_from_archive(&archive_path, &archive_name, &checksums_content).map(|_| version)
+        install_from_archive(&archive_path, &archive_name, &checksums_content, component)
+            .map(|_| version)
     });
 
     let installed_version = tokio::select! {
@@ -581,5 +773,65 @@ mod tests {
                 "windows-x86_64"
             );
         }
+    }
+
+    #[test]
+    fn select_latest_component_tag_prefers_component_prefix() {
+        let tags = ["romm-cli-v0.40.0", "romm-cli-v0.41.0", "romm-tui-v0.99.0"];
+        assert_eq!(
+            select_latest_release_tag(ReleaseComponent::RommCli, tags.iter().copied()),
+            Some("romm-cli-v0.41.0".to_string())
+        );
+    }
+
+    #[test]
+    fn select_latest_component_tag_supports_legacy_v_prefix_for_cli() {
+        let tags = ["v0.39.0", "v0.40.0", "romm-tui-v1.0.0"];
+        assert_eq!(
+            select_latest_release_tag(ReleaseComponent::RommCli, tags.iter().copied()),
+            Some("v0.40.0".to_string())
+        );
+    }
+
+    #[test]
+    fn select_latest_component_tag_for_tui_ignores_cli_tags() {
+        let tags = ["romm-cli-v0.50.0", "romm-tui-v0.40.0", "romm-tui-v0.41.0"];
+        assert_eq!(
+            select_latest_release_tag(ReleaseComponent::RommTui, tags.iter().copied()),
+            Some("romm-tui-v0.41.0".to_string())
+        );
+    }
+
+    #[test]
+    fn version_from_component_tag_strips_prefix() {
+        assert_eq!(
+            version_from_tag("romm-cli-v1.2.3", ReleaseComponent::RommCli),
+            "1.2.3"
+        );
+        assert_eq!(
+            version_from_tag("romm-tui-v2.0.0", ReleaseComponent::RommTui),
+            "2.0.0"
+        );
+        assert_eq!(
+            version_from_tag("v0.40.0", ReleaseComponent::RommCli),
+            "0.40.0"
+        );
+    }
+
+    #[test]
+    fn expected_archive_name_matches_release_workflow() {
+        let (target, ext) = if std::env::consts::OS == "windows" {
+            ("windows-x86_64", "zip")
+        } else {
+            ("linux-x86_64", "tar.gz")
+        };
+        assert_eq!(
+            expected_archive_name(ReleaseComponent::RommCli, target),
+            format!("romm-cli-{target}.{ext}")
+        );
+        assert_eq!(
+            expected_archive_name(ReleaseComponent::RommTui, target),
+            format!("romm-tui-{target}.{ext}")
+        );
     }
 }
