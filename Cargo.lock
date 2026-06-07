@@ -4938,7 +4938,7 @@ dependencies = [
 
 [[package]]
 name = "romm-cli"
-version = "0.40.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
