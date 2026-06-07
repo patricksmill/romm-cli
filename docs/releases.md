@@ -55,6 +55,20 @@ Automation:
 2. Merge feature PRs to `main`. Release Please opens a combined **release PR** only for components with qualifying commits.
 3. Review the release PR for version bumps, dependency pin updates, and changelog entries.
 
+## Changelog scopes
+
+Each crate changelog contains **only that crate's changes**. Use conventional-commit scopes so Release Please routes entries correctly:
+
+| Scope / area | Changelog | Examples |
+|--------------|-----------|----------|
+| `romm-api`, `api`, `config`, `download`, `sync`, `client`, shared errors | [romm-api/CHANGELOG.md](../romm-api/CHANGELOG.md) | HTTP endpoints, config merge, download manager |
+| `romm-cli`, `cli`, `completions`, `auth`, `init`, CLI `roms`/`scan`/`cache` | [romm-cli/CHANGELOG.md](../romm-cli/CHANGELOG.md) | Subcommands, `--json`, shell completions |
+| `romm-tui`, `tui`, `settings`, `setup-wizard`, screens, theming | [romm-tui/CHANGELOG.md](../romm-tui/CHANGELOG.md) | Library UI, game detail, keyboard navigation |
+
+User-facing docs follow the same split: [docs/api.md](api.md), [docs/cli.md](cli.md), and [docs/tui.md](tui.md) each document their crate only. The root [README](../README.md) is a workspace index; screenshots and TUI features live on [tui.md](tui.md).
+
+Pre-1.0.0 history was a single monolith. Entries before the split were filtered into per-crate changelogs by scope (`./tools/split-crate-changelogs.py`). New commits should land in the correct crate changelog automatically via Release Please.
+
 ## Release checklist
 
 Before merging a release PR:

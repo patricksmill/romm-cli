@@ -28,7 +28,21 @@ Prebuilt archives for Windows, Linux, and macOS are on the [Releases page](https
 | `romm-cli-v*` | `romm-cli` only |
 | `romm-tui-v*` | `romm-tui` only |
 
-Release process and versioning: [releases.md](releases.md).
+Release process and versioning: [releases.md](releases.md). Changelog: [romm-cli/CHANGELOG.md](../romm-cli/CHANGELOG.md).
+
+---
+
+## Features
+
+- **Scripting and automation** — resource–action subcommands with short aliases (`p`, `r`, `dl`, …)
+- **JSON output** — stable `--json` on stdout for platforms, ROMs, scans, sync, and more ([json-output.md](json-output.md))
+- **Authentication** — `romm-cli auth` for login/logout without re-running `init`
+- **Upload and scan** — chunked ROM upload with optional post-upload library scan ([scan-after-upload.md](scan-after-upload.md))
+- **Save sync** — device registration, plan, and run from a local manifest ([save-sync.md](save-sync.md))
+- **Downloads** — `download extras` for covers, manuals, and sibling content
+- **Cache utilities** — inspect and clear on-disk ROM/metadata caches
+- **Self-update** — interactive update check against GitHub `romm-cli-v*` releases
+- **Shell completions** — bash, zsh, fish, PowerShell, Elvish (see below)
 
 ---
 
@@ -191,6 +205,7 @@ New embedders should depend on [`romm-api`](api.md) directly.
 
 ## Related documentation
 
+- [Changelog](../romm-cli/CHANGELOG.md)
 - [romm-api](api.md) — configuration, HTTP client, errors
 - [romm-tui](tui.md) — terminal UI
 - [Save sync](save-sync.md)

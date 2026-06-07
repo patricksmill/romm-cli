@@ -46,6 +46,22 @@ Run `cargo doc -p romm-api --open` for the full API reference.
 
 ---
 
+## Features
+
+- **HTTP client** — typed `RommClient` with one struct per API route ([http-client.md](http-client.md))
+- **Configuration** — layered merge of defaults, `config.json`, env vars, and OS keyring (below)
+- **Caching** — ROM list and library metadata snapshots for fast frontend startup
+- **Downloads** — authenticated streaming downloads, zip safety, concurrent download manager
+- **Library scan** — helpers to trigger and poll server `scan_library` jobs
+- **Save sync** — device registration, manifest planning, and sync execution types
+- **OpenAPI** — fetch/cache server OpenAPI for capability checks (`feature_compat`)
+- **Errors** — typed `RommError` hierarchy with exit-code mapping for frontends
+- **Self-update helpers** — shared GitHub release lookup used by CLI and TUI binaries
+
+Changelog: [romm-api/CHANGELOG.md](../romm-api/CHANGELOG.md).
+
+---
+
 ## Module overview
 
 | Module | Purpose |
@@ -213,6 +229,7 @@ See [CLI documentation](cli.md#exit-codes) for scripting examples.
 
 ## Related documentation
 
+- [Changelog](../romm-api/CHANGELOG.md)
 - [HTTP client and endpoints](http-client.md)
 - [Architecture overview](architecture.md)
 - [Troubleshooting authentication](troubleshooting-auth.md)

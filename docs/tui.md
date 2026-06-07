@@ -31,7 +31,13 @@ On startup, the TUI checks for newer releases (disable with `ROMM_CHECK_UPDATES=
 
 ### Screenshots
 
-See the [README screenshots](../README.md#screenshots).
+#### Game details view
+
+![Game details view](screenshots/GameDetailsView.webp)
+
+#### Search view
+
+![Search view](screenshots/SearchView.webp)
 
 ---
 
@@ -87,7 +93,7 @@ Key modules under `romm-tui/src/tui/`:
 | `app/handlers/screen_keys.rs` | Per-screen key → action dispatch |
 | `screens/setup_wizard/event.rs` | First-run wizard events |
 
-Public exports: `romm_tui::tui::app::{App, AppScreen}`. The `romm-cli` crate re-exports `tui` when built with the `tui` feature.
+Public exports: `romm_tui::tui::app::{App, AppScreen}`.
 
 ### Screens
 
@@ -124,6 +130,7 @@ Each screen is a struct under `romm-tui/src/tui/screens/`:
 
 ## Related documentation
 
+- [Changelog](../romm-tui/CHANGELOG.md)
 - [romm-api](api.md) — configuration and HTTP client
 - [romm-cli](cli.md) — scripting, automation, and `init` / `auth` workflows
 - [Architecture overview](architecture.md)

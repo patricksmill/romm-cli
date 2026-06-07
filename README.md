@@ -59,29 +59,15 @@ Prebuilt binaries: [GitHub Releases](https://github.com/patricksmill/romm-cli/re
 
 ---
 
-## Features
+## What's in each crate
 
-- **CLI and TUI** — automation-friendly commands plus a full terminal UI
-- **Library browsing** — search, filter, and inspect game metadata
-- **Cover-first game detail** — inline cover rendering with terminal-aware fallbacks
-- **Background downloads** — start downloads in the TUI and keep browsing
-- **Authentication** — Basic Auth, Bearer tokens, custom-header API keys, Web UI pairing
-- **Caching** — ROM list and library metadata snapshots for fast startup
-- **Library scan** — trigger server `scan_library` after uploads or on demand
-- **Save sync (API mode)** — plan and run sync from a local manifest
-- **Cross-platform** — Windows, Linux, and macOS (including ARM)
+| Crate | Role | Highlights |
+|-------|------|------------|
+| **[romm-api](docs/api.md)** | Shared library | `RommClient`, config, caching, downloads, save sync, typed errors |
+| **[romm-cli](docs/cli.md)** | Scripting CLI | Resource–action commands, `--json`, shell completions, `auth`, `sync`, self-update |
+| **[romm-tui](docs/tui.md)** | Terminal UI | Library browse, search, game detail with covers, background downloads, theming |
 
----
-
-## Screenshots
-
-### Game details view
-
-![Game details view](docs/screenshots/GameDetailsView.webp)
-
-### Search view
-
-![Search view](docs/screenshots/SearchView.webp)
+Each crate has its own [changelog](CHANGELOG.md) and release tags. User-facing features, screenshots, and release notes live on the matching crate page—not duplicated here.
 
 ---
 
