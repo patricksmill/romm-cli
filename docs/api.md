@@ -17,7 +17,7 @@ Shared HTTP client, API types, configuration, and domain logic for RomM frontend
 
 ```toml
 [dependencies]
-romm-api = "0.40"
+romm-api = "1.0"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 

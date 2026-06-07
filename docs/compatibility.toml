@@ -1,5 +1,5 @@
 [[combination]]
 romm_cli = "1.0.0"
-romm_tui = "0.40.0"
-min_romm_api = "0.40.0"
-notes = "romm-cli 1.0.0; romm-api and romm-tui remain 0.40.0"
+romm_tui = "1.0.0"
+min_romm_api = "1.0.0"
+notes = "Workspace fresh start at 1.0.0 after split and TUI decoupling"

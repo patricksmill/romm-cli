@@ -107,10 +107,10 @@ When `romm-cli`, `romm-tui`, and `romm-api` versions diverge, record the combina
 
 ```toml
 [[combination]]
-romm_cli = "0.40.0"
-romm_tui = "0.40.0"
-min_romm_api = "0.40.0"
-notes = "Initial component-tagged releases"
+romm_cli = "1.0.0"
+romm_tui = "1.0.0"
+min_romm_api = "1.0.0"
+notes = "Workspace fresh start at 1.0.0"
 ```
 
 Lockstep releases (all three versions equal) do not require a new row.

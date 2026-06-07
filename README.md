@@ -50,7 +50,7 @@ romm-tui
 
 ```toml
 [dependencies]
-romm-api = "0.40"
+romm-api = "1.0"
 ```
 
 See [docs/api.md](docs/api.md) for a minimal `RommClient` example.
