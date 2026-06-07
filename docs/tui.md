@@ -1,6 +1,6 @@
 # romm-tui
 
-Terminal UI for browsing and managing a RomM library. Built on [ratatui](https://ratatui.rs/) and [crossterm](https://github.com/crossterm-rs/crossterm). Depends on [`romm-api`](api.md) only (not `romm-cli`).
+Terminal UI for browsing and managing a RomM library. Built on [ratatui](https://ratatui.rs/) and [crossterm](https://github.com/crossterm-rs/crossterm). Depends on [`romm-api`](api.md).
 
 **Crate path:** `romm-tui/` in the workspace.
 
@@ -44,14 +44,8 @@ On startup, the TUI checks for newer releases (disable with `ROMM_CHECK_UPDATES=
 ## Theming
 
 Built-in theme IDs include `terminal`, `catppuccin`, `dracula`, `nord`, `tokyo-night`, and others from **Settings → Appearance**.
+- Set in Settings → Appearance menu, `config.json` (`theme` field) or `ROMM_THEME` env var
 
-- Set in `config.json` (`theme` field) or `ROMM_THEME` env var
-- **Settings → Appearance** — cycle presets with ←/→; **S** saves to `config.json`
-- `terminal` — widest compatibility (ANSI named colors)
-- RGB presets need a truecolor terminal (Windows Terminal, iTerm2, Alacritty, …)
-- `NO_COLOR=1` disables styling
-
-Verbose HTTP logging: `ROMM_VERBOSE=1`.
 
 ---
 
