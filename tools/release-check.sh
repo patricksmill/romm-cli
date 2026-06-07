@@ -103,11 +103,29 @@ if latest["min_romm_api"] != api:
 print("  OK compatibility matrix matches diverged crate versions")
 PY
 
+api_on_crates_io() {
+  local version="$1"
+  local status
+  status="$(curl -fsS -o /dev/null -w '%{http_code}' \
+    "https://crates.io/api/v1/crates/romm-api/${version}" 2>/dev/null || true)"
+  [ "${status}" = "200" ]
+}
+
 if [ "${1:-}" != "versions-only" ]; then
-  echo "==> Publish dry-run (romm-api, romm-tui, romm-cli)"
+  api_version="$(crate_version romm-api)"
+  echo "==> Publish preflight: romm-api dry-run first"
   bash ./tools/publish-crate.sh --dry-run-only romm-api
-  bash ./tools/publish-crate.sh --dry-run-only romm-tui
-  bash ./tools/publish-crate.sh --dry-run-only romm-cli
+
+  if api_on_crates_io "${api_version}"; then
+    echo "==> romm-api@${api_version} on crates.io; dry-run frontends"
+    bash ./tools/publish-crate.sh --dry-run-only romm-tui
+    bash ./tools/publish-crate.sh --dry-run-only romm-cli
+  else
+    echo "==> romm-api@${api_version} not on crates.io yet; release-check frontends via build"
+    echo "    (cargo publish --dry-run for frontends requires romm-api on the index first)"
+    cargo build --release -p romm-tui
+    cargo build --release -p romm-cli
+  fi
 fi
 
 echo "release-check: all checks passed"

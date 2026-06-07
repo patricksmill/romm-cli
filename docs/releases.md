@@ -72,6 +72,8 @@ Local preflight:
 ./tools/release-check.sh
 ```
 
+`release-check` always dry-runs `romm-api` first. Frontend `cargo publish --dry-run` runs only after that `romm-api` version exists on crates.io; otherwise frontends are validated with `cargo build --release`.
+
 ## Breaking `romm-api` releases
 
 When `romm-api` has a breaking semver bump:
