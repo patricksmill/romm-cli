@@ -16,6 +16,7 @@ pub mod openapi_sync;
 pub mod path_picker;
 pub mod runtime;
 pub mod screens;
+pub mod text_search;
 pub mod theme;
 pub mod utils;
 

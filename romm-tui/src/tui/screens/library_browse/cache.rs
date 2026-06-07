@@ -160,7 +160,7 @@ impl LibraryBrowseScreen {
         if len == 0 {
             return Vec::new();
         }
-        let center = self.list_index.min(len - 1);
+        let center = self.selected_list_source_index().unwrap_or(0).min(len - 1);
         let start = center.saturating_sub(radius);
         let end = (center + radius + 1).min(len);
         let mut out = Vec::new();

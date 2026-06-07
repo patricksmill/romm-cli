@@ -86,6 +86,7 @@ pub struct App {
     pub global_error: Option<String>,
     pub global_notice: Option<String>,
     show_keyboard_help: bool,
+    keyboard_help_scroll: u16,
     startup_update_prompt: Option<StartupUpdatePrompt>,
     /// Receives completed background metadata refreshes for the library screen.
     library_metadata_rx: Option<tokio::sync::mpsc::UnboundedReceiver<LibraryMetadataRefreshDone>>,
@@ -155,7 +156,9 @@ impl App {
                     || s.device_picker_open
                     || s.confirm.is_some()
             }
-            AppScreen::LibraryBrowse(lib) => lib.any_upload_prompt_open(),
+            AppScreen::LibraryBrowse(lib) => {
+                lib.any_upload_prompt_open() || lib.any_search_bar_open()
+            }
             _ => false,
         }
     }
@@ -236,6 +239,7 @@ impl App {
             global_error: None,
             global_notice: None,
             show_keyboard_help: false,
+            keyboard_help_scroll: 0,
             startup_update_prompt: startup_update.map(|status| StartupUpdatePrompt {
                 status,
                 updating: false,

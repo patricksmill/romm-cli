@@ -6,6 +6,8 @@ use crate::tui::screens::library_browse::LibrarySubsection;
 use romm_api::core::library_scan::ScanCacheInvalidate;
 
 use super::background::types::{RomLoadDone, RomLoadEvent};
+use crate::tui::keyboard_help::apply_keyboard_help_scroll;
+
 use super::event::Action;
 use super::App;
 use super::AppScreen;
@@ -55,8 +57,16 @@ impl App {
             Action::DismissStartupSplash => {
                 self.startup_splash = None;
             }
-            Action::ShowKeyboardHelp => self.show_keyboard_help = true,
+            Action::ShowKeyboardHelp => {
+                self.show_keyboard_help = true;
+                self.keyboard_help_scroll = 0;
+            }
             Action::HideKeyboardHelp => self.show_keyboard_help = false,
+            Action::KeyboardHelpInput(input) => {
+                const HELP_SCROLL_PAGE: u16 = 8;
+                self.keyboard_help_scroll =
+                    apply_keyboard_help_scroll(self.keyboard_help_scroll, input, HELP_SCROLL_PAGE);
+            }
             Action::ToggleDownloadOverlay => self.toggle_download_screen(),
             Action::CloseDownloadOverlay => {
                 if matches!(self.screen, AppScreen::Download(_)) {

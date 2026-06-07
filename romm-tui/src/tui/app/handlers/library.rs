@@ -13,7 +13,7 @@ impl App {
         key: &KeyEvent,
     ) -> Result<bool> {
         use crate::tui::path_picker::PathPickerEvent;
-        use crate::tui::screens::library_browse::LibraryViewMode;
+        use crate::tui::screens::library_browse::{LibrarySearchMode, LibraryViewMode};
 
         if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
             if lib.upload_prompt.is_some() {
@@ -88,6 +88,49 @@ impl App {
                 }
                 _ => {}
             }
+        }
+
+        // List pane: search typing bar
+        if lib.view_mode == LibraryViewMode::List && lib.list_search.mode.is_some() {
+            let old_key = lib.cache_key();
+            match key.code {
+                KeyCode::Esc => lib.clear_list_search(),
+                KeyCode::Backspace => lib.delete_list_search_char(),
+                KeyCode::Char(c) => lib.add_list_search_char(c),
+                KeyCode::Enter => lib.commit_list_filter_bar(),
+                _ => {}
+            }
+            let new_key = lib.cache_key();
+            if old_key != new_key && lib.list_len() > 0 {
+                lib.clear_roms();
+                let expected = lib.expected_rom_count();
+                if expected > 0 {
+                    let req = Self::selected_rom_request_for_library(lib);
+                    lib.set_rom_loading(true);
+                    pending_rom_load = Some((new_key, req, expected, "search_filter"));
+                } else {
+                    lib.set_rom_loading(false);
+                    cancel_rom_load = true;
+                }
+            }
+            if cancel_rom_load {
+                self.cancel_primary_rom_load();
+            } else if let Some((key, req, expected, context)) = pending_rom_load {
+                self.queue_primary_rom_load(key, req, expected, context);
+            }
+            return Ok(false);
+        }
+
+        // Games pane: search typing bar
+        if lib.view_mode == LibraryViewMode::Roms && lib.rom_search.mode.is_some() {
+            match key.code {
+                KeyCode::Esc => lib.clear_rom_search(),
+                KeyCode::Backspace => lib.delete_rom_search_char(),
+                KeyCode::Char(c) => lib.add_rom_search_char(c),
+                KeyCode::Enter => lib.commit_rom_filter_bar(),
+                _ => {}
+            }
+            return Ok(false);
         }
 
         match key.code {
@@ -167,6 +210,10 @@ impl App {
                     }
                 }
             }
+            KeyCode::Char('f') => match lib.view_mode {
+                LibraryViewMode::List => lib.enter_list_search(LibrarySearchMode::Filter),
+                LibraryViewMode::Roms => lib.enter_rom_search(LibrarySearchMode::Filter),
+            },
             KeyCode::Char('t') => {
                 lib.switch_subsection();
                 if lib.view_mode == LibraryViewMode::List && lib.list_len() > 0 {
@@ -190,7 +237,13 @@ impl App {
             }
             KeyCode::Esc => {
                 if lib.view_mode == LibraryViewMode::Roms {
-                    lib.back_to_list();
+                    if lib.rom_search.filter_browsing {
+                        lib.clear_rom_search();
+                    } else {
+                        lib.back_to_list();
+                    }
+                } else if lib.list_search.filter_browsing {
+                    lib.clear_list_search();
                 } else {
                     return Ok(true);
                 }

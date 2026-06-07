@@ -9,6 +9,8 @@ use super::background::types::{
     LibraryUploadComplete, PlatformListDone, RomLoadDone, SaveDownloadDone, SaveListDone,
     SaveUploadDone, SearchLoadDone, SyncPushPullDone,
 };
+use crate::tui::keyboard_help::{map_keyboard_help_key, KeyboardHelpInput};
+
 use super::App;
 
 /// Raw or derived input events for the main TUI loop.
@@ -52,6 +54,7 @@ pub(crate) enum Action {
     DismissStartupSplash,
     ShowKeyboardHelp,
     HideKeyboardHelp,
+    KeyboardHelpInput(KeyboardHelpInput),
     ToggleDownloadOverlay,
     CloseDownloadOverlay,
     ToggleSearchOverlay,
@@ -137,13 +140,11 @@ pub(crate) fn map_key_to_actions(app: &App, key: &KeyEvent) -> Vec<Action> {
     }
 
     if app.show_keyboard_help {
-        if matches!(
-            key.code,
-            KeyCode::Esc | KeyCode::Enter | KeyCode::F(1) | KeyCode::Char('?')
-        ) {
-            return vec![Action::HideKeyboardHelp];
-        }
-        return Vec::new();
+        return match map_keyboard_help_key(key.code) {
+            KeyboardHelpInput::Close => vec![Action::HideKeyboardHelp],
+            KeyboardHelpInput::Ignore => Vec::new(),
+            input => vec![Action::KeyboardHelpInput(input)],
+        };
     }
 
     if key.code == KeyCode::F(1) {

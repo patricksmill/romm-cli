@@ -1,4 +1,5 @@
 use crate::tui::path_picker::{PathPicker, PathPickerMode};
+use crate::tui::text_search::SearchState;
 use romm_api::core::utils::RomGroup;
 use romm_api::types::{Collection, Platform, RomList};
 
@@ -61,6 +62,8 @@ pub struct LibraryBrowseScreen {
     pub metadata_footer_clear_at: Option<std::time::Instant>,
     /// True only while ROM data for the current selection is actively loading.
     pub rom_loading: bool,
+    pub list_search: SearchState,
+    pub rom_search: SearchState,
     /// Modal path entry for uploading a ROM to the selected console (`None` when closed).
     pub upload_prompt: Option<UploadPrompt>,
     /// Horizontal split: left pane width as a percentage of the library area.

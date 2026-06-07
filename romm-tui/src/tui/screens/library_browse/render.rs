@@ -2,6 +2,7 @@ use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::widgets::{Block, Borders, Cell, List, ListItem, ListState, Paragraph, Row, Table};
 use ratatui::Frame;
 
+use crate::tui::text_search::LibrarySearchMode;
 use crate::tui::theme::RommStyles;
 
 use super::types::{LibraryBrowseScreen, LibrarySubsection, LibraryViewMode};
@@ -17,15 +18,58 @@ impl LibraryBrowseScreen {
             .direction(ratatui::layout::Direction::Horizontal)
             .split(area);
 
-        self.render_list(f, chunks[0], styles);
+        let left_area = chunks[0];
+        if self.list_search.mode.is_some() {
+            let left_chunks = Layout::default()
+                .constraints([Constraint::Length(3), Constraint::Min(3)])
+                .direction(ratatui::layout::Direction::Vertical)
+                .split(left_area);
+            if let Some(mode) = self.list_search.mode {
+                let title = match mode {
+                    LibrarySearchMode::Filter => "Filter (list)",
+                    LibrarySearchMode::Jump => "Jump (list)",
+                };
+                let p = Paragraph::new(format!("Search: {}", self.list_search.query))
+                    .style(styles.text())
+                    .block(styles.panel_block(title));
+                f.render_widget(p, left_chunks[0]);
+            }
+            self.render_list(f, left_chunks[1], styles);
+        } else {
+            self.render_list(f, left_area, styles);
+        }
 
-        let right_chunks = Layout::default()
-            .constraints([Constraint::Min(5), Constraint::Length(3)])
-            .direction(ratatui::layout::Direction::Vertical)
-            .split(chunks[1]);
+        let right_chunks = if self.rom_search.mode.is_some() {
+            Layout::default()
+                .constraints([
+                    Constraint::Length(3),
+                    Constraint::Min(5),
+                    Constraint::Length(3),
+                ])
+                .direction(ratatui::layout::Direction::Vertical)
+                .split(chunks[1])
+        } else {
+            Layout::default()
+                .constraints([Constraint::Min(5), Constraint::Length(3)])
+                .direction(ratatui::layout::Direction::Vertical)
+                .split(chunks[1])
+        };
 
-        self.render_roms(f, right_chunks[0], styles);
-        self.render_help(f, right_chunks[1], styles);
+        if let Some(mode) = self.rom_search.mode {
+            let title = match mode {
+                LibrarySearchMode::Filter => "Filter (games)",
+                LibrarySearchMode::Jump => "Jump (games)",
+            };
+            let p = Paragraph::new(format!("Search: {}", self.rom_search.query))
+                .style(styles.text())
+                .block(styles.panel_block(title));
+            f.render_widget(p, right_chunks[0]);
+            self.render_roms(f, right_chunks[1], styles);
+            self.render_help(f, right_chunks[2], styles);
+        } else {
+            self.render_roms(f, right_chunks[0], styles);
+            self.render_help(f, right_chunks[1], styles);
+        }
 
         if self.upload_prompt.is_some() {
             self.render_upload_popup(f, area, styles);
@@ -98,11 +142,18 @@ impl LibraryBrowseScreen {
     }
 
     fn render_list(&self, f: &mut Frame, area: Rect, styles: &RommStyles) {
+        let visible = self.visible_list_source_indices();
         let labels = self.list_row_labels();
 
-        let items: Vec<ListItem> = labels
+        let items: Vec<ListItem> = visible
             .iter()
-            .map(|line| ListItem::new(line.clone()).style(styles.text()))
+            .map(|&source_idx| {
+                let line = labels
+                    .get(source_idx)
+                    .cloned()
+                    .unwrap_or_else(|| "?".to_string());
+                ListItem::new(line).style(styles.text())
+            })
             .collect();
 
         let list = List::new(items)
@@ -129,7 +180,7 @@ impl LibraryBrowseScreen {
         let groups = self.visible_rom_groups();
         if groups.is_empty() {
             let msg = self.empty_rom_state_message();
-            let p = ratatui::widgets::Paragraph::new(msg)
+            let p = Paragraph::new(msg)
                 .style(styles.text())
                 .block(styles.panel_block("Games"));
             f.render_widget(p, area);
@@ -160,7 +211,14 @@ impl LibraryBrowseScreen {
 
         let total_files = self.roms.as_ref().map(|r| r.items.len()).unwrap_or(0);
         let total_roms = self.roms.as_ref().map(|r| r.total).unwrap_or(0);
-        let mut title = if total_roms > 0 && (total_files as u64) < total_roms {
+        let mut title = if self.rom_search.filter_browsing && !self.rom_search.query.is_empty() {
+            format!(
+                "Games (filtered: \"{}\") — {} — {} files",
+                self.rom_search.query,
+                groups.len(),
+                total_files
+            )
+        } else if total_roms > 0 && (total_files as u64) < total_roms {
             format!(
                 "Games ({} of {}) — {} files",
                 total_files, total_roms, total_files
@@ -181,7 +239,9 @@ impl LibraryBrowseScreen {
     }
 
     pub(crate) fn empty_rom_state_message(&self) -> String {
-        if self.rom_loading && self.expected_rom_count() > 0 {
+        if self.rom_search.mode.is_some() || self.rom_search.filter_browsing {
+            "No games match your search".to_string()
+        } else if self.rom_loading && self.expected_rom_count() > 0 {
             "Loading games...".to_string()
         } else {
             "Select a console or collection and press Enter to load ROMs".to_string()
@@ -191,17 +251,29 @@ impl LibraryBrowseScreen {
     fn render_help(&self, f: &mut Frame, area: Rect, styles: &RommStyles) {
         let help = match self.view_mode {
             LibraryViewMode::List => {
-                "t: Switch | ↑↓: Select | Ctrl+u: Upload | Enter: Games | /: Search | ,: Settings | d: Downloads | Ctrl+←/→: Resize | Esc: Quit"
+                if self.list_search.mode.is_some() {
+                    "Type filter | Enter: browse matches | Esc: clear"
+                } else if self.list_search.filter_browsing {
+                    "↑↓: Navigate | Enter: Games | Esc: clear filter | /: Search | f: Filter"
+                } else {
+                    "t: Switch | ↑↓: Select | f: Filter | Ctrl+u: Upload | Enter: Games | /: Search | ,: Settings | d: Downloads | Ctrl+←/→: Resize | Esc: Quit"
+                }
             }
             LibraryViewMode::Roms => {
-                "←: Back | ↑↓: Navigate | Enter: Detail | /: Search | ,: Settings | d: Downloads | Ctrl+←/→: Resize | Esc: Back"
+                if self.rom_search.mode.is_some() {
+                    "Type filter | Enter: browse matches | Esc: clear"
+                } else if self.rom_search.filter_browsing {
+                    "←: Back | ↑↓: Navigate | Enter: Detail | Esc: clear filter | /: Search | f: Filter"
+                } else {
+                    "←: Back | ↑↓: Navigate | f: Filter | Enter: Detail | /: Search | ,: Settings | d: Downloads | Ctrl+←/→: Resize | Esc: Back"
+                }
             }
         };
         let text = match &self.metadata_footer {
             Some(m) if !m.is_empty() => format!("{m}\n{help}"),
             _ => help.to_string(),
         };
-        let p = ratatui::widgets::Paragraph::new(text)
+        let p = Paragraph::new(text)
             .style(styles.footer_hint())
             .block(styles.panel_block_untitled());
         f.render_widget(p, area);

@@ -46,7 +46,12 @@ impl super::App {
             }
 
             if self.show_keyboard_help {
-                keyboard_help::render_keyboard_help(f, area, &styles);
+                self.keyboard_help_scroll = keyboard_help::render_keyboard_help(
+                    f,
+                    area,
+                    &styles,
+                    self.keyboard_help_scroll,
+                );
             }
         }
 

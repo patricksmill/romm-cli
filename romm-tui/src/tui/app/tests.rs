@@ -6,7 +6,7 @@ use super::{
 };
 use crate::tui::screens::connected_splash::StartupSplash;
 use crate::tui::screens::game_detail::COVER_PANEL_WIDTH_DEFAULT;
-use crate::tui::screens::library_browse::LibraryBrowseScreen;
+use crate::tui::screens::library_browse::{LibraryBrowseScreen, LibrarySearchMode};
 use crate::tui::screens::settings::{SettingsScreen, SettingsTab};
 use crate::tui::screens::{GameDetailPrevious, GameDetailScreen, SearchScreen};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -362,6 +362,18 @@ async fn startup_update_prompt_esc_skips_without_quitting() {
         .expect("esc handled");
     assert!(!quit);
     assert!(app.startup_update_prompt.is_none());
+}
+
+#[test]
+fn library_filter_bar_blocks_global_char_shortcuts() {
+    let mut app = app_on_library();
+    if let AppScreen::LibraryBrowse(ref mut lib) = app.screen {
+        lib.enter_list_search(LibrarySearchMode::Filter);
+    }
+    assert!(app.blocks_global_d_shortcut());
+    assert!(app.blocks_global_slash_shortcut());
+    assert!(app.blocks_global_comma_shortcut());
+    assert!(!app.allows_global_question_help());
 }
 
 #[test]

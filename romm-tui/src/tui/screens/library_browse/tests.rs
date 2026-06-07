@@ -1,4 +1,5 @@
 use super::LibraryBrowseScreen;
+use super::LibrarySearchMode;
 use super::LibraryViewMode;
 use super::LEFT_PANEL_PERCENT_DEFAULT;
 use romm_api::core::utils;
@@ -71,6 +72,78 @@ fn platform(id: u64, name: &str, rom_count: u64) -> Platform {
         "display_name": null
     }))
     .expect("valid platform fixture")
+}
+
+#[test]
+fn list_filter_narrows_visible_rows() {
+    let s = LibraryBrowseScreen::new(
+        vec![
+            platform(1, "Nintendo SNES", 10),
+            platform(2, "Sega Genesis", 5),
+            platform(3, "Sony PlayStation", 20),
+        ],
+        vec![],
+        LEFT_PANEL_PERCENT_DEFAULT,
+    );
+    let mut s = s;
+    s.enter_list_search(LibrarySearchMode::Filter);
+    for c in "snes".chars() {
+        s.add_list_search_char(c);
+    }
+    s.list_search.mode = None;
+    s.list_search.filter_browsing = true;
+    assert_eq!(s.list_len(), 1);
+    assert_eq!(
+        s.selected_list_source_index(),
+        Some(0),
+        "only SNES should match"
+    );
+}
+
+#[test]
+fn get_selected_group_clamps_stale_index_after_filter() {
+    let mut s = LibraryBrowseScreen::new(vec![], vec![], LEFT_PANEL_PERCENT_DEFAULT);
+    let items = vec![
+        rom(1, "alpha", "a.zip"),
+        rom(2, "alphabet", "ab.zip"),
+        rom(3, "beta", "b.zip"),
+    ];
+    s.rom_groups = Some(utils::group_roms_by_name(&items));
+    s.view_mode = LibraryViewMode::Roms;
+    s.enter_rom_search(LibrarySearchMode::Filter);
+    for c in "alp".chars() {
+        s.add_rom_search_char(c);
+    }
+    s.rom_search.mode = None;
+    s.rom_search.filter_browsing = true;
+    s.rom_selected = 99;
+    let (primary, _) = s
+        .get_selected_group()
+        .expect("clamped index should yield a group");
+    assert_eq!(primary.name, "alpha");
+}
+
+#[test]
+fn rom_next_wraps_within_filtered_list_when_filter_browsing() {
+    let mut s = LibraryBrowseScreen::new(vec![], vec![], LEFT_PANEL_PERCENT_DEFAULT);
+    let items = vec![
+        rom(1, "alpha", "a.zip"),
+        rom(2, "alphabet", "ab.zip"),
+        rom(3, "beta", "b.zip"),
+    ];
+    s.rom_groups = Some(utils::group_roms_by_name(&items));
+    s.view_mode = LibraryViewMode::Roms;
+    s.enter_rom_search(LibrarySearchMode::Filter);
+    for c in "alp".chars() {
+        s.add_rom_search_char(c);
+    }
+    s.rom_search.mode = None;
+    s.rom_search.filter_browsing = true;
+    assert_eq!(s.rom_selected, 0);
+    s.rom_next();
+    assert_eq!(s.rom_selected, 1);
+    s.rom_next();
+    assert_eq!(s.rom_selected, 0);
 }
 
 #[test]
