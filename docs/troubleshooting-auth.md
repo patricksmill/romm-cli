@@ -10,7 +10,7 @@ This page explains common auth issues when using `romm-cli` on different machine
 
 `romm-cli` does **not** read a `.env` file automatically. Use your shell, container env, or a tool that injects env vars before starting the process.
 
-See [README.md](../README.md#configuration) for paths and variable names.
+See [api.md](api.md#configuration) for paths and variable names.
 
 ## Keyring logging and saving
 

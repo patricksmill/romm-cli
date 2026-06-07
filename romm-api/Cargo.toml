@@ -1,6 +1,7 @@
 [package]
 name = "romm-api"
 description = "HTTP client and domain logic for the RomM API"
+readme = "../docs/api.md"
 keywords = ["romm", "api", "emulator", "games"]
 categories = ["api-bindings", "emulators"]
 version = "0.40.0"

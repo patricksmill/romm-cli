@@ -21,7 +21,7 @@ RomM does not automatically index a ROM after chunked upload. Users must run a *
 
 ### `romm-cli scan` and `romm-cli scan --wait`
 
-Same scan path as upload: shared implementation in [`src/commands/library_scan.rs`](../src/commands/library_scan.rs). Use this when files were uploaded outside the CLI or you only want a rescan.
+Same scan path as upload: core logic in [`romm-api/src/core/library_scan.rs`](../romm-api/src/core/library_scan.rs), CLI wrappers in [`romm-cli/src/commands/library_scan.rs`](../romm-cli/src/commands/library_scan.rs). Use this when files were uploaded outside the CLI or you only want a rescan.
 
 ### JSON output
 
@@ -29,7 +29,7 @@ With global `--json`, `scan` (and the scan phase of `roms upload --scan`) prints
 
 ### On-disk ROM list cache after a successful `--wait`
 
-When a scan finishes in the **finished** state after `--wait`, the CLI updates the persistent ROM cache ([`RomCache`](../src/core/cache.rs)) so the next TUI (or CLI) session does not keep a stale platform list:
+When a scan finishes in the **finished** state after `--wait`, the CLI updates the persistent ROM cache ([`RomCache`](../romm-api/src/core/cache.rs)) so the next TUI (or CLI) session does not keep a stale platform list:
 
 - **`roms upload … --scan --wait`:** removes the cache entry for the upload `platform_id` only.
 - **`scan --wait`:** removes **all** cached platform lists (full-library scan); collection-type cache entries are not cleared here.
@@ -53,7 +53,7 @@ After a successful upload, if rescan is enabled, the TUI runs the same `scan_lib
 
 ## Client API helpers
 
-In [`src/client.rs`](../src/client.rs):
+In [`romm-api/src/client.rs`](../romm-api/src/client.rs):
 
 - `RommClient::run_task(task_name, kwargs)` — `POST /api/tasks/run/{task_name}`; optional JSON body for `task_kwargs`.
 - `RommClient::get_task_status(task_id)` — `GET /api/tasks/{task_id}`.
@@ -71,7 +71,7 @@ RomM may also set `manual_run=False` on the scheduled `scan_library` task in som
 ### Automated
 
 - `cargo check`, `cargo clippy --all-targets --all-features -- -D warnings`, `cargo test`.
-- Integration tests in [`tests/cli_scan.rs`](../tests/cli_scan.rs) mock `scan_library` start (and wait with a finished status).
+- Integration tests in [`romm-cli/tests/cli_scan.rs`](../romm-cli/tests/cli_scan.rs) mock `scan_library` start (and wait with a finished status).
 
 ### Manual
 

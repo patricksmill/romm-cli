@@ -1,6 +1,6 @@
 # Architecture overview
 
-This document gives a slightly deeper view of how the project is structured internally. It is meant to be read alongside the generated Rustdoc (`cargo doc --open`).
+This document gives a deeper view of how the workspace is structured. Read it alongside generated Rustdoc (`cargo doc --workspace --open`) and the per-crate guides: [api.md](api.md), [cli.md](cli.md), [tui.md](tui.md).
 
 ## High-level layers
 
@@ -14,29 +14,29 @@ The project is a **Cargo workspace** with three members:
 
 An Android client (Kotlin/Compose + UniFFI) is planned on top of `romm-api`; see [Android frontend design](plans/2026-06-06-android-frontend-design.md) and [workspace-split ADR](plans/2026-06-06-workspace-split-adr.md).
 
-Configuration is layered per field: built-in defaults → `config.json` → environment variables → OS keyring (secret sentinels) → command-specific CLI runtime overrides. See the README [*Configuration precedence*](../README.md#configuration-precedence) section and [`romm-api/src/config.rs`](../romm-api/src/config.rs) module documentation for the full model. Secrets (like passwords and tokens) may be stored in the OS keyring via `keyring::Entry` with a `<stored-in-keyring>` sentinel in JSON only after a successful read-back verification. Note that `Commands::Init` is handled in `main.rs` *before* `load_config` so that `init` can run even if no configuration exists yet.
+Configuration is layered per field: built-in defaults → `config.json` → environment variables → OS keyring (secret sentinels) → command-specific CLI runtime overrides. See [api.md — configuration precedence](api.md#configuration-precedence) and [`romm-api/src/config.rs`](../romm-api/src/config.rs). Secrets may be stored in the OS keyring via `keyring::Entry` with a `<stored-in-keyring>` sentinel in JSON only after successful read-back. `Commands::Init` is handled in `romm-cli/src/main.rs` *before* `load_config` so `init` can run when no configuration exists yet.
 
 From bottom to top:
 
-- **Types & endpoints**
-  - `types.rs` – data models used throughout the app.
-  - `endpoints/*` – implementations of the `Endpoint` trait describing
-    the HTTP method, path, query params, and optional body for each
-    ROMM API endpoint. Endpoint modules are organized by API area
-    (`platforms`, `roms`, `collections`, `client_tokens`, `device`, `saves`, `sync`, `system`, `tasks`).
-- **Core services** (`src/core/`, `src/client.rs`, `src/config.rs`)
-  - `Config` / `AuthConfig` – decide how to talk to ROMM (base URL and
-    authentication mode).
-  - `RommClient` – wraps `reqwest::Client` and uses `Endpoint` values to
-    perform typed HTTP calls.
-  - `RomCache` – small disk-backed cache for ROM lists, keyed by
-    platform/collection.
-  - `DownloadManager` – orchestrates background downloads and exposes a
-    shared list of `DownloadJob`s.
-- **Frontends** (`src/frontend/`)
-  - **CLI** (`src/commands/*`) – one-shot commands for platforms/ROMs/API/auth. The `frontend::cli` module routes parsed arguments to these handlers.
-  - **TUI** (`src/tui/*`) – an event loop and a set of screens that
-    present and manipulate the underlying data.
+- **Types & endpoints** (`romm-api`)
+  - `types.rs` — data models used throughout the app.
+  - `endpoints/*` — `Endpoint` trait implementations (method, path, query, body) per ROMM API route. Grouped by area: `platforms`, `roms`, `collections`, `client_tokens`, `device`, `saves`, `sync`, `system`, `tasks`.
+- **Core services** (`romm-api`)
+  - `config` — `Config` / `AuthConfig`, layered merge, keyring.
+  - `client` — `RommClient` wraps `reqwest::Client` and performs typed HTTP calls.
+  - `core` — `RomCache`, `DownloadManager`, `library_scan`, resolve helpers.
+- **Frontends**
+  - **CLI** (`romm-cli/src/commands/*`, `frontend/cli.rs`) — one-shot commands; `frontend::cli` routes parsed arguments to handlers.
+  - **TUI** (`romm-tui/src/tui/*`) — event loop and screens.
+
+There are no TUI/CLI dependencies inside `romm-api` core services, which keeps new frontends straightforward.
+
+### CLI structure
+
+- `commands::mod` — top-level `Cli` and `Commands` enum plus `OutputFormat`.
+- `commands::{platforms,roms,api,auth,download,scan,sync,cache,init,update}` — parse args, call services, print results. Upload-triggered and standalone scans share `romm-api::core::library_scan`; CLI presentation wrappers live in `commands::library_scan`.
+- `commands::print` — tabular text output helpers.
+- `cli_presentation` — color, progress, JSON vs text output.
 
 ### TUI event loop
 
@@ -49,25 +49,17 @@ poll_frame_events()     # drain_background_events + crossterm input
   → render()          # ratatui draw (screens are render-only)
 ```
 
-- [`src/tui/app/event.rs`](../src/tui/app/event.rs) – `AppEvent`, `Action`, global key mapping
-- [`src/tui/app/update.rs`](../src/tui/app/update.rs) – applies actions (navigation, spawns, background completions)
-- [`src/tui/app/run.rs`](../src/tui/app/run.rs) – thin loop using [`src/tui/runtime.rs`](../src/tui/runtime.rs) (`TuiSession`)
-- [`src/tui/app/handlers/screen_keys.rs`](../src/tui/app/handlers/screen_keys.rs) – per-screen key → action dispatch
-- First-run setup wizard reuses `TuiSession` and [`setup_wizard/event.rs`](../src/tui/screens/setup_wizard/event.rs)
+Key files under `romm-tui/src/tui/`:
 
-The CLI layer itself is split into:
+- `app/event.rs` — `AppEvent`, `Action`, global key mapping
+- `app/update.rs` — applies actions (navigation, spawns, background completions)
+- `app/run.rs` — thin loop using `runtime.rs` (`TuiSession`)
+- `app/handlers/screen_keys.rs` — per-screen key → action dispatch
+- `screens/setup_wizard/event.rs` — first-run setup wizard
 
-- `commands::mod` – top-level `Cli` and `Commands` enum plus `OutputFormat`.
-- `commands::platforms` / `commands::roms` / `commands::api` / `commands::auth` / `commands::download` / `commands::scan` / `commands::sync` / `commands::cache` / `commands::init` / `commands::update` – small modules that parse arguments, call into services, and print results. Library scan HTTP for both `scan` and upload-triggered scans lives in `commands::library_scan`.
-- `commands::print` – helpers for tabular text output.
-- `core::resolve` – platform/collection name→ID helpers shared by CLI commands.
-- `core::roms` – paginated ROM list fetching shared by TUI prefetch paths.
-
-There are no TUI/CLI dependencies inside the core services, which makes it straightforward to add more frontends later.
+See [tui.md](tui.md) for screen list and theming.
 
 ## Data flow
-
-Roughly:
 
 ```text
 Config + env + OS Keyring
@@ -79,20 +71,13 @@ Endpoint implementations
 typed responses (types.rs)
 ```
 
-The TUI and CLI both operate on the same `RommClient` and model types.
+The TUI and CLI both operate on the same `RommClient` and model types from `romm-api`.
 
 ## Why an enum-based state machine?
 
 The TUI uses:
 
-- `AppScreen` – an enum with variants for each high-level screen (`MainMenu`, `LibraryBrowse`, `Search`, `Settings`, `GameDetail`, `Download`, `SetupWizard`).
-- `App` – a struct that owns shared services (`RommClient`, `RomCache`, `DownloadManager`) and the current `AppScreen`. It also holds shared state like `save_sync_compat` (from OpenAPI at startup), `server_version`, `startup_splash`, and `deferred_load_roms`.
+- `AppScreen` — enum variants for each high-level screen (`MainMenu`, `LibraryBrowse`, `Search`, `Settings`, `GameDetail`, `Download`, `SetupWizard`).
+- `App` — owns shared services (`RommClient`, `RomCache`, `DownloadManager`) and the current `AppScreen`, plus `save_sync_compat`, `server_version`, `startup_splash`, and `deferred_load_roms`.
 
-Each key press is dispatched to a method like `handle_main_menu` or `handle_library_browse`, which matches on `self.screen`, mutates it, and possibly transitions to another variant.
-
-This pattern works well in Rust because:
-
-- The compiler forces you to handle all variants in `match` statements.
-- Ownership is explicit (you often move a screen out of the enum, mutate it, then put it back).
-
-You could also model screens as trait objects, but the enum-based approach keeps everything static and easy to follow for learners.
+Each key press dispatches to handlers that match on `self.screen`, mutate it, and transition variants. The compiler forces exhaustive `match` handling; ownership stays explicit when moving screens in and out of the enum.

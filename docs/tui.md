@@ -1,77 +1,129 @@
-# TUI internals (ratatui + crossterm)
+# romm-tui
 
-This document explains how the terminal UI is wired together.
+Terminal UI for browsing and managing a RomM library. Built on [ratatui](https://ratatui.rs/) and [crossterm](https://github.com/crossterm-rs/crossterm). Depends on [`romm-api`](api.md) only (not `romm-cli`).
 
-## Event loop
+**Crate path:** `romm-tui/` in the workspace.
 
-The heart of the TUI lives in `tui::app::App::run`:
+---
 
-- Enable raw mode
-- Enter the alternate screen
-- In a loop:
-  - drain background tasks via `App::poll_background_tasks` (library metadata refresh completions)
-  - draw the current screen via `App::render`
-  - poll for key events with a short timeout
-  - dispatch keys to the appropriate `handle_*` method
-  - perform deferred work (like ROM loading)
+## Run the TUI
 
-## Library startup (metadata snapshot)
+```bash
+romm-cli tui
+# or, from a release archive:
+romm-tui
+```
 
-Choosing **Library** from the main menu loads a compact on-disk snapshot of platforms and merged collections (if present) so the list can render without waiting for the network. A background task then refetches the same endpoints, updates the UI when complete, and writes a fresh snapshot. Full ROM lists are still loaded on demand (and use the ROM list cache). Snapshot path defaults next to `ROMM_CACHE_PATH`; override with `ROMM_LIBRARY_METADATA_SNAPSHOT_PATH`.
+First launch runs a setup wizard if `config.json` is missing. You can also configure the server from **Settings** or via `romm-cli init` — see **[romm-api configuration](api.md#configuration)**.
 
-The TUI uses `crossterm` to manage the terminal and `ratatui` to build widgets.
+On startup, the TUI checks for newer releases (disable with `ROMM_CHECK_UPDATES=false`).
 
-## Screens
+---
 
-Each screen is its own struct under `src/tui/screens/`:
+## Features
 
-- `MainMenuScreen` – entry menu
-- `LibraryBrowseScreen` – consoles/collections + ROM list
-- `SearchScreen` – text input + results table
-- `GameDetailScreen` – detail view for a single ROM
-- `DownloadScreen` – overlay showing downloads
-- `SettingsScreen` – current config summary
-- `SetupWizard` – first-run / reconnect configuration flow
+- **Library browsing** — platforms, collections, and ROM lists with search
+- **Game detail** — cover-first layout with inline image rendering when the terminal supports it (Kitty, iTerm2, Sixel); halfblocks fallback on Windows Terminal; `o` opens the cover in a browser
+- **Background downloads** — start downloads and keep browsing
+- **Settings** — auth, paths, appearance, save-sync options
+- **Save downloads** — per-console save paths (see [api.md — custom save paths](api.md#custom-console-save-paths))
 
-The `AppScreen` enum in `tui::app` wraps these screen structs so that `App` only ever has one active screen at a time. During startup, a `StartupSplash` overlay (`screens/connected_splash`) may render before the main menu appears.
+### Screenshots
 
-## App module layout
+See the [README screenshots](../README.md#screenshots).
 
-The TUI state machine lives under `src/tui/app/` (not a single file):
-
-- `mod.rs` — `App`, `AppScreen`, `App::new`, key dispatch (`handle_key_event`), shortcut guards
-- `run.rs` — terminal event loop (`App::run`)
-- `render.rs` — frame drawing and global overlays (errors, update prompt)
-- `background/` — async task completion types and spawn/poll helpers (`poll_background_tasks`)
-- `handlers/` — one module per screen group (`library.rs`, `settings.rs`, …)
-- `rom_load.rs` — ROM list fetch and collection prefetch scheduling
-- `tests.rs` — unit tests for app behavior
-
-Public exports are unchanged: `romm_cli::tui::app::{App, AppScreen}`.
+---
 
 ## Theming
 
-The TUI uses [ratatui-themekit](https://docs.rs/ratatui-themekit) preset palettes via `tui::theme::RommStyles`. `App` holds a resolved theme (`Box<dyn Theme>`) loaded from `config.json` (`theme` field, default `terminal`) or `ROMM_THEME`.
+Built-in theme IDs include `terminal`, `catppuccin`, `dracula`, `nord`, `tokyo-night`, and others from **Settings → Appearance**.
 
-- **Settings → Appearance** — cycle presets with ←/→; live preview; **S** saves to `config.json`.
-- **`terminal`** — ANSI named colors (widest terminal compatibility).
-- **RGB presets** (Dracula, Nord, Tokyo Night, …) — need a truecolor-capable terminal (Windows Terminal, iTerm2, Alacritty, etc.).
-- **`NO_COLOR=1`** — disables styling (no-color preset).
+- Set in `config.json` (`theme` field) or `ROMM_THEME` env var
+- **Settings → Appearance** — cycle presets with ←/→; **S** saves to `config.json`
+- `terminal` — widest compatibility (ANSI named colors)
+- RGB presets need a truecolor terminal (Windows Terminal, iTerm2, Alacritty, …)
+- `NO_COLOR=1` disables styling
 
-Semantic roles (`selection`, `label`, `success`, `error`, `warning`, `muted`) map to theme slots in `src/tui/theme.rs`. Screen renderers take `&RommStyles` instead of hardcoded colors.
+Verbose HTTP logging for the standalone `romm-tui` binary: `ROMM_VERBOSE=1` or pass `--verbose` via `romm-cli tui --verbose`.
 
-## Layout and scrolling
+---
 
-`ratatui::layout::Layout` is used extensively to divide the terminal into smaller `Rect`s:
+## Library startup
 
-- A typical pattern is a vertical split into `main area + footer`.
-- Complex screens (like the library browser) then split the main area
-  horizontally into left/right panes.
+Choosing **Library** from the main menu loads a compact on-disk snapshot of platforms and merged collections (if present) so the list renders without waiting for the network. A background task refetches endpoints, updates the UI, and writes a fresh snapshot. Full ROM lists load on demand and use the ROM list cache.
 
-Scrolling is done manually:
+Override snapshot path with `ROMM_LIBRARY_METADATA_SNAPSHOT_PATH` (default: next to `ROMM_CACHE_PATH`). See [api.md](api.md#environment-variables).
 
-- For library/search results:
-  - a `scroll_offset` index tracks which row is at the top
-  - `visible` rows are computed dynamically from the available height
-  - helper methods ensure the selected row stays inside the viewport
+---
 
+## Internals
+
+This section describes the TUI implementation for contributors. Read alongside `cargo doc -p romm-tui --open` and [architecture.md](architecture.md).
+
+### Event loop
+
+The heart of the TUI lives in `romm_tui::tui::app::App::run`:
+
+- Enable raw mode and enter the alternate screen
+- Loop: drain background tasks → render → poll keys → dispatch → deferred work
+
+The TUI follows an **Event → Action → update → render** pipeline:
+
+```text
+poll_frame_events()     # drain_background_events + crossterm input
+  → map_event()         # AppEvent → Action
+  → App::update()       # single state-mutation entry point
+  → render()            # ratatui draw (screens are render-only)
+```
+
+Key modules under `romm-tui/src/tui/`:
+
+| Path | Role |
+|------|------|
+| `app/event.rs` | `AppEvent`, `Action`, global key mapping |
+| `app/update.rs` | Applies actions (navigation, spawns, completions) |
+| `app/run.rs` | Thin loop using `runtime.rs` (`TuiSession`) |
+| `app/handlers/screen_keys.rs` | Per-screen key → action dispatch |
+| `screens/setup_wizard/event.rs` | First-run wizard events |
+
+Public exports: `romm_tui::tui::app::{App, AppScreen}`. The `romm-cli` crate re-exports `tui` when built with the `tui` feature.
+
+### Screens
+
+Each screen is a struct under `romm-tui/src/tui/screens/`:
+
+- `MainMenuScreen` — entry menu
+- `LibraryBrowseScreen` — consoles/collections + ROM list
+- `SearchScreen` — text input + results table
+- `GameDetailScreen` — detail view for a single ROM
+- `DownloadScreen` — overlay showing downloads
+- `SettingsScreen` — config summary and editors
+- `SetupWizard` — first-run / reconnect flow
+
+`AppScreen` in `tui::app` wraps these so `App` holds one active screen. `StartupSplash` (`screens/connected_splash`) may render before the main menu.
+
+### App module layout
+
+- `app/mod.rs` — `App`, `AppScreen`, `App::new`, key dispatch
+- `app/run.rs` — terminal event loop
+- `app/render.rs` — frame drawing and global overlays
+- `app/background/` — async task completion types and spawn/poll helpers
+- `app/handlers/` — one module per screen group
+- `app/rom_load.rs` — ROM list fetch and collection prefetch
+
+### Theming implementation
+
+[ratatui-themekit](https://docs.rs/ratatui-themekit) presets via `tui::theme::RommStyles`. Semantic roles (`selection`, `label`, `success`, `error`, `warning`, `muted`) map to theme slots in `romm-tui/src/tui/theme.rs`. Screen renderers take `&RommStyles` instead of hardcoded colors.
+
+### Layout and scrolling
+
+`ratatui::layout::Layout` divides the terminal into `Rect`s (main area + footer; library browser splits horizontally). Scrolling uses a `scroll_offset` index and dynamic visible row counts so the selection stays in the viewport.
+
+---
+
+## Related documentation
+
+- [romm-api](api.md) — configuration and HTTP client
+- [romm-cli](cli.md) — `romm-cli tui` subcommand and CLI-only workflows
+- [Architecture overview](architecture.md)
+- [Troubleshooting authentication](troubleshooting-auth.md)

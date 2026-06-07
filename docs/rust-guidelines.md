@@ -126,7 +126,7 @@ pub enum ApiError {
 
 - [x] `build.rs` regenerates completions when CLI surface changes
 - [x] At least bash, zsh, fish, and PowerShell covered
-- [x] README section explains how to install completions per shell
+- [x] [cli.md](cli.md) section explains how to install completions per shell
 
 **References:** [Clap completions docs](https://docs.rs/clap_complete/latest/clap_complete/), [Rust CLI best practices guide — completions section](https://github.com/Dicklesworthstone/coding_agent_session_search/blob/main/RUST_CLI_TOOLS_BEST_PRACTICES_GUIDE.md)
 
@@ -134,7 +134,7 @@ pub enum ApiError {
 
 ### Gap 3: Meaningful exit codes
 
-**Current state:** `exit_code()` in `src/error.rs` maps `RommError` to `romm_cli::exit::{SUCCESS,GENERAL,USAGE,CONFIG,API}`. `main.rs` calls `std::process::exit(exit_code(&e))`. Legacy command handlers still return `anyhow::Result`; `from_anyhow()` downcasts typed domain errors at the CLI boundary. Clap parse errors exit with `2` before `run_app()` runs.
+**Current state:** `exit_code()` in `romm-api/src/error.rs` maps `RommError` to `romm_api::exit::{SUCCESS,GENERAL,USAGE,CONFIG,API}`. `romm-cli/src/main.rs` calls `std::process::exit(exit_code(&e))`. Legacy command handlers still return `anyhow::Result`; `from_anyhow()` downcasts typed domain errors at the CLI boundary. Clap parse errors exit with `2` before `run_app()` runs.
 
 **Recommended approach:**
 
@@ -145,12 +145,12 @@ pub enum ApiError {
   - `3` — configuration / auth error
   - `4` — API / network error
 - Map typed errors (Gap 1) to codes in `run_app()` before `std::process::exit`.
-- Document exit codes in README for scripting users.
+- Document exit codes in [cli.md](cli.md) for scripting users.
 
 **Acceptance criteria:**
 
 - [x] Scripts can distinguish auth/config failures from generic errors
-- [x] Exit codes documented in README or `--help` long about text
+- [x] Exit codes documented in [cli.md](cli.md) or `--help` long about text
 - [x] Integration tests assert expected exit codes where relevant
 
 **References:** [Rust CLI error handling with clap](https://oneuptime.com/blog/post/2026-01-07-rust-cli-clap-error-handling/view)
@@ -204,7 +204,7 @@ romm-cli/          # workspace root
 
 ### Gap 6: Layered configuration
 
-**Current state:** Layered merge in [`load_config()`](../src/config.rs) (defaults → `config.json` → env → keyring) plus narrow command-specific CLI runtime overrides. Documented in module docs, README, and [architecture.md](./architecture.md).
+**Current state:** Layered merge in [`load_config()`](../romm-api/src/config.rs) (defaults → `config.json` → env → keyring) plus narrow command-specific CLI runtime overrides. Documented in module docs, [api.md](api.md), and [architecture.md](./architecture.md).
 
 **Precedence model (per field):**
 
@@ -272,4 +272,4 @@ There is no global `CLI > env` for connection settings on normal commands.
 
 ---
 
-*Last updated: 2026-06-06 — Gap 4 complete (workspace split for Android prep); Gap 7 complete; Gap 6 complete; Gap 5 complete.*
+*Last updated: 2026-06-07 — Documentation split into [api.md](api.md), [cli.md](cli.md), [tui.md](tui.md); Gap 4 complete (workspace split for Android prep).*

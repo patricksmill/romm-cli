@@ -1,6 +1,7 @@
 [package]
 name = "romm-tui"
 description = "Terminal UI for the RomM API"
+readme = "../docs/tui.md"
 keywords = ["romm", "terminal", "tui", "emulator", "games"]
 categories = ["command-line-utilities", "emulators"]
 version = "0.40.0"

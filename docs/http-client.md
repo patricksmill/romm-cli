@@ -1,6 +1,6 @@
 # HTTP client (`RommClient`) and endpoints
 
-This document focuses on how HTTP calls are structured.
+This document focuses on how HTTP calls are structured in the [`romm-api`](api.md) crate.
 
 ## Endpoint trait
 
@@ -11,7 +11,7 @@ Each ROMM API route is described by a small type implementing an `Endpoint` trai
 - query params (`Vec<(String, String)>`)
 - optional JSON body
 
-These types live under `src/endpoints/*`, grouped by API area:
+These types live under `romm-api/src/endpoints/*`, grouped by API area:
 
 - `platforms`, `roms`, `collections` for core library operations
 - `client_tokens` for pairing-token APIs
@@ -47,7 +47,7 @@ The idea is that frontends never touch `reqwest` directly; they use `RommClient`
 
 ### Error contract
 
-Public `RommClient` methods return typed errors from `src/error.rs`:
+Public `RommClient` methods return typed errors from `romm-api/src/error.rs`:
 
 | Method family | Error type |
 |---------------|------------|
@@ -58,7 +58,7 @@ HTTP failures are classified by status code (`Unauthorized`, `Forbidden`, `NotFo
 
 `load_config()` returns `ConfigError`. Library consumers should use `RommError` as the composed type; the binary maps it to user messages via `user_message()` and exit codes via `exit_code()`.
 
-Exit code constants live in `romm_cli::exit` (`SUCCESS`, `GENERAL`, `USAGE`, `CONFIG`, `API`). Config and auth failures exit with `CONFIG` (3); API, network, and download failures exit with `API` (4). See README "Exit codes".
+Exit code constants live in `romm_api::exit` (`SUCCESS`, `GENERAL`, `USAGE`, `CONFIG`, `API`). Config and auth failures exit with `CONFIG` (3); API, network, and download failures exit with `API` (4). See [cli.md — exit codes](cli.md#exit-codes).
 
 ## Streaming downloads
 
