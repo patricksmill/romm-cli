@@ -10,19 +10,19 @@
     "romm-api": {
       "release-type": "rust",
       "component": "romm-api",
-      "changelog-path": "romm-api/CHANGELOG.md",
+      "changelog-path": "CHANGELOG.md",
       "include-component-in-tag": true
     },
     "romm-cli": {
       "release-type": "rust",
       "component": "romm-cli",
-      "changelog-path": "romm-cli/CHANGELOG.md",
+      "changelog-path": "CHANGELOG.md",
       "include-component-in-tag": true
     },
     "romm-tui": {
       "release-type": "rust",
       "component": "romm-tui",
-      "changelog-path": "romm-tui/CHANGELOG.md",
+      "changelog-path": "CHANGELOG.md",
       "include-component-in-tag": true
     }
   }

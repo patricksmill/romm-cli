@@ -7,6 +7,12 @@ Entries before the workspace split (1.0.0) are filtered from the unified monolit
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0](https://github.com/patricksmill/romm-cli/compare/romm-tui-v1.0.0...romm-tui-v1.1.0) (2026-06-07)
+
+### Features
+
+* **tui:** restore pane filter on f and improve keyboard help layout ([22bf426](https://github.com/patricksmill/romm-cli/commit/22bf4269b967cbc193f1454b77a633a5d40783ef))
+
 ## [1.0.0](https://github.com/patricksmill/romm-cli/compare/romm-tui-v0.40.0...romm-tui-v1.0.0) (2026-06-07)
 
 ### Features
