@@ -42,8 +42,7 @@ romm-cli platforms
 **TUI** (interactive browsing):
 
 ```bash
-romm-cli tui
-# or, from a release archive:
+cargo install romm-tui
 romm-tui
 ```
 
@@ -56,7 +55,7 @@ romm-api = "0.40"
 
 See [docs/api.md](docs/api.md) for a minimal `RommClient` example.
 
-Prebuilt binaries: [GitHub Releases](https://github.com/patricksmill/romm-cli/releases) (`romm-cli-v*` ships both binaries; `romm-tui-v*` ships the TUI only). See [docs/releases.md](docs/releases.md).
+Prebuilt binaries: [GitHub Releases](https://github.com/patricksmill/romm-cli/releases) (`romm-cli-v*` ships the CLI; `romm-tui-v*` ships the TUI). See [docs/releases.md](docs/releases.md).
 
 ---
 

@@ -9,10 +9,11 @@ Terminal UI for browsing and managing a RomM library. Built on [ratatui](https:/
 ## Run the TUI
 
 ```bash
-romm-cli tui
-# or, from a release archive:
+cargo install romm-tui
 romm-tui
 ```
+
+Prebuilt binaries are on the [Releases page](https://github.com/patricksmill/romm-cli/releases) under `romm-tui-v*` tags.
 
 First launch runs a setup wizard if `config.json` is missing. You can also configure the server from **Settings** or via `romm-cli init` — see **[romm-api configuration](api.md#configuration)**.
 
@@ -44,7 +45,7 @@ Built-in theme IDs include `terminal`, `catppuccin`, `dracula`, `nord`, `tokyo-n
 - RGB presets need a truecolor terminal (Windows Terminal, iTerm2, Alacritty, …)
 - `NO_COLOR=1` disables styling
 
-Verbose HTTP logging for the standalone `romm-tui` binary: `ROMM_VERBOSE=1` or pass `--verbose` via `romm-cli tui --verbose`.
+Verbose HTTP logging: `ROMM_VERBOSE=1`.
 
 ---
 
@@ -124,6 +125,6 @@ Each screen is a struct under `romm-tui/src/tui/screens/`:
 ## Related documentation
 
 - [romm-api](api.md) — configuration and HTTP client
-- [romm-cli](cli.md) — `romm-cli tui` subcommand and CLI-only workflows
+- [romm-cli](cli.md) — scripting, automation, and `init` / `auth` workflows
 - [Architecture overview](architecture.md)
 - [Troubleshooting authentication](troubleshooting-auth.md)

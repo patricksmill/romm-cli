@@ -17,11 +17,7 @@ Command-line interface for scripting and automation against a [RomM](https://git
 cargo install romm-cli
 ```
 
-The TUI feature is enabled by default (`romm-cli tui`). For a CLI-only build:
-
-```bash
-cargo install romm-cli --no-default-features
-```
+For the interactive terminal UI, install the separate [`romm-tui`](tui.md) crate.
 
 ### Binary releases
 
@@ -29,9 +25,8 @@ Prebuilt archives for Windows, Linux, and macOS are on the [Releases page](https
 
 | Tag | Archives contain |
 |-----|------------------|
-| `romm-cli-v*` | `romm-cli` and `romm-tui` (primary distribution) |
+| `romm-cli-v*` | `romm-cli` only |
 | `romm-tui-v*` | `romm-tui` only |
-| Legacy `v*` | Both binaries (unified-era tags) |
 
 Release process and versioning: [releases.md](releases.md).
 
@@ -95,14 +90,6 @@ romm-cli auth logout
 ```
 
 On interactive startup, `romm-cli` checks for newer releases and can prompt to update. Disable with `ROMM_CHECK_UPDATES=false` (see [api.md](api.md#environment-variables)).
-
-### TUI subcommand
-
-```bash
-romm-cli tui
-```
-
-For the standalone TUI binary and interactive features, see **[TUI documentation](tui.md)**.
 
 ### Post-upload library scan
 

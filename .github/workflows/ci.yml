@@ -10,6 +10,16 @@ permissions:
   contents: read
 
 jobs:
+  release-preflight:
+    name: Release preflight
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Version consistency and publish dry-runs
+        run: bash ./tools/release-check.sh
+
   fmt:
     name: Format
     runs-on: ubuntu-latest
@@ -30,17 +40,6 @@ jobs:
         with:
           components: clippy
       - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
-
-  clippy-cli-only:
-    name: Clippy (CLI only)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: Swatinem/rust-cache@v2
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-      - run: cargo clippy --all-targets -p romm-cli --no-default-features -- -D warnings
 
   test-romm-api:
     name: Test romm-api
@@ -63,15 +62,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo test --workspace --all-targets --all-features
-
-  test-cli-only:
-    name: Test CLI only
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: Swatinem/rust-cache@v2
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test --all-targets -p romm-cli --no-default-features
 
   build:
     name: Build (${{ matrix.target || 'host' }})
@@ -122,24 +112,3 @@ jobs:
             echo "romm-cli/completions/ is out of date. Run 'cargo run -p romm-cli --bin romm-complete-gen' and commit."
             exit 1
           }
-
-  version-consistency:
-    name: Version consistency
-    runs-on: ubuntu-latest
-    needs: [fmt, clippy, clippy-cli-only, test-romm-api, test, test-cli-only, build, completions]
-    steps:
-      - uses: actions/checkout@v6
-      - name: Run release-check.sh (versions only)
-        run: bash ./tools/release-check.sh versions-only
-
-  package-dry-run:
-    name: Package dry-run
-    runs-on: ubuntu-latest
-    needs: [version-consistency]
-    steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo publish -p romm-api --dry-run
-      - run: cargo publish -p romm-tui --dry-run
-      # romm-cli publish dry-run requires romm-api and romm-tui on crates.io (publish api -> tui -> cli).
-      - run: cargo publish -p romm-cli --dry-run

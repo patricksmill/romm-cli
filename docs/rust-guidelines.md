@@ -48,7 +48,7 @@ romm-cli/              # workspace root
 
 1. **Library-first** — binaries are thin wrappers; logic lives in the crate so CLI, TUI, and tests share it.
 2. **One HTTP client type** — everything goes through `RommClient`; no scattered `reqwest` calls.
-3. **Feature-gated TUI** — `default = ["tui"]` but CI can build `--no-default-features` for headless/smaller artifacts.
+3. **Separate frontends** — `romm-cli` and `romm-tui` are independent crates; both depend on `romm-api` only.
 4. **Typed errors at boundaries** — e.g. `ApiError`, `ConfigError`, `DownloadError`; compose with `#[from]`; use `anyhow` only in `main`.
 5. **Background work via channels** — TUI main loop polls/receives; network/download runs on tokio tasks.
 
@@ -57,7 +57,7 @@ romm-cli/              # workspace root
 ## What romm-cli already does well
 
 - Library crate with `client`, `commands`, `endpoints`, `core`, `frontend` split
-- `clap` derive, global `--json` / `--verbose`, optional TUI feature
+- `clap` derive, global `--json` / `--verbose`
 - `reqwest` with `rustls`, no native-tls (good for cross-builds)
 - `tracing`, `keyring`, `wiremock` / `assert_cmd` in dev-dependencies
 - TUI uses screen modules + background task polling
@@ -268,7 +268,7 @@ There is no global `CLI > env` for connection settings on normal commands.
 - [ ] Errors typed or given context; no new bare `unwrap()` in production paths
 - [ ] Tests: unit tests for pure logic; `wiremock`/`httpmock` for HTTP; `assert_cmd` for CLI if behavior is user-visible
 - [ ] TUI changes: background work does not block the render loop
-- [ ] Feature `tui` remains optional; CI can build without it
+- [ ] `romm-cli` changes do not add a dependency on `romm-tui`
 
 ---
 

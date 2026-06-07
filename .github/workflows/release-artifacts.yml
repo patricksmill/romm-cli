@@ -55,12 +55,6 @@ jobs:
               crate="romm-tui"
               publish_binaries="true"
               ;;
-            v*)
-              # Legacy unified tag: treat as CLI distribution release.
-              component="romm-cli"
-              crate="romm-cli"
-              publish_binaries="true"
-              ;;
             *)
               echo "Unrecognized release tag format: ${tag}"
               exit 1
@@ -123,7 +117,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
 
       - name: Build
-        run: cargo build --workspace --release --target ${{ matrix.target }} --bins
+        run: cargo build --release --target ${{ matrix.target }} -p "${RELEASE_COMPONENT}" --bin "${RELEASE_COMPONENT}"
 
       - name: Prepare artifact directory
         shell: bash
@@ -131,30 +125,15 @@ jobs:
           mkdir -p artifact
           TGT="target/${{ matrix.target }}/release"
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            if [ "${RELEASE_COMPONENT}" = "romm-tui" ]; then
-              cp "$TGT/romm-tui.exe" artifact/
-            else
-              cp "$TGT/romm-cli.exe" artifact/
-              cp "$TGT/romm-tui.exe" artifact/
-            fi
+            cp "$TGT/${RELEASE_COMPONENT}.exe" artifact/
           else
-            if [ "${RELEASE_COMPONENT}" = "romm-tui" ]; then
-              cp "$TGT/romm-tui" artifact/
-            else
-              cp "$TGT/romm-cli" artifact/
-              cp "$TGT/romm-tui" artifact/
-            fi
+            cp "$TGT/${RELEASE_COMPONENT}" artifact/
           fi
 
       - name: Fix permissions (Unix)
         if: ${{ matrix.os != 'windows-latest' }}
         shell: bash
-        run: |
-          if [ "${RELEASE_COMPONENT}" = "romm-tui" ]; then
-            chmod +x artifact/romm-tui
-          else
-            chmod +x artifact/romm-cli artifact/romm-tui
-          fi
+        run: chmod +x "artifact/${RELEASE_COMPONENT}"
 
       - name: Create archive (Unix)
         if: ${{ matrix.os != 'windows-latest' }}

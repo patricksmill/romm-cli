@@ -27,7 +27,7 @@ Romm is a hybrid: shared `romm-api` library plus two desktop frontends. Independ
 - Component tags: `romm-api-vA.B.C`, `romm-cli-vX.Y.Z`, `romm-tui-vP.Q.R`
 - Per-crate changelogs under each crate directory
 - Combined release PR bumps only components with qualifying commits
-- Topological crates.io publish: `romm-api` → `romm-tui` → `romm-cli`
+- crates.io publish: `romm-api` first; `romm-cli` and `romm-tui` depend on `romm-api` only
 
 Rejected alternatives: full `release-plz` migration (tooling churn), `cargo-workspaces` manual releases (weak GitHub automation).
 
@@ -36,7 +36,7 @@ Rejected alternatives: full `release-plz` migration (tooling churn), `cargo-work
 | Crate | Tag | Changelog | GitHub binaries | crates.io |
 |-------|-----|-----------|-----------------|-----------|
 | `romm-api` | `romm-api-v*` | `romm-api/CHANGELOG.md` | None | Yes |
-| `romm-cli` | `romm-cli-v*` | `romm-cli/CHANGELOG.md` | Dual-binary archives | Yes |
+| `romm-cli` | `romm-cli-v*` | `romm-cli/CHANGELOG.md` | Single-binary archives | Yes |
 | `romm-tui` | `romm-tui-v*` | `romm-tui/CHANGELOG.md` | Single-binary archives | Yes |
 
 Root `CHANGELOG.md` is an index linking to per-crate changelogs.
@@ -52,9 +52,9 @@ Root `CHANGELOG.md` is an index linking to per-crate changelogs.
 
 ## Binary distribution
 
-- `romm-cli-v*`: archives contain `romm-cli` + `romm-tui` (primary distribution)
+- `romm-cli-v*`: archives contain `romm-cli` only
 - `romm-tui-v*`: archives contain `romm-tui` only
-- Self-update resolves component from running binary name; version from frontend crate (`env!("CARGO_PKG_VERSION")`)
+- Self-update resolves component from running binary name; version from frontend crate (`env!("CARGO_PKG_VERSION")`); each archive updates one binary
 
 ## Android (future)
 
@@ -68,7 +68,7 @@ Scaffold: `.github/workflows/android-release.yml` (`workflow_dispatch` only unti
 
 ## Migration
 
-Bootstrap component tags at `0.40.0` from the last unified release SHA. Self-update accepts legacy unified `v*` tags for `romm-cli` during transition.
+Bootstrap component tags at `0.40.0` from the last unified release SHA. New releases use component tags only (`romm-<crate>-v*`).
 
 ## References
 

@@ -14,7 +14,6 @@ use crate::core::interrupt::{cancelled_error, InterruptContext};
 const REPO_OWNER: &str = "patricksmill";
 const REPO_NAME: &str = "romm-cli";
 const DEFAULT_BIN_NAME: &str = "romm-cli";
-const LEGACY_TAG_PREFIX: &str = "v";
 const CHECKSUMS_ASSET_NAME: &str = "checksums.txt";
 
 /// Distribution component for GitHub releases and self-update.
@@ -49,7 +48,7 @@ impl ReleaseComponent {
 
     pub fn shipped_binaries(self) -> &'static [&'static str] {
         match self {
-            Self::RommCli => &["romm-cli", "romm-tui"],
+            Self::RommCli => &["romm-cli"],
             Self::RommTui => &["romm-tui"],
         }
     }
@@ -171,9 +170,6 @@ fn version_from_tag(tag: &str, component: ReleaseComponent) -> String {
     if let Some(rest) = tag.strip_prefix(prefix) {
         return rest.to_string();
     }
-    if component == ReleaseComponent::RommCli && tag.starts_with(LEGACY_TAG_PREFIX) {
-        return tag.trim_start_matches(LEGACY_TAG_PREFIX).to_string();
-    }
     tag.to_string()
 }
 
@@ -259,12 +255,7 @@ fn expected_archive_name(component: ReleaseComponent, target: &str) -> String {
 }
 
 fn tag_matches_component(tag: &str, component: ReleaseComponent) -> bool {
-    if tag.starts_with(component.tag_prefix()) {
-        return true;
-    }
-    component == ReleaseComponent::RommCli
-        && tag.starts_with(LEGACY_TAG_PREFIX)
-        && tag[1..].chars().next().is_some_and(|c| c.is_ascii_digit())
+    tag.starts_with(component.tag_prefix())
 }
 
 pub fn select_latest_release_tag<'a>(
@@ -785,15 +776,6 @@ mod tests {
     }
 
     #[test]
-    fn select_latest_component_tag_supports_legacy_v_prefix_for_cli() {
-        let tags = ["v0.39.0", "v0.40.0", "romm-tui-v1.0.0"];
-        assert_eq!(
-            select_latest_release_tag(ReleaseComponent::RommCli, tags.iter().copied()),
-            Some("v0.40.0".to_string())
-        );
-    }
-
-    #[test]
     fn select_latest_component_tag_for_tui_ignores_cli_tags() {
         let tags = ["romm-cli-v0.50.0", "romm-tui-v0.40.0", "romm-tui-v0.41.0"];
         assert_eq!(
@@ -811,10 +793,6 @@ mod tests {
         assert_eq!(
             version_from_tag("romm-tui-v2.0.0", ReleaseComponent::RommTui),
             "2.0.0"
-        );
-        assert_eq!(
-            version_from_tag("v0.40.0", ReleaseComponent::RommCli),
-            "0.40.0"
         );
     }
 

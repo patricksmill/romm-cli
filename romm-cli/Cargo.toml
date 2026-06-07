@@ -1,6 +1,6 @@
 [package]
 name = "romm-cli"
-description = "Rust-based CLI and TUI for the ROMM API"
+description = "Rust-based CLI for the RomM API"
 keywords = ["romm", "terminal", "tui", "emulator", "games"]
 categories = ["command-line-utilities", "emulators"]
 readme = "../docs/cli.md"

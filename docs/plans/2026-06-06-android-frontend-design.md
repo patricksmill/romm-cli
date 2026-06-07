@@ -66,7 +66,7 @@ Future addition (not in this phase):
 | Crate | Depends on | Must not depend on |
 |-------|------------|-------------------|
 | `romm-api` | reqwest, serde, tokio, keyring, … | clap, ratatui, dialoguer, indicatif |
-| `romm-cli` | `romm-api` | `romm-tui` (optional feature for `romm-cli tui` subcommand only) |
+| `romm-cli` | `romm-api` | `romm-tui` |
 | `romm-tui` | `romm-api` | `romm-cli` |
 | Android app | generated UniFFI bindings | — |
 

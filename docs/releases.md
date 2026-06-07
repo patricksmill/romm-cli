@@ -24,15 +24,15 @@ flowchart TB
 
   TAPI --> CratesApi[crates.io romm-api]
   TCLI --> CratesCli[crates.io romm-cli]
-  TCLI --> BinDual[GitHub dual-binary archives]
+  TCLI --> BinCli[GitHub romm-cli archives]
   TTUI --> CratesTui[crates.io romm-tui]
-  TTUI --> BinTui[GitHub single-binary archives]
+  TTUI --> BinTui[GitHub romm-tui archives]
 ```
 
 | Crate | Tag format | Changelog | Binaries | crates.io |
 |-------|------------|-----------|----------|-----------|
 | `romm-api` | `romm-api-v*` | [romm-api/CHANGELOG.md](../romm-api/CHANGELOG.md) | — | Yes |
-| `romm-cli` | `romm-cli-v*` | [romm-cli/CHANGELOG.md](../romm-cli/CHANGELOG.md) | `romm-cli` + `romm-tui` | Yes |
+| `romm-cli` | `romm-cli-v*` | [romm-cli/CHANGELOG.md](../romm-cli/CHANGELOG.md) | `romm-cli` only | Yes |
 | `romm-tui` | `romm-tui-v*` | [romm-tui/CHANGELOG.md](../romm-tui/CHANGELOG.md) | `romm-tui` only | Yes |
 
 Automation: [Release Please](../.github/workflows/release-please.yml) opens release PRs; [Release Artifacts](../.github/workflows/release-artifacts.yml) builds assets and publishes to crates.io.
@@ -52,16 +52,16 @@ Root-only doc edits (`docs/`, `README.md`) do not trigger a release unless you a
 
 Before merging a release PR:
 
-- [ ] CI is green (fmt, clippy, tests, publish dry-runs, version consistency)
-- [ ] Dependent `Cargo.toml` files show updated `romm-api` / `romm-tui` pins where applicable
+- [ ] CI is green (fmt, clippy, tests, release preflight)
+- [ ] Dependent `Cargo.toml` files show updated `romm-api` pins where applicable
 - [ ] Per-crate changelogs look correct
 
 After merging:
 
 - [ ] Component tag(s) exist (`romm-<crate>-v*`)
 - [ ] [Release Artifacts](../.github/workflows/release-artifacts.yml) completed for frontend tags
-- [ ] crates.io shows the new version(s) — publish order: **romm-api → romm-tui → romm-cli**
-- [ ] Smoke test: download an archive, run `romm-cli --version` and `romm-tui --version`
+- [ ] crates.io shows the new version(s) — publish **romm-api** before `romm-cli` or `romm-tui` when versions are new
+- [ ] Smoke test: download archives and run `romm-cli --version` / `romm-tui --version` as appropriate
 - [ ] Optional: `romm-cli update --help` / TUI update flow on a test machine
 
 Local preflight:
@@ -86,15 +86,15 @@ For crates.io-only recovery, publish manually in order:
 
 ```bash
 cargo publish -p romm-api
-cargo publish -p romm-tui
-cargo publish -p romm-cli
+cargo publish -p romm-tui   # depends on romm-api only
+cargo publish -p romm-cli   # depends on romm-api only
 ```
 
 ## Self-update and binary layout
 
-- **`romm-cli-v*` archives** contain both `romm-cli` and `romm-tui`. Self-update from either binary can refresh siblings when updating via a CLI distribution release.
+- **`romm-cli-v*` archives** contain only `romm-cli`.
 - **`romm-tui-v*` archives** contain only `romm-tui`.
-- Legacy unified tags (`v0.x.y`) are still recognized for `romm-cli` during transition.
+- Self-update replaces the running binary only; each frontend tracks its own component tag (`romm-cli-v*` or `romm-tui-v*`).
 
 Changelog URLs point to per-crate changelogs; the [root index](../CHANGELOG.md) links to all three.
 
@@ -104,7 +104,7 @@ Record published combinations when versions diverge:
 
 | `romm-cli` tag | `romm-tui` tag | Min `romm-api` | Notes |
 |----------------|----------------|----------------|-------|
-| `romm-cli-v0.40.0` | `romm-tui-v0.40.0` | `0.40.0` | Last unified-era bootstrap |
+| `romm-cli-v1.0.0` | `romm-tui-v1.0.0` | `1.0.0` | Decoupled crate releases |
 | | | | |
 
 ## Android (future)
@@ -124,7 +124,7 @@ CI contract (see [android-release.yml](../.github/workflows/android-release.yml)
 
 ## Tag migration (one-time)
 
-Historical releases used unified `v0.x.y` tags. New releases use component tags. To bootstrap from the last unified release at `0.40.0`:
+Historical releases used unified `v0.x.y` tags. New releases use component tags only. To bootstrap from the last unified release at `0.40.0`:
 
 ```bash
 ./tools/bootstrap-component-tags.sh 0.40.0 <commit-sha>

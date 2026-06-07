@@ -44,7 +44,7 @@ fi
 echo "  OK workspace pins"
 
 if [ "${1:-}" != "versions-only" ]; then
-  echo "==> Topological publish dry-run (romm-api -> romm-tui -> romm-cli)"
+  echo "==> Publish dry-run (romm-api, romm-tui, romm-cli; romm-cli depends on romm-api only)"
   cargo publish -p romm-api --dry-run
   cargo publish -p romm-tui --dry-run
   cargo publish -p romm-cli --dry-run
