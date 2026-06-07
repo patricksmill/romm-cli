@@ -1,6 +1,18 @@
 # Release runbook
 
-This workspace ships three independently versioned crates plus prebuilt desktop binaries. See [release coordination design](plans/2026-06-06-release-coordination-design.md) for rationale and industry benchmarks.
+This workspace ships three independently versioned crates plus prebuilt desktop binaries. See [release coordination design](plans/2026-06-06-release-coordination-design.md) for rationale.
+
+## Current line: 1.0.0
+
+All workspace crates target **1.0.0** as the post-split fresh start. Component tags:
+
+| Crate | Tag | crates.io | GitHub binaries |
+|-------|-----|-----------|-----------------|
+| `romm-api` | `romm-api-v1.0.0` | Yes | — |
+| `romm-cli` | `romm-cli-v1.0.0` | Yes | Yes |
+| `romm-tui` | `romm-tui-v1.0.0` | Yes | Yes |
+
+Legacy tags (`v0.x.y` unified, `romm-*-v0.40.0` bootstrap) remain for history but are not the supported line.
 
 ## Overview
 
@@ -29,24 +41,19 @@ flowchart TB
   TTUI --> BinTui[GitHub romm-tui archives]
 ```
 
-| Crate | Tag format | Changelog | Binaries | crates.io |
-|-------|------------|-----------|----------|-----------|
-| `romm-api` | `romm-api-v*` | [romm-api/CHANGELOG.md](../romm-api/CHANGELOG.md) | — | Yes |
-| `romm-cli` | `romm-cli-v*` | [romm-cli/CHANGELOG.md](../romm-cli/CHANGELOG.md) | `romm-cli` only | Yes |
-| `romm-tui` | `romm-tui-v*` | [romm-tui/CHANGELOG.md](../romm-tui/CHANGELOG.md) | `romm-tui` only | Yes |
+Automation:
 
-Automation: [Release Please](../.github/workflows/release-please.yml) opens release PRs and publishes to crates.io in order (`romm-api` → `romm-tui` → `romm-cli`); [Release Artifacts](../.github/workflows/release-artifacts.yml) builds GitHub release binaries and checksums only.
+- [Release Please](../.github/workflows/release-please.yml) — release PRs + **ordered** crates.io publish (`romm-api` → `romm-tui` → `romm-cli`)
+- [Release Artifacts](../.github/workflows/release-artifacts.yml) — frontend binaries and checksums only
 
 ## Day-to-day development
 
 1. Use [Conventional Commits](https://www.conventionalcommits.org/) with scopes that match the crate:
-   - `feat(api):` / changes under `romm-api/` → bumps `romm-api`
+   - `feat(api):` / `romm-api/` → bumps `romm-api`
    - `feat(cli):` / `romm-cli/` → bumps `romm-cli`
    - `feat(tui):` / `romm-tui/` → bumps `romm-tui`
 2. Merge feature PRs to `main`. Release Please opens a combined **release PR** only for components with qualifying commits.
 3. Review the release PR for version bumps, dependency pin updates, and changelog entries.
-
-Root-only doc edits (`docs/`, `README.md`) do not trigger a release unless you add a scoped commit (for example `docs(release): note …` with the target component).
 
 ## Release checklist
 
@@ -63,8 +70,7 @@ After merging:
 - [ ] [Release Please publish job](../.github/workflows/release-please.yml) completed (`publish-crates-io`)
 - [ ] [Release Artifacts](../.github/workflows/release-artifacts.yml) completed for frontend tags
 - [ ] crates.io shows the new version(s)
-- [ ] Smoke test: download archives and run `romm-cli --version` / `romm-tui --version` as appropriate
-- [ ] Optional: `romm-cli update --help` / TUI update flow on a test machine
+- [ ] Smoke test: download archives and run `romm-cli --version` / `romm-tui --version`
 
 Local preflight:
 
@@ -74,19 +80,30 @@ Local preflight:
 
 `release-check` always dry-runs `romm-api` first. Frontend `cargo publish --dry-run` runs only after that `romm-api` version exists on crates.io; otherwise frontends are validated with `cargo build --release`.
 
-## Breaking `romm-api` releases
+## Aligned cut (manual bootstrap)
 
-When `romm-api` has a breaking semver bump:
+When all three crates share a version but Release Please did not create every tag/release (for example a manual manifest bump), use:
 
-1. Ensure Release Please also bumps or patch-bumps `romm-cli` and `romm-tui` in the same release window (dependency cascade).
-2. Publish **romm-api** to crates.io before frontends.
-3. Cut frontend releases the same day so `cargo install` never resolves an unpublished API version.
+```bash
+./tools/cut-workspace-release.sh 1.0.0 <commit-sha>
+```
+
+Then trigger publish and binaries as printed by the script.
 
 ## Hotfix / manual recovery
 
-**Binaries:** use **workflow_dispatch** on [Release Artifacts](../.github/workflows/release-artifacts.yml) with the full tag (for example `romm-cli-v0.40.1`).
+**Binaries:**
 
-**crates.io:** use **workflow_dispatch** on [Release Please](../.github/workflows/release-please.yml) with the release tag/SHA and select which crates to publish (order is enforced automatically).
+```bash
+gh workflow run release-artifacts.yml -f tag=romm-cli-v1.0.1
+```
+
+**crates.io (ordered):**
+
+```bash
+gh workflow run release-please.yml -f ref=main \
+  -f publish_romm_api=true -f publish_romm_tui=true -f publish_romm_cli=true
+```
 
 Local ordered publish:
 
@@ -95,49 +112,34 @@ export CARGO_REGISTRY_TOKEN=...
 ./tools/publish-workspace.sh --crates romm-api romm-tui romm-cli
 ```
 
+## Breaking `romm-api` releases
+
+When `romm-api` has a breaking semver bump:
+
+1. Bump or patch-bump `romm-cli` and `romm-tui` in the same release window.
+2. Publish **romm-api** to crates.io before frontends (automated in `publish-workspace.sh`).
+3. Cut frontend releases the same day.
+
 ## Self-update and binary layout
 
 - **`romm-cli-v*` archives** contain only `romm-cli`.
 - **`romm-tui-v*` archives** contain only `romm-tui`.
-- Self-update replaces the running binary only; each frontend tracks its own component tag (`romm-cli-v*` or `romm-tui-v*`).
-
-Changelog URLs point to per-crate changelogs; the [root index](../CHANGELOG.md) links to all three.
+- Each frontend tracks its own component tag.
 
 ## Compatibility matrix
 
-When `romm-cli`, `romm-tui`, and `romm-api` versions diverge, record the combination in [`docs/compatibility.toml`](compatibility.toml). CI validates the latest row via `release-check.sh`.
+When versions diverge, record combinations in [`docs/compatibility.toml`](compatibility.toml). Lockstep releases (all equal) auto-pass in `release-check.sh`.
 
-```toml
-[[combination]]
-romm_cli = "1.0.0"
-romm_tui = "1.0.0"
-min_romm_api = "1.0.0"
-notes = "Workspace fresh start at 1.0.0"
-```
+## Historical tags
 
-Lockstep releases (all three versions equal) do not require a new row.
+| Era | Tag pattern | Notes |
+|-----|-------------|-------|
+| Pre-split | `v0.x.y` | Unified monolith releases |
+| Workspace bootstrap | `romm-*-v0.40.0` | First component tags; superseded by 1.0.0 line |
+| Current | `romm-*-v1.0.0+` | Independent per-crate semver |
+
+One-time bootstrap for the 0.40.0 component era: `./tools/bootstrap-component-tags.sh 0.40.0 <commit-sha>`.
 
 ## Android (future)
 
-When `android/` lands:
-
-| Artifact | Versioning | Channel |
-|----------|------------|---------|
-| UniFFI `.so` | Matches `romm-api` semver | Bundled in APK/AAB |
-| Android app | Independent `versionName` / `versionCode` | Play Store / sideload |
-
-CI contract (see [android-release.yml](../.github/workflows/android-release.yml)):
-
-- `rommApiVersion` injected from `romm-api/Cargo.toml` at build time
-- App manifest declares `minRommApiFfiVersion`
-- Release notes cite the compatible `romm-api` range
-
-## Tag migration (one-time)
-
-Historical releases used unified `v0.x.y` tags. New releases use component tags only. To bootstrap from the last unified release at `0.40.0`:
-
-```bash
-./tools/bootstrap-component-tags.sh 0.40.0 <commit-sha>
-```
-
-See [release coordination design](plans/2026-06-06-release-coordination-design.md) for full migration notes.
+See [android-release.yml](../.github/workflows/android-release.yml) and [android frontend design](plans/2026-06-06-android-frontend-design.md).

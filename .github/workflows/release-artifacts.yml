@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag to build binaries for (example: romm-cli-v0.40.0)"
+        description: "Tag to build binaries for (example: romm-cli-v1.0.0)"
         required: true
         type: string
 
