@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![CI](https://github.com/patricksmill/romm-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/patricksmill/romm-cli/actions/workflows/ci.yml)
 
-Rust clients for managing a game library through the [RomM API](https://github.com/romm-retro/romm). This repository is a **Cargo workspace** with a shared API library and two frontends: a scriptable CLI and an interactive TUI.
+Rust clients for managing a game library through the [RomM API](https://github.com/rommapp/romm). This repository is a **Cargo workspace** with a shared API library and two frontends: a scriptable CLI and an interactive TUI.
 
 ---
 
