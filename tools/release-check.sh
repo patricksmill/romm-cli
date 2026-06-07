@@ -117,14 +117,26 @@ if [ "${1:-}" != "versions-only" ]; then
   bash ./tools/publish-crate.sh --dry-run-only romm-api
 
   if api_on_crates_io "${api_version}"; then
-    echo "==> romm-api@${api_version} on crates.io; dry-run frontends"
-    bash ./tools/publish-crate.sh --dry-run-only romm-tui
-    bash ./tools/publish-crate.sh --dry-run-only romm-cli
+    echo "==> romm-api@${api_version} on crates.io; dry-run frontends (parallel)"
+    bash ./tools/publish-crate.sh --dry-run-only romm-tui &
+    pid_tui=$!
+    bash ./tools/publish-crate.sh --dry-run-only romm-cli &
+    pid_cli=$!
+    fail=0
+    wait "${pid_tui}" || fail=1
+    wait "${pid_cli}" || fail=1
+    [ "${fail}" -eq 0 ]
   else
-    echo "==> romm-api@${api_version} not on crates.io yet; release-check frontends via build"
+    echo "==> romm-api@${api_version} not on crates.io yet; release-check frontends via build (parallel)"
     echo "    (cargo publish --dry-run for frontends requires romm-api on the index first)"
-    cargo build --release -p romm-tui
-    cargo build --release -p romm-cli
+    cargo build --release -p romm-tui &
+    pid_tui=$!
+    cargo build --release -p romm-cli &
+    pid_cli=$!
+    fail=0
+    wait "${pid_tui}" || fail=1
+    wait "${pid_cli}" || fail=1
+    [ "${fail}" -eq 0 ]
   fi
 fi
 

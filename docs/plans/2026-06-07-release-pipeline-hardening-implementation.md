@@ -19,7 +19,7 @@ Poll `https://crates.io/api/v1/crates/<crate>/<version>` until HTTP 200 (default
 
 ### `tools/publish-workspace.sh`
 
-Ordered publish: `romm-api` → `romm-tui` → `romm-cli`.
+Publish order: `romm-api` first, then `romm-tui` and `romm-cli` in parallel.
 
 Flags:
 

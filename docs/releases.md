@@ -43,7 +43,7 @@ flowchart TB
 
 Automation:
 
-- [Release Please](../.github/workflows/release-please.yml) — release PRs + **ordered** crates.io publish (`romm-api` → `romm-tui` → `romm-cli`)
+- [Release Please](../.github/workflows/release-please.yml) — release PRs + crates.io publish (`romm-api` first, then `romm-tui` and `romm-cli` in parallel)
 - [Release Artifacts](../.github/workflows/release-artifacts.yml) — frontend binaries and checksums only
 
 ## Day-to-day development

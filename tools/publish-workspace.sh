@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Publish workspace crates to crates.io in dependency order: api -> tui -> cli.
+# Publish workspace crates to crates.io: romm-api first, then romm-tui and romm-cli in parallel.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -13,7 +13,7 @@ usage() {
 usage: publish-workspace.sh [--if-created] [--crates crate ...]
 
   --if-created   Use PUBLISH_API, PUBLISH_TUI, PUBLISH_CLI env vars (true/false).
-  --crates       Publish only listed crates (still in dependency order).
+  --crates       Publish only listed crates (api first; frontends in parallel).
 
 With no filter flags, all three crates are candidates for publish.
 USAGE
@@ -100,18 +100,34 @@ elif [ "$needs_frontend" = "true" ]; then
   "${WAIT_SCRIPT}" romm-api "${api_version}"
 fi
 
-if should_publish romm-tui; then
+publish_frontend() {
+  local crate="$1"
   if ! should_publish romm-api; then
     "${WAIT_SCRIPT}" romm-api "${api_version}"
   fi
-  "${PUBLISH_SCRIPT}" romm-tui
+  "${PUBLISH_SCRIPT}" "${crate}"
+}
+
+declare -a frontend_pids=()
+
+if should_publish romm-tui; then
+  publish_frontend romm-tui &
+  frontend_pids+=("$!")
 fi
 
 if should_publish romm-cli; then
-  if ! should_publish romm-api; then
-    "${WAIT_SCRIPT}" romm-api "${api_version}"
+  publish_frontend romm-cli &
+  frontend_pids+=("$!")
+fi
+
+if [ "${#frontend_pids[@]}" -gt 0 ]; then
+  fail=0
+  for pid in "${frontend_pids[@]}"; do
+    wait "${pid}" || fail=1
+  done
+  if [ "${fail}" -ne 0 ]; then
+    exit 1
   fi
-  "${PUBLISH_SCRIPT}" romm-cli
 fi
 
 if ! should_publish romm-api && ! should_publish romm-tui && ! should_publish romm-cli; then

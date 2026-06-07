@@ -33,7 +33,7 @@ Rejected alternatives: full `release-plz` migration (tooling churn), `cargo-work
 
 ## Publish orchestration
 
-crates.io publish runs in a single ordered job chained off Release Please (`romm-api` → `romm-tui` → `romm-cli`), avoiding races when multiple component tags are created from one release PR merge. GitHub binary builds remain in `release-artifacts.yml` (per-tag, binaries only).
+crates.io publish runs in a single job chained off Release Please: `romm-api` first, then `romm-tui` and `romm-cli` in parallel (no cross-dependency between frontends). This avoids races when multiple component tags are created from one release PR merge. GitHub binary builds remain in `release-artifacts.yml` (per-tag, binaries only).
 
 Shared scripts: `tools/publish-workspace.sh`, `tools/publish-crate.sh`, `tools/wait-for-crates-io.sh`. Diverged version combinations are tracked in `docs/compatibility.toml` and validated by `tools/release-check.sh`.
 
