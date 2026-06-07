@@ -225,4 +225,19 @@ jobs:
       - name: Verify crates.io package
         run: cargo publish -p ${{ needs.resolve-tag.outputs.crate }} --dry-run
       - name: Publish to crates.io
-        run: cargo publish -p ${{ needs.resolve-tag.outputs.crate }} --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        shell: bash
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          CRATE: ${{ needs.resolve-tag.outputs.crate }}
+        run: |
+          set +e
+          output="$(cargo publish -p "${CRATE}" 2>&1)"
+          status=$?
+          echo "${output}"
+          if [ "${status}" -ne 0 ]; then
+            if echo "${output}" | grep -q "already exists on crates.io index"; then
+              echo "::notice::${CRATE} version already published; treating as success (idempotent re-run)."
+              exit 0
+            fi
+            exit "${status}"
+          fi

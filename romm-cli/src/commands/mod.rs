@@ -82,19 +82,6 @@ pub enum Commands {
     /// Create or update user configuration.
     #[command(visible_alias = "setup")]
     Init(init::InitCommand),
-    /// Launch the interactive Terminal User Interface (TUI).
-    #[cfg(feature = "tui")]
-    Tui {
-        /// Force show a fake update prompt for UI testing.
-        #[arg(long)]
-        mock_update: bool,
-    },
-    /// Launch the interactive TUI (stub for disabled feature).
-    #[cfg(not(feature = "tui"))]
-    Tui {
-        #[arg(long)]
-        mock_update: bool,
-    },
     /// Low-level access to any RomM API endpoint.
     #[command(visible_alias = "call")]
     Api(api::ApiCommand),
@@ -135,12 +122,6 @@ pub async fn run(cli: Cli, config: Config) -> Result<(), RommError> {
         Commands::Init(_) => Err(RommError::Other(
             "internal error: init must be handled before load_config".into(),
         )),
-        #[cfg(feature = "tui")]
-        Commands::Tui { .. } => Err(RommError::Other(
-            "internal error: TUI must be started via run_interactive from main".into(),
-        )),
-        #[cfg(not(feature = "tui"))]
-        Commands::Tui { .. } => Err(RommError::Other("this feature requires the tui".into())),
         command => crate::frontend::cli::run(command, &client, cli.json, cli.verbose).await,
     }
 }

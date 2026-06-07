@@ -30,7 +30,6 @@ Register-ArgumentCompleter -Native -CommandName 'romm-cli' -ScriptBlock {
             [CompletionResult]::new('--version', '--version', [CompletionResultType]::ParameterName, 'Print version')
             [CompletionResult]::new('init', 'init', [CompletionResultType]::ParameterValue, 'Create or update user configuration')
             [CompletionResult]::new('setup', 'setup', [CompletionResultType]::ParameterValue, 'Create or update user configuration')
-            [CompletionResult]::new('tui', 'tui', [CompletionResultType]::ParameterValue, 'Launch the interactive Terminal User Interface (TUI)')
             [CompletionResult]::new('api', 'api', [CompletionResultType]::ParameterValue, 'Low-level access to any RomM API endpoint')
             [CompletionResult]::new('call', 'call', [CompletionResultType]::ParameterValue, 'Low-level access to any RomM API endpoint')
             [CompletionResult]::new('platforms', 'platforms', [CompletionResultType]::ParameterValue, 'Manage gaming platforms')
@@ -77,15 +76,6 @@ Register-ArgumentCompleter -Native -CommandName 'romm-cli' -ScriptBlock {
             [CompletionResult]::new('--print-path', '--print-path', [CompletionResultType]::ParameterName, 'Print the path to the user config `config.json` and exit')
             [CompletionResult]::new('--no-https', '--no-https', [CompletionResultType]::ParameterName, 'Disable HTTPS (use HTTP instead)')
             [CompletionResult]::new('--check', '--check', [CompletionResultType]::ParameterName, 'Verify URL and token by fetching OpenAPI after saving')
-            [CompletionResult]::new('-v', '-v', [CompletionResultType]::ParameterName, 'Increase output verbosity (logs requests to stderr)')
-            [CompletionResult]::new('--verbose', '--verbose', [CompletionResultType]::ParameterName, 'Increase output verbosity (logs requests to stderr)')
-            [CompletionResult]::new('--json', '--json', [CompletionResultType]::ParameterName, 'Output JSON instead of human-readable text where supported')
-            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help')
-            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help')
-            break
-        }
-        'romm-cli;tui' {
-            [CompletionResult]::new('--mock-update', '--mock-update', [CompletionResultType]::ParameterName, 'Force show a fake update prompt for UI testing')
             [CompletionResult]::new('-v', '-v', [CompletionResultType]::ParameterName, 'Increase output verbosity (logs requests to stderr)')
             [CompletionResult]::new('--verbose', '--verbose', [CompletionResultType]::ParameterName, 'Increase output verbosity (logs requests to stderr)')
             [CompletionResult]::new('--json', '--json', [CompletionResultType]::ParameterName, 'Output JSON instead of human-readable text where supported')
@@ -1917,7 +1907,6 @@ Register-ArgumentCompleter -Native -CommandName 'romm-cli' -ScriptBlock {
         }
         'romm-cli;help' {
             [CompletionResult]::new('init', 'init', [CompletionResultType]::ParameterValue, 'Create or update user configuration')
-            [CompletionResult]::new('tui', 'tui', [CompletionResultType]::ParameterValue, 'Launch the interactive Terminal User Interface (TUI)')
             [CompletionResult]::new('api', 'api', [CompletionResultType]::ParameterValue, 'Low-level access to any RomM API endpoint')
             [CompletionResult]::new('platforms', 'platforms', [CompletionResultType]::ParameterValue, 'Manage gaming platforms')
             [CompletionResult]::new('roms', 'roms', [CompletionResultType]::ParameterValue, 'Manage ROM files and metadata')
@@ -1932,9 +1921,6 @@ Register-ArgumentCompleter -Native -CommandName 'romm-cli' -ScriptBlock {
             break
         }
         'romm-cli;help;init' {
-            break
-        }
-        'romm-cli;help;tui' {
             break
         }
         'romm-cli;help;api' {

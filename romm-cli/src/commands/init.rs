@@ -336,7 +336,7 @@ pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
 
     println!("Wrote {}", path.display());
     println!("Secrets are stored in the OS keyring when available (see file comments if plaintext fallback was used).");
-    println!("You can run `romm-cli tui` or `romm-tui` to start the TUI.");
+    println!("Install the `romm-tui` crate and run `romm-tui` to start the TUI.");
     Ok(())
 }
 

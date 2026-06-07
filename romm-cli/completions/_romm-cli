@@ -65,16 +65,6 @@ _arguments "${_arguments_options[@]}" : \
 '--help[Print help]' \
 && ret=0
 ;;
-(tui)
-_arguments "${_arguments_options[@]}" : \
-'--mock-update[Force show a fake update prompt for UI testing]' \
-'-v[Increase output verbosity (logs requests to stderr)]' \
-'--verbose[Increase output verbosity (logs requests to stderr)]' \
-'--json[Output JSON instead of human-readable text where supported]' \
-'-h[Print help]' \
-'--help[Print help]' \
-&& ret=0
-;;
 (api)
 _arguments "${_arguments_options[@]}" : \
 '*--query=[Query parameters as key=value, repeatable]:QUERY:_default' \
@@ -2462,10 +2452,6 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
-(tui)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
 (api)
 _arguments "${_arguments_options[@]}" : \
 ":: :_romm-cli__subcmd__help__subcmd__api_commands" \
@@ -2772,7 +2758,6 @@ _romm-cli_commands() {
     local commands; commands=(
 'init:Create or update user configuration' \
 'setup:Create or update user configuration' \
-'tui:Launch the interactive Terminal User Interface (TUI)' \
 'api:Low-level access to any RomM API endpoint' \
 'call:Low-level access to any RomM API endpoint' \
 'platforms:Manage gaming platforms' \
@@ -3013,7 +2998,6 @@ _romm-cli__subcmd__download__subcmd__help__subcmd__help_commands() {
 _romm-cli__subcmd__help_commands() {
     local commands; commands=(
 'init:Create or update user configuration' \
-'tui:Launch the interactive Terminal User Interface (TUI)' \
 'api:Low-level access to any RomM API endpoint' \
 'platforms:Manage gaming platforms' \
 'roms:Manage ROM files and metadata' \
@@ -3301,11 +3285,6 @@ _romm-cli__subcmd__help__subcmd__sync__subcmd__sessions__subcmd__get_commands() 
 _romm-cli__subcmd__help__subcmd__sync__subcmd__sessions__subcmd__list_commands() {
     local commands; commands=()
     _describe -t commands 'romm-cli help sync sessions list commands' commands "$@"
-}
-(( $+functions[_romm-cli__subcmd__help__subcmd__tui_commands] )) ||
-_romm-cli__subcmd__help__subcmd__tui_commands() {
-    local commands; commands=()
-    _describe -t commands 'romm-cli help tui commands' commands "$@"
 }
 (( $+functions[_romm-cli__subcmd__help__subcmd__update_commands] )) ||
 _romm-cli__subcmd__help__subcmd__update_commands() {
@@ -3730,11 +3709,6 @@ _romm-cli__subcmd__sync__subcmd__sessions__subcmd__help__subcmd__list_commands()
 _romm-cli__subcmd__sync__subcmd__sessions__subcmd__list_commands() {
     local commands; commands=()
     _describe -t commands 'romm-cli sync sessions list commands' commands "$@"
-}
-(( $+functions[_romm-cli__subcmd__tui_commands] )) ||
-_romm-cli__subcmd__tui_commands() {
-    local commands; commands=()
-    _describe -t commands 'romm-cli tui commands' commands "$@"
 }
 (( $+functions[_romm-cli__subcmd__update_commands] )) ||
 _romm-cli__subcmd__update_commands() {

@@ -9,7 +9,6 @@ license = "MIT"
 
 [workspace.dependencies]
 romm-api = { path = "romm-api", version = "0.40" }
-romm-tui = { path = "romm-tui", version = "0.40" }
 
 [profile.release]
 strip = true

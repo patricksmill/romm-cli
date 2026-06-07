@@ -27,7 +27,6 @@ set edit:completion:arg-completer[romm-cli] = {|@words|
             cand --version 'Print version'
             cand init 'Create or update user configuration'
             cand setup 'Create or update user configuration'
-            cand tui 'Launch the interactive Terminal User Interface (TUI)'
             cand api 'Low-level access to any RomM API endpoint'
             cand call 'Low-level access to any RomM API endpoint'
             cand platforms 'Manage gaming platforms'
@@ -72,14 +71,6 @@ set edit:completion:arg-completer[romm-cli] = {|@words|
             cand --print-path 'Print the path to the user config `config.json` and exit'
             cand --no-https 'Disable HTTPS (use HTTP instead)'
             cand --check 'Verify URL and token by fetching OpenAPI after saving'
-            cand -v 'Increase output verbosity (logs requests to stderr)'
-            cand --verbose 'Increase output verbosity (logs requests to stderr)'
-            cand --json 'Output JSON instead of human-readable text where supported'
-            cand -h 'Print help'
-            cand --help 'Print help'
-        }
-        &'romm-cli;tui'= {
-            cand --mock-update 'Force show a fake update prompt for UI testing'
             cand -v 'Increase output verbosity (logs requests to stderr)'
             cand --verbose 'Increase output verbosity (logs requests to stderr)'
             cand --json 'Output JSON instead of human-readable text where supported'
@@ -1692,7 +1683,6 @@ set edit:completion:arg-completer[romm-cli] = {|@words|
         }
         &'romm-cli;help'= {
             cand init 'Create or update user configuration'
-            cand tui 'Launch the interactive Terminal User Interface (TUI)'
             cand api 'Low-level access to any RomM API endpoint'
             cand platforms 'Manage gaming platforms'
             cand roms 'Manage ROM files and metadata'
@@ -1706,8 +1696,6 @@ set edit:completion:arg-completer[romm-cli] = {|@words|
             cand help 'Print this message or the help of the given subcommand(s)'
         }
         &'romm-cli;help;init'= {
-        }
-        &'romm-cli;help;tui'= {
         }
         &'romm-cli;help;api'= {
             cand call 'Make a generic API call'

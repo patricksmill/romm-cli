@@ -36,33 +36,16 @@ async fn run_app(cli: Cli) -> Result<(), RommError> {
 
     let filter = EnvFilter::from_default_env();
 
-    #[cfg(feature = "tui")]
-    let is_tui = matches!(command, Commands::Tui { .. });
-    #[cfg(not(feature = "tui"))]
-    let is_tui = false;
-
-    if !is_tui {
-        fmt()
-            .with_env_filter(filter.clone())
-            .with_writer(std::io::stderr)
-            .init();
-    }
+    fmt()
+        .with_env_filter(filter)
+        .with_writer(std::io::stderr)
+        .init();
 
     maybe_prompt_for_startup_update(&command).await?;
 
     match command {
         Commands::Completions(cmd) => completions::handle(cmd),
         Commands::Init(cmd) => map_anyhow(init::handle(cmd, verbose).await),
-        #[cfg(feature = "tui")]
-        Commands::Tui { mock_update } => {
-            if verbose {
-                fmt()
-                    .with_env_filter(filter)
-                    .with_writer(std::io::stderr)
-                    .init();
-            }
-            map_anyhow(romm_cli::frontend::tui::run_interactive(verbose, mock_update).await)
-        }
         command => {
             if !command_requires_config(&command) {
                 let dummy_config = romm_cli::config::Config {
@@ -106,11 +89,8 @@ fn is_interactive_terminal() -> bool {
 }
 
 fn should_skip_startup_update_check(command: &Commands) -> bool {
-    // Skip for `update` (redundant) and `tui` (has its own graphical update prompt).
-    matches!(
-        command,
-        Commands::Update | Commands::Tui { .. } | Commands::Completions(_)
-    )
+    // Skip for `update` (redundant).
+    matches!(command, Commands::Update | Commands::Completions(_))
 }
 
 fn read_update_choice() -> Result<String, RommError> {
@@ -199,6 +179,6 @@ fn command_requires_config(command: &Commands) -> bool {
         Commands::Cache(_) | Commands::Auth(_) | Commands::Update | Commands::Completions(_) => {
             false
         }
-        Commands::Init(_) | Commands::Tui { .. } => false,
+        Commands::Init(_) => false,
     }
 }

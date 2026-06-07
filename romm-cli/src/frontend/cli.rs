@@ -54,9 +54,6 @@ pub async fn run(
         Commands::Init(_) => Err(RommError::Other(
             "internal routing error: init command in CLI frontend".into(),
         )),
-        Commands::Tui { .. } => Err(RommError::Other(
-            "internal routing error: TUI command in CLI frontend".into(),
-        )),
         Commands::Update => {
             let presentation = CliPresentation::from_cli(global_json, false, verbose);
             let interrupt = InterruptContext::new();

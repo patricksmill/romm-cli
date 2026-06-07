@@ -76,9 +76,6 @@ _romm-cli() {
             romm__cli,sync)
                 cmd="romm__cli__subcmd__sync"
                 ;;
-            romm__cli,tui)
-                cmd="romm__cli__subcmd__tui"
-                ;;
             romm__cli,update)
                 cmd="romm__cli__subcmd__update"
                 ;;
@@ -207,9 +204,6 @@ _romm-cli() {
                 ;;
             romm__cli__subcmd__help,sync)
                 cmd="romm__cli__subcmd__help__subcmd__sync"
-                ;;
-            romm__cli__subcmd__help,tui)
-                cmd="romm__cli__subcmd__help__subcmd__tui"
                 ;;
             romm__cli__subcmd__help,update)
                 cmd="romm__cli__subcmd__help__subcmd__update"
@@ -527,7 +521,7 @@ _romm-cli() {
 
     case "${cmd}" in
         romm__cli)
-            opts="-v -h -V --verbose --json --help --version init setup tui api call platforms platform p plats roms rom r scan sync download dl get cache auth update completions help"
+            opts="-v -h -V --verbose --json --help --version init setup api call platforms platform p plats roms rom r scan sync download dl get cache auth update completions help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 1 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1167,7 +1161,7 @@ _romm-cli() {
             return 0
             ;;
         romm__subcmd__cli__subcmd__help)
-            opts="init tui api platforms roms scan sync download cache auth update completions help"
+            opts="init api platforms roms scan sync download cache auth update completions help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1813,20 +1807,6 @@ _romm-cli() {
         romm__subcmd__cli__subcmd__help__subcmd__sync__subcmd__sessions__subcmd__list)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 5 ]] ; then
-                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-                return 0
-            fi
-            case "${prev}" in
-                *)
-                    COMPREPLY=()
-                    ;;
-            esac
-            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-            return 0
-            ;;
-        romm__subcmd__cli__subcmd__help__subcmd__tui)
-            opts=""
-            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
@@ -3177,20 +3157,6 @@ _romm-cli() {
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
-                *)
-                    COMPREPLY=()
-                    ;;
-            esac
-            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-            return 0
-            ;;
-        romm__subcmd__cli__subcmd__tui)
-            opts="-v -h --mock-update --verbose --json --help"
-            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
-                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-                return 0
-            fi
-            case "${prev}" in
                 *)
                     COMPREPLY=()
                     ;;

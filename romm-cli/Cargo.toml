@@ -12,7 +12,6 @@ build = "build.rs"
 
 [dependencies]
 romm-api = { workspace = true }
-romm-tui = { workspace = true, optional = true }
 reqwest = { version = "0.13", default-features = false, features = ["json", "multipart", "query", "rustls", "http2"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -29,10 +28,6 @@ dirs = "6.0"
 zip = "8.5.1"
 md5 = "0.8"
 time = { version = "0.3", features = ["formatting"] }
-
-[features]
-default = ["tui"]
-tui = ["dep:romm-tui"]
 
 [[bin]]
 name = "romm-cli"
