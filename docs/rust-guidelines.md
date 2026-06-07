@@ -159,7 +159,7 @@ pub enum ApiError {
 
 ### Gap 4: Workspace split
 
-**Current state:** **Workspace split complete** (2026-06-06). Three members: `romm-api`, `romm-cli`, `romm-tui`. Trigger: Android frontend prep ([workspace-split ADR](plans/2026-06-06-workspace-split-adr.md), [Android design](plans/2026-06-06-android-frontend-design.md)). `romm-cli` re-exports `romm_api` for crates.io consumers; new embedders should depend on `romm-api` directly.
+**Current state:** **Workspace split complete** (2026-06-06). Three members: `romm-api`, `romm-cli`, `romm-tui`. Trigger: Android frontend prep ([workspace-split ADR](plans/2026-06-06-workspace-split-adr.md); implementation in [romm-rust-android](https://github.com/patricksmill/romm-rust-android)). `romm-cli` re-exports `romm_api` for crates.io consumers; new embedders should depend on `romm-api` directly.
 
 ```text
 romm-cli/          # workspace root
@@ -169,7 +169,7 @@ romm-cli/          # workspace root
 ```
 
 - `romm-openapi-gen` bin lives in `romm-api`; `romm-complete-gen` in `romm-cli`.
-- Next phase: UniFFI on `romm-api` for Android browse-only FFI.
+- Android UniFFI: `romm-rust-android/ffi/` depending on `romm-api` from crates.io.
 
 **Acceptance criteria:**
 

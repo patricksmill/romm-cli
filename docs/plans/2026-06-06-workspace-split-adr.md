@@ -5,7 +5,7 @@
 
 ## Maintainer decision
 
-The project is a **Cargo workspace** with three members: `romm-api`, `romm-cli`, and `romm-tui`. The split was executed to prepare for an Android browse-only client (Kotlin/Compose + UniFFI over `romm-api`). See [Android frontend design](./2026-06-06-android-frontend-design.md).
+The project is a **Cargo workspace** with three members: `romm-api`, `romm-cli`, and `romm-tui`. The split was executed to prepare for an Android browse-only client (Kotlin/Compose + UniFFI over `romm-api`). Android development lives in [**romm-rust-android**](https://github.com/patricksmill/romm-rust-android).
 
 ## Trigger
 
@@ -28,7 +28,7 @@ romm-cli/          # workspace root
 
 - `romm-cli` re-exports `romm_api` for crates.io backward compatibility.
 - `library_scan` core logic lives in `romm-api::core::library_scan` so TUI does not depend on `romm-cli`.
-- Android (`android/` Gradle project, UniFFI) is **next phase** — not in this split.
+- Android (Gradle + UniFFI) is **not in this repo** — see [romm-rust-android](https://github.com/patricksmill/romm-rust-android).
 
 ## Consequences
 
@@ -45,11 +45,11 @@ romm-cli/          # workspace root
 
 ## Revisit
 
-- When adding UniFFI: extend `romm-api` with a `uniffi` feature and browse-only FFI surface.
+- UniFFI for Android: implement in `romm-rust-android/ffi/`; optional `uniffi` feature on `romm-api` if shared types are needed.
 - Separate `romm-api` crates.io publish: optional; evaluate when Android ships.
 
 ## References
 
 - [rust-guidelines.md — Gap 4](../rust-guidelines.md)
-- [Android prep implementation plan](./2026-06-06-android-prep-implementation.md)
+- [romm-rust-android](https://github.com/patricksmill/romm-rust-android)
 - [CI workflow](../../.github/workflows/ci.yml)

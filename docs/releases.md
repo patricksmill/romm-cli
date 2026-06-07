@@ -154,6 +154,6 @@ When versions diverge, record combinations in [`docs/compatibility.toml`](compat
 
 One-time bootstrap for the 0.40.0 component era: `./tools/bootstrap-component-tags.sh 0.40.0 <commit-sha>`.
 
-## Android (future)
+## Android
 
-See [android-release.yml](../.github/workflows/android-release.yml) and [android frontend design](plans/2026-06-06-android-frontend-design.md).
+The Android client is developed in [**romm-rust-android**](https://github.com/patricksmill/romm-rust-android) (sibling repo). It consumes `romm-api` from crates.io; releases and CI are independent of this workspace.

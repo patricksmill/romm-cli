@@ -70,7 +70,7 @@ Root `CHANGELOG.md` is an index linking to per-crate changelogs.
 | Android app | Independent `versionName` / `versionCode` |
 | Coordination | App declares `minRommApiFfiVersion`; CI injects `rommApiVersion` at build time |
 
-Scaffold: `.github/workflows/android-release.yml` (`workflow_dispatch` only until `android/` exists).
+Android releases: [**romm-rust-android**](https://github.com/patricksmill/romm-rust-android) (separate repo and CI).
 
 ## Migration
 
