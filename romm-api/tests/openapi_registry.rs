@@ -1,4 +1,4 @@
-use romm_cli::openapi::EndpointRegistry;
+use romm_api::openapi::EndpointRegistry;
 
 #[test]
 fn fixture_path_item_registers_get_with_merged_path_param() {

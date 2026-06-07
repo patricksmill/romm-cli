@@ -3,10 +3,10 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use crate::commands::library_scan::ScanCacheInvalidate;
-use crate::core::cache::RomCacheKey;
-use crate::core::startup_library_snapshot;
-use crate::types::SaveMetadata;
+use romm_api::core::cache::RomCacheKey;
+use romm_api::core::library_scan::ScanCacheInvalidate;
+use romm_api::core::startup_library_snapshot;
+use romm_api::types::SaveMetadata;
 
 use super::super::event::{AppEvent, BackgroundAction};
 use super::super::AppScreen;
@@ -79,9 +79,8 @@ impl super::super::App {
         let client = self.client.clone();
         tokio::spawn(async move {
             let result = async {
-                let start =
-                    crate::commands::library_scan::start_scan_library(&client, None).await?;
-                crate::commands::library_scan::wait_for_task_terminal(
+                let start = romm_api::core::library_scan::start_scan_library(&client, None).await?;
+                romm_api::core::library_scan::wait_for_task_terminal(
                     &client,
                     &start.task_id,
                     Duration::from_secs(3600),

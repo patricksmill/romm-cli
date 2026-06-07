@@ -7,7 +7,7 @@ use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph};
 use ratatui::Frame;
 use ratatui_themekit::{available_theme_ids, resolve_theme, Theme};
 
-use crate::config::{default_theme_id, DEFAULT_THEME_ID};
+use romm_api::config::{default_theme_id, DEFAULT_THEME_ID};
 
 /// Status message severity for themed TUI feedback.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

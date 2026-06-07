@@ -1,5 +1,5 @@
-use crate::core::utils::truncate;
-use crate::types::{Platform, RomList};
+use romm_api::core::utils::truncate;
+use romm_api::types::{Platform, RomList};
 
 /// Print a simple table of platforms with aligned columns.
 pub fn print_platforms_table(platforms: &[Platform]) {

@@ -2,9 +2,9 @@ use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::widgets::{Cell, Paragraph, Row, Table};
 use ratatui::Frame;
 
-use crate::core::utils::{self, RomGroup};
 use crate::tui::theme::RommStyles;
-use crate::types::{Rom, RomList};
+use romm_api::core::utils::{self, RomGroup};
+use romm_api::types::{Rom, RomList};
 
 /// Full-text search screen over ROMs, with grouped results.
 pub struct SearchScreen {
@@ -243,7 +243,7 @@ impl SearchScreen {
 #[cfg(test)]
 mod tests {
     use super::SearchScreen;
-    use crate::types::RomList;
+    use romm_api::types::RomList;
 
     fn empty_list() -> RomList {
         RomList {

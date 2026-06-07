@@ -6,7 +6,7 @@ use indicatif::{MultiProgress, ProgressDrawTarget, ProgressStyle};
 use serde::Serialize;
 
 use crate::commands::OutputFormat;
-use crate::error::{user_message, RommError};
+use romm_api::error::{user_message, RommError};
 
 /// Resolved CLI output mode for a single command invocation.
 #[derive(Clone, Copy, Debug)]

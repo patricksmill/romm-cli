@@ -3,9 +3,9 @@
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
 
-use crate::config::normalize_romm_origin;
-use crate::core::download::validate_configured_download_directory;
 use crate::tui::path_picker::PathPickerEvent;
+use romm_api::config::normalize_romm_origin;
+use romm_api::core::download::validate_configured_download_directory;
 
 use super::types::{AuthKind, SetupWizard, Step};
 

@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
-use crate::endpoints::device::DeviceSchema;
-use crate::feature_compat::SaveSyncCompatibility;
 use crate::tui::path_picker::PathPicker;
 use crate::tui::theme::MessageTone;
-use crate::types::Platform;
+use romm_api::endpoints::device::DeviceSchema;
+use romm_api::feature_compat::SaveSyncCompatibility;
+use romm_api::types::Platform;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SettingsTab {

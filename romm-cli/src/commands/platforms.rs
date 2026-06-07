@@ -2,10 +2,10 @@ use anyhow::Result;
 use clap::{Args, Subcommand};
 
 use crate::cli_presentation::CliPresentation;
-use crate::client::RommClient;
 use crate::commands::print::print_platforms_table;
 use crate::commands::OutputFormat;
-use crate::endpoints::platforms::{GetPlatform, ListPlatforms};
+use romm_api::client::RommClient;
+use romm_api::endpoints::platforms::{GetPlatform, ListPlatforms};
 
 /// CLI entrypoint for platform-related operations.
 #[derive(Args, Debug)]

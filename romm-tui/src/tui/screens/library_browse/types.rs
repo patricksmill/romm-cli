@@ -1,6 +1,6 @@
-use crate::core::utils::RomGroup;
 use crate::tui::path_picker::{PathPicker, PathPickerMode};
-use crate::types::{Collection, Platform, RomList};
+use romm_api::core::utils::RomGroup;
+use romm_api::types::{Collection, Platform, RomList};
 
 /// File path picker for TUI upload (single ROM file).
 #[derive(Debug)]
@@ -35,7 +35,7 @@ pub enum LibraryViewMode {
     Roms,
 }
 
-pub use crate::config::{
+pub use romm_api::config::{
     LIBRARY_LEFT_PANEL_PERCENT_DEFAULT as LEFT_PANEL_PERCENT_DEFAULT,
     LIBRARY_LEFT_PANEL_PERCENT_MAX as LEFT_PANEL_PERCENT_MAX,
     LIBRARY_LEFT_PANEL_PERCENT_MIN as LEFT_PANEL_PERCENT_MIN,

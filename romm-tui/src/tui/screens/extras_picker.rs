@@ -10,15 +10,15 @@ use ratatui::widgets::{List, ListItem, ListState, Paragraph};
 use ratatui::Frame;
 use std::time::Instant;
 
-use crate::config::ExtrasDefaults;
-use crate::config::RomsLayoutConfig;
-use crate::core::download::resolve_download_directory;
-use crate::core::extras::{
+use crate::tui::theme::RommStyles;
+use romm_api::config::ExtrasDefaults;
+use romm_api::config::RomsLayoutConfig;
+use romm_api::core::download::resolve_download_directory;
+use romm_api::core::extras::{
     build_cover_target, build_manual_target, build_update_dlc_file_targets_for_rom,
     collect_update_dlc_files, extras_root_dir, related_rom_download_target, DownloadTarget,
 };
-use crate::tui::theme::RommStyles;
-use crate::types::{Rom, RomFile};
+use romm_api::types::{Rom, RomFile};
 
 use super::game_detail::GameDetailScreen;
 
@@ -65,8 +65,8 @@ impl ExtrasPickerScreen {
 
         for file in collect_update_dlc_files(&rom) {
             let tag = match file.category {
-                Some(crate::types::RomFileCategory::Update) => "Update",
-                Some(crate::types::RomFileCategory::Dlc) => "DLC",
+                Some(romm_api::types::RomFileCategory::Update) => "Update",
+                Some(romm_api::types::RomFileCategory::Dlc) => "DLC",
                 _ => "ROM file",
             };
             items.push(ExtrasPickerItem {
@@ -284,11 +284,11 @@ impl ExtrasPickerScreen {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::download::DownloadJob;
     use crate::tui::screens::game_detail::{
         GameDetailPrevious, GameDetailScreen, COVER_PANEL_WIDTH_DEFAULT,
     };
     use crate::tui::screens::SearchScreen;
+    use romm_api::core::download::DownloadJob;
     use std::path::PathBuf;
     use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -454,7 +454,7 @@ mod tests {
         assert_eq!(targets.len(), 1);
         assert!(matches!(
             targets[0].kind,
-            crate::core::extras::DownloadAssetKind::Cover
+            romm_api::core::extras::DownloadAssetKind::Cover
         ));
         drop(env);
         let _ = std::fs::remove_dir_all(dir);

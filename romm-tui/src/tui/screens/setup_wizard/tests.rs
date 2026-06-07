@@ -4,10 +4,10 @@ use std::path::PathBuf;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-use crate::config::{default_theme_id, normalize_romm_origin, AuthConfig};
-use crate::core::download::validate_configured_download_directory;
 use crate::tui::path_picker::{PathPicker, PathPickerMode};
 use crate::tui::theme::{resolve_theme_or_default, RommStyles};
+use romm_api::config::{default_theme_id, normalize_romm_origin, AuthConfig};
+use romm_api::core::download::validate_configured_download_directory;
 
 use super::types::{AuthKind, Step};
 use super::SetupWizard;

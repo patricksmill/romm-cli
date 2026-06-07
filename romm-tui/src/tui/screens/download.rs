@@ -3,14 +3,14 @@ use ratatui::widgets::{Gauge, Paragraph};
 use ratatui::Frame;
 use std::sync::{Arc, Mutex};
 
-use crate::core::download::{DownloadJob, DownloadStatus, ExtrasJob, ExtrasJobStatus};
 use crate::tui::theme::RommStyles;
 use crate::tui::utils::truncate;
+use romm_api::core::download::{DownloadJob, DownloadStatus, ExtrasJob, ExtrasJobStatus};
 
 /// Overlay screen listing active and completed downloads.
 ///
 /// This screen is read-only; it observes `DownloadJob`s and composite `ExtrasJob`s from
-/// [`DownloadManager`](crate::core::download::DownloadManager).
+/// [`DownloadManager`](romm_api::core::download::DownloadManager).
 pub struct DownloadScreen {
     pub downloads: Arc<Mutex<Vec<DownloadJob>>>,
     pub extras_jobs: Arc<Mutex<Vec<ExtrasJob>>>,

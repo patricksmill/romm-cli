@@ -1,30 +1,30 @@
 use crate::cli_presentation::{format_command_error, CliPresentation};
-use crate::error::{DownloadError, RommError};
 use clap::{Args, Subcommand, ValueEnum};
 use dialoguer::Confirm;
 use indicatif::ProgressBar;
+use romm_api::error::{DownloadError, RommError};
 use serde::Serialize;
 use std::io::{self, IsTerminal};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
 
-use crate::client::RommClient;
-use crate::config::{load_config, RomsLayoutConfig};
-use crate::core::download::{
+use romm_api::client::RommClient;
+use romm_api::config::{load_config, RomsLayoutConfig};
+use romm_api::core::download::{
     extract_zip_archive, prepare_download_target_destination, resolve_console_roms_dir,
     resolve_download_directory, unique_zip_path,
 };
-use crate::core::extras::{
+use romm_api::core::extras::{
     build_base_rom_file_targets, build_extras_targets, build_update_dlc_targets_for_rom,
     DownloadTarget,
 };
-use crate::core::interrupt::{
+use romm_api::core::interrupt::{
     cancelled_download_error, is_cancelled_download, is_cancelled_error, InterruptContext,
 };
-use crate::core::resolve::resolve_platform_id;
-use crate::core::utils;
-use crate::endpoints::roms::{GetRom, GetRoms};
+use romm_api::core::resolve::resolve_platform_id;
+use romm_api::core::utils;
+use romm_api::endpoints::roms::{GetRom, GetRoms};
 /// Maximum number of concurrent download connections.
 const DEFAULT_CONCURRENCY: usize = 4;
 
@@ -215,7 +215,7 @@ async fn download_target(
 }
 
 fn candidate_download_urls(target: &DownloadTarget) -> Vec<String> {
-    if target.kind != crate::core::extras::DownloadAssetKind::RomFile {
+    if target.kind != romm_api::core::extras::DownloadAssetKind::RomFile {
         return vec![target.source_url.clone()];
     }
     let mut out = vec![target.source_url.clone()];
@@ -690,11 +690,11 @@ fn extraction_target_dir(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::resolve::resolve_platform_id_from_list;
     use clap::Parser;
+    use romm_api::core::resolve::resolve_platform_id_from_list;
 
     use crate::commands::{Cli, Commands};
-    use crate::types::{Firmware, Platform};
+    use romm_api::types::{Firmware, Platform};
 
     #[test]
     fn parse_download_batch_with_extract_flags() {
@@ -806,7 +806,7 @@ mod tests {
     #[test]
     fn rom_file_download_candidates_use_official_romsfiles_endpoint() {
         let target = DownloadTarget {
-            kind: crate::core::extras::DownloadAssetKind::RomFile,
+            kind: romm_api::core::extras::DownloadAssetKind::RomFile,
             title: "DLC".into(),
             source_url: "/api/roms/12/files/content/dlc%2Ensp".into(),
             source_query: Vec::new(),

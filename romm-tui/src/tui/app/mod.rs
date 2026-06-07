@@ -22,14 +22,14 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use std::collections::{HashSet, VecDeque};
 
-use crate::client::RommClient;
-use crate::commands::library_scan::ScanCacheInvalidate;
-use crate::config::Config;
-use crate::core::cache::{RomCache, RomCacheKey};
-use crate::core::download::DownloadManager;
-use crate::endpoints::roms::GetRoms;
-use crate::feature_compat::SaveSyncCompatibility;
-use crate::update::UpdateStatus;
+use romm_api::client::RommClient;
+use romm_api::config::Config;
+use romm_api::core::cache::{RomCache, RomCacheKey};
+use romm_api::core::download::DownloadManager;
+use romm_api::core::library_scan::ScanCacheInvalidate;
+use romm_api::endpoints::roms::GetRoms;
+use romm_api::feature_compat::SaveSyncCompatibility;
+use romm_api::update::UpdateStatus;
 
 use super::screens::connected_splash::StartupSplash;
 use super::screens::{
@@ -279,8 +279,8 @@ impl App {
             theme,
         }
     }
-    pub fn set_error(&mut self, err: crate::error::RommError) {
-        self.global_error = Some(crate::error::user_message(&err));
+    pub fn set_error(&mut self, err: romm_api::error::RommError) {
+        self.global_error = Some(romm_api::error::user_message(&err));
     }
 
     /// Reapply the theme from persisted in-memory config (discards unsaved preview).
@@ -289,7 +289,7 @@ impl App {
     }
 
     pub(in crate::tui::app) fn persist_tui_layout(&self) {
-        if let Err(e) = crate::config::persist_user_config(&self.config) {
+        if let Err(e) = romm_api::config::persist_user_config(&self.config) {
             tracing::warn!("failed to persist TUI panel layout: {e:#}");
         }
     }

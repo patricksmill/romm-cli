@@ -8,18 +8,18 @@ use indicatif::ProgressBar;
 use serde_json::json;
 
 use crate::cli_presentation::CliPresentation;
-use crate::client::RommClient;
 use crate::commands::library_scan::{
     run_scan_library_flow, ScanCacheInvalidate, ScanLibraryOptions,
 };
 use crate::commands::print::print_roms_table;
 use crate::commands::OutputFormat;
-use crate::core::resolve::{
+use romm_api::client::RommClient;
+use romm_api::core::resolve::{
     resolve_manual_collection_id, resolve_platform_id, resolve_platform_ids,
     resolve_smart_collection_id,
 };
-use crate::endpoints::roms::GetRom;
-use crate::endpoints::roms::{
+use romm_api::endpoints::roms::GetRom;
+use romm_api::endpoints::roms::{
     DeleteRomNote, DeleteRoms, GetRomByHash, GetRomByMetadataProvider, GetRomFilters, GetRomNotes,
     GetRoms, GetSearchCover, GetSearchRoms, PostRomNote, PutRomNote, PutRomUserProps,
 };

@@ -2,7 +2,7 @@ use std::process::Command;
 
 /// Truncate a string to `max` chars, appending "…" if trimmed.
 pub fn truncate(s: &str, max: usize) -> String {
-    crate::core::utils::truncate(s, max)
+    romm_api::core::utils::truncate(s, max)
 }
 
 // ---------------------------------------------------------------------------

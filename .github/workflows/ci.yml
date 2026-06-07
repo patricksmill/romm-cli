@@ -29,7 +29,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      - run: cargo clippy --all-targets --all-features -- -D warnings
+      - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
   clippy-cli-only:
     name: Clippy (CLI only)
@@ -40,7 +40,16 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      - run: cargo clippy --all-targets --no-default-features -- -D warnings
+      - run: cargo clippy --all-targets -p romm-cli --no-default-features -- -D warnings
+
+  test-romm-api:
+    name: Test romm-api
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test -p romm-api --all-targets
 
   test:
     name: Test (${{ matrix.os }})
@@ -53,7 +62,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: Swatinem/rust-cache@v2
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test --all-targets --all-features
+      - run: cargo test --workspace --all-targets --all-features
 
   test-cli-only:
     name: Test CLI only
@@ -62,7 +71,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: Swatinem/rust-cache@v2
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test --all-targets --no-default-features
+      - run: cargo test --all-targets -p romm-cli --no-default-features
 
   build:
     name: Build (${{ matrix.target || 'host' }})
@@ -93,7 +102,7 @@ jobs:
         if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
       - name: Build
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --workspace --release --target ${{ matrix.target }} --bins
 
   completions:
     name: Completions drift check
@@ -103,21 +112,23 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: dtolnay/rust-toolchain@stable
       - name: Regenerate completion scripts
+        working-directory: romm-cli
         run: |
           cargo build --bin romm-complete-gen
           cargo run --bin romm-complete-gen
       - name: Verify committed completions are up to date
         run: |
-          git diff --exit-code completions/ || {
-            echo "completions/ is out of date. Run 'cargo run --bin romm-complete-gen' and commit completions/."
+          git diff --exit-code romm-cli/completions/ || {
+            echo "romm-cli/completions/ is out of date. Run 'cargo run -p romm-cli --bin romm-complete-gen' and commit."
             exit 1
           }
 
   package-dry-run:
     name: Package dry-run
     runs-on: ubuntu-latest
-    needs: [fmt, clippy, clippy-cli-only, test, test-cli-only, build, completions]
+    needs: [fmt, clippy, clippy-cli-only, test-romm-api, test, test-cli-only, build, completions]
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo publish --dry-run
+      - run: cargo publish -p romm-api --dry-run
+      # romm-cli publish dry-run requires romm-api on crates.io (publish romm-api first on initial release).

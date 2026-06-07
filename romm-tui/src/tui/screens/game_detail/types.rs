@@ -4,10 +4,10 @@ use std::time::Instant;
 use ratatui_image::picker::ProtocolType;
 use ratatui_image::protocol::StatefulProtocol;
 
-use crate::core::download::DownloadJob;
 use crate::tui::path_picker::PathPicker;
 use crate::tui::screens::{LibraryBrowseScreen, SearchScreen};
-use crate::types::{Rom, SaveMetadata};
+use romm_api::core::download::DownloadJob;
+use romm_api::types::{Rom, SaveMetadata};
 
 /// Previous screen when opening game detail (so Esc can return).
 pub enum GameDetailPrevious {
@@ -38,7 +38,7 @@ pub enum SaveListState {
     Failed(String),
 }
 
-pub use crate::config::{
+pub use romm_api::config::{
     GAME_DETAIL_COVER_PANEL_WIDTH_DEFAULT as COVER_PANEL_WIDTH_DEFAULT,
     GAME_DETAIL_COVER_PANEL_WIDTH_MAX as COVER_PANEL_WIDTH_MAX,
     GAME_DETAIL_COVER_PANEL_WIDTH_MIN as COVER_PANEL_WIDTH_MIN,

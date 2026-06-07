@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
-use crate::config::{
+use crate::tui::path_picker::{PathPicker, PathPickerMode};
+use romm_api::config::{
     disk_has_unresolved_keyring_sentinel, Config, RomsLayoutConfig, SaveSyncConfig,
 };
-use crate::feature_compat::SaveSyncCompatibility;
-use crate::tui::path_picker::{PathPicker, PathPickerMode};
+use romm_api::feature_compat::SaveSyncCompatibility;
 
 use super::types::{
     ConsolePathKind, SettingsConfirm, SettingsPickerKind, SettingsRow, SettingsScreen, SettingsTab,
@@ -19,11 +19,11 @@ impl SettingsScreen {
         save_sync_compat: SaveSyncCompatibility,
     ) -> Self {
         let auth_status = match &config.auth {
-            Some(crate::config::AuthConfig::Basic { username, .. }) => {
+            Some(romm_api::config::AuthConfig::Basic { username, .. }) => {
                 format!("Basic (user: {})", username)
             }
-            Some(crate::config::AuthConfig::Bearer { .. }) => "API Token".to_string(),
-            Some(crate::config::AuthConfig::ApiKey { header, .. }) => {
+            Some(romm_api::config::AuthConfig::Bearer { .. }) => "API Token".to_string(),
+            Some(romm_api::config::AuthConfig::ApiKey { header, .. }) => {
                 format!("API key (header: {})", header)
             }
             None => {
@@ -43,7 +43,7 @@ impl SettingsScreen {
         Self {
             base_url: config.base_url.clone(),
             download_dir: config.download_dir.clone(),
-            save_dir: crate::config::resolved_save_dir(config)
+            save_dir: romm_api::config::resolved_save_dir(config)
                 .display()
                 .to_string(),
             sync_device_id: config.save_sync.device_id.clone(),
@@ -129,7 +129,7 @@ impl SettingsScreen {
         if self.save_platform_dirs != saved.save_sync.platform_dirs {
             return true;
         }
-        let saved_save_dir = crate::config::resolved_save_dir(saved)
+        let saved_save_dir = romm_api::config::resolved_save_dir(saved)
             .display()
             .to_string();
         self.save_dir != saved_save_dir

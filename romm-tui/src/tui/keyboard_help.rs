@@ -102,8 +102,8 @@ mod tests {
     use ratatui::layout::Rect;
     use ratatui::Terminal;
 
-    use crate::config::default_theme_id;
     use crate::tui::theme::{resolve_theme_or_default, RommStyles};
+    use romm_api::config::default_theme_id;
 
     use super::*;
 

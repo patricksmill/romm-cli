@@ -1,9 +1,9 @@
 use crate::cli_presentation::CliPresentation;
-use crate::error::{from_anyhow, RommError};
+use romm_api::error::{from_anyhow, RommError};
 
-use crate::client::RommClient;
 use crate::commands::{api, auth, cache, download, platforms, roms, scan, sync, Commands};
-use crate::core::interrupt::InterruptContext;
+use romm_api::client::RommClient;
+use romm_api::core::interrupt::InterruptContext;
 
 fn map_anyhow<T>(result: Result<T, anyhow::Error>) -> Result<T, RommError> {
     result.map_err(from_anyhow)

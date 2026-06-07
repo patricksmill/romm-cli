@@ -3,13 +3,13 @@
 use std::path::PathBuf;
 use std::time::Instant;
 
-use crate::core::cache::RomCacheKey;
-use crate::core::startup_library_snapshot;
-use crate::endpoints::device::DeviceSchema;
-use crate::endpoints::roms::GetRoms;
-use crate::endpoints::sync::SyncSessionSchema;
-use crate::types::{Collection, Platform, RomList, SaveMetadata};
-use crate::update::UpdateStatus;
+use romm_api::core::cache::RomCacheKey;
+use romm_api::core::startup_library_snapshot;
+use romm_api::endpoints::device::DeviceSchema;
+use romm_api::endpoints::roms::GetRoms;
+use romm_api::endpoints::sync::SyncSessionSchema;
+use romm_api::types::{Collection, Platform, RomList, SaveMetadata};
+use romm_api::update::UpdateStatus;
 
 /// Result of a background library metadata refresh (generation-guarded).
 #[derive(Debug)]

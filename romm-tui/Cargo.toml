@@ -1,0 +1,32 @@
+[package]
+name = "romm-tui"
+description = "Terminal UI for the RomM API"
+keywords = ["romm", "terminal", "tui", "emulator", "games"]
+categories = ["command-line-utilities", "emulators"]
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+romm-api = { workspace = true }
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "http2"] }
+anyhow = "1.0"
+tokio = { version = "1.37", features = ["macros", "rt-multi-thread", "fs", "io-util", "time", "signal"] }
+tracing = "0.1.44"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+ratatui = "0.30"
+ratatui-themekit = { version = "0.6", features = ["serde"] }
+crossterm = "0.29"
+unicode-normalization = "0.1"
+ratatui-image = { version = "11.0.2", default-features = false, features = ["crossterm", "image-defaults"] }
+image = "0.25.10"
+dirs = "6.0"
+
+[[bin]]
+name = "romm-tui"
+path = "src/bin/romm_tui.rs"
+
+[dev-dependencies]
+wiremock = "0.6.5"

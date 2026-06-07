@@ -35,25 +35,13 @@ Modern Rust CLI tools (ripgrep, bat, starship, uv-style) generally follow:
 
 ## Target architecture (API client + CLI + TUI)
 
-**Current layout** (single crate — maintained; see Gap 4 for why a workspace split is not planned):
+**Current layout** (workspace — split for Android prep; see Gap 4):
 
 ```text
-romm-cli/
-├── Cargo.toml          # lib + bins, optional `tui` feature
-├── src/
-│   ├── lib.rs          # public API surface
-│   ├── main.rs         # thin: parse → init → dispatch → exit code
-│   ├── commands/       # one module per subcommand
-│   ├── client/         # HTTP layer only (reqwest hidden here)
-│   ├── endpoints/      # typed API routes + request/response types
-│   ├── core/           # domain logic (downloads, cache, resolve)
-│   ├── config.rs       # file + keyring auth
-│   ├── frontend/       # CLI vs TUI dispatch
-│   └── tui/            # screens, handlers, background tasks
-│       ├── app/
-│       ├── screens/
-│       └── app/background/   # tokio tasks → mpsc → UI
-└── tests/              # integration tests against mocked API
+romm-cli/              # workspace root
+├── romm-api/          # RommClient, endpoints, core, config, error, types
+├── romm-cli/          # commands, CLI binary, completions (re-exports romm_api)
+└── romm-tui/          # TUI screens, handlers, romm-tui binary
 ```
 
 ### Design rules
@@ -169,15 +157,9 @@ pub enum ApiError {
 
 ---
 
-### Gap 4: Workspace split (not planned)
+### Gap 4: Workspace split
 
-**Current state:** **Single crate is the maintained approach.** One package hosts the library plus binaries (`romm-cli`, `romm-tui`, `romm-openapi-gen`, `romm-complete-gen`). TUI is feature-gated (`default = ["tui"]`); CI runs `--no-default-features` for headless builds. A workspace split is **not on the roadmap** until an ADR trigger fires — see [workspace-split ADR](plans/2026-06-06-workspace-split-adr.md). The [migration playbook](plans/2026-06-06-workspace-split-migration.md) is reference only.
-
-**Do not split preemptively.** Prefer the `tui` feature flag and module boundaries (`core/` vs `tui/`) until compile times, external library consumers, or a third frontend force the issue.
-
-**Recommended approach (if a trigger fires later):**
-
-Split only when compile times or API boundaries justify it:
+**Current state:** **Workspace split complete** (2026-06-06). Three members: `romm-api`, `romm-cli`, `romm-tui`. Trigger: Android frontend prep ([workspace-split ADR](plans/2026-06-06-workspace-split-adr.md), [Android design](plans/2026-06-06-android-frontend-design.md)). `romm-cli` re-exports `romm_api` for crates.io consumers; new embedders should depend on `romm-api` directly.
 
 ```text
 romm-cli/          # workspace root
@@ -186,15 +168,13 @@ romm-cli/          # workspace root
 └── romm-tui/      # binary + tui/ (depends on romm-api)
 ```
 
-- Keep `openapi_gen` as a bin in `romm-api` or a small `tools/` crate.
-- Share types and `RommClient` from `romm-api`; frontends depend on it.
-
-**When to do it:** Only after an ADR trigger — external `RommClient` consumer, compile-time pain, third frontend, or separate crates.io publish. Revisit quarterly; otherwise treat Gap 4 as **done (deferred by design)**.
+- `romm-openapi-gen` bin lives in `romm-api`; `romm-complete-gen` in `romm-cli`.
+- Next phase: UniFFI on `romm-api` for Android browse-only FFI.
 
 **Acceptance criteria:**
 
-- [x] N/A until split is triggered — decision criteria documented; maintainers chose to wait
-- [ ] If split: `cargo test -p romm-api` runs without TUI feature graph *(out of scope until triggered)*
+- [x] Decision criteria documented; split triggered by Android third frontend
+- [x] `cargo test -p romm-api` runs without TUI feature graph
 
 **References:** [Rust project structure best practices](https://www.djamware.com/post/rust-project-structure-and-best-practices-for-clean-scalable-code)
 
@@ -292,4 +272,4 @@ There is no global `CLI > env` for connection settings on normal commands.
 
 ---
 
-*Last updated: 2026-06-06 — Gap 7 complete (CliPresentation, JSON docs, help examples); Gap 6 complete (layered config); Gap 5 complete (event/action pipeline); Gap 4 closed as deferred (single crate maintained).*
+*Last updated: 2026-06-06 — Gap 4 complete (workspace split for Android prep); Gap 7 complete; Gap 6 complete; Gap 5 complete.*

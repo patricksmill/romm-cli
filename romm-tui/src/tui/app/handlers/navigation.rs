@@ -2,7 +2,7 @@
 
 use std::time::Instant;
 
-use crate::core::startup_library_snapshot;
+use romm_api::core::startup_library_snapshot;
 
 use super::super::{App, AppScreen};
 use crate::tui::screens::LibraryBrowseScreen;

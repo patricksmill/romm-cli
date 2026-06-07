@@ -2,15 +2,15 @@
 
 use anyhow::{anyhow, Context, Result};
 
-use crate::client::RommClient;
-use crate::config::{
+use crate::tui::path_picker::{PathPicker, PathPickerMode};
+use romm_api::client::RommClient;
+use romm_api::config::{
     default_theme_id, is_keyring_placeholder, load_config, normalize_romm_origin,
     persist_user_config, read_user_config_json_from_disk, AuthConfig, Config, RomsLayoutConfig,
     TuiLayoutConfig,
 };
-use crate::core::download::validate_configured_download_directory;
-use crate::endpoints::client_tokens::ExchangeClientToken;
-use crate::tui::path_picker::{PathPicker, PathPickerMode};
+use romm_api::core::download::validate_configured_download_directory;
+use romm_api::endpoints::client_tokens::ExchangeClientToken;
 
 use super::layout::extras_defaults_from_disk;
 use super::types::{AuthKind, SetupWizard, Step};
@@ -229,7 +229,7 @@ impl SetupWizard {
                     return Err(anyhow!("Username cannot be empty"));
                 }
                 let password = if self.password.is_empty() && self.reuse_keyring_password {
-                    crate::config::keyring_get("API_PASSWORD").ok_or_else(|| {
+                    romm_api::config::keyring_get("API_PASSWORD").ok_or_else(|| {
                         anyhow!("Password not in OS keyring; enter a password or run romm-cli init")
                     })?
                 } else if self.password.is_empty() {
@@ -244,7 +244,7 @@ impl SetupWizard {
             }
             AuthKind::Bearer => {
                 let token = if self.bearer_token.trim().is_empty() && self.reuse_keyring_bearer {
-                    crate::config::keyring_get("API_TOKEN").ok_or_else(|| {
+                    romm_api::config::keyring_get("API_TOKEN").ok_or_else(|| {
                         anyhow!("API token not in OS keyring; enter a token or run romm-cli init")
                     })?
                 } else if self.bearer_token.trim().is_empty() {
@@ -260,7 +260,7 @@ impl SetupWizard {
                     return Err(anyhow!("Header name cannot be empty"));
                 }
                 let key = if self.api_key.is_empty() && self.reuse_keyring_api_key {
-                    crate::config::keyring_get("API_KEY").ok_or_else(|| {
+                    romm_api::config::keyring_get("API_KEY").ok_or_else(|| {
                         anyhow!("API key not in OS keyring; enter a key or run romm-cli init")
                     })?
                 } else if self.api_key.is_empty() {

@@ -9,8 +9,11 @@ fn main() {
     let profile = env::var("PROFILE").unwrap_or_else(|_| "debug".into());
     let target_dir = env::var("CARGO_TARGET_DIR")
         .map(PathBuf::from)
-        .or_else(|_| env::var("CARGO_MANIFEST_DIR").map(|d| PathBuf::from(d).join("target")))
-        .unwrap_or_else(|_| PathBuf::from("target"));
+        .unwrap_or_else(|_| {
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("..")
+                .join("target")
+        });
 
     let gen_name = if cfg!(windows) {
         "romm-complete-gen.exe"

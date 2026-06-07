@@ -1,8 +1,8 @@
 use super::LibraryBrowseScreen;
 use super::LibraryViewMode;
 use super::LEFT_PANEL_PERCENT_DEFAULT;
-use crate::core::utils;
-use crate::types::{Platform, Rom, RomList};
+use romm_api::core::utils;
+use romm_api::types::{Platform, Rom, RomList};
 use serde_json::json;
 
 fn rom(id: u64, name: &str, fs_name: &str) -> Rom {

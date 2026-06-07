@@ -3,11 +3,11 @@ use std::time::Instant;
 
 use ratatui_image::picker::{Picker, ProtocolType};
 
-use crate::core::download::{DownloadJob, DownloadStatus};
-use crate::core::extras::collect_update_dlc_files;
 use crate::tui::path_picker::{PathPicker, PathPickerMode};
 use crate::tui::utils::open_in_browser;
-use crate::types::{Rom, SaveMetadata};
+use romm_api::core::download::{DownloadJob, DownloadStatus};
+use romm_api::core::extras::collect_update_dlc_files;
+use romm_api::types::{Rom, SaveMetadata};
 
 use super::cover::detect_cover_protocol;
 use super::types::{

@@ -3,8 +3,8 @@
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 
-use crate::endpoints::roms::GetRoms;
-use crate::types::RomList;
+use romm_api::endpoints::roms::GetRoms;
+use romm_api::types::RomList;
 
 use super::super::background::types::{SearchLoadDone, SearchLoadEvent};
 use super::super::{App, AppScreen};

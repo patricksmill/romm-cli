@@ -1,16 +1,14 @@
-#![cfg(feature = "tui")]
-
 use std::time::Duration;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use romm_cli::client::RommClient;
-use romm_cli::config::LIBRARY_LEFT_PANEL_PERCENT_DEFAULT;
-use romm_cli::config::{default_theme_id, Config, ExtrasDefaults, TuiLayoutConfig};
-use romm_cli::core::utils;
-use romm_cli::feature_compat::supported_save_sync_compatibility;
-use romm_cli::tui::app::{App, AppScreen};
-use romm_cli::tui::screens::library_browse::{LibraryBrowseScreen, LibraryViewMode};
-use romm_cli::types::{Rom, RomList};
+use romm_api::client::RommClient;
+use romm_api::config::LIBRARY_LEFT_PANEL_PERCENT_DEFAULT;
+use romm_api::config::{default_theme_id, Config, ExtrasDefaults, TuiLayoutConfig};
+use romm_api::core::utils;
+use romm_api::feature_compat::supported_save_sync_compatibility;
+use romm_api::types::{Rom, RomList};
+use romm_tui::tui::app::{App, AppScreen};
+use romm_tui::tui::screens::library_browse::{LibraryBrowseScreen, LibraryViewMode};
 use wiremock::matchers::{method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -434,7 +432,7 @@ async fn game_detail_download_skips_when_rom_already_exists_in_console_folder() 
                     j.rom_id == 1
                         && matches!(
                             j.status,
-                            romm_cli::core::download::DownloadStatus::SkippedAlreadyExists
+                            romm_api::core::download::DownloadStatus::SkippedAlreadyExists
                         )
                 });
             }

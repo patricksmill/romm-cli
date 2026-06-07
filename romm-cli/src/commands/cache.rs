@@ -4,7 +4,7 @@ use serde::Serialize;
 
 use crate::cli_presentation::CliPresentation;
 use crate::commands::OutputFormat;
-use crate::core::cache::RomCache;
+use romm_api::core::cache::RomCache;
 
 #[derive(Args, Debug)]
 pub struct CacheCommand {

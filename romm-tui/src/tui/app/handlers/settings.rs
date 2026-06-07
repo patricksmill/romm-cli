@@ -3,11 +3,11 @@
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 
-use crate::client::RommClient;
-use crate::config::{auth_for_persist_merge, normalize_romm_origin, Config, ExtrasDefaults};
-use crate::endpoints::device::ListDevices;
-use crate::endpoints::platforms::ListPlatforms;
-use crate::endpoints::sync::TriggerPushPull;
+use romm_api::client::RommClient;
+use romm_api::config::{auth_for_persist_merge, normalize_romm_origin, Config, ExtrasDefaults};
+use romm_api::endpoints::device::ListDevices;
+use romm_api::endpoints::platforms::ListPlatforms;
+use romm_api::endpoints::sync::TriggerPushPull;
 
 use super::super::background::types::{DeviceListDone, PlatformListDone, SyncPushPullDone};
 use super::super::{App, AppScreen};
@@ -44,7 +44,7 @@ impl App {
         self.restore_screen_or_library(stored);
     }
     fn persist_settings_screen(&mut self) -> bool {
-        use crate::config::persist_user_config;
+        use romm_api::config::persist_user_config;
 
         let settings = match &self.screen {
             AppScreen::Settings(s) => s,
@@ -160,8 +160,8 @@ impl App {
     }
 
     pub(in crate::tui::app) async fn handle_settings(&mut self, key: &KeyEvent) -> Result<bool> {
-        use crate::core::download::validate_configured_download_directory;
         use crate::tui::path_picker::PathPickerEvent;
+        use romm_api::core::download::validate_configured_download_directory;
 
         let settings = match &mut self.screen {
             AppScreen::Settings(s) => s,
@@ -270,16 +270,16 @@ impl App {
             match key.code {
                 KeyCode::Enter => match settings.confirm.take().unwrap() {
                     crate::tui::screens::settings::SettingsConfirm::Reset => {
-                        let _ = crate::config::reset_all_settings();
+                        let _ = romm_api::config::reset_all_settings();
                         settings.message = Some((
                             "Settings deleted. Please restart romm-cli.".to_string(),
                             MessageTone::Warning,
                         ));
                     }
                     crate::tui::screens::settings::SettingsConfirm::ClearCache => {
-                        match crate::core::cache::RomCache::clear_file() {
+                        match romm_api::core::cache::RomCache::clear_file() {
                             Ok(true) => {
-                                self.rom_cache = crate::core::cache::RomCache::load();
+                                self.rom_cache = romm_api::core::cache::RomCache::load();
                                 settings.message =
                                     Some(("ROM cache cleared.".to_string(), MessageTone::Success));
                             }

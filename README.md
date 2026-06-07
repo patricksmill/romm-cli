@@ -258,7 +258,7 @@ Save sync commands use RomM sync endpoints introduced in the `4.9.0-alpha.2` pre
 
 ### Shell completions
 
-Tab completion is available for bash, zsh, fish, PowerShell, and Elvish. Scripts are kept in [`completions/`](completions/) (regenerated when the CLI changes) and can also be printed at runtime:
+Tab completion is available for bash, zsh, fish, PowerShell, and Elvish. Scripts are kept in [`romm-cli/completions/`](romm-cli/completions/) (regenerated when the CLI changes) and can also be printed at runtime:
 
 ```bash
 romm-cli completions bash
@@ -271,7 +271,7 @@ romm-cli completions powershell
 
 ```bash
 # Linux (system-wide, requires root)
-sudo cp completions/romm-cli.bash /etc/bash_completion.d/romm-cli
+sudo cp romm-cli/completions/romm-cli.bash /etc/bash_completion.d/romm-cli
 
 # User install
 mkdir -p ~/.local/share/bash-completion/completions
@@ -282,7 +282,7 @@ romm-cli completions bash > ~/.local/share/bash-completion/completions/romm-cli
 
 ```bash
 mkdir -p ~/.zfunc
-cp completions/_romm-cli ~/.zfunc/_romm-cli
+cp romm-cli/completions/_romm-cli ~/.zfunc/_romm-cli
 # Add to ~/.zshrc before compinit:
 # fpath=(~/.zfunc $fpath); autoload -Uz compinit; compinit
 ```
@@ -341,16 +341,15 @@ Errors are printed to stderr with a short actionable message (for example, sugge
 
 ## Project layout
 
-The repo is one Cargo package (library + binaries), not a multi-crate workspace. TUI code is optional via the `tui` feature; see [docs/plans/2026-06-06-workspace-split-adr.md](docs/plans/2026-06-06-workspace-split-adr.md) if you are wondering about a future `romm-api` split.
+Cargo **workspace** with three crates (split for Android prep; see [docs/plans/2026-06-06-android-frontend-design.md](docs/plans/2026-06-06-android-frontend-design.md)):
 
-- **`src/frontend`**: Routing between CLI and TUI execution.
-- **`src/commands`**: CLI argument parsing and non-TUI command logic.
-- **`src/endpoints`**: Typed RomM API routes (`Endpoint` trait).
-- **`src/services`**: Thin helpers over endpoints (e.g. platform/ROM services).
-- **`src/tui`**: Terminal UI (`ratatui`, `crossterm`) and state machine (`AppScreen`).
-- **`src/core`**: ROM list cache, background downloads, and related utilities.
-- **`src/client.rs`**: HTTP client wrapper around `reqwest`.
-- **`src/config.rs`**: Layered environment loading and keyring integration.
+| Crate | Contents |
+|-------|----------|
+| **`romm-api/`** | `RommClient`, `endpoints/`, `core/`, `config`, typed errors — shared by CLI, TUI, and future Android |
+| **`romm-cli/`** | `commands/`, CLI binary, shell completions |
+| **`romm-tui/`** | TUI screens, event loop, `romm-tui` binary |
+
+Library consumers: depend on `romm-api` directly, or `romm-cli` (re-exports `romm_api`) for backward compatibility.
 
 ---
 

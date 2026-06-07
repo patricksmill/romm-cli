@@ -6,8 +6,8 @@ use std::time::{Duration, Instant};
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use crate::config::resolve_game_save_dir;
-use crate::core::extras::has_update_or_dlc_extras;
+use romm_api::config::resolve_game_save_dir;
+use romm_api::core::extras::has_update_or_dlc_extras;
 
 use super::super::background::types::{SaveDownloadDone, SaveUploadDone};
 use super::super::{App, AppScreen};
@@ -96,16 +96,19 @@ impl App {
                     j.rom_id == detail.rom.id
                         && matches!(
                             j.status,
-                            crate::core::download::DownloadStatus::Done
-                                | crate::core::download::DownloadStatus::SkippedAlreadyExists
-                                | crate::core::download::DownloadStatus::Cancelled
-                                | crate::core::download::DownloadStatus::FinalizeFailed(_)
-                                | crate::core::download::DownloadStatus::Error(_)
+                            romm_api::core::download::DownloadStatus::Done
+                                | romm_api::core::download::DownloadStatus::SkippedAlreadyExists
+                                | romm_api::core::download::DownloadStatus::Cancelled
+                                | romm_api::core::download::DownloadStatus::FinalizeFailed(_)
+                                | romm_api::core::download::DownloadStatus::Error(_)
                         )
                 });
                 let is_still_downloading = list.iter().any(|j| {
                     j.rom_id == detail.rom.id
-                        && matches!(j.status, crate::core::download::DownloadStatus::Downloading)
+                        && matches!(
+                            j.status,
+                            romm_api::core::download::DownloadStatus::Downloading
+                        )
                 });
                 // Only acknowledge if there's a completion and no active download
                 if has_completed && !is_still_downloading {

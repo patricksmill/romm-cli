@@ -6,9 +6,9 @@
 
 use clap::{Parser, Subcommand};
 
-use crate::client::RommClient;
-use crate::config::Config;
-use crate::error::RommError;
+use romm_api::client::RommClient;
+use romm_api::config::Config;
+use romm_api::error::RommError;
 
 pub mod api;
 pub mod auth;

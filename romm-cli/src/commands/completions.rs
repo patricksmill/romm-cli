@@ -2,7 +2,7 @@ use clap::{Args, CommandFactory};
 use clap_complete::aot::{generate, Shell};
 
 use crate::commands::Cli;
-use crate::error::RommError;
+use romm_api::error::RommError;
 
 #[derive(Args, Debug)]
 pub struct CompletionsCommand {

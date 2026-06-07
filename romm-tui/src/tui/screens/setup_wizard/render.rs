@@ -4,8 +4,8 @@ use ratatui::style::Modifier;
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{List, ListItem, ListState, Paragraph};
 
-use crate::config::normalize_romm_origin;
 use crate::tui::theme::RommStyles;
+use romm_api::config::normalize_romm_origin;
 
 use super::layout::{wizard_footer_text, wizard_layout};
 use super::types::{AuthKind, SetupWizard, Step};

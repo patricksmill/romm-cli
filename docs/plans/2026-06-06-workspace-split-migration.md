@@ -1,6 +1,6 @@
 # Workspace split migration playbook
 
-**Status:** Reference only — **not scheduled.** Execute only when an [ADR trigger](./2026-06-06-workspace-split-adr.md) fires and maintainers explicitly approve the migration.  
+**Status:** **Completed** (2026-06-06) — Android frontend prep fired [ADR trigger #3](./2026-06-06-workspace-split-adr.md).  
 **Date:** 2026-06-06
 
 ## Target layout
@@ -73,12 +73,12 @@ romm-cli -X- romm-tui     (no direct dependency)
 
 ## Verification checklist (post-split)
 
-- [ ] `cargo test -p romm-api` passes without `ratatui` in the dependency graph
-- [ ] `cargo clippy --all-targets -p romm-cli` passes
-- [ ] `cargo clippy --all-targets -p romm-tui` passes
-- [ ] `tests/cli_*.rs` integration tests still pass via `romm-cli` binary
-- [ ] `cargo publish --dry-run -p romm-api` and `-p romm-cli` succeed
-- [ ] Release workflow produces `romm-cli` + `romm-tui` binaries from workspace
+- [x] `cargo test -p romm-api` passes without `ratatui` in the dependency graph
+- [x] `cargo clippy --all-targets -p romm-cli` passes
+- [x] `cargo clippy --all-targets -p romm-tui` passes
+- [x] `romm-cli/tests/cli_*.rs` integration tests still pass via `romm-cli` binary
+- [x] `cargo publish --dry-run -p romm-api` succeeds (`romm-cli` publish follows first `romm-api` crates.io release)
+- [x] Release workflow produces `romm-cli` + `romm-tui` binaries from workspace
 
 ## Rollback
 

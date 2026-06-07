@@ -2,8 +2,8 @@ use anyhow::{anyhow, Result};
 use clap::{Args, Subcommand};
 
 use crate::cli_presentation::CliPresentation;
-use crate::client::RommClient;
 use crate::commands::OutputFormat;
+use romm_api::client::RommClient;
 
 /// Low-level escape hatch for calling arbitrary ROMM API endpoints.
 #[derive(Args, Debug)]

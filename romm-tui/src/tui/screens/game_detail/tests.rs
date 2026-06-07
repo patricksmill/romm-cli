@@ -8,7 +8,7 @@ use super::types::{
     CoverState, GameDetailPrevious, GameDetailScreen, SaveListState, COVER_PANEL_WIDTH_DEFAULT,
 };
 use crate::tui::screens::SearchScreen;
-use crate::types::SaveMetadata;
+use romm_api::types::SaveMetadata;
 
 #[test]
 fn detect_cover_protocol_prefers_kitty_hint() {
@@ -29,7 +29,7 @@ fn detect_cover_protocol_supports_sixel_term() {
 
 #[test]
 fn missing_protocol_still_requests_cover_load() {
-    let rom = crate::types::Rom {
+    let rom = romm_api::types::Rom {
         id: 5,
         platform_id: 1,
         platform_slug: None,
@@ -153,8 +153,8 @@ fn save_list_formatting_handles_states() {
     assert!(line.contains("slot=1"));
 }
 
-fn test_rom(id: u64, url_cover: Option<String>) -> crate::types::Rom {
-    crate::types::Rom {
+fn test_rom(id: u64, url_cover: Option<String>) -> romm_api::types::Rom {
+    romm_api::types::Rom {
         id,
         platform_id: 1,
         platform_slug: None,
@@ -182,7 +182,7 @@ fn test_rom(id: u64, url_cover: Option<String>) -> crate::types::Rom {
     }
 }
 
-fn new_detail(rom: crate::types::Rom) -> GameDetailScreen {
+fn new_detail(rom: romm_api::types::Rom) -> GameDetailScreen {
     GameDetailScreen::new(
         rom,
         Vec::new(),

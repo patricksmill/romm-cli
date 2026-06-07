@@ -2,8 +2,8 @@
 
 use anyhow::Result;
 
-use crate::commands::library_scan::ScanCacheInvalidate;
 use crate::tui::screens::library_browse::LibrarySubsection;
+use romm_api::core::library_scan::ScanCacheInvalidate;
 
 use super::background::types::{RomLoadDone, RomLoadEvent};
 use super::event::Action;
@@ -79,7 +79,7 @@ impl App {
             }
             Action::StartupUpdatePromptOpenChangelog => {
                 if let Some(ref prompt) = self.startup_update_prompt {
-                    if let Err(err) = crate::update::open_changelog_in_browser() {
+                    if let Err(err) = romm_api::update::open_changelog_in_browser() {
                         self.global_error = Some(format!("Could not open changelog: {err:#}"));
                     } else {
                         self.global_notice =
@@ -182,19 +182,19 @@ impl App {
             return;
         }
 
-        let options = crate::update::ApplyUpdateOptions {
+        let options = romm_api::update::ApplyUpdateOptions {
             show_progress: false,
             show_output: false,
             no_confirm: true,
             target_version_tag: Some(prompt.status.release_tag.clone()),
         };
-        match crate::update::apply_update(None, options).await {
-            Ok(crate::update::ApplyUpdateOutcome::Updated(version)) => {
+        match romm_api::update::apply_update(None, options).await {
+            Ok(romm_api::update::ApplyUpdateOutcome::Updated(version)) => {
                 self.global_notice = Some(format!(
                     "Updated to {version}. Restart romm-cli to use the new version."
                 ));
             }
-            Ok(crate::update::ApplyUpdateOutcome::UpToDate(version)) => {
+            Ok(romm_api::update::ApplyUpdateOutcome::UpToDate(version)) => {
                 self.global_notice = Some(format!("Already up to date (`{version}`)."));
             }
             Err(err) => {
@@ -259,7 +259,7 @@ impl App {
 
         self.rom_load_task = Some(tokio::spawn(async move {
             let mut req = r;
-            let mut aggregated: Option<crate::types::RomList> = None;
+            let mut aggregated: Option<romm_api::types::RomList> = None;
 
             loop {
                 match client.call(&req).await {

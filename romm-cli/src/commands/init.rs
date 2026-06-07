@@ -10,12 +10,12 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::Read;
 
-use crate::client::RommClient;
-use crate::config::{
+use romm_api::client::RommClient;
+use romm_api::config::{
     default_theme_id, normalize_romm_origin, persist_user_config, user_config_json_path,
     AuthConfig, Config, ExtrasDefaults, RomsLayoutConfig,
 };
-use crate::endpoints::platforms::ListPlatforms;
+use romm_api::endpoints::platforms::ListPlatforms;
 
 #[derive(Args, Debug, Clone)]
 pub struct InitCommand {
@@ -157,7 +157,7 @@ pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
 
             println!("Verifying authentication...");
             client
-                .call(&crate::endpoints::platforms::ListPlatforms)
+                .call(&romm_api::endpoints::platforms::ListPlatforms)
                 .await
                 .context("failed to authenticate or fetch platforms")?;
             println!("Success: authentication verified.");
@@ -278,7 +278,7 @@ pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
                 tui_layout: Default::default(),
             };
             let client = RommClient::new(&temp_config, verbose)?;
-            let endpoint = crate::endpoints::client_tokens::ExchangeClientToken { code };
+            let endpoint = romm_api::endpoints::client_tokens::ExchangeClientToken { code };
 
             let response = client
                 .call(&endpoint)
@@ -341,7 +341,7 @@ pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
 }
 
 fn prompt_custom_console_paths(
-    platforms: &[crate::types::Platform],
+    platforms: &[romm_api::types::Platform],
     platform_dirs: &mut HashMap<u64, String>,
 ) -> Result<()> {
     if platforms.is_empty() {

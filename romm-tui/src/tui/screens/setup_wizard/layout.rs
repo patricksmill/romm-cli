@@ -3,8 +3,8 @@
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::text::{Line, Text};
 
-use crate::config::{read_user_config_json_from_disk, ExtrasDefaults};
 use crate::tui::theme::RommStyles;
+use romm_api::config::{read_user_config_json_from_disk, ExtrasDefaults};
 
 use super::types::Step;
 

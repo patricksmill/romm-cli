@@ -1,48 +1,55 @@
-# ADR: Workspace split deferred
+# ADR: Workspace split (Android prep)
 
 **Date:** 2026-06-06  
-**Status:** Accepted — no workspace split planned
+**Status:** Accepted — workspace split **completed** (trigger #3: Android frontend)
 
 ## Maintainer decision
 
-The project **stays a single Cargo package** for the foreseeable future. A multi-crate workspace (`romm-api` / `romm-cli` / `romm-tui`) is documented as a future option only; do not start a split unless an explicit trigger below is met. The [migration playbook](./2026-06-06-workspace-split-migration.md) is reference material, not scheduled work.
+The project is a **Cargo workspace** with three members: `romm-api`, `romm-cli`, and `romm-tui`. The split was executed to prepare for an Android browse-only client (Kotlin/Compose + UniFFI over `romm-api`). See [Android frontend design](./2026-06-06-android-frontend-design.md).
+
+## Trigger
+
+**#3 — Third frontend:** Android app needs shared `RommClient` / core logic without pulling `clap` or `ratatui`.
 
 ## Context
 
-`romm-cli` is a single Cargo package with four binaries (`romm-cli`, `romm-tui`, `romm-openapi-gen`, `romm-complete-gen`) sharing one library (`src/lib.rs`). The TUI is feature-gated (`default = ["tui"]`); CI already validates `--no-default-features` builds and tests on Linux, Windows, and macOS.
-
-The [rust-guidelines](../rust-guidelines.md) target layout splits the project into `romm-api`, `romm-cli`, and `romm-tui` workspace members. At current size (~40 TUI modules, one external consumer via crates.io), compile times and dependency boundaries do not yet justify the migration cost.
+Previously a single package hosted the library plus four binaries. TUI was feature-gated; CI validated `--no-default-features` builds. Compile times were acceptable, but a clean `romm-api` boundary is required for `cargo-ndk` / UniFFI in the next phase.
 
 ## Decision
 
-**Remain a single crate** until at least one trigger below is met. Continue feature-gating TUI dependencies and reserving the `romm-api` crate name in documentation and migration plans.
+Split into workspace members per [migration playbook](./2026-06-06-workspace-split-migration.md):
 
-## Triggers (any one)
+```text
+romm-cli/          # workspace root
+├── romm-api/      # client, endpoints, core, config, error, types, …
+├── romm-cli/      # commands, CLI binary, completions
+└── romm-tui/      # TUI binary (depends on romm-api only)
+```
 
-1. **External consumer** — Another crate needs `RommClient` / core logic without pulling `clap`, `ratatui`, or `dialoguer`.
-2. **Compile-time pain** — `cargo test --no-default-features` or incremental rebuilds routinely exceed ~3 minutes on a typical dev machine (measure baseline before splitting).
-3. **Third frontend** — A new binary (e.g. GUI, language bindings) needs shared API client code with a clean dependency boundary.
-4. **Separate crates.io publish** — `romm-api` must be published independently from the `romm-cli` binary crate.
+- `romm-cli` re-exports `romm_api` for crates.io backward compatibility.
+- `library_scan` core logic lives in `romm-api::core::library_scan` so TUI does not depend on `romm-cli`.
+- Android (`android/` Gradle project, UniFFI) is **next phase** — not in this split.
 
 ## Consequences
 
-### Positive (staying monolithic)
+### Positive
 
-- No cross-crate versioning or workspace publish coordination.
-- Simpler contributor onboarding (one `cargo test`).
-- Feature flag already isolates TUI from headless CI.
+- `cargo test -p romm-api` validates API client without TUI deps.
+- Android and future frontends depend on a small, publishable `romm-api` crate.
+- CLI and TUI compile boundaries are enforced.
 
 ### Negative (accepted)
 
-- Library consumers depend on the full `romm-cli` crate graph unless they use `--no-default-features`.
-- TUI and CLI share one release version even when only one frontend changes.
+- Cross-crate path updates and workspace CI coordination.
+- Library consumers may use `romm-api` directly or `romm-cli` re-exports during transition.
 
 ## Revisit
 
-- Quarterly during maintenance, or immediately when a trigger fires.
-- Migration steps: [2026-06-06-workspace-split-migration.md](./2026-06-06-workspace-split-migration.md).
+- When adding UniFFI: extend `romm-api` with a `uniffi` feature and browse-only FFI surface.
+- Separate `romm-api` crates.io publish: optional; evaluate when Android ships.
 
 ## References
 
 - [rust-guidelines.md — Gap 4](../rust-guidelines.md)
-- [CI workflow](../../.github/workflows/ci.yml) (`test-cli-only`, `clippy-cli-only`)
+- [Android prep implementation plan](./2026-06-06-android-prep-implementation.md)
+- [CI workflow](../../.github/workflows/ci.yml)

@@ -1,0 +1,44 @@
+[package]
+name = "romm-api"
+description = "HTTP client and domain logic for the RomM API"
+keywords = ["romm", "api", "emulator", "games"]
+categories = ["api-bindings", "emulators"]
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+reqwest = { version = "0.13", default-features = false, features = ["json", "multipart", "query", "rustls", "http2"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+thiserror = "2"
+tokio = { version = "1.37", features = ["macros", "rt-multi-thread", "fs", "io-util", "time", "signal"] }
+base64 = "0.22"
+sha2 = "0.11"
+percent-encoding = "2.3"
+dirs = "6.0"
+tracing = "0.1.44"
+indicatif = "0.18.4"
+keyring = "4.0.1"
+keyring-core = "1.0.0"
+self_update = { version = "0.44.0", default-features = false, features = [
+    "reqwest",
+    "rustls",
+    "archive-zip",
+    "archive-tar",
+    "compression-flate2",
+    "compression-zip-deflate",
+] }
+zip = "8.5.1"
+md5 = "0.8"
+time = { version = "0.3", features = ["formatting"] }
+
+[[bin]]
+name = "romm-openapi-gen"
+path = "src/bin/openapi_gen.rs"
+
+[dev-dependencies]
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+wiremock = "0.6.5"

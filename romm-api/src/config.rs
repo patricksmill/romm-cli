@@ -314,7 +314,7 @@ pub fn is_keyring_placeholder(s: &str) -> bool {
 /// # Examples
 ///
 /// ```
-/// # use romm_cli::config::normalize_romm_origin;
+/// # use romm_api::config::normalize_romm_origin;
 /// assert_eq!(normalize_romm_origin("http://localhost:8080/api/"), "http://localhost:8080");
 /// assert_eq!(normalize_romm_origin(" https://romm.example.com "), "https://romm.example.com");
 /// ```
@@ -365,7 +365,7 @@ fn keyring_get_password_result(key: &str, result: KeyringResult<String>) -> Opti
 /// Retrieve a secret from the OS keyring, returning `None` if not found or on error.
 ///
 /// Unexpected errors are logged at the `warn` level.
-pub(crate) fn keyring_get(key: &str) -> Option<String> {
+pub fn keyring_get(key: &str) -> Option<String> {
     let entry = match Entry::new(KEYRING_SERVICE, key) {
         Ok(e) => e,
         Err(e) => {
@@ -839,8 +839,9 @@ pub fn reset_all_settings() -> Result<(), ConfigError> {
     Ok(())
 }
 
-#[cfg(test)]
-pub(crate) fn test_env_lock() -> &'static std::sync::Mutex<()> {
+/// Serializes env var mutation in unit tests (also used by `romm-cli` command tests).
+#[doc(hidden)]
+pub fn test_env_lock() -> &'static std::sync::Mutex<()> {
     use std::sync::{Mutex, OnceLock};
     static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
     LOCK.get_or_init(|| Mutex::new(()))

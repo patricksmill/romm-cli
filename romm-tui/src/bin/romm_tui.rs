@@ -1,7 +1,7 @@
 //! Launches the ROMM TUI only (no `tui` subcommand). Same config as `romm-cli`.
 
 use anyhow::Result;
-use romm_cli::frontend::tui;
+use romm_tui::frontend::tui;
 
 #[tokio::main]
 async fn main() -> Result<()> {

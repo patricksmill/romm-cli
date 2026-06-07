@@ -12,14 +12,14 @@ use std::fs;
 use std::io::Read;
 
 use crate::cli_presentation::CliPresentation;
-use crate::client::RommClient;
 use crate::commands::OutputFormat;
-use crate::config::{
+use romm_api::client::RommClient;
+use romm_api::config::{
     disk_has_unresolved_keyring_sentinel, is_keyring_placeholder, load_config, persist_user_config,
     read_user_config_json_from_disk, user_config_json_path, AuthConfig, Config,
     KEYRING_SECRET_PLACEHOLDER,
 };
-use crate::endpoints::client_tokens::ExchangeClientToken;
+use romm_api::endpoints::client_tokens::ExchangeClientToken;
 
 /// Top-level `romm-cli auth` command group.
 #[derive(Args, Debug, Clone)]
@@ -448,7 +448,7 @@ mod tests {
 
     impl TestEnv {
         fn new() -> Self {
-            let guard = crate::config::test_env_lock()
+            let guard = romm_api::config::test_env_lock()
                 .lock()
                 .unwrap_or_else(|e| e.into_inner());
 
@@ -503,10 +503,10 @@ mod tests {
             download_dir: "/disk/dl".to_string(),
             use_https: true,
             auth: disk_auth,
-            extras_defaults: crate::config::ExtrasDefaults::default(),
+            extras_defaults: romm_api::config::ExtrasDefaults::default(),
             save_sync: Default::default(),
             roms_layout: Default::default(),
-            theme: crate::config::default_theme_id(),
+            theme: romm_api::config::default_theme_id(),
             tui_layout: Default::default(),
         };
         let content = serde_json::to_string_pretty(&cfg).unwrap();
@@ -537,10 +537,10 @@ mod tests {
             download_dir: String::new(),
             use_https: true,
             auth: None,
-            extras_defaults: crate::config::ExtrasDefaults::default(),
+            extras_defaults: romm_api::config::ExtrasDefaults::default(),
             save_sync: Default::default(),
             roms_layout: Default::default(),
-            theme: crate::config::default_theme_id(),
+            theme: romm_api::config::default_theme_id(),
             tui_layout: Default::default(),
         };
 
@@ -567,10 +567,10 @@ mod tests {
                 download_dir: "/tmp".to_string(),
                 use_https: true,
                 auth: None,
-                extras_defaults: crate::config::ExtrasDefaults::default(),
+                extras_defaults: romm_api::config::ExtrasDefaults::default(),
                 save_sync: Default::default(),
                 roms_layout: Default::default(),
-                theme: crate::config::default_theme_id(),
+                theme: romm_api::config::default_theme_id(),
                 tui_layout: Default::default(),
             },
             false,
@@ -610,10 +610,10 @@ mod tests {
                 download_dir: "/tmp".to_string(),
                 use_https: true,
                 auth: None,
-                extras_defaults: crate::config::ExtrasDefaults::default(),
+                extras_defaults: romm_api::config::ExtrasDefaults::default(),
                 save_sync: Default::default(),
                 roms_layout: Default::default(),
-                theme: crate::config::default_theme_id(),
+                theme: romm_api::config::default_theme_id(),
                 tui_layout: Default::default(),
             },
             false,

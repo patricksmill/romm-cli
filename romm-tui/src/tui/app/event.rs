@@ -2,7 +2,7 @@
 
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
-use crate::commands::library_scan::ScanCacheInvalidate;
+use romm_api::core::library_scan::ScanCacheInvalidate;
 
 use super::background::types::{
     CollectionPrefetchDone, CoverLoadDone, DeviceListDone, LibraryMetadataRefreshDone,

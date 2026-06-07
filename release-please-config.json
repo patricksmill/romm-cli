@@ -1,9 +1,21 @@
 {
   "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
   "packages": {
-    ".": {
+    "romm-api": {
+      "release-type": "rust",
+      "component": "romm-api",
+      "changelog-path": "CHANGELOG.md",
+      "include-component-in-tag": false
+    },
+    "romm-cli": {
       "release-type": "rust",
       "component": "romm-cli",
+      "changelog-path": "CHANGELOG.md",
+      "include-component-in-tag": false
+    },
+    "romm-tui": {
+      "release-type": "rust",
+      "component": "romm-tui",
       "changelog-path": "CHANGELOG.md",
       "include-component-in-tag": false
     }

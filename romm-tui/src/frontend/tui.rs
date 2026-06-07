@@ -1,7 +1,7 @@
 use anyhow::Result;
 
-use crate::client::RommClient;
-use crate::config::Config;
+use romm_api::client::RommClient;
+use romm_api::config::Config;
 
 /// Execute the interactive TUI frontend (config must already be loaded).
 pub async fn run(client: RommClient, config: Config, mock_update: bool) -> Result<()> {

@@ -22,9 +22,9 @@ pub mod utils;
 use anyhow::Result;
 use std::time::Duration;
 
-use crate::client::RommClient;
-use crate::config::{openapi_cache_path, should_check_updates, Config};
-use crate::feature_compat::save_sync_compatibility;
+use romm_api::client::RommClient;
+use romm_api::config::{openapi_cache_path, should_check_updates, Config};
+use romm_api::feature_compat::save_sync_compatibility;
 
 use self::app::App;
 use self::openapi_sync::sync_openapi_registry;
@@ -88,16 +88,17 @@ async fn run_started(
     let (registry, server_version) = sync_openapi_registry(&client, &cache_path).await?;
 
     let startup_update = if mock_update {
-        Some(crate::update::UpdateStatus {
+        Some(romm_api::update::UpdateStatus {
             current_version: format!("{} (dev)", env!("CARGO_PKG_VERSION")),
             latest_version: "9.9.9-mock".into(),
             release_tag: "v9.9.9-mock".into(),
             should_update: true,
             release_url: "https://github.com/patricksmill/romm-cli".into(),
-            changelog_url: crate::update::changelog_url().to_string(),
+            changelog_url: romm_api::update::changelog_url().to_string(),
         })
     } else if should_check_updates() {
-        match tokio::time::timeout(Duration::from_secs(2), crate::update::check_for_update()).await
+        match tokio::time::timeout(Duration::from_secs(2), romm_api::update::check_for_update())
+            .await
         {
             Ok(Ok(status)) if status.should_update => Some(status),
             _ => None,
@@ -131,7 +132,7 @@ pub async fn run(client: RommClient, config: Config, mock_update: bool) -> Resul
 
 /// Load config, run first-time setup in the terminal if `API_BASE_URL` is missing, then start the TUI.
 pub async fn run_interactive(verbose: bool, mock_update: bool) -> Result<()> {
-    let (from_wizard, config) = match crate::config::load_config() {
+    let (from_wizard, config) = match romm_api::config::load_config() {
         Ok(c) => (false, c),
         Err(_) => (true, SetupWizard::new().run(verbose).await?),
     };
@@ -142,7 +143,7 @@ pub async fn run_interactive(verbose: bool, mock_update: bool) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{default_theme_id, Config, ExtrasDefaults};
+    use romm_api::config::{default_theme_id, Config, ExtrasDefaults};
 
     fn test_config() -> Config {
         Config {

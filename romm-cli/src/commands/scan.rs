@@ -7,10 +7,10 @@ use clap::Args;
 use serde_json::json;
 
 use crate::cli_presentation::CliPresentation;
-use crate::client::RommClient;
-use crate::core::interrupt::InterruptContext;
-use crate::core::resolve::resolve_platform_id_from_list;
-use crate::endpoints::platforms::ListPlatforms;
+use romm_api::client::RommClient;
+use romm_api::core::interrupt::InterruptContext;
+use romm_api::core::resolve::resolve_platform_id_from_list;
+use romm_api::endpoints::platforms::ListPlatforms;
 
 use super::library_scan::{run_scan_library_flow, ScanCacheInvalidate, ScanLibraryOptions};
 

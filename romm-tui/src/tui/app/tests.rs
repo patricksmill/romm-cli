@@ -4,19 +4,19 @@ use super::{
     rom_load::{primary_rom_load_result_is_current, primary_rom_load_result_matches_selection},
     App, AppScreen,
 };
-use crate::client::RommClient;
-use crate::config::LIBRARY_LEFT_PANEL_PERCENT_DEFAULT;
-use crate::config::{default_theme_id, Config, ExtrasDefaults, TuiLayoutConfig};
-use crate::core::cache::RomCacheKey;
-use crate::feature_compat::supported_save_sync_compatibility;
 use crate::tui::screens::connected_splash::StartupSplash;
 use crate::tui::screens::game_detail::COVER_PANEL_WIDTH_DEFAULT;
 use crate::tui::screens::library_browse::LibraryBrowseScreen;
 use crate::tui::screens::settings::{SettingsScreen, SettingsTab};
 use crate::tui::screens::{GameDetailPrevious, GameDetailScreen, SearchScreen};
-use crate::types::{Platform, RomList};
-use crate::update::UpdateStatus;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use romm_api::client::RommClient;
+use romm_api::config::LIBRARY_LEFT_PANEL_PERCENT_DEFAULT;
+use romm_api::config::{default_theme_id, Config, ExtrasDefaults, TuiLayoutConfig};
+use romm_api::core::cache::RomCacheKey;
+use romm_api::feature_compat::supported_save_sync_compatibility;
+use romm_api::types::{Platform, RomList};
+use romm_api::update::UpdateStatus;
 use serde_json::json;
 use std::time::Instant;
 
@@ -99,7 +99,7 @@ fn update_status_fixture() -> UpdateStatus {
     }
 }
 
-fn rom_fixture() -> crate::types::Rom {
+fn rom_fixture() -> romm_api::types::Rom {
     serde_json::from_value(json!({
         "id": 10,
         "platform_id": 1,

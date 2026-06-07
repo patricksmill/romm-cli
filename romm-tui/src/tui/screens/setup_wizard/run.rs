@@ -3,9 +3,9 @@
 use anyhow::{anyhow, Result};
 use crossterm::event::{self, Event};
 
-use crate::config::{default_theme_id, Config};
 use crate::tui::runtime::{RuntimeOptions, TuiSession};
 use crate::tui::theme::{resolve_theme_or_default, RommStyles};
+use romm_api::config::{default_theme_id, Config};
 
 use super::event::{map_setup_event, SetupEvent};
 use super::types::SetupWizard;

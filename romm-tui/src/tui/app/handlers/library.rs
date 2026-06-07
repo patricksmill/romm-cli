@@ -59,8 +59,8 @@ impl App {
         }
 
         let mut pending_rom_load: Option<(
-            Option<crate::core::cache::RomCacheKey>,
-            Option<crate::endpoints::roms::GetRoms>,
+            Option<romm_api::core::cache::RomCacheKey>,
+            Option<romm_api::endpoints::roms::GetRoms>,
             u64,
             &'static str,
         )> = None;

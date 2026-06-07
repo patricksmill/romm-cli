@@ -5,12 +5,12 @@ use anyhow::{anyhow, Result};
 use serde_json::Value;
 use std::path::Path;
 
-use crate::client::RommClient;
-use crate::openapi::EndpointRegistry;
+use romm_api::client::RommClient;
+use romm_api::openapi::EndpointRegistry;
 
 /// OpenAPI document baked into the binary (same as `openapi.json` in the crate root at build time).
 const EMBEDDED_OPENAPI_JSON: &str =
-    include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/openapi.json"));
+    include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../openapi.json"));
 
 fn openapi_from_cwd() -> Option<String> {
     let dir = std::env::current_dir().ok()?;

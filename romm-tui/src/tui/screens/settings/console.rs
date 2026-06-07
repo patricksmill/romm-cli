@@ -1,8 +1,8 @@
-use crate::core::utils;
 use crate::tui::path_picker::{PathPicker, PathPickerMode};
-use crate::types::Platform;
+use romm_api::core::utils;
+use romm_api::types::Platform;
 
-use crate::endpoints::device::DeviceSchema;
+use romm_api::endpoints::device::DeviceSchema;
 
 use super::types::{ConsolePathKind, SettingsScreen};
 use crate::tui::theme::MessageTone;

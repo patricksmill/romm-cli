@@ -1,5 +1,5 @@
-use crate::core::utils::{self, RomGroup};
-use crate::types::{Collection, Platform, Rom, RomList};
+use romm_api::core::utils::{self, RomGroup};
+use romm_api::types::{Collection, Platform, Rom, RomList};
 
 use super::types::{
     LibraryBrowseScreen, LibrarySubsection, LibraryViewMode, UploadPrompt, LEFT_PANEL_PERCENT_MAX,

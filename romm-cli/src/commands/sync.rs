@@ -13,17 +13,17 @@ use time::{OffsetDateTime, UtcOffset};
 use zip::ZipArchive;
 
 use crate::cli_presentation::CliPresentation;
-use crate::client::{RommClient, SaveUploadOptions};
 use crate::commands::OutputFormat;
-use crate::endpoints::device::{
+use romm_api::client::{RommClient, SaveUploadOptions};
+use romm_api::endpoints::device::{
     DeviceSchema, GetDevice, ListDevices, RegisterDevice, SyncMode as EndpointSyncMode,
 };
-use crate::endpoints::sync::{
+use romm_api::endpoints::sync::{
     CompleteSyncSession, GetSyncSession, ListSyncSessions, NegotiateSync, SyncNegotiateResponse,
     TriggerPushPull,
 };
-use crate::feature_compat::{save_sync_compatibility, SAVE_SYNC_UNSUPPORTED_MESSAGE};
-use crate::openapi::EndpointRegistry;
+use romm_api::feature_compat::{save_sync_compatibility, SAVE_SYNC_UNSUPPORTED_MESSAGE};
+use romm_api::openapi::EndpointRegistry;
 
 #[derive(Args, Debug)]
 #[command(after_help = "Examples:\n  \

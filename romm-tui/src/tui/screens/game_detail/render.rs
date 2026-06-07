@@ -4,10 +4,10 @@ use ratatui::widgets::{Gauge, Paragraph};
 use ratatui::Frame;
 use ratatui_image::{Resize, StatefulImage};
 
-use crate::core::download::DownloadStatus;
-use crate::core::utils::format_size;
 use crate::tui::theme::RommStyles;
 use crate::tui::utils::truncate;
+use romm_api::core::download::DownloadStatus;
+use romm_api::core::utils::format_size;
 
 use super::saves::save_lines;
 use super::types::{CoverState, GameDetailScreen};

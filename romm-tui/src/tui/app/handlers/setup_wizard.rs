@@ -1,9 +1,9 @@
 //! Setup wizard key handler.
 
-use crate::client::RommClient;
 use crate::tui::theme::MessageTone;
 use anyhow::Result;
 use crossterm::event::KeyEvent;
+use romm_api::client::RommClient;
 
 use super::super::{App, AppScreen};
 use crate::tui::screens::SettingsScreen;
