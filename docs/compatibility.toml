@@ -1,5 +1,5 @@
 [[combination]]
-romm_cli = "0.40.0"
+romm_cli = "1.0.0"
 romm_tui = "0.40.0"
 min_romm_api = "0.40.0"
-notes = "Initial component-tagged releases"
+notes = "romm-cli 1.0.0; romm-api and romm-tui remain 0.40.0"
