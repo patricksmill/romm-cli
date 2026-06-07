@@ -4912,7 +4912,7 @@ dependencies = [
 
 [[package]]
 name = "romm-api"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -4938,7 +4938,7 @@ dependencies = [
 
 [[package]]
 name = "romm-cli"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -4965,7 +4965,7 @@ dependencies = [
 
 [[package]]
 name = "romm-tui"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "crossterm 0.29.0",
