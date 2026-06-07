@@ -111,6 +111,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
 
       - name: Build
+        shell: bash
         run: cargo build --release --target ${{ matrix.target }} -p "${RELEASE_COMPONENT}" --bin "${RELEASE_COMPONENT}"
 
       - name: Prepare artifact directory
