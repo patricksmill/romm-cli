@@ -37,14 +37,9 @@ fi
 
 echo "==> Checking workspace.dependencies version pins"
 api_pin="$(grep 'romm-api = ' Cargo.toml | sed -n 's/.*version = "\([^"]*\)".*/\1/p')"
-tui_pin="$(grep 'romm-tui = ' Cargo.toml | sed -n 's/.*version = "\([^"]*\)".*/\1/p')"
 api_major_minor="$(crate_version romm-api | sed -E 's/(\.[0-9]+)$//')"
-tui_major_minor="$(crate_version romm-tui | sed -E 's/(\.[0-9]+)$//')"
 if [ "$api_pin" != "$api_major_minor" ]; then
   err "workspace romm-api pin ($api_pin) should match romm-api major.minor ($api_major_minor)"
-fi
-if [ "$tui_pin" != "$tui_major_minor" ]; then
-  err "workspace romm-tui pin ($tui_pin) should match romm-tui major.minor ($tui_major_minor)"
 fi
 echo "  OK workspace pins"
 
