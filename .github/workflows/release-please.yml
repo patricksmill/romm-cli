@@ -5,6 +5,25 @@ on:
     branches:
       - main
       - master
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to publish from (branch, tag, or SHA)"
+        required: true
+        default: main
+        type: string
+      publish_romm_api:
+        description: "Publish romm-api"
+        type: boolean
+        default: true
+      publish_romm_tui:
+        description: "Publish romm-tui"
+        type: boolean
+        default: true
+      publish_romm_cli:
+        description: "Publish romm-cli"
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -15,14 +34,52 @@ concurrency:
 
 jobs:
   release-please:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
+    outputs:
+      api_created: ${{ steps.release.outputs['romm-api--release_created'] }}
+      cli_created: ${{ steps.release.outputs['romm-cli--release_created'] }}
+      tui_created: ${{ steps.release.outputs['romm-tui--release_created'] }}
     steps:
+      - uses: actions/checkout@v6
       - uses: googleapis/release-please-action@v4
         id: release
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+  publish-crates-io:
+    needs: release-please
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (needs.release-please.result == 'success' &&
+        (needs.release-please.outputs.api_created == 'true' ||
+         needs.release-please.outputs.cli_created == 'true' ||
+         needs.release-please.outputs.tui_created == 'true'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.sha }}
+
+      - uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Publish to crates.io (ordered)
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            export PUBLISH_API="${{ inputs.publish_romm_api }}"
+            export PUBLISH_TUI="${{ inputs.publish_romm_tui }}"
+            export PUBLISH_CLI="${{ inputs.publish_romm_cli }}"
+          else
+            export PUBLISH_API="${{ needs.release-please.outputs.api_created }}"
+            export PUBLISH_TUI="${{ needs.release-please.outputs.tui_created }}"
+            export PUBLISH_CLI="${{ needs.release-please.outputs.cli_created }}"
+          fi
+          bash ./tools/publish-workspace.sh --if-created

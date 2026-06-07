@@ -41,6 +41,17 @@ jobs:
           components: clippy
       - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
+  clippy-no-default-features:
+    name: Clippy (no default features)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - run: cargo clippy --workspace --all-targets --no-default-features -- -D warnings
+
   test-romm-api:
     name: Test romm-api
     runs-on: ubuntu-latest

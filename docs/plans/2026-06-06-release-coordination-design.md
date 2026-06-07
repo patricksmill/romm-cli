@@ -31,6 +31,12 @@ Romm is a hybrid: shared `romm-api` library plus two desktop frontends. Independ
 
 Rejected alternatives: full `release-plz` migration (tooling churn), `cargo-workspaces` manual releases (weak GitHub automation).
 
+## Publish orchestration
+
+crates.io publish runs in a single ordered job chained off Release Please (`romm-api` → `romm-tui` → `romm-cli`), avoiding races when multiple component tags are created from one release PR merge. GitHub binary builds remain in `release-artifacts.yml` (per-tag, binaries only).
+
+Shared scripts: `tools/publish-workspace.sh`, `tools/publish-crate.sh`, `tools/wait-for-crates-io.sh`. Diverged version combinations are tracked in `docs/compatibility.toml` and validated by `tools/release-check.sh`.
+
 ## Version ownership
 
 | Crate | Tag | Changelog | GitHub binaries | crates.io |
