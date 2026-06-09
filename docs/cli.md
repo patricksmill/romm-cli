@@ -3,7 +3,7 @@
 [![Crates.io](https://img.shields.io/crates/v/romm-cli.svg)](https://crates.io/crates/romm-cli)
 [![Docs.rs](https://docs.rs/romm-cli/badge.svg)](https://docs.rs/romm-cli)
 
-Command-line interface for scripting and automation against a [RomM](https://github.com/romm-retro/romm) server. Depends on [`romm-api`](api.md) for HTTP, config, and domain logic.
+Command-line interface for scripting and automation against a [RomM](https://github.com/romm-retro/romm) server. Depends on [`romm-api`](docs/api.md) for HTTP, config, and domain logic.
 
 **Crate path:** `romm-cli/` in the workspace. The `romm-cli` binary is the primary user-facing tool.
 
@@ -17,7 +17,7 @@ Command-line interface for scripting and automation against a [RomM](https://git
 cargo install romm-cli
 ```
 
-For the interactive terminal UI, install the separate [`romm-tui`](tui.md) crate.
+For the interactive terminal UI, install the separate [`romm-tui`](docs/tui.md) crate.
 
 ### Binary releases
 
