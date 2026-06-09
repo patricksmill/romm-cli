@@ -72,47 +72,7 @@ pub(crate) enum Action {
     GameDetailKey(KeyEvent),
     ExtrasPickerKey(KeyEvent),
     SetupWizardKey(KeyEvent),
-    LibraryMetadataRefreshComplete(LibraryMetadataRefreshDone),
-    RomLoadComplete(RomLoadDone),
-    CollectionPrefetchComplete(CollectionPrefetchDone),
-    SearchLoadComplete(SearchLoadDone),
-    CoverLoadComplete(CoverLoadDone),
-    SaveListComplete(SaveListDone),
-    SaveUploadComplete(SaveUploadDone),
-    SaveDownloadComplete(SaveDownloadDone),
-    DeviceListComplete(DeviceListDone),
-    PlatformListComplete(PlatformListDone),
-    SyncPushPullComplete(SyncPushPullDone),
-    LibraryUploadProgress { uploaded: u64, total: u64 },
-    LibraryUploadComplete(Result<LibraryUploadComplete, String>),
-    LibraryScanComplete(Result<(), String>),
-    DriveCollectionPrefetch,
-    PollLibraryFooterClear,
-}
-
-pub(crate) fn map_background(action: BackgroundAction) -> Action {
-    match action {
-        BackgroundAction::LibraryMetadataRefresh(done) => {
-            Action::LibraryMetadataRefreshComplete(done)
-        }
-        BackgroundAction::RomLoad(done) => Action::RomLoadComplete(done),
-        BackgroundAction::CollectionPrefetch(done) => Action::CollectionPrefetchComplete(done),
-        BackgroundAction::SearchLoad(done) => Action::SearchLoadComplete(done),
-        BackgroundAction::CoverLoad(done) => Action::CoverLoadComplete(done),
-        BackgroundAction::SaveList(done) => Action::SaveListComplete(done),
-        BackgroundAction::SaveUpload(done) => Action::SaveUploadComplete(done),
-        BackgroundAction::SaveDownload(done) => Action::SaveDownloadComplete(done),
-        BackgroundAction::DeviceList(done) => Action::DeviceListComplete(done),
-        BackgroundAction::PlatformList(done) => Action::PlatformListComplete(done),
-        BackgroundAction::SyncPushPull(done) => Action::SyncPushPullComplete(done),
-        BackgroundAction::LibraryUploadProgress { uploaded, total } => {
-            Action::LibraryUploadProgress { uploaded, total }
-        }
-        BackgroundAction::LibraryUploadDone(result) => Action::LibraryUploadComplete(result),
-        BackgroundAction::LibraryScanDone(result) => Action::LibraryScanComplete(result),
-        BackgroundAction::DrivePrefetch => Action::DriveCollectionPrefetch,
-        BackgroundAction::PollFooterClear => Action::PollLibraryFooterClear,
-    }
+    Background(BackgroundAction),
 }
 
 /// Map a key press to zero or more actions (global overlays, chords, then screen dispatch).
@@ -215,7 +175,7 @@ impl App {
             }
             AppEvent::Tick => vec![Action::ProcessDeferredRomLoad],
             AppEvent::Paste(_) => Vec::new(),
-            AppEvent::Background(bg) => vec![map_background(bg)],
+            AppEvent::Background(bg) => vec![Action::Background(bg)],
             AppEvent::AutoDismissSplash => vec![Action::DismissStartupSplash],
         }
     }

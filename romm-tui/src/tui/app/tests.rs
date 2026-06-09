@@ -1,6 +1,6 @@
 use super::{
     background::types::{RomLoadDone, RomLoadEvent, SearchLoadDone, SearchLoadEvent},
-    event::{map_key_to_actions, Action},
+    event::{map_key_to_actions, Action, AppEvent, BackgroundAction},
     rom_load::{primary_rom_load_result_is_current, primary_rom_load_result_matches_selection},
     App, AppScreen,
 };
@@ -165,6 +165,16 @@ fn ctrl_c_is_treated_as_force_quit() {
 fn primary_rom_load_stale_gen_is_ignored() {
     assert!(!primary_rom_load_result_is_current(1, 2));
     assert!(primary_rom_load_result_is_current(3, 3));
+}
+
+#[test]
+fn background_event_maps_to_background_action() {
+    let app = app_with_library(vec![platform(1, "NES", 1)]);
+    let actions = app.map_event(AppEvent::Background(BackgroundAction::PollFooterClear));
+    assert!(matches!(
+        actions.as_slice(),
+        [Action::Background(BackgroundAction::PollFooterClear)]
+    ));
 }
 
 #[test]

@@ -56,8 +56,7 @@ impl super::super::App {
         let events = self.drain_background_events();
         for event in events {
             if let AppEvent::Background(bg) = event {
-                let action = super::super::event::map_background(bg);
-                self.apply_background(action);
+                self.apply_background(bg);
             }
         }
     }
