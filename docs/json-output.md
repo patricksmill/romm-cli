@@ -29,7 +29,7 @@ Subcommands that call the API return API-shaped JSON. `roms upload` returns:
 
 ### `scan`
 
-Without `--wait`: task start payload from the server (`task_id`, `status`, …).
+Without `--wait`: task start payload from the server (`task_id`, `status`, …). `scan --platform <slug[,slug]>` has the same output shape; the platform filter is sent to the server as `platform_slugs` task kwargs.
 
 With `--wait`: start payload plus `final_status` object when the task completes.
 
@@ -88,10 +88,10 @@ Summary after batch, single-ROM, or extras downloads:
 ### `update`
 
 ```json
-{ "status": "updated", "version": "0.39.0" }
+{ "status": "updated", "version": "1.0.1" }
 ```
 
-or `{ "status": "up_to_date", "version": "0.38.0" }`.
+or `{ "status": "up_to_date", "version": "1.0.0" }`.
 
 ## Text-only commands
 

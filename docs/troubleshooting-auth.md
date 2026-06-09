@@ -27,6 +27,8 @@ For **automation**, **headless servers**, or when the keyring is unavailable, se
 
 Environment values override `config.json` for those fields, so you do not need a working keyring for that run.
 
+For one-time Web UI pairing, use `romm-cli auth login --pairing-code <CODE>`. The CLI exchanges the pairing code for stored credentials, so there is no long-lived pairing-code environment variable.
+
 ## Token from a file at runtime (`ROMM_TOKEN_FILE`)
 
 For **Docker** or **Kubernetes**, you can mount a secret as a file instead of passing the token in the environment:

@@ -70,8 +70,8 @@ Run `romm-cli --help` or `romm-cli <command> --help` for the full flag list. Man
 # List platforms
 romm-cli platforms
 
-# Search and print JSON
-romm-cli roms list --search-term "zelda" --json
+# Search ROMs and print JSON (`roms` lists by default)
+romm-cli roms --search-term "zelda" --json
 
 # Upload a ROM, then optionally rescan the library on the server
 romm-cli roms upload --platform <slug-or-name> path/to/rom.bin --scan
@@ -100,6 +100,7 @@ romm-cli cache clear
 # Rotate credentials without re-entering ROM path/base URL
 romm-cli auth status
 romm-cli auth login --token-file ~/.romm-token
+romm-cli auth login --pairing-code ABCD1234
 romm-cli auth logout
 ```
 

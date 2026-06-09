@@ -120,7 +120,7 @@ pub enum ApiError {
 - Add `clap_complete` as a build dependency (or dev-dependency + `build.rs`).
 - Generate completions in `build.rs` from the `Cli` / `Commands` types in `commands/mod.rs`.
 - Ship scripts under `completions/` (bash, zsh, fish, powershell, elvish).
-- Document install steps in README (e.g. `romm-cli completions bash > …` or copy from `completions/`).
+- Document install steps in [cli.md](cli.md) (e.g. `romm-cli completions bash > …` or copy from `completions/`).
 
 **Acceptance criteria:**
 
@@ -218,9 +218,9 @@ There is no global `CLI > env` for connection settings on normal commands.
 
 **Acceptance criteria:**
 
-- [x] Single documented precedence order (see README *Configuration precedence* and `config.rs` module docs)
+- [x] Single documented precedence order (see [api.md](api.md#configuration-precedence) and `config.rs` module docs)
 - [x] Sensitive values never logged by `tracing` (passwords, tokens, API keys)
-- [x] `ROMM_*` env vars listed in README
+- [x] `ROMM_*` env vars listed in [api.md](api.md#environment-variables)
 
 **References:** [Modern Rust CLI — serde flatten](https://techbytes.app/posts/modern-rust-cli-development-2026-cheat-sheet/)
 

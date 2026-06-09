@@ -119,6 +119,7 @@ Prefer `--token-file` over `--token` to keep secrets out of shell history. The C
 - `--check` — Verify URL and token after saving.
 - `--force` — Overwrite existing configuration without asking.
 - `--print-path` — Print the path to `config.json` and exit.
+- `--json` — Print supported `init` output as JSON.
 
 ### Environment variables
 

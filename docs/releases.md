@@ -2,17 +2,17 @@
 
 This workspace ships three independently versioned crates plus prebuilt desktop binaries. See [release coordination design](plans/2026-06-06-release-coordination-design.md) for rationale.
 
-## Current line: 1.0.0
+## Current versions
 
-All workspace crates target **1.0.0** as the post-split fresh start. Component tags:
+The post-split baseline started at **1.0.0** for all crates. Crates now version independently; current supported component tags include:
 
 | Crate | Tag | crates.io | GitHub binaries |
 |-------|-----|-----------|-----------------|
 | `romm-api` | `romm-api-v1.0.0` | Yes | — |
 | `romm-cli` | `romm-cli-v1.0.0` | Yes | Yes |
-| `romm-tui` | `romm-tui-v1.0.0` | Yes | Yes |
+| `romm-tui` | `romm-tui-v1.1.0` | Yes | Yes |
 
-Legacy tags (`v0.x.y` unified, `romm-*-v0.40.0` bootstrap) remain for history but are not the supported line.
+Legacy tags (`v0.x.y` unified, `romm-*-v0.40.0` bootstrap) remain for history but are not the supported line. Supported divergent combinations are tracked in [`docs/compatibility.toml`](compatibility.toml).
 
 ## Overview
 
@@ -149,8 +149,8 @@ When versions diverge, record combinations in [`docs/compatibility.toml`](compat
 | Era | Tag pattern | Notes |
 |-----|-------------|-------|
 | Pre-split | `v0.x.y` | Unified monolith releases |
-| Workspace bootstrap | `romm-*-v0.40.0` | First component tags; superseded by 1.0.0 line |
-| Current | `romm-*-v1.0.0+` | Independent per-crate semver |
+| Workspace bootstrap | `romm-*-v0.40.0` | First component tags; superseded by the 1.0.0 baseline |
+| Current | `romm-<crate>-v*` | Independent per-crate semver |
 
 One-time bootstrap for the 0.40.0 component era: `./tools/bootstrap-component-tags.sh 0.40.0 <commit-sha>`.
 

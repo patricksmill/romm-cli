@@ -23,9 +23,11 @@ RomM does not automatically index a ROM after chunked upload. Users must run a *
 
 Same scan path as upload: core logic in [`romm-api/src/core/library_scan.rs`](../romm-api/src/core/library_scan.rs), CLI wrappers in [`romm-cli/src/commands/library_scan.rs`](../romm-cli/src/commands/library_scan.rs). Use this when files were uploaded outside the CLI or you only want a rescan.
 
+`romm-cli scan --platform gba` restricts the scan by sending `{"platform_slugs":["gba"]}` as `scan_library` task kwargs. Multiple comma-separated slugs are accepted, for example `--platform gba,snes`.
+
 ### JSON output
 
-With global `--json`, `scan` (and the scan phase of `roms upload --scan`) prints pretty JSON: the start response from `run_task`, and after `--wait` an extra `final_status` object with the last poll body.
+With global `--json`, `scan` (and the scan phase of `roms upload --scan`) prints pretty JSON: the start response from `run_task`, and after `--wait` an extra `final_status` object with the last poll body. `scan --platform` uses the same JSON shape; only the task kwargs sent to RomM differ.
 
 ### On-disk ROM list cache after a successful `--wait`
 
@@ -33,6 +35,7 @@ When a scan finishes in the **finished** state after `--wait`, the CLI updates t
 
 - **`roms upload … --scan --wait`:** removes the cache entry for the upload `platform_id` only.
 - **`scan --wait`:** removes **all** cached platform lists (full-library scan); collection-type cache entries are not cleared here.
+- **`scan --platform <slug> --wait`:** removes the matching cached platform list entry when the single platform resolves successfully. Multiple comma-separated slugs, or an unresolved slug, fall back to clearing all platform list entries.
 
 If `--wait` is not used, the cache is left unchanged (the server scan may still be running).
 
@@ -53,16 +56,16 @@ After a successful upload, if rescan is enabled, the TUI runs the same `scan_lib
 
 ## Client API helpers
 
-In [`romm-api/src/client.rs`](../romm-api/src/client.rs):
+In [`romm-api/src/client/`](../romm-api/src/client/):
 
 - `RommClient::run_task(task_name, kwargs)` — `POST /api/tasks/run/{task_name}`; optional JSON body for `task_kwargs`.
 - `RommClient::get_task_status(task_id)` — `GET /api/tasks/{task_id}`.
 
 ## RomM server notes (kwargs and manual run)
 
-Upstream RomM (tasks endpoint) forwards `task_kwargs` to the task’s `run()` method. The **`scan_library`** implementation’s `run(self)` takes **no** extra keyword arguments and always calls internal scan logic with an **empty platform list** (full-library behavior). Passing `platform_id` in kwargs would not scope the scan and could cause the worker job to error on unexpected keys.
+Upstream RomM (tasks endpoint) forwards `task_kwargs` to the task’s `run()` method. For upload-triggered scans, this CLI sends no kwargs so the server performs its default full-library behavior after upload. For standalone `romm-cli scan --platform`, this CLI sends `platform_slugs` kwargs, matching RomM versions that support scoped scans.
 
-**Do not** send `task_kwargs` for `scan_library` from this CLI.
+Do not send a numeric `platform_id` kwarg for `scan_library`; it is not the scoped-scan contract used by the CLI.
 
 RomM may also set `manual_run=False` on the scheduled `scan_library` task in some versions, which makes `POST …/run/scan_library` return **400** (“task cannot be run”). That is a server configuration/version concern, not something `romm-cli` can fix locally.
 
@@ -79,10 +82,11 @@ RomM may also set `manual_run=False` on the scheduled `scan_library` task in som
 romm-cli roms upload --platform gba "path/to/rom.bin" --scan
 romm-cli roms upload --platform gba ./folder --scan --wait --wait-timeout-secs 7200
 romm-cli scan --wait
+romm-cli scan --platform gba --wait
 ```
 
 Confirm the ROM appears in the TUI or API after the scan completes.
 
 ## Historical note
 
-Earlier drafts of this doc proposed always passing `{"platform_id": …}` as kwargs; that was **dropped** after verifying the server task signature. Open questions about defaulting `--scan` on vs off are resolved in favor of **opt-in** `--scan` as documented above.
+Earlier drafts of this doc proposed passing `{"platform_id": …}` as kwargs after every upload. That was **dropped**: upload-triggered scans send no kwargs, while standalone scoped scans use `platform_slugs`. Open questions about defaulting `--scan` on vs off are resolved in favor of **opt-in** `--scan` as documented above.
