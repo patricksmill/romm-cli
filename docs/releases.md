@@ -8,9 +8,9 @@ The post-split baseline started at **1.0.0** for all crates. Crates now version 
 
 | Crate | Tag | crates.io | GitHub binaries |
 |-------|-----|-----------|-----------------|
-| `romm-api` | `romm-api-v1.0.0` | Yes | — |
-| `romm-cli` | `romm-cli-v1.0.0` | Yes | Yes |
-| `romm-tui` | `romm-tui-v1.1.0` | Yes | Yes |
+| `romm-api` | `romm-api-v1.1.0` | Yes | — |
+| `romm-cli` | `romm-cli-v1.1.0` | Yes | Yes |
+| `romm-tui` | `romm-tui-v1.1.1` | Yes | Yes |
 
 Legacy tags (`v0.x.y` unified, `romm-*-v0.40.0` bootstrap) remain for history but are not the supported line. Supported divergent combinations are tracked in [`docs/compatibility.toml`](compatibility.toml).
 
