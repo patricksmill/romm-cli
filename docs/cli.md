@@ -150,13 +150,14 @@ Errors are printed to stderr with actionable hints (for example, suggesting `rom
 
 ## Shell completions
 
-Tab completion is available for bash, zsh, fish, PowerShell, and Elvish. Scripts live in [`romm-cli/completions/`](../romm-cli/completions/) and can be regenerated at runtime:
+Tab completion is available for bash, zsh, fish, PowerShell, and Elvish. Generate scripts at install time with `romm-cli completions <shell>`:
 
 ```bash
 romm-cli completions bash
 romm-cli completions zsh
 romm-cli completions fish
 romm-cli completions powershell
+romm-cli completions elvish
 ```
 
 **Bash** — user install:
@@ -170,7 +171,7 @@ romm-cli completions bash > ~/.local/share/bash-completion/completions/romm-cli
 
 ```bash
 mkdir -p ~/.zfunc
-cp romm-cli/completions/_romm-cli ~/.zfunc/_romm-cli
+romm-cli completions zsh > ~/.zfunc/_romm-cli
 # Add to ~/.zshrc before compinit:
 # fpath=(~/.zfunc $fpath); autoload -Uz compinit; compinit
 ```
