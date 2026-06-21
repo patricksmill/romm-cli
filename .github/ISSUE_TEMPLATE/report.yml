@@ -1,0 +1,48 @@
+name: Report
+description: Bug, feature, docs, or question
+title: "[type]: "
+body:
+  - type: dropdown
+    id: issue_type
+    attributes:
+      label: Type
+      options:
+        - Bug
+        - Feature
+        - Docs
+        - Question
+    validations:
+      required: true
+  - type: dropdown
+    id: crate
+    attributes:
+      label: Crate
+      options:
+        - romm-cli
+        - romm-tui
+        - romm-api
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened or what you want?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `romm-cli --version`, `romm-tui --version`, or crate version
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: For bugs; command, config (redact secrets), expected vs actual
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, RomM server version if known

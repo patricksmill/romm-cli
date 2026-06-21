@@ -88,15 +88,9 @@ romm-cli/          # workspace root (this repo)
 
 ## Contributing
 
-Issues and pull requests are welcome. To build from source:
+Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for build steps, required checks, and commit conventions.
 
-```bash
-git clone https://github.com/patricksmill/romm-cli
-cd romm-cli
-cargo build --release
-```
-
-Contributor notes: [rust-guidelines.md](docs/rust-guidelines.md).
+Contributor deep-dive: [rust-guidelines.md](docs/rust-guidelines.md).
 
 ---
 

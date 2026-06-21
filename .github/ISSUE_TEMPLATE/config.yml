@@ -1,0 +1,8 @@
+blank_issues: false
+contact_links:
+  - name: Documentation
+    url: https://github.com/patricksmill/romm-cli/tree/main/docs
+  - name: Auth troubleshooting
+    url: https://github.com/patricksmill/romm-cli/blob/main/docs/troubleshooting-auth.md
+  - name: RomM server (upstream)
+    url: https://github.com/rommapp/romm/issues
