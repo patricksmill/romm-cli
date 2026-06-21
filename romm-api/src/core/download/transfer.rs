@@ -40,6 +40,7 @@ pub async fn prepare_download_target_destination(
     Ok(false)
 }
 
+/// Download a target, trying alternate RomM file URL shapes on HTTP 404.
 pub async fn download_target_with_fallback<F, C>(
     client: &RommClient,
     target: &DownloadTarget,
