@@ -1,3 +1,5 @@
+//! Runtime shell completion generation via `clap_complete`.
+
 use clap::{Args, CommandFactory};
 use clap_complete::aot::{generate, Shell};
 
