@@ -7,6 +7,13 @@ Entries before the workspace split (1.0.0) are filtered from the unified monolit
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0](https://github.com/patricksmill/romm-cli/compare/romm-api-v1.0.0...romm-api-v1.1.0) (2026-06-21)
+
+
+### Features
+
+* **api:** export download_target_with_fallback for frontend reuse ([2364183](https://github.com/patricksmill/romm-cli/commit/2364183875c3ed4da475929d64b93970534f8853))
+
 ## [1.0.0](https://github.com/patricksmill/romm-cli/compare/romm-api-v0.40.0...romm-api-v1.0.0) (2026-06-07)
 
 ### Features

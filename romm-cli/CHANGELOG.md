@@ -7,6 +7,13 @@ Entries before the workspace split (1.0.0) are filtered from the unified monolit
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0](https://github.com/patricksmill/romm-cli/compare/romm-cli-v1.0.0...romm-cli-v1.1.0) (2026-06-21)
+
+
+### Features
+
+* **cli:** generate shell completions at runtime only ([af08376](https://github.com/patricksmill/romm-cli/commit/af08376f09e5c8172e69aadfd55345832e3293cb))
+
 ## [1.0.0](https://github.com/patricksmill/romm-cli/compare/romm-cli-v0.40.0...romm-cli-v1.0.0) (2026-06-07)
 
 ### ⚠ BREAKING CHANGES
