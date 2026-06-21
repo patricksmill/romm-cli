@@ -106,13 +106,7 @@ async fn run_rom_download_task(task: RomDownloadTask) {
     }
 
     if !task.base_targets.is_empty() {
-        download_base_targets(
-            &task.client,
-            &task.jobs,
-            task.job_id,
-            &task.base_targets,
-        )
-        .await;
+        download_base_targets(&task.client, &task.jobs, task.job_id, &task.base_targets).await;
         return;
     }
 
@@ -218,7 +212,11 @@ async fn download_primary_rom(
             }
             Err(err) => {
                 let _ = tokio::fs::remove_file(&temp_path).await;
-                set_job_status(jobs, job_id, DownloadStatus::FinalizeFailed(err.to_string()));
+                set_job_status(
+                    jobs,
+                    job_id,
+                    DownloadStatus::FinalizeFailed(err.to_string()),
+                );
             }
         },
         Err(e) => {

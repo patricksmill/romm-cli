@@ -19,4 +19,4 @@ pub use extras_job::*;
 pub use job::*;
 pub use manager::DownloadManager;
 pub use paths::*;
-pub use transfer::prepare_download_target_destination;
+pub use transfer::{download_target_with_fallback, prepare_download_target_destination};

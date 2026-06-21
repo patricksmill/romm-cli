@@ -40,7 +40,7 @@ pub async fn prepare_download_target_destination(
     Ok(false)
 }
 
-pub(crate) async fn download_target_with_fallback<F, C>(
+pub async fn download_target_with_fallback<F, C>(
     client: &RommClient,
     target: &DownloadTarget,
     mut is_cancelled: C,

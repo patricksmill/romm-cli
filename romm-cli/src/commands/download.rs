@@ -12,8 +12,8 @@ use tokio::sync::Semaphore;
 use romm_api::client::RommClient;
 use romm_api::config::{load_config, RomsLayoutConfig};
 use romm_api::core::download::{
-    extract_zip_archive, prepare_download_target_destination, resolve_console_roms_dir,
-    resolve_download_directory, unique_zip_path,
+    download_target_with_fallback, extract_zip_archive, prepare_download_target_destination,
+    resolve_console_roms_dir, resolve_download_directory, unique_zip_path,
 };
 use romm_api::core::extras::{
     build_base_rom_file_targets, build_extras_targets, build_update_dlc_targets_for_rom,
@@ -174,8 +174,6 @@ async fn download_target(
         }
     };
 
-    let urls = candidate_download_urls(target);
-    let mut last_err: Option<DownloadError> = None;
     if prepare_download_target_destination(target).await? {
         if let Some(expected_size) = target.expected_size_bytes {
             progress(expected_size, expected_size);
@@ -183,88 +181,17 @@ async fn download_target(
         pb.finish_with_message(format!("✓ {}: {}", target.kind.label(), target.title));
         return Ok(());
     }
-    for url in urls {
-        match client
-            .download_url_with_query_with_cancel(
-                &url,
-                &target.source_query,
-                &target.destination,
-                |_, _| interrupt.is_cancelled(),
-                &mut progress,
-            )
-            .await
-        {
-            Ok(()) => {
-                last_err = None;
-                break;
-            }
-            Err(err) => {
-                if !err.is_not_found() {
-                    return Err(err.into());
-                }
-                last_err = Some(err);
-            }
-        }
-    }
-    if let Some(err) = last_err {
-        return Err(err.into());
-    }
+
+    download_target_with_fallback(
+        client,
+        target,
+        |_, _| interrupt.is_cancelled(),
+        &mut progress,
+    )
+    .await?;
 
     pb.finish_with_message(format!("✓ {}: {}", target.kind.label(), target.title));
     Ok(())
-}
-
-fn candidate_download_urls(target: &DownloadTarget) -> Vec<String> {
-    if target.kind != romm_api::core::extras::DownloadAssetKind::RomFile {
-        return vec![target.source_url.clone()];
-    }
-    let mut out = vec![target.source_url.clone()];
-    if let Some((file_id, file_name)) = parse_current_rom_file_content_path(&target.source_url) {
-        out.push(format!("/api/romsfiles/{file_id}/content/{file_name}"));
-        out.push(format!("/api/roms/files/{file_id}/content/{file_name}"));
-    } else if let Some((file_id, file_name)) = parse_romsfiles_path(&target.source_url) {
-        out.push(format!("/api/roms/{file_id}/files/content/{file_name}"));
-        out.push(format!("/api/roms/files/{file_id}/content/{file_name}"));
-    } else if let Some((file_id, file_name)) = parse_legacy_roms_files_path(&target.source_url) {
-        out.push(format!("/api/roms/{file_id}/files/content/{file_name}"));
-        out.push(format!("/api/romsfiles/{file_id}/content/{file_name}"));
-    }
-    dedupe_preserve_order(out)
-}
-
-fn parse_current_rom_file_content_path(url: &str) -> Option<(String, String)> {
-    let prefix = "/api/roms/";
-    let marker = "/files/content/";
-    let rest = url.strip_prefix(prefix)?;
-    let (id, name) = rest.split_once(marker)?;
-    Some((id.to_string(), name.to_string()))
-}
-
-fn parse_romsfiles_path(url: &str) -> Option<(String, String)> {
-    let prefix = "/api/romsfiles/";
-    let marker = "/content/";
-    let rest = url.strip_prefix(prefix)?;
-    let (id, name) = rest.split_once(marker)?;
-    Some((id.to_string(), name.to_string()))
-}
-
-fn parse_legacy_roms_files_path(url: &str) -> Option<(String, String)> {
-    let prefix = "/api/roms/files/";
-    let marker = "/content/";
-    let rest = url.strip_prefix(prefix)?;
-    let (id, name) = rest.split_once(marker)?;
-    Some((id.to_string(), name.to_string()))
-}
-
-fn dedupe_preserve_order(urls: Vec<String>) -> Vec<String> {
-    let mut seen = std::collections::HashSet::new();
-    let mut out = Vec::new();
-    for u in urls {
-        if seen.insert(u.clone()) {
-            out.push(u);
-        }
-    }
-    out
 }
 
 fn emit_download_summary(
@@ -801,27 +728,6 @@ mod tests {
         assert!(cmd.with_extras);
         assert!(cmd.yes);
         assert!(!cmd.no_extras);
-    }
-
-    #[test]
-    fn rom_file_download_candidates_use_official_romsfiles_endpoint() {
-        let target = DownloadTarget {
-            kind: romm_api::core::extras::DownloadAssetKind::RomFile,
-            title: "DLC".into(),
-            source_url: "/api/roms/12/files/content/dlc%2Ensp".into(),
-            source_query: Vec::new(),
-            destination: PathBuf::from("/tmp/dlc.nsp"),
-            expected_size_bytes: Some(12),
-        };
-
-        assert_eq!(
-            candidate_download_urls(&target),
-            vec![
-                "/api/roms/12/files/content/dlc%2Ensp".to_string(),
-                "/api/romsfiles/12/content/dlc%2Ensp".to_string(),
-                "/api/roms/files/12/content/dlc%2Ensp".to_string()
-            ]
-        );
     }
 
     #[test]
