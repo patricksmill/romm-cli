@@ -5,9 +5,9 @@ use ratatui::Frame;
 use ratatui_image::{Resize, StatefulImage};
 
 use crate::tui::theme::RommStyles;
-use crate::tui::utils::truncate;
 use romm_api::core::download::DownloadStatus;
 use romm_api::core::utils::format_size;
+use romm_api::core::utils::truncate;
 
 use super::saves::save_lines;
 use super::types::{CoverState, GameDetailScreen};

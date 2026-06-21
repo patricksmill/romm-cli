@@ -4,8 +4,8 @@ use ratatui::Frame;
 use std::sync::{Arc, Mutex};
 
 use crate::tui::theme::RommStyles;
-use crate::tui::utils::truncate;
 use romm_api::core::download::{DownloadJob, DownloadStatus, ExtrasJob, ExtrasJobStatus};
+use romm_api::core::utils::truncate;
 
 /// Overlay screen listing active and completed downloads.
 ///

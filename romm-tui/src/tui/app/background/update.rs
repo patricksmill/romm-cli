@@ -118,7 +118,7 @@ impl App {
                 Ok(image) => detail.apply_cover_image(image),
                 Err(err) => detail.apply_cover_error(format!(
                     "Cover failed: {}",
-                    crate::tui::utils::truncate(&err, 120)
+                    romm_api::core::utils::truncate(&err, 120)
                 )),
             }
         }

@@ -113,19 +113,16 @@ pub enum ApiError {
 
 ### Gap 2: Shell completions
 
-**Current state:** `build.rs` reruns completion generation when CLI modules change (via `romm-complete-gen` after the first build). Static scripts live in `completions/`; users can also run `romm-cli completions <shell>`.
+**Current state:** Completions are generated at runtime via `romm-cli completions <shell>` (`clap_complete` in the `completions` subcommand). No committed static scripts or build-time generation.
 
 **Recommended approach:**
 
-- Add `clap_complete` as a build dependency (or dev-dependency + `build.rs`).
-- Generate completions in `build.rs` from the `Cli` / `Commands` types in `commands/mod.rs`.
-- Ship scripts under `completions/` (bash, zsh, fish, powershell, elvish).
-- Document install steps in [cli.md](cli.md) (e.g. `romm-cli completions bash > …` or copy from `completions/`).
+- Keep `clap_complete` as a normal dependency; generate from `Cli` / `Commands` in the `completions` handler.
+- Document install steps in [cli.md](cli.md) (`romm-cli completions bash > …`).
 
 **Acceptance criteria:**
 
-- [x] `build.rs` regenerates completions when CLI surface changes
-- [x] At least bash, zsh, fish, and PowerShell covered
+- [x] `romm-cli completions <shell>` covers bash, zsh, fish, PowerShell, and Elvish
 - [x] [cli.md](cli.md) section explains how to install completions per shell
 
 **References:** [Clap completions docs](https://docs.rs/clap_complete/latest/clap_complete/), [Rust CLI best practices guide — completions section](https://github.com/Dicklesworthstone/coding_agent_session_search/blob/main/RUST_CLI_TOOLS_BEST_PRACTICES_GUIDE.md)
@@ -168,7 +165,7 @@ romm-cli/          # workspace root
 └── romm-tui/      # binary + tui/ (depends on romm-api)
 ```
 
-- `romm-openapi-gen` bin lives in `romm-api`; `romm-complete-gen` in `romm-cli`.
+- `romm-openapi-gen` bin lives in `romm-api`; shell completions via `romm-cli completions <shell>`.
 - Android UniFFI: `romm-rust-android/ffi/` depending on `romm-api` from crates.io.
 
 **Acceptance criteria:**
