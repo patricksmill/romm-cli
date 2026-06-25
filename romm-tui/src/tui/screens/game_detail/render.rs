@@ -4,6 +4,7 @@ use ratatui::widgets::{Gauge, Paragraph};
 use ratatui::Frame;
 use ratatui_image::{Resize, StatefulImage};
 
+use crate::tui::footer_hint::{render_footer_panel, FooterHintEntry};
 use crate::tui::theme::RommStyles;
 use romm_api::core::download::DownloadStatus;
 use romm_api::core::utils::format_size;
@@ -19,7 +20,20 @@ impl GameDetailScreen {
                 f,
                 area,
                 "Upload save file",
-                "Esc: cancel   Enter: choose file   Ctrl+Enter: apply typed file",
+                &[
+                    FooterHintEntry {
+                        key: "Ctrl+Enter",
+                        label: "Apply file",
+                    },
+                    FooterHintEntry {
+                        key: "Enter",
+                        label: "Choose file",
+                    },
+                    FooterHintEntry {
+                        key: "Esc",
+                        label: "Cancel",
+                    },
+                ],
                 styles,
             );
             return;
@@ -236,12 +250,13 @@ impl GameDetailScreen {
                 .percent(job.percent())
                 .label(label);
             f.render_widget(gauge, footer_area);
-        } else {
-            let msg = self.message.as_deref().unwrap_or(self.footer_help_text());
+        } else if let Some(msg) = self.message.as_deref() {
             let footer = Paragraph::new(msg)
                 .style(styles.footer_hint())
                 .block(styles.panel_block_untitled());
             f.render_widget(footer, footer_area);
+        } else {
+            render_footer_panel(f, footer_area, styles, self.footer_help_entries(), None);
         }
     }
 }

@@ -8,6 +8,7 @@ use ratatui::style::Modifier;
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph};
 use ratatui::Frame;
 
+use crate::tui::footer_hint::{footer_hint_line, FooterHintEntry};
 use crate::tui::theme::RommStyles;
 
 /// Whether the user must pick a directory or a regular file.
@@ -384,7 +385,7 @@ impl PathPicker {
         f: &mut Frame,
         area: Rect,
         title: &str,
-        footer_hint: &str,
+        footer_entries: &[FooterHintEntry],
         styles: &RommStyles,
     ) {
         let block = styles.panel_block(title);
@@ -462,7 +463,7 @@ impl PathPicker {
         f.render_stateful_widget(list, list_inner, &mut self.list_state);
 
         f.render_widget(
-            Paragraph::new(footer_hint).style(styles.footer_hint()),
+            Paragraph::new(footer_hint_line(footer_entries, chunks[2].width, styles)),
             chunks[2],
         );
     }

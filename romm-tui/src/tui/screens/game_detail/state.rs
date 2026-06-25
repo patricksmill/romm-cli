@@ -3,6 +3,7 @@ use std::time::Instant;
 
 use ratatui_image::picker::{Picker, ProtocolType};
 
+use crate::tui::footer_hint::FooterHintEntry;
 use crate::tui::path_picker::{PathPicker, PathPickerMode};
 use crate::tui::utils::open_in_browser;
 use romm_api::core::download::{DownloadJob, DownloadStatus};
@@ -144,11 +145,53 @@ impl GameDetailScreen {
         self.cover_state = CoverState::Failed(message);
     }
 
-    pub(crate) fn footer_help_text(&self) -> &'static str {
+    pub(crate) fn footer_help_entries(&self) -> &'static [FooterHintEntry] {
         if self.show_technical {
-            "Enter: Download ROM | e: Extras | u: Upload save | D: Download save | m: Hide technical | Ctrl+←/→: Resize cover | Esc: Back"
+            &[
+                FooterHintEntry {
+                    key: "e",
+                    label: "Extras",
+                },
+                FooterHintEntry {
+                    key: "u",
+                    label: "Upload save",
+                },
+                FooterHintEntry {
+                    key: "D",
+                    label: "Download save",
+                },
+                FooterHintEntry {
+                    key: "m",
+                    label: "Hide technical",
+                },
+                FooterHintEntry {
+                    key: "Ctrl+←/→",
+                    label: "Resize cover",
+                },
+            ]
         } else {
-            "Enter: Download ROM | e: Extras | u: Upload save | D: Download save | m: More technical details | Ctrl+←/→: Resize cover | Esc: Back"
+            &[
+                FooterHintEntry {
+                    key: "e",
+                    label: "Extras",
+                },
+                FooterHintEntry {
+                    key: "u",
+                    label: "Upload save",
+                },
+                FooterHintEntry {
+                    key: "D",
+                    label: "Download save",
+                },
+                FooterHintEntry {
+                    key: "m",
+                    label: "More details",
+                },
+                FooterHintEntry {
+                    key: "Ctrl+←/→",
+                    label: "Resize cover",
+                },
+            ]
         }
     }
 

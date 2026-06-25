@@ -4979,6 +4979,7 @@ dependencies = [
  "tokio",
  "tracing",
  "unicode-normalization",
+ "unicode-width 0.2.2",
  "wiremock",
 ]
 

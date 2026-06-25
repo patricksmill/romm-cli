@@ -11,6 +11,7 @@
 //! frontends (e.g. a GUI) reusing the same core logic.
 
 pub mod app;
+pub mod footer_hint;
 pub mod keyboard_help;
 pub mod openapi_sync;
 pub mod path_picker;

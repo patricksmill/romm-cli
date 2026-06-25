@@ -2,10 +2,129 @@ use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::widgets::{Block, Borders, Cell, List, ListItem, ListState, Paragraph, Row, Table};
 use ratatui::Frame;
 
+use crate::tui::footer_hint::{render_footer_panel, FooterHintEntry};
 use crate::tui::text_search::LibrarySearchMode;
 use crate::tui::theme::RommStyles;
 
 use super::types::{LibraryBrowseScreen, LibrarySubsection, LibraryViewMode};
+
+const LIST_DEFAULT_HINTS: &[FooterHintEntry] = &[
+    FooterHintEntry {
+        key: "t",
+        label: "Switch",
+    },
+    FooterHintEntry {
+        key: "Ctrl+u",
+        label: "Upload",
+    },
+    FooterHintEntry {
+        key: "f",
+        label: "Filter",
+    },
+    FooterHintEntry {
+        key: "/",
+        label: "Search",
+    },
+    FooterHintEntry {
+        key: ",",
+        label: "Settings",
+    },
+    FooterHintEntry {
+        key: "d",
+        label: "Downloads",
+    },
+    FooterHintEntry {
+        key: "Ctrl+←/→",
+        label: "Resize",
+    },
+];
+
+const LIST_FILTER_HINTS: &[FooterHintEntry] = &[
+    FooterHintEntry {
+        key: "Esc",
+        label: "Clear filter",
+    },
+    FooterHintEntry {
+        key: "/",
+        label: "Search",
+    },
+    FooterHintEntry {
+        key: "f",
+        label: "Filter",
+    },
+];
+
+const SEARCH_ACTIVE_HINTS: &[FooterHintEntry] = &[
+    FooterHintEntry {
+        key: "Enter",
+        label: "Browse matches",
+    },
+    FooterHintEntry {
+        key: "Esc",
+        label: "Clear",
+    },
+];
+
+const ROMS_DEFAULT_HINTS: &[FooterHintEntry] = &[
+    FooterHintEntry {
+        key: "←",
+        label: "Back",
+    },
+    FooterHintEntry {
+        key: "f",
+        label: "Filter",
+    },
+    FooterHintEntry {
+        key: "/",
+        label: "Search",
+    },
+    FooterHintEntry {
+        key: ",",
+        label: "Settings",
+    },
+    FooterHintEntry {
+        key: "d",
+        label: "Downloads",
+    },
+    FooterHintEntry {
+        key: "Ctrl+←/→",
+        label: "Resize",
+    },
+];
+
+const UPLOAD_PICKER_HINTS: &[FooterHintEntry] = &[
+    FooterHintEntry {
+        key: "Ctrl+Enter",
+        label: "Confirm file",
+    },
+    FooterHintEntry {
+        key: "Ctrl+s",
+        label: "Rescan toggle",
+    },
+    FooterHintEntry {
+        key: "Tab",
+        label: "Path/list",
+    },
+    FooterHintEntry {
+        key: "Enter",
+        label: "Open/select",
+    },
+];
+
+const ROMS_FILTER_HINTS: &[FooterHintEntry] = &[
+    FooterHintEntry {
+        key: "Esc",
+        label: "Clear filter",
+    },
+    FooterHintEntry {
+        key: "/",
+        label: "Search",
+    },
+    FooterHintEntry {
+        key: "f",
+        label: "Filter",
+    },
+];
 
 impl LibraryBrowseScreen {
     pub fn render(&mut self, f: &mut Frame, area: Rect, styles: &RommStyles) {
@@ -121,9 +240,8 @@ impl LibraryBrowseScreen {
             .split(inner);
         f.render_widget(block, popup);
         f.render_widget(Paragraph::new(header).style(styles.text()), rows[0]);
-        let footer = "Enter: open/select   Ctrl+Enter: confirm file   ↑ list top: path   Tab: path/list   Ctrl+s: rescan";
         up.picker
-            .render(f, rows[1], "Choose ROM file", footer, styles);
+            .render(f, rows[1], "Choose ROM file", UPLOAD_PICKER_HINTS, styles);
     }
 
     /// Cursor for the upload path field (when [`Self::upload_prompt`] is open).
@@ -249,33 +367,42 @@ impl LibraryBrowseScreen {
     }
 
     fn render_help(&self, f: &mut Frame, area: Rect, styles: &RommStyles) {
-        let help = match self.view_mode {
+        let (entries, search_prefix) = match self.view_mode {
             LibraryViewMode::List => {
                 if self.list_search.mode.is_some() {
-                    "Type filter | Enter: browse matches | Esc: clear"
+                    (SEARCH_ACTIVE_HINTS, Some("Type filter"))
                 } else if self.list_search.filter_browsing {
-                    "↑↓: Navigate | Enter: Games | Esc: clear filter | /: Search | f: Filter"
+                    (LIST_FILTER_HINTS, None)
                 } else {
-                    "t: Switch | ↑↓: Select | f: Filter | Ctrl+u: Upload | Enter: Games | /: Search | ,: Settings | d: Downloads | Ctrl+←/→: Resize | Esc: Quit"
+                    (LIST_DEFAULT_HINTS, None)
                 }
             }
             LibraryViewMode::Roms => {
                 if self.rom_search.mode.is_some() {
-                    "Type filter | Enter: browse matches | Esc: clear"
+                    (SEARCH_ACTIVE_HINTS, Some("Type filter"))
                 } else if self.rom_search.filter_browsing {
-                    "←: Back | ↑↓: Navigate | Enter: Detail | Esc: clear filter | /: Search | f: Filter"
+                    (ROMS_FILTER_HINTS, None)
                 } else {
-                    "←: Back | ↑↓: Navigate | f: Filter | Enter: Detail | /: Search | ,: Settings | d: Downloads | Ctrl+←/→: Resize | Esc: Back"
+                    (ROMS_DEFAULT_HINTS, None)
                 }
             }
         };
-        let text = match &self.metadata_footer {
-            Some(m) if !m.is_empty() => format!("{m}\n{help}"),
-            _ => help.to_string(),
+        let mut prefix_parts = Vec::new();
+        if let Some(metadata) = self
+            .metadata_footer
+            .as_deref()
+            .filter(|line| !line.is_empty())
+        {
+            prefix_parts.push(metadata);
+        }
+        if let Some(prefix) = search_prefix {
+            prefix_parts.push(prefix);
+        }
+        let combined_prefix = if prefix_parts.is_empty() {
+            None
+        } else {
+            Some(prefix_parts.join("\n"))
         };
-        let p = Paragraph::new(text)
-            .style(styles.footer_hint())
-            .block(styles.panel_block_untitled());
-        f.render_widget(p, area);
+        render_footer_panel(f, area, styles, entries, combined_prefix.as_deref());
     }
 }

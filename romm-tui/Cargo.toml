@@ -21,6 +21,7 @@ ratatui = "0.30"
 ratatui-themekit = { version = "0.6", features = ["serde"] }
 crossterm = "0.29"
 unicode-normalization = "0.1"
+unicode-width = "0.2"
 ratatui-image = { version = "11.0.2", default-features = false, features = ["crossterm", "image-defaults"] }
 image = "0.25.10"
 dirs = "6.0"

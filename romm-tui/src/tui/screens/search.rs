@@ -2,6 +2,7 @@ use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::widgets::{Cell, Paragraph, Row, Table};
 use ratatui::Frame;
 
+use crate::tui::footer_hint::{render_footer_panel, FooterHintEntry};
 use crate::tui::theme::RommStyles;
 use romm_api::core::utils::{self, RomGroup};
 use romm_api::types::{Rom, RomList};
@@ -217,11 +218,22 @@ impl SearchScreen {
             f.render_widget(p, chunks[1]);
         }
 
-        let help = "Enter: Search (or open game if query unchanged) | ↑↓: Navigate | Esc: Back";
-        let p = Paragraph::new(help)
-            .style(styles.footer_hint())
-            .block(styles.panel_block_untitled());
-        f.render_widget(p, chunks[2]);
+        render_footer_panel(
+            f,
+            chunks[2],
+            styles,
+            &[
+                FooterHintEntry {
+                    key: "Enter",
+                    label: "Search/open",
+                },
+                FooterHintEntry {
+                    key: "Esc",
+                    label: "Back",
+                },
+            ],
+            None,
+        );
     }
 
     pub fn cursor_position(&self, area: Rect) -> Option<(u16, u16)> {

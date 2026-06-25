@@ -3,6 +3,7 @@ use ratatui::widgets::{Gauge, Paragraph};
 use ratatui::Frame;
 use std::sync::{Arc, Mutex};
 
+use crate::tui::footer_hint::{render_footer_panel, FooterHintEntry};
 use crate::tui::theme::RommStyles;
 use romm_api::core::download::{DownloadJob, DownloadStatus, ExtrasJob, ExtrasJobStatus};
 use romm_api::core::utils::truncate;
@@ -177,10 +178,21 @@ impl DownloadScreen {
             }
         }
 
-        let help = "d or Esc: Back to previous screen";
-        let footer = Paragraph::new(help)
-            .style(styles.footer_hint())
-            .block(styles.panel_block_untitled());
-        f.render_widget(footer, chunks[1]);
+        render_footer_panel(
+            f,
+            chunks[1],
+            styles,
+            &[
+                FooterHintEntry {
+                    key: "d",
+                    label: "Back",
+                },
+                FooterHintEntry {
+                    key: "Esc",
+                    label: "Back",
+                },
+            ],
+            None,
+        );
     }
 }

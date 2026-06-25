@@ -4,10 +4,11 @@ use ratatui::style::Modifier;
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{List, ListItem, ListState, Paragraph};
 
+use crate::tui::footer_hint::PATH_PICKER_HINTS;
 use crate::tui::theme::RommStyles;
 use romm_api::config::normalize_romm_origin;
 
-use super::layout::{wizard_footer_text, wizard_layout};
+use super::layout::{wizard_footer_entries, wizard_footer_text, wizard_layout};
 use super::types::{AuthKind, SetupWizard, Step};
 
 impl SetupWizard {
@@ -90,7 +91,8 @@ impl SetupWizard {
                 f.render_widget(p, main[1]);
             }
             Step::Download => {
-                self.download_picker.render(f, main[1], title, "", styles);
+                self.download_picker
+                    .render(f, main[1], title, PATH_PICKER_HINTS, styles);
             }
             Step::CustomConsolePaths => {
                 let body = "By default each console uses a subfolder under your ROMs directory.\n\nConsoles on other drives (e.g. Switch on D:, NES on E:) can use custom paths.\nMap them in Settings → ROMs → Console paths after setup.\n\nEnter: next";
@@ -262,28 +264,20 @@ impl SetupWizard {
             }
         }
 
-        let footer_keys = match self.step {
-            Step::Url => "Enter: next   Backspace: delete   Esc: quit",
-            Step::Https => "Space: toggle   Enter: next   Esc: quit",
-            Step::Download => "Ctrl+Enter: next (creates path)   ↑ list top: path bar   ↓/↑: list focus   Tab: path/list   Esc: quit",
-            Step::CustomConsolePaths => "Enter: next   Esc: quit",
-            Step::AuthMenu => "↑/↓: choose   Enter: next   Esc: quit",
-            Step::BasicUser | Step::BasicPass => {
-                "Type text   Tab: switch field   Enter: next step   Esc: quit"
-            }
-            Step::Bearer => "Enter: next step   Esc: quit",
-            Step::PairingCode => "Enter: next step   Esc: quit",
-            Step::ApiHeader | Step::ApiKey => "Tab: switch field   Enter: next step   Esc: quit",
-            Step::Summary => {
-                if self.testing {
-                    "Please wait…"
-                } else {
-                    "Enter: connect & save"
-                }
-            }
+        let block = styles.panel_block_untitled();
+        let inner = block.inner(main[2]);
+        let footer_text = if matches!(self.step, Step::Summary) && self.testing {
+            Text::from(vec![
+                Line::from(Span::styled("Please wait…", styles.footer_hint())),
+                Line::from(Span::styled(
+                    format!("romm-cli {}", env!("CARGO_PKG_VERSION")),
+                    styles.muted(),
+                )),
+            ])
+        } else {
+            wizard_footer_text(wizard_footer_entries(self.step), inner.width, styles)
         };
-        let p = Paragraph::new(wizard_footer_text(footer_keys, styles))
-            .block(styles.panel_block_untitled());
+        let p = Paragraph::new(footer_text).block(block);
         f.render_widget(p, main[2]);
     }
 

@@ -4,11 +4,86 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{List, ListItem, ListState, Paragraph, Tabs};
 use ratatui::Frame;
 
+use crate::tui::footer_hint::{render_footer_panel, FooterHintEntry, PATH_PICKER_HINTS};
 use crate::tui::theme::RommStyles;
 
 use super::types::{
     ConsolePathKind, SettingsConfirm, SettingsPickerKind, SettingsRow, SettingsScreen, SettingsTab,
 };
+
+const SETTINGS_DEFAULT_HINTS: &[FooterHintEntry] = &[
+    FooterHintEntry {
+        key: "Tab/←/→",
+        label: "Tabs",
+    },
+    FooterHintEntry {
+        key: "S",
+        label: "Save to disk",
+    },
+];
+
+const SETTINGS_CONFIRM_EXIT_HINTS: &[FooterHintEntry] = &[
+    FooterHintEntry {
+        key: "Enter",
+        label: "Save",
+    },
+    FooterHintEntry {
+        key: "N",
+        label: "Don't save",
+    },
+    FooterHintEntry {
+        key: "Esc",
+        label: "Cancel",
+    },
+];
+
+const SETTINGS_CONFIRM_HINTS: &[FooterHintEntry] = &[
+    FooterHintEntry {
+        key: "Enter",
+        label: "Confirm",
+    },
+    FooterHintEntry {
+        key: "Esc",
+        label: "Cancel",
+    },
+];
+
+const SETTINGS_EDITING_HINTS: &[FooterHintEntry] = &[
+    FooterHintEntry {
+        key: "Backspace",
+        label: "Delete",
+    },
+    FooterHintEntry {
+        key: "Enter",
+        label: "Save",
+    },
+    FooterHintEntry {
+        key: "Esc",
+        label: "Cancel",
+    },
+];
+
+const DEVICE_PICKER_HINTS: &[FooterHintEntry] = &[
+    FooterHintEntry {
+        key: "Enter",
+        label: "Choose",
+    },
+    FooterHintEntry {
+        key: "Esc",
+        label: "Cancel",
+    },
+];
+
+const CONSOLE_PICKER_HINTS: &[FooterHintEntry] = &[
+    FooterHintEntry {
+        key: "Enter",
+        label: "Set path",
+    },
+    FooterHintEntry {
+        key: "Del",
+        label: "Clear custom",
+    },
+];
 
 impl SettingsScreen {
     pub fn render(&mut self, f: &mut Frame, area: Rect, styles: &RommStyles) {
@@ -44,7 +119,7 @@ impl SettingsScreen {
                 f,
                 chunks[1],
                 "Choose console directory",
-                "Esc: cancel   Ctrl+Enter: apply typed path (creates folders)   Tab: path/list",
+                PATH_PICKER_HINTS,
                 styles,
             );
             f.render_widget(
@@ -84,13 +159,11 @@ impl SettingsScreen {
                     .block(styles.header_block()),
                 chunks[0],
             );
-            let hint =
-                "Esc: cancel   Ctrl+Enter: apply typed path (creates folders)   Tab: path/list";
             let title = match kind {
                 SettingsPickerKind::RomsDir => "Choose ROMs directory",
                 SettingsPickerKind::SaveDir => "Choose save directory",
             };
-            picker.render(f, chunks[1], title, hint, styles);
+            picker.render(f, chunks[1], title, PATH_PICKER_HINTS, styles);
             f.render_widget(
                 Paragraph::new("ROMs directory picker — Esc returns without changing")
                     .style(styles.footer_hint())
@@ -193,20 +266,15 @@ impl SettingsScreen {
 
         // -- Footer Help --
         let help = if self.confirm == Some(SettingsConfirm::ExitUnsaved) {
-            "Enter: save   N: don't save   Esc: cancel"
+            SETTINGS_CONFIRM_EXIT_HINTS
         } else if self.confirm.is_some() {
-            "Enter: confirm   Esc: cancel"
+            SETTINGS_CONFIRM_HINTS
         } else if self.editing {
-            "Backspace: delete   Arrows: move cursor   Enter: save   Esc: cancel"
+            SETTINGS_EDITING_HINTS
         } else {
-            "Tab/←/→: tabs   ↑/↓: select   Enter: edit/toggle   S: save to disk   Esc: back"
+            SETTINGS_DEFAULT_HINTS
         };
-        f.render_widget(
-            Paragraph::new(help)
-                .style(styles.footer_hint())
-                .block(styles.panel_block_untitled()),
-            chunks[4],
-        );
+        render_footer_panel(f, chunks[4], styles, help, None);
     }
 
     fn render_row_item(&self, row: SettingsRow, styles: &RommStyles) -> ListItem<'static> {
@@ -388,12 +456,7 @@ impl SettingsScreen {
                 &mut state,
             );
         }
-        f.render_widget(
-            Paragraph::new("Enter: choose   Esc: cancel   ↑/↓: select")
-                .style(styles.footer_hint())
-                .block(styles.panel_block_untitled()),
-            chunks[2],
-        );
+        render_footer_panel(f, chunks[2], styles, DEVICE_PICKER_HINTS, None);
     }
 
     fn render_console_picker(&mut self, f: &mut Frame, area: Rect, styles: &RommStyles) {
@@ -474,11 +537,6 @@ impl SettingsScreen {
                 &mut state,
             );
         }
-        f.render_widget(
-            Paragraph::new("Enter: set path   Del: clear custom   Esc: back   ↑/↓: select")
-                .style(styles.footer_hint())
-                .block(styles.panel_block_untitled()),
-            chunks[2],
-        );
+        render_footer_panel(f, chunks[2], styles, CONSOLE_PICKER_HINTS, None);
     }
 }

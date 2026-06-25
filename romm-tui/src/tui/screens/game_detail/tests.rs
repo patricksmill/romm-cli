@@ -78,21 +78,30 @@ fn has_any_extras_false_when_no_assets() {
 }
 
 #[test]
-fn footer_help_text_mentions_extras_shortcut() {
+fn footer_help_entries_mention_extras_shortcut() {
     let detail = new_detail(test_rom(1, None));
-    assert!(detail.footer_help_text().contains("e: Extras"));
-    assert!(detail.footer_help_text().contains("Ctrl+←/→: Resize cover"));
+    let entries = detail.footer_help_entries();
+    assert!(entries
+        .iter()
+        .any(|entry| entry.key == "e" && entry.label == "Extras"));
+    assert!(entries
+        .iter()
+        .any(|entry| entry.key == "Ctrl+←/→" && entry.label == "Resize cover"));
 }
 
 #[test]
-fn footer_help_text_tracks_technical_mode() {
+fn footer_help_entries_track_technical_mode() {
     let mut detail = new_detail(test_rom(1, None));
-    let non_technical = detail.footer_help_text();
-    assert!(non_technical.contains("More technical details"));
+    let non_technical = detail.footer_help_entries();
+    assert!(non_technical
+        .iter()
+        .any(|entry| entry.label == "More details"));
 
     detail.show_technical = true;
-    let technical = detail.footer_help_text();
-    assert!(technical.contains("Hide technical"));
+    let technical = detail.footer_help_entries();
+    assert!(technical
+        .iter()
+        .any(|entry| entry.label == "Hide technical"));
 }
 
 #[test]
