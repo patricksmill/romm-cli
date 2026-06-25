@@ -8,6 +8,7 @@ use romm_api::config::{auth_for_persist_merge, normalize_romm_origin, Config, Ex
 use romm_api::endpoints::device::ListDevices;
 use romm_api::endpoints::platforms::ListPlatforms;
 use romm_api::endpoints::sync::TriggerPushPull;
+use romm_api::error::RommError;
 
 use super::super::background::types::{DeviceListDone, PlatformListDone, SyncPushPullDone};
 use super::super::{App, AppScreen};
@@ -355,10 +356,7 @@ impl App {
                     let client = self.client.clone();
                     let tx = self.platform_list_tx.clone();
                     tokio::spawn(async move {
-                        let result = client
-                            .call(&ListPlatforms)
-                            .await
-                            .map_err(|e| format!("{e:#}"));
+                        let result = client.call(&ListPlatforms).await.map_err(RommError::from);
                         let _ = tx.send(PlatformListDone { result });
                     });
                 } else if row == SettingsRow::SaveConsolePaths {
@@ -366,10 +364,7 @@ impl App {
                     let client = self.client.clone();
                     let tx = self.platform_list_tx.clone();
                     tokio::spawn(async move {
-                        let result = client
-                            .call(&ListPlatforms)
-                            .await
-                            .map_err(|e| format!("{e:#}"));
+                        let result = client.call(&ListPlatforms).await.map_err(RommError::from);
                         let _ = tx.send(PlatformListDone { result });
                     });
                 } else if row == SettingsRow::SyncDevice {
@@ -381,10 +376,7 @@ impl App {
                     let client = self.client.clone();
                     let tx = self.device_list_tx.clone();
                     tokio::spawn(async move {
-                        let result = client
-                            .call(&ListDevices)
-                            .await
-                            .map_err(|e| format!("{e:#}"));
+                        let result = client.call(&ListDevices).await.map_err(RommError::from);
                         let _ = tx.send(DeviceListDone { result });
                     });
                 } else if row == SettingsRow::Theme {
@@ -416,7 +408,7 @@ impl App {
                         let result = client
                             .call(&TriggerPushPull { device_id })
                             .await
-                            .map_err(|e| format!("{e:#}"));
+                            .map_err(RommError::from);
                         let _ = tx.send(SyncPushPullDone { result });
                     });
                 } else {

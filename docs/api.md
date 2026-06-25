@@ -2,7 +2,7 @@
 
 [![Docs.rs](https://docs.rs/romm-api/badge.svg)](https://docs.rs/romm-api)
 
-Shared HTTP client, API types, configuration, and domain logic for RomM frontends (CLI, TUI, and [romm-rust-android](https://github.com/patricksmill/romm-rust-android) via UniFFI).
+Shared HTTP client, API types, configuration, and domain logic for RomM frontends (CLI, TUI, and other embedders).
 
 **Crate path:** `romm-api/` in the workspace.
 
@@ -12,7 +12,7 @@ Shared HTTP client, API types, configuration, and domain logic for RomM frontend
 
 | Use case | Dependency |
 |----------|------------|
-| New embedders, Android prep, minimal deps | `romm-api` directly |
+| New embedders, minimal deps | `romm-api` directly |
 | Existing library consumers on crates.io | `romm-cli` (re-exports `romm_api`) |
 
 ```toml
@@ -235,4 +235,3 @@ See [CLI documentation](cli.md#exit-codes) for scripting examples.
 - [Architecture overview](architecture.md)
 - [Troubleshooting authentication](troubleshooting-auth.md)
 - [Workspace split ADR](plans/2026-06-06-workspace-split-adr.md)
-- [romm-rust-android](https://github.com/patricksmill/romm-rust-android) (separate Android client repo)

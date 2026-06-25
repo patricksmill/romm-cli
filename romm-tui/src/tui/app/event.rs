@@ -3,6 +3,7 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
 use romm_api::core::library_scan::ScanCacheInvalidate;
+use romm_api::error::RommError;
 
 use super::background::types::{
     CollectionPrefetchDone, CoverLoadDone, DeviceListDone, LibraryMetadataRefreshDone,
@@ -40,8 +41,8 @@ pub(crate) enum BackgroundAction {
     PlatformList(PlatformListDone),
     SyncPushPull(SyncPushPullDone),
     LibraryUploadProgress { uploaded: u64, total: u64 },
-    LibraryUploadDone(Result<LibraryUploadComplete, String>),
-    LibraryScanDone(Result<(), String>),
+    LibraryUploadDone(Result<LibraryUploadComplete, RommError>),
+    LibraryScanDone(Result<(), RommError>),
     DrivePrefetch,
     PollFooterClear,
 }

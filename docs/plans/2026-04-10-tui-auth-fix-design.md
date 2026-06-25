@@ -1,5 +1,7 @@
 # TUI Auth Updater Fix & Renaming
 
+**Status:** Implemented
+
 ## Overview
 When the user edits their authentication via the TUI Settings screen, the `SetupWizard` correctly updates the application's `Config` and `RommClient`. However, the newly rendered `SettingsScreen` still displays the old authentication status (e.g., "Basic") because the `auth_status` string is generated once during `SettingsScreen::new` and the UI was not properly re-initialized with the new config. Additionally, we need to rename "Bearer token" to "API Token" across the application to match the RomM web UI terminology.
 

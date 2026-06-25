@@ -8,6 +8,7 @@ use romm_api::core::startup_library_snapshot;
 use romm_api::endpoints::device::DeviceSchema;
 use romm_api::endpoints::roms::GetRoms;
 use romm_api::endpoints::sync::SyncSessionSchema;
+use romm_api::error::RommError;
 use romm_api::types::{Collection, Platform, RomList, SaveMetadata};
 use romm_api::update::UpdateStatus;
 
@@ -32,7 +33,7 @@ pub(crate) struct CollectionPrefetchDone {
 #[derive(Debug)]
 pub(crate) enum RomLoadEvent {
     Batch(RomList),
-    Failed(String),
+    Failed(RommError),
     Complete,
 }
 
@@ -50,7 +51,7 @@ pub(crate) struct RomLoadDone {
 #[derive(Debug)]
 pub(crate) enum SearchLoadEvent {
     Batch(RomList),
-    Failed(String),
+    Failed(RommError),
     Complete,
 }
 
@@ -63,40 +64,40 @@ pub(crate) struct SearchLoadDone {
 #[derive(Debug)]
 pub(crate) struct CoverLoadDone {
     pub(crate) rom_id: u64,
-    pub(crate) result: Result<image::DynamicImage, String>,
+    pub(crate) result: Result<image::DynamicImage, RommError>,
 }
 
 #[derive(Debug)]
 pub(crate) struct SaveListDone {
     pub(crate) rom_id: u64,
-    pub(crate) result: Result<Vec<SaveMetadata>, String>,
+    pub(crate) result: Result<Vec<SaveMetadata>, RommError>,
 }
 
 #[derive(Debug)]
 pub(crate) struct SaveUploadDone {
     pub(crate) rom_id: u64,
-    pub(crate) result: Result<(), String>,
+    pub(crate) result: Result<(), RommError>,
 }
 
 #[derive(Debug)]
 pub(crate) struct SaveDownloadDone {
     pub(crate) rom_id: u64,
-    pub(crate) result: Result<PathBuf, String>,
+    pub(crate) result: Result<PathBuf, RommError>,
 }
 
 #[derive(Debug)]
 pub(crate) struct DeviceListDone {
-    pub(crate) result: Result<Vec<DeviceSchema>, String>,
+    pub(crate) result: Result<Vec<DeviceSchema>, RommError>,
 }
 
 #[derive(Debug)]
 pub(crate) struct PlatformListDone {
-    pub(crate) result: Result<Vec<Platform>, String>,
+    pub(crate) result: Result<Vec<Platform>, RommError>,
 }
 
 #[derive(Debug)]
 pub(crate) struct SyncPushPullDone {
-    pub(crate) result: Result<SyncSessionSchema, String>,
+    pub(crate) result: Result<SyncSessionSchema, RommError>,
 }
 
 pub(crate) struct StartupUpdatePrompt {

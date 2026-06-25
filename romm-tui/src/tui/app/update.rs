@@ -4,6 +4,7 @@ use anyhow::Result;
 
 use crate::tui::screens::library_browse::LibrarySubsection;
 use romm_api::core::library_scan::ScanCacheInvalidate;
+use romm_api::error::RommError;
 
 use super::background::types::{RomLoadDone, RomLoadEvent};
 use crate::tui::keyboard_help::apply_keyboard_help_scroll;
@@ -264,7 +265,7 @@ impl App {
                             gen,
                             key: key.clone(),
                             expected,
-                            event: RomLoadEvent::Failed(format!("{e:#}")),
+                            event: RomLoadEvent::Failed(RommError::from(e)),
                             context,
                             started,
                         });

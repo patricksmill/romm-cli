@@ -1,7 +1,7 @@
 # TUI Theming — Design
 
 **Date:** 2026-05-27  
-**Status:** Approved
+**Status:** Implemented
 
 ## Problem
 

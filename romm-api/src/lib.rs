@@ -1,6 +1,6 @@
 //! # romm-api
 //!
-//! Shared HTTP client, API types, and domain logic for RomM frontends (CLI, TUI, romm-rust-android).
+//! Shared HTTP client, API types, and domain logic for RomM frontends (CLI, TUI, and other embedders).
 //!
 //! ## Quick Start
 //!

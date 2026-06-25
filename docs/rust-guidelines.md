@@ -35,7 +35,7 @@ Modern Rust CLI tools (ripgrep, bat, starship, uv-style) generally follow:
 
 ## Target architecture (API client + CLI + TUI)
 
-**Current layout** (workspace — split for Android prep; see Gap 4):
+**Current layout** (workspace — see Gap 4):
 
 ```text
 romm-cli/              # workspace root
@@ -73,7 +73,7 @@ Each gap below is a self-contained guideline. When working on one, read its sect
 
 ### Gap 1: Typed errors in the client layer
 
-**Current state:** `RommClient` and `load_config` return typed errors (`ApiError`, `ConfigError`, `DownloadError`, composed as `RommError`). Some legacy command handlers still use `anyhow` internally and are wrapped at the CLI boundary; TUI background channels may still stringify errors.
+**Current state:** `RommClient` and `load_config` return typed errors (`ApiError`, `ConfigError`, `DownloadError`, composed as `RommError`). Some legacy command handlers still use `anyhow` internally and are wrapped at the CLI boundary. TUI background channels carry `RommError` and map to UI text via `user_message()` at apply time.
 
 **Recommended approach:**
 
@@ -156,7 +156,7 @@ pub enum ApiError {
 
 ### Gap 4: Workspace split
 
-**Current state:** **Workspace split complete** (2026-06-06). Three members: `romm-api`, `romm-cli`, `romm-tui`. Trigger: Android frontend prep ([workspace-split ADR](plans/2026-06-06-workspace-split-adr.md); implementation in [romm-rust-android](https://github.com/patricksmill/romm-rust-android)). `romm-cli` re-exports `romm_api` for crates.io consumers; new embedders should depend on `romm-api` directly.
+**Current state:** **Workspace split complete** (2026-06-06). Three members: `romm-api`, `romm-cli`, `romm-tui`. Rationale: [workspace-split ADR](plans/2026-06-06-workspace-split-adr.md). `romm-cli` re-exports `romm_api` for crates.io consumers; new embedders should depend on `romm-api` directly.
 
 ```text
 romm-cli/          # workspace root
@@ -166,11 +166,10 @@ romm-cli/          # workspace root
 ```
 
 - `romm-openapi-gen` bin lives in `romm-api`; shell completions via `romm-cli completions <shell>`.
-- Android UniFFI: `romm-rust-android/ffi/` depending on `romm-api` from crates.io.
 
 **Acceptance criteria:**
 
-- [x] Decision criteria documented; split triggered by Android third frontend
+- [x] Decision criteria documented; split enables third frontends without CLI/TUI deps
 - [x] `cargo test -p romm-api` runs without TUI feature graph
 
 **References:** [Rust project structure best practices](https://www.djamware.com/post/rust-project-structure-and-best-practices-for-clean-scalable-code)
@@ -269,4 +268,4 @@ There is no global `CLI > env` for connection settings on normal commands.
 
 ---
 
-*Last updated: 2026-06-06 — Independent per-crate releases; see [releases.md](releases.md) and [release coordination design](plans/2026-06-06-release-coordination-design.md).*
+*Last updated: 2026-06-25 — TUI background errors typed; plan doc statuses refreshed.*

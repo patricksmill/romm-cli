@@ -109,7 +109,8 @@ pub struct App {
     cover_load_tx: tokio::sync::mpsc::UnboundedSender<CoverLoadDone>,
     cover_load_task: Option<tokio::task::JoinHandle<()>>,
     /// Receives `Ok(())` when a background `scan_library` (with wait) finishes successfully.
-    library_scan_rx: Option<tokio::sync::mpsc::UnboundedReceiver<Result<(), String>>>,
+    library_scan_rx:
+        Option<tokio::sync::mpsc::UnboundedReceiver<Result<(), romm_api::error::RommError>>>,
     library_scan_inflight: bool,
     /// Cache policy applied when the current background scan completes successfully.
     library_scan_pending_invalidate: Option<ScanCacheInvalidate>,
@@ -118,8 +119,11 @@ pub struct App {
     /// Background chunked ROM upload to the selected platform.
     library_upload_inflight: bool,
     library_upload_progress_rx: Option<tokio::sync::mpsc::UnboundedReceiver<(u64, u64)>>,
-    library_upload_done_rx:
-        Option<tokio::sync::mpsc::UnboundedReceiver<Result<LibraryUploadComplete, String>>>,
+    library_upload_done_rx: Option<
+        tokio::sync::mpsc::UnboundedReceiver<
+            Result<LibraryUploadComplete, romm_api::error::RommError>,
+        >,
+    >,
     save_list_rx: tokio::sync::mpsc::UnboundedReceiver<SaveListDone>,
     save_list_tx: tokio::sync::mpsc::UnboundedSender<SaveListDone>,
     save_upload_rx: tokio::sync::mpsc::UnboundedReceiver<SaveUploadDone>,

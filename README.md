@@ -82,7 +82,6 @@ romm-cli/          # workspace root (this repo)
 
 - New embedders: depend on **`romm-api`** directly.
 - Existing library consumers: **`romm-cli`** re-exports `romm_api` for backward compatibility.
-- Android (Kotlin/Compose + UniFFI) lives in the separate [**romm-rust-android**](https://github.com/patricksmill/romm-rust-android) repo and depends on `romm-api` from crates.io.
 
 ---
 

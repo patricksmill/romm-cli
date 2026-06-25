@@ -6,6 +6,7 @@ use std::time::Duration;
 use romm_api::core::cache::RomCacheKey;
 use romm_api::core::library_scan::ScanCacheInvalidate;
 use romm_api::core::startup_library_snapshot;
+use romm_api::error::{from_anyhow, ApiError, RommError};
 use romm_api::types::SaveMetadata;
 
 use super::super::event::{AppEvent, BackgroundAction};
@@ -90,7 +91,7 @@ impl super::super::App {
                 Ok::<(), anyhow::Error>(())
             }
             .await
-            .map_err(|e| e.to_string());
+            .map_err(from_anyhow);
             let _ = tx.send(result);
         });
     }
@@ -184,13 +185,12 @@ impl super::super::App {
         self.library_upload_done_rx = Some(done_rx);
         let client = self.client.clone();
         tokio::spawn(async move {
-            let result: Result<LibraryUploadComplete, String> = async {
+            let result: Result<LibraryUploadComplete, RommError> = async {
                 client
                     .upload_rom(platform_id, &path, move |uploaded, total| {
                         let _ = prog_tx.send((uploaded, total));
                     })
-                    .await
-                    .map_err(|e| e.to_string())?;
+                    .await?;
                 Ok(LibraryUploadComplete {
                     platform_id,
                     scan_after,
@@ -252,13 +252,22 @@ impl super::super::App {
         let tx = self.cover_load_tx.clone();
         self.cover_load_task = Some(tokio::spawn(async move {
             let result = async {
-                let response = reqwest::get(&url).await.map_err(|e| e.to_string())?;
+                let response = reqwest::get(&url)
+                    .await
+                    .map_err(|e| RommError::Api(ApiError::from(e)))?;
                 let status = response.status();
                 if !status.is_success() {
-                    return Err(format!("HTTP {}", status.as_u16()));
+                    return Err(RommError::Api(ApiError::from_http_response(
+                        status,
+                        format!("cover HTTP {}", status.as_u16()),
+                    )));
                 }
-                let bytes = response.bytes().await.map_err(|e| e.to_string())?;
-                image::load_from_memory(&bytes).map_err(|e| e.to_string())
+                let bytes = response
+                    .bytes()
+                    .await
+                    .map_err(|e| RommError::Api(ApiError::from(e)))?;
+                image::load_from_memory(&bytes)
+                    .map_err(|e| RommError::Other(format!("invalid cover image: {e}")))
             }
             .await;
             let _ = tx.send(CoverLoadDone { rom_id, result });
@@ -310,10 +319,9 @@ impl super::super::App {
                         None,
                     )
                     .await?;
-                SaveMetadata::from_api_value(value)
+                SaveMetadata::from_api_value(value).map_err(from_anyhow)
             }
-            .await
-            .map_err(|e| format!("{e:#}"));
+            .await;
             let _ = tx.send(SaveListDone { rom_id, result });
         });
     }

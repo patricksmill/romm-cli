@@ -1,7 +1,7 @@
 # Custom Console Save Paths — Design
 
 **Date:** 2026-05-24  
-**Status:** Approved  
+**Status:** Implemented  
 **Mirrors:** [Custom Console Paths (ROMs)](2026-05-23-custom-console-paths-design.md)
 
 ## Problem

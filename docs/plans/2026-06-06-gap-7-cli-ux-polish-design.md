@@ -1,5 +1,7 @@
 # Gap 7: CLI/TUI UX Polish Design
 
+**Status:** Implemented
+
 ## Overview
 
 Close [rust-guidelines.md](../rust-guidelines.md) Gap 7 by centralizing CLI presentation rules (color, progress, JSON stdout) and applying them consistently across commands. TUI `NO_COLOR` handling in `tui/theme.rs` is unchanged; this design covers the `romm-cli` binary only.

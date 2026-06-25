@@ -8,6 +8,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use romm_api::config::resolve_game_save_dir;
 use romm_api::core::extras::has_update_or_dlc_extras;
+use romm_api::error::{ApiError, RommError};
 
 use super::super::background::types::{SaveDownloadDone, SaveUploadDone};
 use super::super::{App, AppScreen};
@@ -79,7 +80,7 @@ impl App {
                             .upload_save_file(rom_id, None, &path)
                             .await
                             .map(|_| ())
-                            .map_err(|e| format!("{e:#}"));
+                            .map_err(RommError::from);
                         let _ = tx.send(SaveUploadDone { rom_id, result });
                     });
                 }
@@ -163,20 +164,23 @@ impl App {
                 let client = self.client.clone();
                 let tx = self.save_download_tx.clone();
                 tokio::spawn(async move {
-                    let result = async {
+                    let result: Result<PathBuf, RommError> = async {
                         let bytes = client.download_save_content(save.id, None, None).await?;
-                        tokio::fs::create_dir_all(&target_dir).await?;
+                        tokio::fs::create_dir_all(&target_dir)
+                            .await
+                            .map_err(|e| RommError::Api(ApiError::Io(e)))?;
                         let filename = if save.file_name.trim().is_empty() {
                             format!("save-{}.sav", save.id)
                         } else {
                             save.file_name.clone()
                         };
                         let target = unique_save_path(&target_dir, &filename);
-                        tokio::fs::write(&target, bytes).await?;
-                        Ok::<PathBuf, anyhow::Error>(target)
+                        tokio::fs::write(&target, bytes)
+                            .await
+                            .map_err(|e| RommError::Api(ApiError::Io(e)))?;
+                        Ok(target)
                     }
-                    .await
-                    .map_err(|e| format!("{e:#}"));
+                    .await;
                     let _ = tx.send(SaveDownloadDone { rom_id, result });
                 });
             }

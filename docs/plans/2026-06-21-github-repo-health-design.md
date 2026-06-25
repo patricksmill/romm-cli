@@ -1,7 +1,7 @@
 # GitHub repo health (Option C) — design
 
 **Date:** 2026-06-21  
-**Status:** Approved  
+**Status:** Implemented  
 **Goal:** Green GitHub community profile and lower maintainer friction for a solo-maintainer Rust workspace, without duplicating existing docs.
 
 ---

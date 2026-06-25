@@ -1,5 +1,7 @@
 # Windows credentials + `keyring` crate — research notes
 
+**Status:** Reference
+
 ## Context
 
 `romm-cli` uses the Rust [`keyring`](https://crates.io/crates/keyring) crate (`3.6.x`) with:

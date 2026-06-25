@@ -12,7 +12,7 @@ The project is a **Cargo workspace** with three members:
 | `romm-cli` | CLI commands and `romm-cli` binary; re-exports `romm_api` for backward-compatible library use |
 | `romm-tui` | TUI screens and `romm-tui` binary |
 
-An Android client (Kotlin/Compose + UniFFI) is developed in [**romm-rust-android**](https://github.com/patricksmill/romm-rust-android) on top of published `romm-api`. The workspace split that enabled this is documented in [workspace-split ADR](plans/2026-06-06-workspace-split-adr.md).
+The workspace split rationale is documented in [workspace-split ADR](plans/2026-06-06-workspace-split-adr.md).
 
 Configuration is layered per field: built-in defaults → `config.json` → environment variables → OS keyring (secret sentinels) → command-specific CLI runtime overrides. See [api.md — configuration precedence](api.md#configuration-precedence) and [`romm-api/src/config.rs`](../romm-api/src/config.rs). Secrets may be stored in the OS keyring via `keyring::Entry` with a `<stored-in-keyring>` sentinel in JSON only after successful read-back. `Commands::Init` is handled in `romm-cli/src/main.rs` *before* `load_config` so `init` can run when no configuration exists yet.
 

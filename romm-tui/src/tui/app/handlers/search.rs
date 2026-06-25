@@ -6,6 +6,8 @@ use crossterm::event::{KeyCode, KeyEvent};
 use romm_api::endpoints::roms::GetRoms;
 use romm_api::types::RomList;
 
+use romm_api::error::RommError;
+
 use super::super::background::types::{SearchLoadDone, SearchLoadEvent};
 use super::super::{App, AppScreen};
 use crate::tui::screens::{GameDetailPrevious, GameDetailScreen, SearchScreen};
@@ -113,7 +115,7 @@ impl App {
                                 Err(e) => {
                                     let _ = tx.send(SearchLoadDone {
                                         query: query.clone(),
-                                        event: SearchLoadEvent::Failed(format!("{e:#}")),
+                                        event: SearchLoadEvent::Failed(RommError::from(e)),
                                     });
                                     return;
                                 }

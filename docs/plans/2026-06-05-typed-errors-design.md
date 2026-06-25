@@ -1,5 +1,7 @@
 # Typed Errors Design (Gap 1)
 
+**Status:** Implemented
+
 ## Overview
 
 Replace `anyhow::Result` at library boundaries with `thiserror` domain enums composed into `RommError`. Reserve `anyhow` for the binary entrypoint (`main.rs`) where typed errors are converted to user-facing messages and exit codes.

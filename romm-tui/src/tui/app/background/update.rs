@@ -1,6 +1,7 @@
 //! Apply drained background work to [`super::super::App`] state.
 
 use romm_api::core::library_scan::ScanCacheInvalidate;
+use romm_api::error::user_message;
 
 use super::super::event::BackgroundAction;
 use super::super::{App, AppScreen};
@@ -73,7 +74,10 @@ impl App {
                 );
             }
             RomLoadEvent::Failed(e) => {
-                lib.set_metadata_footer(Some(format!("Could not load games: {e}")));
+                lib.set_metadata_footer(Some(format!(
+                    "Could not load games: {}",
+                    user_message(&e)
+                )));
                 lib.set_rom_loading(false);
             }
             RomLoadEvent::Complete => {
@@ -100,7 +104,7 @@ impl App {
                 }
                 SearchLoadEvent::Failed(err) => {
                     search.loading = false;
-                    self.global_error = Some(err);
+                    self.set_error(err);
                 }
                 SearchLoadEvent::Complete => {
                     search.loading = false;
@@ -118,7 +122,7 @@ impl App {
                 Ok(image) => detail.apply_cover_image(image),
                 Err(err) => detail.apply_cover_error(format!(
                     "Cover failed: {}",
-                    romm_api::core::utils::truncate(&err, 120)
+                    romm_api::core::utils::truncate(&user_message(&err), 120)
                 )),
             }
         }
@@ -129,7 +133,7 @@ impl App {
             if detail.rom.id == done.rom_id {
                 match done.result {
                     Ok(rows) => detail.apply_saves(rows),
-                    Err(e) => detail.apply_saves_error(e),
+                    Err(e) => detail.apply_saves_error(user_message(&e)),
                 }
             }
         }
@@ -146,7 +150,7 @@ impl App {
                         self.spawn_save_list_worker(done.rom_id);
                     }
                     Err(e) => {
-                        detail.message = Some(format!("Save upload failed: {e}"));
+                        detail.message = Some(format!("Save upload failed: {}", user_message(&e)));
                         detail.message_clear_at = Some(Instant::now() + Duration::from_secs(5));
                     }
                 }
@@ -165,7 +169,8 @@ impl App {
                         self.spawn_save_list_worker(done.rom_id);
                     }
                     Err(e) => {
-                        detail.message = Some(format!("Save download failed: {e}"));
+                        detail.message =
+                            Some(format!("Save download failed: {}", user_message(&e)));
                         detail.message_clear_at = Some(Instant::now() + Duration::from_secs(5));
                     }
                 }
@@ -182,9 +187,11 @@ impl App {
                     settings.message = None;
                 }
                 Err(e) => {
-                    settings.set_device_error(e.clone());
-                    settings.message =
-                        Some((format!("Device load failed: {e}"), MessageTone::Error));
+                    settings.set_device_error(user_message(&e));
+                    settings.message = Some((
+                        format!("Device load failed: {}", user_message(&e)),
+                        MessageTone::Error,
+                    ));
                 }
             }
         }
@@ -199,9 +206,11 @@ impl App {
                     settings.message = None;
                 }
                 Err(e) => {
-                    settings.set_console_platform_error(e.clone());
-                    settings.message =
-                        Some((format!("Platform load failed: {e}"), MessageTone::Error));
+                    settings.set_console_platform_error(user_message(&e));
+                    settings.message = Some((
+                        format!("Platform load failed: {}", user_message(&e)),
+                        MessageTone::Error,
+                    ));
                 }
             }
         }
@@ -219,7 +228,10 @@ impl App {
                     ));
                 }
                 Err(e) => {
-                    settings.message = Some((format!("Sync failed: {e}"), MessageTone::Error));
+                    settings.message = Some((
+                        format!("Sync failed: {}", user_message(&e)),
+                        MessageTone::Error,
+                    ));
                 }
             }
         }
@@ -237,7 +249,7 @@ impl App {
 
     fn apply_library_upload_complete(
         &mut self,
-        result: Result<super::types::LibraryUploadComplete, String>,
+        result: Result<super::types::LibraryUploadComplete, romm_api::error::RommError>,
     ) {
         self.library_upload_done_rx = None;
         self.library_upload_progress_rx = None;
@@ -258,26 +270,28 @@ impl App {
                 }
             }
             Err(e) => {
+                let message = format!("Upload failed: {}", user_message(&e));
                 if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
-                    lib.set_metadata_footer(Some(format!("Upload failed: {e}")));
+                    lib.set_metadata_footer(Some(message));
                 } else {
-                    self.global_error = Some(format!("Upload failed: {e}"));
+                    self.set_error(e);
                 }
             }
         }
     }
 
-    fn apply_library_scan_complete(&mut self, result: Result<(), String>) {
+    fn apply_library_scan_complete(&mut self, result: Result<(), romm_api::error::RommError>) {
         self.library_scan_rx = None;
         self.library_scan_inflight = false;
         match result {
             Ok(()) => self.on_library_scan_completed_success(),
             Err(e) => {
                 self.library_scan_pending_invalidate = None;
+                let message = format!("Library scan failed: {}", user_message(&e));
                 if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
-                    lib.set_metadata_footer(Some(format!("Library scan failed: {e}")));
+                    lib.set_metadata_footer(Some(message));
                 } else {
-                    self.global_error = Some(format!("Library scan failed: {e}"));
+                    self.set_error(e);
                 }
             }
         }

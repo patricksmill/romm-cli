@@ -1,5 +1,7 @@
 # TUI startup latency — design
 
+**Status:** Implemented
+
 ## Goal
 
 Reduce first-open TUI latency (time to visible platform/collection list) for medium libraries by avoiding full ROM-list work at startup and by reusing a compact on-disk metadata snapshot.

@@ -1,6 +1,6 @@
 # Workspace split migration playbook
 
-**Status:** **Completed** (2026-06-06) — Android frontend prep fired [ADR trigger #3](./2026-06-06-workspace-split-adr.md).  
+**Status:** **Completed** (2026-06-06) — third-frontend trigger fired [ADR trigger #3](./2026-06-06-workspace-split-adr.md).  
 **Date:** 2026-06-06
 
 ## Target layout

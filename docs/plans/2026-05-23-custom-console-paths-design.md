@@ -1,7 +1,7 @@
 # Custom Console Paths — Design
 
 **Date:** 2026-05-23  
-**Status:** Approved  
+**Status:** Implemented  
 **Replaces:** Auto/Manual `RomsLayoutMode` toggle
 
 ## Problem

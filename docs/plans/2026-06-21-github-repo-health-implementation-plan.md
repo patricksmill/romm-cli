@@ -2,6 +2,8 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
+**Status:** Completed (2026-06-21)
+
 **Goal:** Add lean community files and `.github/` templates so GitHub repo health is complete for a solo-maintainer workspace.
 
 **Architecture:** Three short root markdown files (CONTRIBUTING, CoC, SECURITY) link to existing `docs/`; one YAML issue form + config + PR template live under `.github/`. README points at CONTRIBUTING. No Rust or CI changes.

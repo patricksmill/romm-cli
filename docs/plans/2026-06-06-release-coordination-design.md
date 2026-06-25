@@ -1,11 +1,11 @@
 # Release coordination design
 
 **Date:** 2026-06-06  
-**Status:** Approved — Approach A (Release Please + `cargo-workspace`)
+**Status:** Implemented — Approach A (Release Please + `cargo-workspace`)
 
 ## Summary
 
-Coordinate independent semver releases for three workspace crates (`romm-api`, `romm-cli`, `romm-tui`) plus a future Android channel, using component-prefixed GitHub tags, per-crate changelogs, and hardened CI publish guards.
+Coordinate independent semver releases for three workspace crates (`romm-api`, `romm-cli`, `romm-tui`), using component-prefixed GitHub tags, per-crate changelogs, and hardened CI publish guards.
 
 ## Industry benchmarks
 
@@ -61,16 +61,6 @@ Root `CHANGELOG.md` is an index linking to per-crate changelogs.
 - `romm-cli-v*`: archives contain `romm-cli` only
 - `romm-tui-v*`: archives contain `romm-tui` only
 - Self-update resolves component from running binary name; version from frontend crate (`env!("CARGO_PKG_VERSION")`); each archive updates one binary
-
-## Android (future)
-
-| Artifact | Versioning |
-|----------|------------|
-| UniFFI `.so` | `romm-api` semver |
-| Android app | Independent `versionName` / `versionCode` |
-| Coordination | App declares `minRommApiFfiVersion`; CI injects `rommApiVersion` at build time |
-
-Android releases: [**romm-rust-android**](https://github.com/patricksmill/romm-rust-android) (separate repo and CI).
 
 ## Migration
 

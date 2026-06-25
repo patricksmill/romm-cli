@@ -1,5 +1,7 @@
 # TUI Global Error Handling and Testing Design
 
+**Status:** Implemented (evolved to `RommError` + `set_error`)
+
 ## Overview
 Currently, the TUI crashes (exit code 1) when the RomM API returns a 500 Internal Server Error because it uses the `?` operator to bubble up API errors from the event loop. This design introduces a global error toast to gracefully handle API failures and uses `wiremock` to test the TUI state machine.
 

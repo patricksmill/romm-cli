@@ -153,7 +153,3 @@ When versions diverge, record combinations in [`docs/compatibility.toml`](compat
 | Current | `romm-<crate>-v*` | Independent per-crate semver |
 
 One-time bootstrap for the 0.40.0 component era: `./tools/bootstrap-component-tags.sh 0.40.0 <commit-sha>`.
-
-## Android
-
-The Android client is developed in [**romm-rust-android**](https://github.com/patricksmill/romm-rust-android) (sibling repo). It consumes `romm-api` from crates.io; releases and CI are independent of this workspace.
