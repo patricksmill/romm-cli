@@ -16,6 +16,7 @@ See [api.md](api.md#configuration) for paths and variable names.
 
 - **Reads:** A missing credential is reported by the `keyring` crate as **no entry** — that is normal if you have not stored a secret yet and is **not** logged. Other failures (e.g. storage locked, platform/D-Bus errors) are logged at **warn** with the key name and error text; **secret values are never logged**. Set `RUST_LOG=warn` or `RUST_LOG=romm_cli=warn` to see these messages.
 - **Writes:** After a successful store, `romm-cli` **reads the secret back** from the keyring. Only if it **matches** what was stored does `config.json` get the `<stored-in-keyring>` sentinel. If read-back fails or does not match, the **plaintext** secret remains in `config.json` and a **warn** is logged, so you can still authenticate when the OS keyring cannot round-trip (e.g. some WSL or headless setups).
+- **Re-save with unresolved sentinel:** If `config.json` already contains `<stored-in-keyring>` but the keyring read failed at load time, saving settings again does **not** write that placeholder into the vault — persist skips keyring updates for sentinel values so a real stored credential cannot be overwritten.
 
 ## Environment wins (CI, Docker, SSH)
 

@@ -17,7 +17,7 @@ Previously a single package hosted the library plus four binaries. TUI was featu
 
 ## Decision
 
-Split into workspace members per [migration playbook](./2026-06-06-workspace-split-migration.md):
+Split into workspace members; see [architecture.md](../architecture.md) for the current layout:
 
 ```text
 romm-cli/          # workspace root

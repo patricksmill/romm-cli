@@ -45,6 +45,7 @@ On startup, the TUI checks for newer releases (disable with `ROMM_CHECK_UPDATES=
 
 Built-in theme IDs include `terminal`, `catppuccin`, `dracula`, `nord`, `tokyo-night`, and others from **Settings → Appearance**.
 - Set in Settings → Appearance menu, `config.json` (`theme` field) or `ROMM_THEME` env var
+- Non-`terminal` presets paint full-frame backgrounds when the theme defines a palette background and `NO_COLOR` is unset
 
 
 ---

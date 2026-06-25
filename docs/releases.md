@@ -1,6 +1,6 @@
 # Release runbook
 
-This workspace ships three independently versioned crates plus prebuilt desktop binaries. See [release coordination design](plans/2026-06-06-release-coordination-design.md) for rationale.
+This workspace ships three independently versioned crates plus prebuilt desktop binaries, using component-prefixed tags (`romm-api-v*`, `romm-cli-v*`, `romm-tui-v*`) and Release Please.
 
 ## Current versions
 
