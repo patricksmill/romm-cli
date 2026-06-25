@@ -276,16 +276,15 @@ impl LibraryBrowseScreen {
 
         let list = List::new(items)
             .block(styles.panel_block(self.list_title()))
-            .highlight_symbol(if self.view_mode == LibraryViewMode::List {
-                ">> "
-            } else {
-                "   "
-            })
-            .highlight_style(styles.selection());
+            .highlight_symbol(">> ")
+            .highlight_style(match self.view_mode {
+                LibraryViewMode::List => styles.selection(),
+                LibraryViewMode::Roms => styles.selection_context(),
+            });
 
         let mut state = ListState::default();
-        if self.view_mode == LibraryViewMode::List {
-            state.select(Some(self.list_index));
+        if !visible.is_empty() {
+            state.select(Some(self.list_index.min(visible.len().saturating_sub(1))));
         }
 
         f.render_stateful_widget(list, area, &mut state);
@@ -322,7 +321,7 @@ impl LibraryBrowseScreen {
             .enumerate()
             .map(|(i, g)| {
                 let global_idx = start + i;
-                let style = styles.row(i, global_idx == self.rom_selected);
+                let style = styles.row(i, self.rom_row_highlighted(global_idx));
                 Row::new(vec![Cell::from(g.name.as_str()).style(style)]).height(1)
             })
             .collect();

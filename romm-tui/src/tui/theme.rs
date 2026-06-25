@@ -167,6 +167,13 @@ impl<'a> RommStyles<'a> {
         }
     }
 
+    /// Dim selection for an inactive pane (e.g. source console while browsing games).
+    pub fn selection_context(&self) -> Style {
+        Style::default()
+            .fg(self.theme.accent())
+            .add_modifier(Modifier::BOLD)
+    }
+
     /// Style for a table/list row: selected, zebra odd, or default.
     pub fn row(&self, index: usize, selected: bool) -> Style {
         if selected {

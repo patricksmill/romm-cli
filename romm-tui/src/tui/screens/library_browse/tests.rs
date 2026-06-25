@@ -260,3 +260,24 @@ fn adjust_left_panel_percent_clamps_at_bounds() {
     s.adjust_left_panel_percent(100);
     assert_eq!(s.left_panel_percent, 50);
 }
+
+#[test]
+fn rom_row_not_highlighted_while_browsing_consoles() {
+    let mut s = LibraryBrowseScreen::new(vec![], vec![], LEFT_PANEL_PERCENT_DEFAULT);
+    s.view_mode = LibraryViewMode::List;
+    s.rom_selected = 0;
+    assert!(!s.rom_row_highlighted(0));
+}
+
+#[test]
+fn rom_row_highlighted_only_in_games_mode() {
+    let mut s = LibraryBrowseScreen::new(vec![], vec![], LEFT_PANEL_PERCENT_DEFAULT);
+    s.view_mode = LibraryViewMode::Roms;
+    s.rom_selected = 0;
+    assert!(s.rom_row_highlighted(0));
+    assert!(!s.rom_row_highlighted(1));
+
+    s.rom_selected = 2;
+    assert!(!s.rom_row_highlighted(0));
+    assert!(s.rom_row_highlighted(2));
+}

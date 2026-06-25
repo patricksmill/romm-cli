@@ -353,4 +353,8 @@ impl LibraryBrowseScreen {
             LibrarySubsection::ByCollection => None,
         }
     }
+
+    pub(crate) fn rom_row_highlighted(&self, index: usize) -> bool {
+        self.view_mode == LibraryViewMode::Roms && self.rom_selected == index
+    }
 }
