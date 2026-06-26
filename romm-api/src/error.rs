@@ -109,6 +109,19 @@ impl ApiError {
             || self.to_string().contains("404 Not Found")
     }
 
+    /// HTTP response body when the server returned one (for UI detail lines).
+    pub fn response_body(&self) -> Option<&str> {
+        match self {
+            Self::Unauthorized { body }
+            | Self::Forbidden { body }
+            | Self::NotFound { body, .. }
+            | Self::RateLimited { body, .. }
+            | Self::ClientError { body, .. }
+            | Self::ServerError { body, .. } => Some(body.as_str()),
+            _ => None,
+        }
+    }
+
     /// Log-safe summary: status and variant only; HTTP response bodies are omitted.
     pub fn redacted_for_log(&self) -> String {
         match self {
@@ -375,6 +388,23 @@ pub fn user_message(err: &RommError) -> String {
     }
 }
 
+/// Like [`user_message`], but appends a truncated HTTP response body when present.
+pub fn user_message_with_server_detail(err: &RommError, max_body_chars: usize) -> String {
+    let base = user_message(err);
+    let RommError::Api(api) = err else {
+        return base;
+    };
+    let Some(body) = api.response_body().map(str::trim).filter(|b| !b.is_empty()) else {
+        return base;
+    };
+    let detail = crate::core::utils::truncate(body, max_body_chars);
+    if let Some(status) = api.status_code() {
+        format!("{base} (HTTP {status}: {detail})")
+    } else {
+        format!("{base} ({detail})")
+    }
+}
+
 /// Process exit codes for scripting (see README "Exit codes").
 pub mod exit {
     /// Command completed successfully (including user-cancelled downloads).
@@ -504,5 +534,17 @@ mod tests {
             body: "slow down".into(),
         });
         assert!(user_message(&rate).contains("Rate limited"));
+    }
+
+    #[test]
+    fn user_message_with_server_detail_includes_body() {
+        let err = RommError::Api(ApiError::ServerError {
+            status: 500,
+            body: "No metadata providers enabled".into(),
+        });
+        let msg = user_message_with_server_detail(&err, 120);
+        assert!(msg.contains("Server error"));
+        assert!(msg.contains("No metadata providers enabled"));
+        assert!(msg.contains("HTTP 500"));
     }
 }

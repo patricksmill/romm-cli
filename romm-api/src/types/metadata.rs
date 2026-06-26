@@ -10,6 +10,9 @@ pub struct SearchRom {
     #[serde(default)]
     pub summary: Option<String>,
     pub platform_id: u64,
+    /// Generic provider game id (often mirrors `igdb_id` for IGDB rows).
+    #[serde(default)]
+    pub id: Option<i64>,
     #[serde(default)]
     pub igdb_id: Option<i64>,
     #[serde(default)]
@@ -22,6 +25,8 @@ pub struct SearchRom {
     pub flashpoint_id: Option<String>,
     #[serde(default)]
     pub sgdb_id: Option<i64>,
+    #[serde(default)]
+    pub libretro_id: Option<String>,
     #[serde(default)]
     pub is_identified: bool,
     #[serde(default)]
@@ -56,14 +61,28 @@ impl SearchRom {
     /// Fields to apply when the user picks this search row (non-null IDs only).
     pub fn primary_match_fields(&self) -> RomMatchFields {
         RomMatchFields {
-            igdb_id: self.igdb_id,
+            igdb_id: self.igdb_id.or(self.id),
             moby_id: self.moby_id,
             ss_id: self.ss_id,
             launchbox_id: self.launchbox_id,
             flashpoint_id: self.flashpoint_id.clone(),
             sgdb_id: self.sgdb_id,
+            libretro_id: self.libretro_id.clone(),
             ..Default::default()
         }
+    }
+
+    /// Best cover URL from the search row (same priority as RomM web manual match).
+    pub fn best_url_cover(&self) -> Option<String> {
+        [
+            self.igdb_url_cover.as_deref(),
+            self.ss_url_cover.as_deref(),
+            self.moby_url_cover.as_deref(),
+        ]
+        .into_iter()
+        .flatten()
+        .find(|url| !url.is_empty())
+        .map(str::to_string)
     }
 }
 
@@ -129,6 +148,39 @@ pub struct RomUpdateResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn search_row_apply_fields_includes_name_summary_and_cover() {
+        let row: SearchRom = serde_json::from_str(
+            r#"{
+            "name": "Super Mario Bros.",
+            "summary": "A platformer.",
+            "platform_id": 1,
+            "igdb_id": 1234,
+            "igdb_url_cover": "https://example.com/cover.jpg",
+            "is_identified": true,
+            "is_unidentified": false
+        }"#,
+        )
+        .unwrap();
+        let fields = crate::core::metadata::search_row_apply_fields(&row);
+        assert_eq!(fields.name.as_deref(), Some("Super Mario Bros."));
+        assert_eq!(fields.summary.as_deref(), Some("A platformer."));
+        assert_eq!(
+            fields.url_cover.as_deref(),
+            Some("https://example.com/cover.jpg")
+        );
+        assert_eq!(fields.match_fields.igdb_id, Some(1234));
+    }
+
+    #[test]
+    fn primary_match_fields_falls_back_to_id() {
+        let row: SearchRom = serde_json::from_str(
+            r#"{"name": "Zelda", "platform_id": 1, "id": 999, "igdb_id": null}"#,
+        )
+        .unwrap();
+        assert_eq!(row.primary_match_fields().igdb_id, Some(999));
+    }
 
     #[test]
     fn search_rom_deserializes_demo_shape() {

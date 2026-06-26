@@ -11,7 +11,7 @@ use crate::cli_presentation::CliPresentation;
 use crate::commands::OutputFormat;
 use romm_api::client::RommClient;
 use romm_api::core::metadata::{
-    invalidate_platform_rom_cache, search_covers, search_metadata_matches,
+    invalidate_platform_rom_cache, search_covers, search_metadata_matches, search_row_apply_fields,
 };
 use romm_api::endpoints::roms::{PutRom, RomUpdateFields};
 use romm_api::types::metadata::{RomMatchFields, SearchRom};
@@ -154,10 +154,7 @@ pub async fn handle(
                 },
             )
             .await?;
-            let mut fields = RomUpdateFields {
-                match_fields,
-                ..Default::default()
-            };
+            let mut fields = match_fields;
             if let Some(ref cq) = cover_query {
                 if let Some(url) = pick_cover_url(client, cq, presentation).await? {
                     fields.url_cover = Some(url);
@@ -236,9 +233,12 @@ async fn resolve_match_fields(
     search_by: String,
     pick: bool,
     explicit: RomMatchFields,
-) -> Result<RomMatchFields> {
+) -> Result<RomUpdateFields> {
     if !explicit.is_empty() {
-        return Ok(explicit);
+        return Ok(RomUpdateFields {
+            match_fields: explicit,
+            ..Default::default()
+        });
     }
     let use_picker = pick || (std::io::stdout().is_terminal() && query.is_some());
     if !use_picker {
@@ -252,7 +252,7 @@ async fn resolve_match_fields(
         bail!("No metadata matches found.");
     }
     let idx = pick_search_index(&rows)?;
-    Ok(rows[idx].primary_match_fields())
+    Ok(search_row_apply_fields(&rows[idx]))
 }
 
 fn pick_search_index(rows: &[SearchRom]) -> Result<usize> {

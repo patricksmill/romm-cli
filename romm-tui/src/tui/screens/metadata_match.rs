@@ -97,8 +97,14 @@ impl MetadataMatchScreen {
 
     pub fn apply_search_result(&mut self, rows: Vec<SearchRom>) {
         if rows.is_empty() {
-            self.phase = MetadataMatchPhase::Failed("No matches found".into());
-            self.message = Some("No metadata matches".into());
+            let term = self.search_query.trim();
+            let msg = if term.is_empty() {
+                "No metadata matches found".to_string()
+            } else {
+                format!("No metadata matches for \"{term}\"")
+            };
+            self.phase = MetadataMatchPhase::Failed(msg.clone());
+            self.message = Some(msg);
         } else {
             self.phase = MetadataMatchPhase::Ready;
             self.rows = rows;
@@ -129,10 +135,10 @@ impl MetadataMatchScreen {
         }
     }
 
-    pub fn selected_match_fields(&self) -> Option<romm_api::types::metadata::RomMatchFields> {
+    pub fn selected_update_fields(&self) -> Option<romm_api::endpoints::roms::RomUpdateFields> {
         self.rows
             .get(self.selected)
-            .map(|r| r.primary_match_fields())
+            .map(romm_api::core::metadata::search_row_apply_fields)
     }
 
     fn footer_entries(&self) -> &'static [FooterHintEntry] {
@@ -322,9 +328,12 @@ mod tests {
     }
 
     #[test]
-    fn selected_row_builds_match_fields() {
+    fn selected_row_builds_update_fields() {
         let row = fixture_row();
-        let fields = row.primary_match_fields();
-        assert_eq!(fields.igdb_id, Some(5));
+        let mut screen = fixture_screen();
+        screen.apply_search_result(vec![row]);
+        let fields = screen.selected_update_fields().expect("fields");
+        assert_eq!(fields.name.as_deref(), Some("Zelda"));
+        assert_eq!(fields.match_fields.igdb_id, Some(5));
     }
 }

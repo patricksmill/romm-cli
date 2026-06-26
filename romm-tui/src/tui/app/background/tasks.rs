@@ -7,9 +7,8 @@ use romm_api::core::cache::RomCacheKey;
 use romm_api::core::library_scan::ScanCacheInvalidate;
 use romm_api::core::metadata::{invalidate_platform_rom_cache, search_metadata_matches};
 use romm_api::core::startup_library_snapshot;
-use romm_api::endpoints::roms::{GetRom, PutRom, RomUpdateFields};
+use romm_api::endpoints::roms::{GetRom, PutRom};
 use romm_api::error::{from_anyhow, ApiError, RommError};
-use romm_api::types::metadata::RomMatchFields;
 use romm_api::types::SaveMetadata;
 
 use super::super::event::{AppEvent, BackgroundAction};
@@ -357,7 +356,7 @@ impl super::super::App {
         &mut self,
         rom_id: u64,
         platform_id: u64,
-        match_fields: RomMatchFields,
+        fields: romm_api::endpoints::roms::RomUpdateFields,
         unmatch_metadata: bool,
     ) {
         let client = self.client.clone();
@@ -369,10 +368,7 @@ impl super::super::App {
                 } else {
                     PutRom {
                         rom_id,
-                        fields: RomUpdateFields {
-                            match_fields,
-                            ..Default::default()
-                        },
+                        fields,
                         remove_cover: false,
                         unmatch_metadata: false,
                         artwork: None,

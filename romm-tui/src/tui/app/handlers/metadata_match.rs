@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 
-use romm_api::error::user_message;
+use romm_api::error::user_message_with_server_detail;
 
 use super::super::{App, AppScreen};
 use crate::tui::screens::metadata_match::{MetadataMatchPhase, MetadataMatchScreen};
@@ -76,9 +76,15 @@ impl App {
                 if !matches!(picker.phase, MetadataMatchPhase::Ready) {
                     return Ok(false);
                 }
-                let Some(fields) = picker.selected_match_fields() else {
+                let Some(fields) = picker.selected_update_fields() else {
                     return Ok(false);
                 };
+                if fields.match_fields.is_empty() {
+                    let msg = "Selected result has no provider IDs to apply".to_string();
+                    picker.phase = MetadataMatchPhase::Failed(msg.clone());
+                    picker.message = Some(msg);
+                    return Ok(false);
+                }
                 let rom_id = picker.previous.rom.id;
                 let platform_id = picker.previous.rom.platform_id;
                 picker.set_applying();
@@ -172,7 +178,7 @@ impl App {
             }
             match done.result {
                 Ok(rows) => picker.apply_search_result(rows),
-                Err(e) => picker.apply_search_error(user_message(&e)),
+                Err(e) => picker.apply_search_error(user_message_with_server_detail(&e, 200)),
             }
         }
     }
@@ -184,7 +190,10 @@ impl App {
         match done.result {
             Ok(rom) => self.finish_metadata_apply_success(*rom),
             Err(e) => {
-                let msg = format!("Metadata update failed: {}", user_message(&e));
+                let msg = format!(
+                    "Metadata update failed: {}",
+                    user_message_with_server_detail(&e, 200)
+                );
                 match &mut self.screen {
                     AppScreen::MetadataMatch(picker) if picker.previous.rom.id == done.rom_id => {
                         picker.phase = MetadataMatchPhase::Failed(msg.clone());

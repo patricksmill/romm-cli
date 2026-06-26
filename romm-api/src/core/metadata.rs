@@ -2,7 +2,7 @@
 
 use crate::client::RommClient;
 use crate::core::cache::{RomCache, RomCacheKey};
-use crate::endpoints::roms::{GetSearchCover, GetSearchRoms};
+use crate::endpoints::roms::{GetSearchCover, GetSearchRoms, RomUpdateFields};
 use crate::error::ApiError;
 use crate::types::metadata::{SearchCover, SearchRom};
 
@@ -10,6 +10,16 @@ use crate::types::metadata::{SearchCover, SearchRom};
 pub fn invalidate_platform_rom_cache(platform_id: u64) {
     let mut c = RomCache::load();
     c.remove(&RomCacheKey::Platform(platform_id));
+}
+
+/// Multipart fields for applying a search row (mirrors RomM web manual match).
+pub fn search_row_apply_fields(row: &SearchRom) -> RomUpdateFields {
+    RomUpdateFields {
+        name: Some(row.name.clone()),
+        summary: row.summary.clone().filter(|s| !s.is_empty()),
+        url_cover: row.best_url_cover(),
+        match_fields: row.primary_match_fields(),
+    }
 }
 
 /// `GET /api/search/roms` — provider search for manual match.
