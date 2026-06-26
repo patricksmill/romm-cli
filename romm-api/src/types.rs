@@ -1,6 +1,10 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+pub mod metadata;
+
+pub use metadata::{RomMatchFields, RomUpdateResponse, SearchCover, SearchRom, SgdbResource};
+
 /// Represents a firmware file associated with a platform.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Firmware {

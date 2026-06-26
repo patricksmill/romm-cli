@@ -93,6 +93,11 @@ impl App {
                     return Ok(true);
                 }
             }
+            Action::MetadataMatchKey(key) => {
+                if self.handle_metadata_match(&key)? {
+                    return Ok(true);
+                }
+            }
             Action::SetupWizardKey(key) => {
                 if self.handle_setup_wizard(&key).await? {
                     return Ok(true);

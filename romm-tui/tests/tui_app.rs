@@ -5,7 +5,9 @@ use romm_api::client::RommClient;
 use romm_api::config::LIBRARY_LEFT_PANEL_PERCENT_DEFAULT;
 use romm_api::config::{default_theme_id, Config, ExtrasDefaults, TuiLayoutConfig};
 use romm_api::core::utils;
-use romm_api::feature_compat::supported_save_sync_compatibility;
+use romm_api::feature_compat::{
+    supported_metadata_edit_compatibility, supported_save_sync_compatibility,
+};
 use romm_api::types::{Rom, RomList};
 use romm_tui::tui::app::{App, AppScreen};
 use romm_tui::tui::screens::library_browse::{LibraryBrowseScreen, LibraryViewMode};
@@ -48,6 +50,7 @@ async fn startup_library_api_error_shows_footer() {
         client,
         config,
         supported_save_sync_compatibility(),
+        supported_metadata_edit_compatibility(),
         None,
         None,
         None,
@@ -123,6 +126,7 @@ async fn startup_opens_library_browse() {
         client,
         config,
         supported_save_sync_compatibility(),
+        supported_metadata_edit_compatibility(),
         None,
         None,
         None,
@@ -151,6 +155,7 @@ async fn library_esc_quits_from_list_view() {
         client,
         config,
         supported_save_sync_compatibility(),
+        supported_metadata_edit_compatibility(),
         None,
         None,
         None,
@@ -182,6 +187,7 @@ async fn global_d_opens_download_overlay_from_library() {
         client,
         config,
         supported_save_sync_compatibility(),
+        supported_metadata_edit_compatibility(),
         None,
         None,
         None,
@@ -216,6 +222,7 @@ async fn global_slash_opens_search_overlay() {
         client,
         config,
         supported_save_sync_compatibility(),
+        supported_metadata_edit_compatibility(),
         None,
         None,
         None,
@@ -275,6 +282,7 @@ async fn library_enter_opens_game_detail() {
         client,
         config,
         supported_save_sync_compatibility(),
+        supported_metadata_edit_compatibility(),
         None,
         None,
         None,
@@ -331,6 +339,7 @@ async fn game_detail_download_is_blocked_when_config_download_path_is_invalid() 
         client,
         config,
         supported_save_sync_compatibility(),
+        supported_metadata_edit_compatibility(),
         None,
         None,
         None,
@@ -396,6 +405,7 @@ async fn game_detail_download_skips_when_rom_already_exists_in_console_folder() 
         client,
         config,
         supported_save_sync_compatibility(),
+        supported_metadata_edit_compatibility(),
         None,
         None,
         None,

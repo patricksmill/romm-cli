@@ -49,6 +49,7 @@ impl GameDetailScreen {
             saves_state: SaveListState::Idle,
             selected_save_index: 0,
             save_upload_picker: None,
+            metadata_unmatch_confirm: false,
             cover_panel_width: cover_panel_width
                 .clamp(COVER_PANEL_WIDTH_MIN, COVER_PANEL_WIDTH_MAX),
         }
@@ -62,6 +63,21 @@ impl GameDetailScreen {
 
     pub fn toggle_technical(&mut self) {
         self.show_technical = !self.show_technical;
+    }
+
+    /// Replace ROM fields after metadata edit; reload cover when URL changes.
+    pub fn apply_refreshed_rom(&mut self, rom: Rom) {
+        let cover_changed = self.rom.url_cover != rom.url_cover;
+        self.rom = rom;
+        if cover_changed {
+            self.cover_last_url = self.rom.url_cover.clone();
+            self.cover_image = None;
+            self.cover_state = if self.cover_last_url.is_some() {
+                CoverState::Loading
+            } else {
+                CoverState::Idle
+            };
+        }
     }
 
     pub fn open_cover(&mut self) {
@@ -165,6 +181,10 @@ impl GameDetailScreen {
                     label: "Hide technical",
                 },
                 FooterHintEntry {
+                    key: "Shift+U",
+                    label: "Unmatch metadata",
+                },
+                FooterHintEntry {
                     key: "Ctrl+←/→",
                     label: "Resize cover",
                 },
@@ -185,7 +205,15 @@ impl GameDetailScreen {
                 },
                 FooterHintEntry {
                     key: "m",
+                    label: "Match metadata",
+                },
+                FooterHintEntry {
+                    key: "t",
                     label: "More details",
+                },
+                FooterHintEntry {
+                    key: "Shift+U",
+                    label: "Unmatch metadata",
                 },
                 FooterHintEntry {
                     key: "Ctrl+←/→",

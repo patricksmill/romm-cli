@@ -115,6 +115,41 @@ pub fn supported_save_sync_compatibility() -> SaveSyncCompatibility {
     FeatureCompatibility::supported(SAVE_SYNC_FEATURE, SAVE_SYNC_UNSUPPORTED_MESSAGE)
 }
 
+pub const METADATA_EDIT_FEATURE: &str = "metadata-edit";
+
+pub const METADATA_EDIT_UNSUPPORTED_MESSAGE: &str =
+    "This RomM server does not expose ROM metadata edit endpoints; upgrade RomM to 4.8+.";
+
+pub const METADATA_EDIT_REQUIRED_ENDPOINTS: [RequiredEndpoint; 3] = [
+    RequiredEndpoint {
+        method: "GET",
+        path: "/api/search/roms",
+    },
+    RequiredEndpoint {
+        method: "PUT",
+        path: "/api/roms/{id}",
+    },
+    RequiredEndpoint {
+        method: "GET",
+        path: "/api/roms/{id}",
+    },
+];
+
+pub type MetadataEditCompatibility = FeatureCompatibility;
+
+pub fn metadata_edit_compatibility(registry: &EndpointRegistry) -> MetadataEditCompatibility {
+    FeatureCompatibility::from_registry(
+        METADATA_EDIT_FEATURE,
+        METADATA_EDIT_UNSUPPORTED_MESSAGE,
+        &METADATA_EDIT_REQUIRED_ENDPOINTS,
+        registry,
+    )
+}
+
+pub fn supported_metadata_edit_compatibility() -> MetadataEditCompatibility {
+    FeatureCompatibility::supported(METADATA_EDIT_FEATURE, METADATA_EDIT_UNSUPPORTED_MESSAGE)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

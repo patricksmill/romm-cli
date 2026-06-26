@@ -40,6 +40,7 @@ Release process and versioning: [releases.md](releases.md). Changelog: [romm-cli
 - **Upload and scan** — chunked ROM upload with optional post-upload library scan ([scan-after-upload.md](scan-after-upload.md))
 - **Save sync** — device registration, plan, and run from a local manifest ([save-sync.md](save-sync.md))
 - **Downloads** — `download extras` for covers, manuals, and sibling content
+- **Metadata editing** — search, match, edit, and unmatch game metadata ([metadata-editing.md](metadata-editing.md))
 - **Cache utilities** — inspect and clear on-disk ROM/metadata caches
 - **Self-update** — interactive update check against GitHub `romm-cli-v*` releases
 - **Shell completions** — bash, zsh, fish, PowerShell, Elvish (see below)
@@ -80,6 +81,11 @@ romm-cli roms upload --platform <slug-or-name> ./folder --scan --wait
 # Download covers, manuals, and sibling updates/DLC for one game
 romm-cli download extras <rom-id>
 
+# Metadata: search, match, edit, unmatch (RomM 4.8+)
+romm-cli roms metadata search <rom-id> --query "zelda"
+romm-cli roms metadata match <rom-id> --igdb-id 1234
+romm-cli roms metadata edit <rom-id> --summary "My note"
+
 # Trigger a full library scan; optional --wait
 romm-cli scan
 romm-cli scan --wait --wait-timeout-secs 3600
@@ -113,6 +119,10 @@ After chunked uploads, RomM needs a **library scan** before new games appear in 
 ### Save sync
 
 Save sync uses RomM sync endpoints from the `4.9.0-alpha.2` pre-release onward. See [save-sync.md](save-sync.md) for manifest schema and conflict handling.
+
+### Metadata editing
+
+Match and edit game metadata from the CLI or TUI. Requires RomM 4.8+. See [metadata-editing.md](metadata-editing.md).
 
 ---
 

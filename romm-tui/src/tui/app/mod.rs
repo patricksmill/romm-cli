@@ -28,22 +28,22 @@ use romm_api::core::cache::{RomCache, RomCacheKey};
 use romm_api::core::download::DownloadManager;
 use romm_api::core::library_scan::ScanCacheInvalidate;
 use romm_api::endpoints::roms::GetRoms;
-use romm_api::feature_compat::SaveSyncCompatibility;
+use romm_api::feature_compat::{MetadataEditCompatibility, SaveSyncCompatibility};
 use romm_api::update::UpdateStatus;
 
 use super::screens::connected_splash::StartupSplash;
 use super::screens::{
-    DownloadScreen, ExtrasPickerScreen, GameDetailScreen, LibraryBrowseScreen, SearchScreen,
-    SettingsScreen,
+    DownloadScreen, ExtrasPickerScreen, GameDetailScreen, LibraryBrowseScreen, MetadataMatchScreen,
+    SearchScreen, SettingsScreen,
 };
 use super::theme::resolve_theme_or_default;
 use ratatui_themekit::Theme;
 
 use background::types::{
     CollectionPrefetchDone, CoverLoadDone, DeferredLoadRoms, DeviceListDone,
-    LibraryMetadataRefreshDone, LibraryUploadComplete, PlatformListDone, RomLoadDone,
-    SaveDownloadDone, SaveListDone, SaveUploadDone, SearchLoadDone, StartupUpdatePrompt,
-    SyncPushPullDone,
+    LibraryMetadataRefreshDone, LibraryUploadComplete, MetadataApplyDone, MetadataSearchDone,
+    PlatformListDone, RomLoadDone, SaveDownloadDone, SaveListDone, SaveUploadDone, SearchLoadDone,
+    StartupUpdatePrompt, SyncPushPullDone,
 };
 
 /// All possible high-level screens in the TUI.
@@ -55,6 +55,7 @@ pub enum AppScreen {
     Search(SearchScreen),
     Settings(Box<SettingsScreen>),
     GameDetail(Box<GameDetailScreen>),
+    MetadataMatch(Box<MetadataMatchScreen>),
     ExtrasPicker(Box<ExtrasPickerScreen>),
     Download(DownloadScreen),
     SetupWizard(Box<crate::tui::screens::setup_wizard::SetupWizard>),
@@ -71,6 +72,7 @@ pub struct App {
     /// RomM server version from `GET /api/heartbeat` (`SYSTEM.VERSION`), if available.
     server_version: Option<String>,
     save_sync_compat: SaveSyncCompatibility,
+    metadata_edit_compat: MetadataEditCompatibility,
     rom_cache: RomCache,
     downloads: DownloadManager,
     /// Screen to restore when closing the Download overlay.
@@ -130,6 +132,10 @@ pub struct App {
     save_upload_tx: tokio::sync::mpsc::UnboundedSender<SaveUploadDone>,
     save_download_rx: tokio::sync::mpsc::UnboundedReceiver<SaveDownloadDone>,
     save_download_tx: tokio::sync::mpsc::UnboundedSender<SaveDownloadDone>,
+    metadata_search_rx: tokio::sync::mpsc::UnboundedReceiver<MetadataSearchDone>,
+    metadata_search_tx: tokio::sync::mpsc::UnboundedSender<MetadataSearchDone>,
+    metadata_apply_rx: tokio::sync::mpsc::UnboundedReceiver<MetadataApplyDone>,
+    metadata_apply_tx: tokio::sync::mpsc::UnboundedSender<MetadataApplyDone>,
     device_list_rx: tokio::sync::mpsc::UnboundedReceiver<DeviceListDone>,
     device_list_tx: tokio::sync::mpsc::UnboundedSender<DeviceListDone>,
     platform_list_rx: tokio::sync::mpsc::UnboundedReceiver<PlatformListDone>,
@@ -163,6 +169,7 @@ impl App {
             AppScreen::LibraryBrowse(lib) => {
                 lib.any_upload_prompt_open() || lib.any_search_bar_open()
             }
+            AppScreen::MetadataMatch(m) => m.is_query_input(),
             _ => false,
         }
     }
@@ -208,6 +215,7 @@ impl App {
         client: RommClient,
         config: Config,
         save_sync_compat: SaveSyncCompatibility,
+        metadata_edit_compat: MetadataEditCompatibility,
         server_version: Option<String>,
         startup_splash: Option<StartupSplash>,
         startup_update: Option<UpdateStatus>,
@@ -219,6 +227,8 @@ impl App {
         let (save_list_tx, save_list_rx) = tokio::sync::mpsc::unbounded_channel();
         let (save_upload_tx, save_upload_rx) = tokio::sync::mpsc::unbounded_channel();
         let (save_download_tx, save_download_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (metadata_search_tx, metadata_search_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (metadata_apply_tx, metadata_apply_rx) = tokio::sync::mpsc::unbounded_channel();
         let (device_list_tx, device_list_rx) = tokio::sync::mpsc::unbounded_channel();
         let (platform_list_tx, platform_list_rx) = tokio::sync::mpsc::unbounded_channel();
         let (sync_push_pull_tx, sync_push_pull_rx) = tokio::sync::mpsc::unbounded_channel();
@@ -233,6 +243,7 @@ impl App {
             config,
             server_version,
             save_sync_compat,
+            metadata_edit_compat,
             rom_cache: RomCache::load(),
             downloads: DownloadManager::new(),
             screen_before_download: None,
@@ -278,6 +289,10 @@ impl App {
             save_upload_tx,
             save_download_rx,
             save_download_tx,
+            metadata_search_rx,
+            metadata_search_tx,
+            metadata_apply_rx,
+            metadata_apply_tx,
             device_list_rx,
             device_list_tx,
             platform_list_rx,

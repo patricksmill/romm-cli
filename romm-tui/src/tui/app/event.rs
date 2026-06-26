@@ -7,8 +7,8 @@ use romm_api::error::RommError;
 
 use super::background::types::{
     CollectionPrefetchDone, CoverLoadDone, DeviceListDone, LibraryMetadataRefreshDone,
-    LibraryUploadComplete, PlatformListDone, RomLoadDone, SaveDownloadDone, SaveListDone,
-    SaveUploadDone, SearchLoadDone, SyncPushPullDone,
+    LibraryUploadComplete, MetadataApplyDone, MetadataSearchDone, PlatformListDone, RomLoadDone,
+    SaveDownloadDone, SaveListDone, SaveUploadDone, SearchLoadDone, SyncPushPullDone,
 };
 use crate::tui::keyboard_help::{map_keyboard_help_key, KeyboardHelpInput};
 
@@ -37,6 +37,8 @@ pub(crate) enum BackgroundAction {
     SaveList(SaveListDone),
     SaveUpload(SaveUploadDone),
     SaveDownload(SaveDownloadDone),
+    MetadataSearch(MetadataSearchDone),
+    MetadataApply(MetadataApplyDone),
     DeviceList(DeviceListDone),
     PlatformList(PlatformListDone),
     SyncPushPull(SyncPushPullDone),
@@ -72,6 +74,7 @@ pub(crate) enum Action {
     SettingsKey(KeyEvent),
     GameDetailKey(KeyEvent),
     ExtrasPickerKey(KeyEvent),
+    MetadataMatchKey(KeyEvent),
     SetupWizardKey(KeyEvent),
     Background(BackgroundAction),
 }
