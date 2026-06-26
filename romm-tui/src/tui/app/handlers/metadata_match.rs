@@ -33,9 +33,7 @@ impl App {
         let AppScreen::GameDetail(detail) = prev else {
             return;
         };
-        let rom_id = detail.rom.id;
-        self.screen = AppScreen::MetadataMatch(Box::new(MetadataMatchScreen::new_loading(detail)));
-        self.spawn_metadata_search_worker(rom_id);
+        self.screen = AppScreen::MetadataMatch(Box::new(MetadataMatchScreen::new_for_rom(detail)));
     }
 
     pub(in crate::tui::app) fn handle_metadata_match(&mut self, key: &KeyEvent) -> Result<bool> {
@@ -44,6 +42,10 @@ impl App {
             _ => return Ok(false),
         };
 
+        if matches!(picker.phase, MetadataMatchPhase::QueryInput) {
+            return self.handle_metadata_match_query_input(key);
+        }
+
         match key.code {
             KeyCode::Esc => {
                 let placeholder = self.transient_screen_placeholder();
@@ -51,6 +53,14 @@ impl App {
                 if let AppScreen::MetadataMatch(p) = prev {
                     self.screen = AppScreen::GameDetail(p.previous);
                 }
+            }
+            KeyCode::Char('r')
+                if matches!(
+                    picker.phase,
+                    MetadataMatchPhase::Ready | MetadataMatchPhase::Failed(_)
+                ) =>
+            {
+                picker.return_to_query_input();
             }
             KeyCode::Up | KeyCode::Char('k') => {
                 if matches!(picker.phase, MetadataMatchPhase::Ready) {
@@ -73,6 +83,49 @@ impl App {
                 let platform_id = picker.previous.rom.platform_id;
                 picker.set_applying();
                 self.spawn_metadata_apply_worker(rom_id, platform_id, fields, false);
+            }
+            KeyCode::Char('q') => return Ok(true),
+            _ => {}
+        }
+        Ok(false)
+    }
+
+    fn handle_metadata_match_query_input(&mut self, key: &KeyEvent) -> Result<bool> {
+        use crossterm::event::KeyModifiers;
+
+        let picker = match &mut self.screen {
+            AppScreen::MetadataMatch(p) => p,
+            _ => return Ok(false),
+        };
+
+        match key.code {
+            KeyCode::Esc => {
+                let placeholder = self.transient_screen_placeholder();
+                let prev = std::mem::replace(&mut self.screen, placeholder);
+                if let AppScreen::MetadataMatch(p) = prev {
+                    self.screen = AppScreen::GameDetail(p.previous);
+                }
+            }
+            KeyCode::Enter => {
+                let rom_id = picker.previous.rom.id;
+                let term = picker.search_query.trim().to_string();
+                if term.is_empty() {
+                    picker.message = Some("Enter a search term".into());
+                    return Ok(false);
+                }
+                picker.set_loading();
+                self.spawn_metadata_search_worker(rom_id, term);
+            }
+            KeyCode::Backspace => picker.delete_char(),
+            KeyCode::Delete if picker.cursor_pos < picker.search_query.len() => {
+                picker.search_query.remove(picker.cursor_pos);
+            }
+            KeyCode::Left => picker.cursor_left(),
+            KeyCode::Right => picker.cursor_right(),
+            KeyCode::Home => picker.cursor_pos = 0,
+            KeyCode::End => picker.cursor_pos = picker.search_query.len(),
+            KeyCode::Char(c) if !key.modifiers.contains(KeyModifiers::CONTROL) => {
+                picker.add_char(c)
             }
             KeyCode::Char('q') => return Ok(true),
             _ => {}
@@ -133,9 +186,7 @@ impl App {
             Err(e) => {
                 let msg = format!("Metadata update failed: {}", user_message(&e));
                 match &mut self.screen {
-                    AppScreen::MetadataMatch(picker)
-                        if picker.previous.rom.id == done.rom_id =>
-                    {
+                    AppScreen::MetadataMatch(picker) if picker.previous.rom.id == done.rom_id => {
                         picker.phase = MetadataMatchPhase::Failed(msg.clone());
                         picker.message = Some(msg);
                     }

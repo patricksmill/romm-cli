@@ -35,7 +35,7 @@ On startup, the TUI checks for newer releases (disable with `ROMM_CHECK_UPDATES=
 
 ![Game details view](screenshots/GameDetailsView.webp)
 
-**Keyboard (game detail):** `Enter` download · `e` extras · `u` upload save · `D` download save · `m` match metadata · `Shift+U` unmatch · `t` technical details · `o` open cover · `Esc` back
+**Keyboard (game detail):** `Enter` download · `e` extras · `u` upload save · `D` download save · `m` match metadata (edit search title, Enter) · `Shift+U` unmatch · `t` technical details · `o` open cover · `Esc` back
 
 #### Search view
 

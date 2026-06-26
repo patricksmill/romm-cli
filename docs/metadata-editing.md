@@ -49,9 +49,11 @@ From **game detail**:
 
 | Key | Action |
 |-----|--------|
-| `m` | Open metadata match picker (searches providers, pick row, Enter to apply) |
+| `m` | Open metadata match — edit the search title, **Enter** to search, pick a row, **Enter** to apply |
 | `Shift+U` | Unmatch metadata (confirm with `y`) |
-| `t` | Toggle technical details (was `m` before metadata editing) |
+| `t` | Toggle technical details |
+
+After results appear, **`r`** returns to the search title editor. **`Esc`** cancels at any step.
 
 When the server lacks metadata edit endpoints, the TUI shows a short notice instead of opening the picker.
 

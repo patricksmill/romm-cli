@@ -337,13 +337,18 @@ impl super::super::App {
         }
     }
 
-    pub(in crate::tui::app) fn spawn_metadata_search_worker(&mut self, rom_id: u64) {
+    pub(in crate::tui::app) fn spawn_metadata_search_worker(
+        &mut self,
+        rom_id: u64,
+        search_term: String,
+    ) {
         let client = self.client.clone();
         let tx = self.metadata_search_tx.clone();
         tokio::spawn(async move {
-            let result = search_metadata_matches(&client, rom_id, None, None)
-                .await
-                .map_err(RommError::from);
+            let result =
+                search_metadata_matches(&client, rom_id, Some(search_term), Some("name".into()))
+                    .await
+                    .map_err(RommError::from);
             let _ = tx.send(MetadataSearchDone { rom_id, result });
         });
     }

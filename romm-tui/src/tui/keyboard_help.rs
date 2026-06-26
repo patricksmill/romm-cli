@@ -131,7 +131,7 @@ const SECTIONS_RIGHT: &[HelpSection] = &[
             },
             HelpEntry {
                 key: "m",
-                desc: "Match metadata",
+                desc: "Match metadata (edit search title first)",
             },
             HelpEntry {
                 key: "t",

@@ -169,6 +169,7 @@ impl App {
             AppScreen::LibraryBrowse(lib) => {
                 lib.any_upload_prompt_open() || lib.any_search_bar_open()
             }
+            AppScreen::MetadataMatch(m) => m.is_query_input(),
             _ => false,
         }
     }
