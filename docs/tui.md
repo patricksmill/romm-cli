@@ -24,7 +24,7 @@ On startup, the TUI checks for newer releases (disable with `ROMM_CHECK_UPDATES=
 ## Features
 
 - **Library browsing** — platforms, collections, and ROM lists; **`f`** filters the focused pane (consoles, collections, or games); **`/`** opens server-wide ROM search
-- **Game detail** — cover-first layout with inline image rendering when the terminal supports it (Kitty, iTerm2, Sixel); halfblocks fallback on Windows Terminal; `o` opens the cover in a browser
+- **Game detail** — cover-first layout with inline image rendering when the terminal supports it (Kitty, iTerm2, Sixel); halfblocks fallback on Windows Terminal; `o` opens the cover in a browser; **`m`** matches metadata; **`Shift+U`** unmatches; **`t`** toggles technical details
 - **Background downloads** — start downloads and keep browsing
 - **Settings** — auth, paths, appearance, save-sync options
 - **Save downloads** — per-console save paths (see [api.md — custom save paths](api.md#custom-console-save-paths))
@@ -34,6 +34,8 @@ On startup, the TUI checks for newer releases (disable with `ROMM_CHECK_UPDATES=
 #### Game details view
 
 ![Game details view](screenshots/GameDetailsView.webp)
+
+**Keyboard (game detail):** `Enter` download · `e` extras · `u` upload save · `D` download save · `m` match metadata · `Shift+U` unmatch · `t` technical details · `o` open cover · `Esc` back
 
 #### Search view
 
@@ -98,6 +100,7 @@ Each screen is a struct under `romm-tui/src/tui/screens/`:
 - `LibraryBrowseScreen` — consoles/collections + ROM list
 - `SearchScreen` — text input + results table
 - `GameDetailScreen` — detail view for a single ROM
+- `MetadataMatchScreen` — provider search picker after `m` on game detail
 - `DownloadScreen` — overlay showing downloads
 - `SettingsScreen` — config summary and editors
 - `SetupWizard` — first-run / reconnect flow
@@ -129,4 +132,5 @@ Each screen is a struct under `romm-tui/src/tui/screens/`:
 - [romm-api](api.md) — configuration and HTTP client
 - [romm-cli](cli.md) — scripting, automation, and `init` / `auth` workflows
 - [Architecture overview](architecture.md)
+- [Metadata editing](metadata-editing.md)
 - [Troubleshooting authentication](troubleshooting-auth.md)

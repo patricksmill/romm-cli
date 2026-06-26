@@ -67,6 +67,8 @@ pub struct GameDetailScreen {
     pub saves_state: SaveListState,
     pub selected_save_index: usize,
     pub save_upload_picker: Option<PathPicker>,
+    /// Pending confirmation before `PUT ?unmatch_metadata=true`.
+    pub metadata_unmatch_confirm: bool,
     /// Width of the cover column in terminal cells.
     pub cover_panel_width: u16,
 }

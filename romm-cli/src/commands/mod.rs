@@ -17,6 +17,7 @@ pub mod completions;
 pub mod download;
 pub mod init;
 pub mod library_scan;
+pub mod metadata;
 pub mod platforms;
 pub mod print;
 pub mod roms;

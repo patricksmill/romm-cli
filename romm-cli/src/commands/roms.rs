@@ -337,6 +337,9 @@ pub enum RomsAction {
         #[arg(long, requires = "wait")]
         wait_timeout_secs: Option<u64>,
     },
+    /// Match, edit, and unmatch game metadata (IGDB, etc.)
+    #[command(visible_alias = "meta")]
+    Metadata(super::metadata::MetadataCommand),
 }
 
 const UPLOAD_PROGRESS_PLAIN: &str =
@@ -600,6 +603,9 @@ pub async fn handle(
                 .await?;
             let out = json!({ "cover": cover, "roms": roms });
             println!("{}", serde_json::to_string_pretty(&out)?);
+        }
+        Some(RomsAction::Metadata(cmd)) => {
+            super::metadata::handle(cmd, client, presentation).await?;
         }
         Some(RomsAction::Upload {
             file,

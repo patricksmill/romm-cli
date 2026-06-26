@@ -5,14 +5,18 @@ use std::time::Duration;
 
 use romm_api::core::cache::RomCacheKey;
 use romm_api::core::library_scan::ScanCacheInvalidate;
+use romm_api::core::metadata::{invalidate_platform_rom_cache, search_metadata_matches};
 use romm_api::core::startup_library_snapshot;
+use romm_api::endpoints::roms::{GetRom, PutRom, RomUpdateFields};
 use romm_api::error::{from_anyhow, ApiError, RommError};
+use romm_api::types::metadata::RomMatchFields;
 use romm_api::types::SaveMetadata;
 
 use super::super::event::{AppEvent, BackgroundAction};
 use super::super::AppScreen;
 use super::types::{
-    CoverLoadDone, LibraryMetadataRefreshDone, LibraryUploadComplete, SaveListDone,
+    CoverLoadDone, LibraryMetadataRefreshDone, LibraryUploadComplete, MetadataApplyDone,
+    MetadataSearchDone, SaveListDone,
 };
 
 impl super::super::App {
@@ -43,6 +47,7 @@ impl super::super::App {
         events.extend(self.drain_search_load_results());
         events.extend(self.drain_cover_load_results());
         events.extend(self.drain_save_results());
+        events.extend(self.drain_metadata_results());
         events.extend(self.drain_settings_results());
         events.extend(self.drain_library_upload());
         events.extend(self.drain_library_scan());
@@ -330,6 +335,70 @@ impl super::super::App {
         if let AppScreen::GameDetail(detail) = &self.screen {
             self.spawn_save_list_worker(detail.rom.id);
         }
+    }
+
+    pub(in crate::tui::app) fn spawn_metadata_search_worker(&mut self, rom_id: u64) {
+        let client = self.client.clone();
+        let tx = self.metadata_search_tx.clone();
+        tokio::spawn(async move {
+            let result = search_metadata_matches(&client, rom_id, None, None)
+                .await
+                .map_err(RommError::from);
+            let _ = tx.send(MetadataSearchDone { rom_id, result });
+        });
+    }
+
+    pub(in crate::tui::app) fn spawn_metadata_apply_worker(
+        &mut self,
+        rom_id: u64,
+        platform_id: u64,
+        match_fields: RomMatchFields,
+        unmatch_metadata: bool,
+    ) {
+        let client = self.client.clone();
+        let tx = self.metadata_apply_tx.clone();
+        tokio::spawn(async move {
+            let result: Result<Box<romm_api::types::Rom>, RommError> = async {
+                let ep = if unmatch_metadata {
+                    PutRom::unmatch(rom_id)
+                } else {
+                    PutRom {
+                        rom_id,
+                        fields: RomUpdateFields {
+                            match_fields,
+                            ..Default::default()
+                        },
+                        remove_cover: false,
+                        unmatch_metadata: false,
+                        artwork: None,
+                    }
+                };
+                client.update_rom(&ep).await?;
+                invalidate_platform_rom_cache(platform_id);
+                client
+                    .call(&GetRom { id: rom_id })
+                    .await
+                    .map(Box::new)
+                    .map_err(RommError::from)
+            }
+            .await;
+            let _ = tx.send(MetadataApplyDone {
+                rom_id,
+                platform_id,
+                result,
+            });
+        });
+    }
+
+    fn drain_metadata_results(&mut self) -> Vec<AppEvent> {
+        let mut events = Vec::new();
+        while let Ok(done) = self.metadata_search_rx.try_recv() {
+            events.push(AppEvent::Background(BackgroundAction::MetadataSearch(done)));
+        }
+        while let Ok(done) = self.metadata_apply_rx.try_recv() {
+            events.push(AppEvent::Background(BackgroundAction::MetadataApply(done)));
+        }
+        events
     }
 
     fn drain_save_results(&mut self) -> Vec<AppEvent> {

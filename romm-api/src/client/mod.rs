@@ -8,6 +8,7 @@ mod download;
 mod openapi;
 mod request;
 mod response;
+mod rom_update;
 mod tasks;
 mod upload;
 

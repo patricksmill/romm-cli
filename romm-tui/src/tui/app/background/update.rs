@@ -23,6 +23,8 @@ impl App {
             BackgroundAction::SaveList(done) => self.apply_save_list_complete(done),
             BackgroundAction::SaveUpload(done) => self.apply_save_upload_complete(done),
             BackgroundAction::SaveDownload(done) => self.apply_save_download_complete(done),
+            BackgroundAction::MetadataSearch(done) => self.apply_metadata_search_complete(done),
+            BackgroundAction::MetadataApply(done) => self.apply_metadata_apply_complete(done),
             BackgroundAction::DeviceList(done) => self.apply_device_list_complete(done),
             BackgroundAction::PlatformList(done) => self.apply_platform_list_complete(done),
             BackgroundAction::SyncPushPull(done) => self.apply_sync_push_pull_complete(done),

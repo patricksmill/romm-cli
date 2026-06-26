@@ -26,7 +26,7 @@ use std::time::Duration;
 
 use romm_api::client::RommClient;
 use romm_api::config::{openapi_cache_path, should_check_updates, Config};
-use romm_api::feature_compat::save_sync_compatibility;
+use romm_api::feature_compat::{metadata_edit_compatibility, save_sync_compatibility};
 
 use self::app::App;
 use self::openapi_sync::sync_openapi_registry;
@@ -115,10 +115,12 @@ async fn run_started(
         startup_update.is_some(),
     );
     let save_sync_compat = save_sync_compatibility(&registry);
+    let metadata_edit_compat = metadata_edit_compatibility(&registry);
     let mut app = App::new(
         client,
         config,
         save_sync_compat,
+        metadata_edit_compat,
         server_version,
         splash,
         startup_update,

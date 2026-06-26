@@ -131,7 +131,15 @@ const SECTIONS_RIGHT: &[HelpSection] = &[
             },
             HelpEntry {
                 key: "m",
+                desc: "Match metadata",
+            },
+            HelpEntry {
+                key: "t",
                 desc: "Toggle technical details",
+            },
+            HelpEntry {
+                key: "Shift+U",
+                desc: "Unmatch metadata",
             },
             HelpEntry {
                 key: "Ctrl+←/→",

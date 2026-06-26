@@ -5,6 +5,8 @@
 
 use crate::types::RomList;
 
+use crate::types::metadata::{RomMatchFields, RomUpdateResponse, SearchCover, SearchRom};
+
 use super::Endpoint;
 use serde_json::{json, Value};
 
@@ -444,7 +446,7 @@ pub struct GetSearchCover {
 }
 
 impl Endpoint for GetSearchCover {
-    type Output = Value;
+    type Output = Vec<SearchCover>;
 
     fn method(&self) -> &'static str {
         "GET"
@@ -468,7 +470,7 @@ pub struct GetSearchRoms {
 }
 
 impl Endpoint for GetSearchRoms {
-    type Output = Value;
+    type Output = Vec<SearchRom>;
 
     fn method(&self) -> &'static str {
         "GET"
@@ -486,9 +488,75 @@ impl Endpoint for GetSearchRoms {
     }
 }
 
+/// Partial `multipart/form-data` body for `PUT /api/roms/{id}`.
+#[derive(Debug, Clone, Default)]
+pub struct RomUpdateFields {
+    pub name: Option<String>,
+    pub summary: Option<String>,
+    pub url_cover: Option<String>,
+    pub match_fields: RomMatchFields,
+}
+
+/// `PUT /api/roms/{id}` — metadata match, edit, unmatch (`RommClient::update_rom`).
+#[derive(Debug, Clone)]
+pub struct PutRom {
+    pub rom_id: u64,
+    pub fields: RomUpdateFields,
+    pub remove_cover: bool,
+    pub unmatch_metadata: bool,
+    pub artwork: Option<std::path::PathBuf>,
+}
+
+impl PutRom {
+    pub fn unmatch(rom_id: u64) -> Self {
+        Self {
+            rom_id,
+            fields: RomUpdateFields::default(),
+            remove_cover: false,
+            unmatch_metadata: true,
+            artwork: None,
+        }
+    }
+
+    pub fn remove_cover(rom_id: u64) -> Self {
+        Self {
+            rom_id,
+            fields: RomUpdateFields::default(),
+            remove_cover: true,
+            unmatch_metadata: false,
+            artwork: None,
+        }
+    }
+}
+
+impl Endpoint for PutRom {
+    type Output = RomUpdateResponse;
+
+    fn method(&self) -> &'static str {
+        "PUT"
+    }
+
+    fn path(&self) -> String {
+        format!("/api/roms/{}", self.rom_id)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{Endpoint, GetRoms};
+    use super::{Endpoint, GetRoms, PutRom};
+
+    #[test]
+    fn put_rom_path_and_query_flags() {
+        let ep = PutRom {
+            rom_id: 42,
+            fields: Default::default(),
+            remove_cover: true,
+            unmatch_metadata: false,
+            artwork: None,
+        };
+        assert_eq!(ep.method(), "PUT");
+        assert_eq!(ep.path(), "/api/roms/42");
+    }
 
     #[test]
     fn get_roms_query_sends_collection_id() {

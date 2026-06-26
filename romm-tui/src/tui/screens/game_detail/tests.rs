@@ -95,7 +95,10 @@ fn footer_help_entries_track_technical_mode() {
     let non_technical = detail.footer_help_entries();
     assert!(non_technical
         .iter()
-        .any(|entry| entry.label == "More details"));
+        .any(|entry| entry.key == "m" && entry.label == "Match metadata"));
+    assert!(non_technical
+        .iter()
+        .any(|entry| entry.key == "t" && entry.label == "More details"));
 
     detail.show_technical = true;
     let technical = detail.footer_help_entries();

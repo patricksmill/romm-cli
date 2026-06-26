@@ -9,7 +9,8 @@ use romm_api::endpoints::device::DeviceSchema;
 use romm_api::endpoints::roms::GetRoms;
 use romm_api::endpoints::sync::SyncSessionSchema;
 use romm_api::error::RommError;
-use romm_api::types::{Collection, Platform, RomList, SaveMetadata};
+use romm_api::types::metadata::SearchRom;
+use romm_api::types::{Collection, Platform, Rom, RomList, SaveMetadata};
 use romm_api::update::UpdateStatus;
 
 /// Result of a background library metadata refresh (generation-guarded).
@@ -65,6 +66,20 @@ pub(crate) struct SearchLoadDone {
 pub(crate) struct CoverLoadDone {
     pub(crate) rom_id: u64,
     pub(crate) result: Result<image::DynamicImage, RommError>,
+}
+
+#[derive(Debug)]
+pub(crate) struct MetadataSearchDone {
+    pub(crate) rom_id: u64,
+    pub(crate) result: Result<Vec<SearchRom>, RommError>,
+}
+
+#[derive(Debug)]
+pub(crate) struct MetadataApplyDone {
+    pub(crate) rom_id: u64,
+    #[allow(dead_code)]
+    pub(crate) platform_id: u64,
+    pub(crate) result: Result<Box<Rom>, RommError>,
 }
 
 #[derive(Debug)]

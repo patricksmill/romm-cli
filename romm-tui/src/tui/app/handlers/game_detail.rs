@@ -54,8 +54,77 @@ fn unique_save_path(dir: &Path, file_name: &str) -> PathBuf {
 }
 
 impl App {
+    fn prompt_metadata_unmatch(&mut self) -> Result<bool> {
+        use std::time::{Duration, Instant};
+        let supported = self.metadata_edit_supported();
+        let blocked = self.metadata_edit_blocked_message();
+        if let AppScreen::GameDetail(detail) = &mut self.screen {
+            if !supported {
+                detail.message = Some(blocked);
+                detail.message_clear_at = Some(Instant::now() + Duration::from_secs(5));
+            } else {
+                detail.metadata_unmatch_confirm = true;
+                detail.message = Some("Unmatch metadata? Press y to confirm, n to cancel.".into());
+                detail.message_clear_at = None;
+            }
+        }
+        Ok(false)
+    }
+
+    fn handle_metadata_unmatch_confirm_key(&mut self, key: &KeyEvent) -> Result<bool> {
+        use std::time::{Duration, Instant};
+        let supported = self.metadata_edit_supported();
+        let blocked = self.metadata_edit_blocked_message();
+        let AppScreen::GameDetail(detail) = &mut self.screen else {
+            return Ok(false);
+        };
+        match key.code {
+            KeyCode::Char('y') | KeyCode::Char('Y') => {
+                if !supported {
+                    detail.message = Some(blocked);
+                    detail.message_clear_at = Some(Instant::now() + Duration::from_secs(5));
+                    detail.metadata_unmatch_confirm = false;
+                    return Ok(false);
+                }
+                let rom_id = detail.rom.id;
+                let platform_id = detail.rom.platform_id;
+                detail.metadata_unmatch_confirm = false;
+                detail.message = Some("Removing metadata match…".into());
+                detail.message_clear_at = None;
+                self.spawn_metadata_unmatch(rom_id, platform_id);
+            }
+            KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
+                detail.metadata_unmatch_confirm = false;
+                detail.clear_message();
+            }
+            _ => {}
+        }
+        Ok(false)
+    }
+
     pub(in crate::tui::app) fn handle_game_detail(&mut self, key: &KeyEvent) -> Result<bool> {
         use crate::tui::path_picker::PathPickerEvent;
+        if !matches!(self.screen, AppScreen::GameDetail(_)) {
+            return Ok(false);
+        }
+
+        match key.code {
+            KeyCode::Char('m') => {
+                self.open_metadata_match_screen();
+                return Ok(false);
+            }
+            KeyCode::Char('U') if key.modifiers.contains(KeyModifiers::SHIFT) => {
+                return self.prompt_metadata_unmatch();
+            }
+            _ => {}
+        }
+
+        if let AppScreen::GameDetail(detail) = &mut self.screen {
+            if detail.metadata_unmatch_confirm {
+                return self.handle_metadata_unmatch_confirm_key(key);
+            }
+        }
+
         let detail = match &mut self.screen {
             AppScreen::GameDetail(d) => d,
             _ => return Ok(false),
@@ -211,7 +280,7 @@ impl App {
                 }
             }
             KeyCode::Char('o') => detail.open_cover(),
-            KeyCode::Char('m') => detail.toggle_technical(),
+            KeyCode::Char('t') => detail.toggle_technical(),
             KeyCode::Esc => {
                 detail.clear_message();
                 let placeholder = self.transient_screen_placeholder();
