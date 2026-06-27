@@ -150,6 +150,50 @@ pub fn supported_metadata_edit_compatibility() -> MetadataEditCompatibility {
     FeatureCompatibility::supported(METADATA_EDIT_FEATURE, METADATA_EDIT_UNSUPPORTED_MESSAGE)
 }
 
+pub const ACHIEVEMENTS_FEATURE: &str = "achievements";
+
+pub const ACHIEVEMENTS_UNSUPPORTED_MESSAGE: &str =
+    "This RomM server does not expose achievement fields; upgrade RomM to 4.9+.";
+
+pub const ACHIEVEMENTS_REQUIRED_ENDPOINTS: [RequiredEndpoint; 2] = [
+    RequiredEndpoint {
+        method: "GET",
+        path: "/api/roms/{id}",
+    },
+    RequiredEndpoint {
+        method: "GET",
+        path: "/api/users/me",
+    },
+];
+
+pub type AchievementsCompatibility = FeatureCompatibility;
+
+pub fn achievements_compatibility(registry: &EndpointRegistry) -> AchievementsCompatibility {
+    FeatureCompatibility::from_registry(
+        ACHIEVEMENTS_FEATURE,
+        ACHIEVEMENTS_UNSUPPORTED_MESSAGE,
+        &ACHIEVEMENTS_REQUIRED_ENDPOINTS,
+        registry,
+    )
+}
+
+pub fn supported_achievements_compatibility() -> AchievementsCompatibility {
+    FeatureCompatibility::supported(ACHIEVEMENTS_FEATURE, ACHIEVEMENTS_UNSUPPORTED_MESSAGE)
+}
+
+/// All feature gates enabled — for TUI unit/integration test `App::new` calls.
+pub fn supported_feature_compat() -> (
+    SaveSyncCompatibility,
+    MetadataEditCompatibility,
+    AchievementsCompatibility,
+) {
+    (
+        supported_save_sync_compatibility(),
+        supported_metadata_edit_compatibility(),
+        supported_achievements_compatibility(),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

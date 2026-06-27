@@ -10,6 +10,7 @@ use romm_api::core::download::DownloadStatus;
 use romm_api::core::utils::format_size;
 use romm_api::core::utils::truncate;
 
+use super::achievements::achievement_lines;
 use super::saves::save_lines;
 use super::types::{CoverState, GameDetailScreen};
 
@@ -214,6 +215,10 @@ impl GameDetailScreen {
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled("Saves:", styles.label())));
         lines.extend(save_lines(&self.saves_state, self.selected_save_index));
+
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::styled("Achievements:", styles.label())));
+        lines.extend(achievement_lines(&self.achievements_state));
 
         let block = styles.panel_block("Game detail");
         let p = Paragraph::new(lines)

@@ -6,9 +6,10 @@ use romm_api::core::library_scan::ScanCacheInvalidate;
 use romm_api::error::RommError;
 
 use super::background::types::{
-    CollectionPrefetchDone, CoverLoadDone, DeviceListDone, LibraryMetadataRefreshDone,
-    LibraryUploadComplete, MetadataApplyDone, MetadataSearchDone, PlatformListDone, RomLoadDone,
-    SaveDownloadDone, SaveListDone, SaveUploadDone, SearchLoadDone, SyncPushPullDone,
+    AchievementLoadDone, CollectionPrefetchDone, CoverLoadDone, DeviceListDone,
+    LibraryMetadataRefreshDone, LibraryUploadComplete, MetadataApplyDone, MetadataSearchDone,
+    PlatformListDone, RomLoadDone, SaveDownloadDone, SaveListDone, SaveUploadDone, SearchLoadDone,
+    SyncPushPullDone,
 };
 use crate::tui::keyboard_help::{map_keyboard_help_key, KeyboardHelpInput};
 
@@ -35,6 +36,7 @@ pub(crate) enum BackgroundAction {
     SearchLoad(SearchLoadDone),
     CoverLoad(CoverLoadDone),
     SaveList(SaveListDone),
+    AchievementLoad(AchievementLoadDone),
     SaveUpload(SaveUploadDone),
     SaveDownload(SaveDownloadDone),
     MetadataSearch(MetadataSearchDone),

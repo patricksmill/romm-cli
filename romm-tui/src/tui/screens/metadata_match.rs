@@ -278,6 +278,8 @@ mod tests {
             is_unidentified: true,
             is_identified: false,
             files: Vec::new(),
+            ra_id: None,
+            merged_ra_metadata: None,
         }
     }
 

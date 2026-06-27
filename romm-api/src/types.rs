@@ -1,9 +1,16 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+pub mod achievements;
 pub mod metadata;
+pub mod user;
 
+pub use achievements::{
+    AchievementRow, EarnedAchievement, MergedRaMetadata, RaAchievement, RaUserGameProgression,
+    RaUserProgression,
+};
 pub use metadata::{RomMatchFields, RomUpdateResponse, SearchCover, SearchRom, SgdbResource};
+pub use user::CurrentUser;
 
 /// Represents a firmware file associated with a platform.
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -195,6 +202,12 @@ pub struct Rom {
     /// Internal files for multi-part ROMs (Switch, PS3, etc.); empty for legacy single-file ROMs.
     #[serde(default)]
     pub files: Vec<RomFile>,
+    /// RetroAchievements game ID (detail responses only).
+    #[serde(default)]
+    pub ra_id: Option<i64>,
+    /// RetroAchievements catalog for this ROM (detail responses only).
+    #[serde(default)]
+    pub merged_ra_metadata: Option<MergedRaMetadata>,
 }
 
 /// A paginated list of ROMs returned by the API.

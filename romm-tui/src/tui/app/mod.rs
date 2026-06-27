@@ -28,7 +28,9 @@ use romm_api::core::cache::{RomCache, RomCacheKey};
 use romm_api::core::download::DownloadManager;
 use romm_api::core::library_scan::ScanCacheInvalidate;
 use romm_api::endpoints::roms::GetRoms;
-use romm_api::feature_compat::{MetadataEditCompatibility, SaveSyncCompatibility};
+use romm_api::feature_compat::{
+    AchievementsCompatibility, MetadataEditCompatibility, SaveSyncCompatibility,
+};
 use romm_api::update::UpdateStatus;
 
 use super::screens::connected_splash::StartupSplash;
@@ -40,7 +42,7 @@ use super::theme::resolve_theme_or_default;
 use ratatui_themekit::Theme;
 
 use background::types::{
-    CollectionPrefetchDone, CoverLoadDone, DeferredLoadRoms, DeviceListDone,
+    AchievementLoadDone, CollectionPrefetchDone, CoverLoadDone, DeferredLoadRoms, DeviceListDone,
     LibraryMetadataRefreshDone, LibraryUploadComplete, MetadataApplyDone, MetadataSearchDone,
     PlatformListDone, RomLoadDone, SaveDownloadDone, SaveListDone, SaveUploadDone, SearchLoadDone,
     StartupUpdatePrompt, SyncPushPullDone,
@@ -73,6 +75,7 @@ pub struct App {
     server_version: Option<String>,
     save_sync_compat: SaveSyncCompatibility,
     metadata_edit_compat: MetadataEditCompatibility,
+    achievements_compat: AchievementsCompatibility,
     rom_cache: RomCache,
     downloads: DownloadManager,
     /// Screen to restore when closing the Download overlay.
@@ -128,6 +131,8 @@ pub struct App {
     >,
     save_list_rx: tokio::sync::mpsc::UnboundedReceiver<SaveListDone>,
     save_list_tx: tokio::sync::mpsc::UnboundedSender<SaveListDone>,
+    achievement_load_rx: tokio::sync::mpsc::UnboundedReceiver<AchievementLoadDone>,
+    achievement_load_tx: tokio::sync::mpsc::UnboundedSender<AchievementLoadDone>,
     save_upload_rx: tokio::sync::mpsc::UnboundedReceiver<SaveUploadDone>,
     save_upload_tx: tokio::sync::mpsc::UnboundedSender<SaveUploadDone>,
     save_download_rx: tokio::sync::mpsc::UnboundedReceiver<SaveDownloadDone>,
@@ -211,11 +216,13 @@ impl App {
             && matches!(key.code, KeyCode::Char('c') | KeyCode::Char('C'))
     }
     /// Construct a new `App` with fresh cache and empty download list.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         client: RommClient,
         config: Config,
         save_sync_compat: SaveSyncCompatibility,
         metadata_edit_compat: MetadataEditCompatibility,
+        achievements_compat: AchievementsCompatibility,
         server_version: Option<String>,
         startup_splash: Option<StartupSplash>,
         startup_update: Option<UpdateStatus>,
@@ -225,6 +232,7 @@ impl App {
         let (search_load_tx, search_load_rx) = tokio::sync::mpsc::unbounded_channel();
         let (cover_load_tx, cover_load_rx) = tokio::sync::mpsc::unbounded_channel();
         let (save_list_tx, save_list_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (achievement_load_tx, achievement_load_rx) = tokio::sync::mpsc::unbounded_channel();
         let (save_upload_tx, save_upload_rx) = tokio::sync::mpsc::unbounded_channel();
         let (save_download_tx, save_download_rx) = tokio::sync::mpsc::unbounded_channel();
         let (metadata_search_tx, metadata_search_rx) = tokio::sync::mpsc::unbounded_channel();
@@ -244,6 +252,7 @@ impl App {
             server_version,
             save_sync_compat,
             metadata_edit_compat,
+            achievements_compat,
             rom_cache: RomCache::load(),
             downloads: DownloadManager::new(),
             screen_before_download: None,
@@ -285,6 +294,8 @@ impl App {
             library_upload_done_rx: None,
             save_list_rx,
             save_list_tx,
+            achievement_load_rx,
+            achievement_load_tx,
             save_upload_rx,
             save_upload_tx,
             save_download_rx,

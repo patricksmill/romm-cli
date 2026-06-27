@@ -41,7 +41,7 @@ impl Endpoint for GetStats {
 pub struct GetUsersMe;
 
 impl Endpoint for GetUsersMe {
-    type Output = Value;
+    type Output = crate::types::CurrentUser;
 
     fn method(&self) -> &'static str {
         "GET"

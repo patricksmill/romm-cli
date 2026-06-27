@@ -16,6 +16,14 @@ async fn download_single_rom_zip_happy_path() {
             .as_nanos()
     ));
     fs::create_dir_all(&output_dir).unwrap();
+    let config_dir = std::env::temp_dir().join(format!(
+        "romm-cli-download-config-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir_all(&config_dir).unwrap();
 
     let rom_body = r#"{
         "id": 42,
@@ -81,7 +89,8 @@ async fn download_single_rom_zip_happy_path() {
         .await;
 
     let mut cmd = Command::cargo_bin("romm-cli").expect("binary");
-    cmd.env("API_BASE_URL", server.base_url())
+    cmd.env("ROMM_TEST_CONFIG_DIR", config_dir.as_os_str())
+        .env("API_BASE_URL", server.base_url())
         .env("API_USE_HTTPS", "false")
         .env("API_TOKEN", "test-token")
         .arg("download")
@@ -100,4 +109,5 @@ async fn download_single_rom_zip_happy_path() {
     assert_eq!(fs::read(saved).unwrap(), zip_bytes);
 
     let _ = fs::remove_dir_all(output_dir);
+    let _ = fs::remove_dir_all(config_dir);
 }

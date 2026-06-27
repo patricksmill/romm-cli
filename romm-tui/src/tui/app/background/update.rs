@@ -21,6 +21,7 @@ impl App {
             BackgroundAction::SearchLoad(done) => self.apply_search_load_complete(done),
             BackgroundAction::CoverLoad(done) => self.apply_cover_load_complete(done),
             BackgroundAction::SaveList(done) => self.apply_save_list_complete(done),
+            BackgroundAction::AchievementLoad(done) => self.apply_achievement_load_complete(done),
             BackgroundAction::SaveUpload(done) => self.apply_save_upload_complete(done),
             BackgroundAction::SaveDownload(done) => self.apply_save_download_complete(done),
             BackgroundAction::MetadataSearch(done) => self.apply_metadata_search_complete(done),
@@ -137,6 +138,22 @@ impl App {
                     Ok(rows) => detail.apply_saves(rows),
                     Err(e) => detail.apply_saves_error(user_message(&e)),
                 }
+            }
+        }
+    }
+
+    fn apply_achievement_load_complete(&mut self, done: super::types::AchievementLoadDone) {
+        use romm_api::core::achievements::AchievementLoadResult;
+        if let AppScreen::GameDetail(detail) = &mut self.screen {
+            if detail.rom.id != done.rom_id {
+                return;
+            }
+            match done.result {
+                Ok(AchievementLoadResult::Loaded { rows, summary }) => {
+                    detail.apply_achievements_loaded(rows, summary);
+                }
+                Ok(AchievementLoadResult::Empty(msg)) => detail.apply_achievements_empty(msg),
+                Err(e) => detail.apply_achievements_error(user_message(&e)),
             }
         }
     }

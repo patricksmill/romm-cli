@@ -32,6 +32,8 @@ fn rom(id: u64, name: &str, fs_name: &str) -> Rom {
         is_unidentified: false,
         is_identified: true,
         files: Vec::new(),
+        ra_id: None,
+        merged_ra_metadata: None,
     }
 }
 

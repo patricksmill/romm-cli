@@ -1,5 +1,6 @@
 //! Game detail screen for a single ROM.
 
+mod achievements;
 mod cover;
 mod render;
 mod saves;

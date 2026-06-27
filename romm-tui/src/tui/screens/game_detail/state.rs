@@ -12,8 +12,8 @@ use romm_api::types::{Rom, SaveMetadata};
 
 use super::cover::detect_cover_protocol;
 use super::types::{
-    CoverRenderMode, CoverState, GameDetailPrevious, GameDetailScreen, SaveListState,
-    COVER_PANEL_WIDTH_MAX, COVER_PANEL_WIDTH_MIN,
+    AchievementListState, CoverRenderMode, CoverState, GameDetailPrevious, GameDetailScreen,
+    SaveListState, COVER_PANEL_WIDTH_MAX, COVER_PANEL_WIDTH_MIN,
 };
 
 impl GameDetailScreen {
@@ -48,6 +48,7 @@ impl GameDetailScreen {
             cover_image: None,
             saves_state: SaveListState::Idle,
             selected_save_index: 0,
+            achievements_state: AchievementListState::Idle,
             save_upload_picker: None,
             metadata_unmatch_confirm: false,
             cover_panel_width: cover_panel_width
@@ -234,6 +235,30 @@ impl GameDetailScreen {
 
     pub fn apply_saves_error(&mut self, error: String) {
         self.saves_state = SaveListState::Failed(error);
+    }
+
+    pub fn set_achievements_loading(&mut self) {
+        self.achievements_state = AchievementListState::Loading;
+    }
+
+    pub fn apply_achievements_loaded(
+        &mut self,
+        rows: Vec<romm_api::types::AchievementRow>,
+        summary: (usize, usize),
+    ) {
+        self.achievements_state = AchievementListState::Loaded { rows, summary };
+    }
+
+    pub fn apply_achievements_empty(&mut self, message: String) {
+        self.achievements_state = AchievementListState::Empty(message);
+    }
+
+    pub fn apply_achievements_error(&mut self, error: String) {
+        self.achievements_state = AchievementListState::Failed(error);
+    }
+
+    pub fn apply_achievements_unsupported(&mut self, message: String) {
+        self.achievements_state = AchievementListState::Unsupported(message);
     }
 
     pub fn selected_save(&self) -> Option<&SaveMetadata> {

@@ -24,7 +24,7 @@ On startup, the TUI checks for newer releases (disable with `ROMM_CHECK_UPDATES=
 ## Features
 
 - **Library browsing** — platforms, collections, and ROM lists; **`f`** filters the focused pane (consoles, collections, or games); **`/`** opens server-wide ROM search
-- **Game detail** — cover-first layout with inline image rendering when the terminal supports it (Kitty, iTerm2, Sixel); halfblocks fallback on Windows Terminal; `o` opens the cover in a browser; **`m`** matches metadata; **`Shift+U`** unmatches; **`t`** toggles technical details
+- **Game detail** — cover-first layout with inline image rendering when the terminal supports it (Kitty, iTerm2, Sixel); halfblocks fallback on Windows Terminal; `o` opens the cover in a browser; **`m`** matches metadata; **`Shift+U`** unmatches; **`t`** toggles technical details; **RetroAchievements** list when RomM has matched the ROM and your RA profile is synced (via RomM web UI)
 - **Background downloads** — start downloads and keep browsing
 - **Settings** — auth, paths, appearance, save-sync options
 - **Save downloads** — per-console save paths (see [api.md — custom save paths](api.md#custom-console-save-paths))

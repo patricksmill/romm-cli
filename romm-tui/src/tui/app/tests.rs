@@ -15,7 +15,8 @@ use romm_api::config::LIBRARY_LEFT_PANEL_PERCENT_DEFAULT;
 use romm_api::config::{default_theme_id, Config, ExtrasDefaults, TuiLayoutConfig};
 use romm_api::core::cache::RomCacheKey;
 use romm_api::feature_compat::{
-    supported_metadata_edit_compatibility, supported_save_sync_compatibility,
+    supported_achievements_compatibility, supported_metadata_edit_compatibility,
+    supported_save_sync_compatibility,
 };
 use romm_api::types::{Platform, RomList};
 use romm_api::update::UpdateStatus;
@@ -79,6 +80,7 @@ fn app_with_library(platforms: Vec<Platform>) -> App {
         config,
         supported_save_sync_compatibility(),
         supported_metadata_edit_compatibility(),
+        supported_achievements_compatibility(),
         None,
         None,
         None,
@@ -294,6 +296,7 @@ async fn startup_splash_enter_dismisses_without_quitting_when_update_pending() {
         config,
         supported_save_sync_compatibility(),
         supported_metadata_edit_compatibility(),
+        supported_achievements_compatibility(),
         Some("4.0.0".into()),
         splash,
         Some(update_status_fixture()),
@@ -332,6 +335,7 @@ async fn startup_update_prompt_enter_starts_update_without_quitting() {
         config,
         supported_save_sync_compatibility(),
         supported_metadata_edit_compatibility(),
+        supported_achievements_compatibility(),
         None,
         None,
         Some(update_status_fixture()),
@@ -368,6 +372,7 @@ async fn startup_update_prompt_esc_skips_without_quitting() {
         config,
         supported_save_sync_compatibility(),
         supported_metadata_edit_compatibility(),
+        supported_achievements_compatibility(),
         None,
         None,
         Some(update_status_fixture()),
@@ -428,6 +433,7 @@ async fn startup_update_prompt_blocks_global_d_shortcut() {
         config,
         supported_save_sync_compatibility(),
         supported_metadata_edit_compatibility(),
+        supported_achievements_compatibility(),
         None,
         None,
         Some(update_status_fixture()),
@@ -455,6 +461,7 @@ async fn startup_update_prompt_skip_closes_prompt() {
         config,
         supported_save_sync_compatibility(),
         supported_metadata_edit_compatibility(),
+        supported_achievements_compatibility(),
         None,
         None,
         Some(update_status_fixture()),
@@ -487,6 +494,7 @@ fn search_batch_updates_results_without_stopping_loading() {
         config,
         supported_save_sync_compatibility(),
         supported_metadata_edit_compatibility(),
+        supported_achievements_compatibility(),
         None,
         None,
         None,
@@ -533,6 +541,7 @@ fn search_complete_event_stops_loading() {
         config,
         supported_save_sync_compatibility(),
         supported_metadata_edit_compatibility(),
+        supported_achievements_compatibility(),
         None,
         None,
         None,
@@ -640,6 +649,7 @@ fn app_on_library() -> App {
         config,
         supported_save_sync_compatibility(),
         supported_metadata_edit_compatibility(),
+        supported_achievements_compatibility(),
         None,
         None,
         None,

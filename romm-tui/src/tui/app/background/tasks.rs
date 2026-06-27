@@ -3,19 +3,21 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
+use romm_api::core::achievements::{prepare_achievements, AchievementLoadResult};
 use romm_api::core::cache::RomCacheKey;
 use romm_api::core::library_scan::ScanCacheInvalidate;
 use romm_api::core::metadata::{invalidate_platform_rom_cache, search_metadata_matches};
 use romm_api::core::startup_library_snapshot;
 use romm_api::endpoints::roms::{GetRom, PutRom};
+use romm_api::endpoints::system::GetUsersMe;
 use romm_api::error::{from_anyhow, ApiError, RommError};
 use romm_api::types::SaveMetadata;
 
 use super::super::event::{AppEvent, BackgroundAction};
 use super::super::AppScreen;
 use super::types::{
-    CoverLoadDone, LibraryMetadataRefreshDone, LibraryUploadComplete, MetadataApplyDone,
-    MetadataSearchDone, SaveListDone,
+    AchievementLoadDone, CoverLoadDone, LibraryMetadataRefreshDone, LibraryUploadComplete,
+    MetadataApplyDone, MetadataSearchDone, SaveListDone,
 };
 
 impl super::super::App {
@@ -46,6 +48,7 @@ impl super::super::App {
         events.extend(self.drain_search_load_results());
         events.extend(self.drain_cover_load_results());
         events.extend(self.drain_save_results());
+        events.extend(self.drain_achievement_results());
         events.extend(self.drain_metadata_results());
         events.extend(self.drain_settings_results());
         events.extend(self.drain_library_upload());
@@ -334,6 +337,51 @@ impl super::super::App {
         if let AppScreen::GameDetail(detail) = &self.screen {
             self.spawn_save_list_worker(detail.rom.id);
         }
+    }
+
+    pub(in crate::tui::app) fn spawn_achievement_load_worker(&mut self, rom_id: u64) {
+        if let AppScreen::GameDetail(detail) = &mut self.screen {
+            if !self.achievements_compat.supported {
+                detail
+                    .apply_achievements_unsupported(self.achievements_compat.unsupported_message());
+                return;
+            }
+            detail.set_achievements_loading();
+        } else {
+            return;
+        }
+        let client = self.client.clone();
+        let tx = self.achievement_load_tx.clone();
+        tokio::spawn(async move {
+            let result = async {
+                let rom = client.call(&GetRom { id: rom_id }).await?;
+                let user = client.call(&GetUsersMe).await?;
+                Ok::<AchievementLoadResult, RommError>(prepare_achievements(
+                    rom.ra_id,
+                    rom.merged_ra_metadata.as_ref(),
+                    user.ra_username.as_deref(),
+                    user.ra_progression.as_ref(),
+                ))
+            }
+            .await;
+            let _ = tx.send(AchievementLoadDone { rom_id, result });
+        });
+    }
+
+    pub(in crate::tui::app) fn refresh_current_game_achievements(&mut self) {
+        if let AppScreen::GameDetail(detail) = &self.screen {
+            self.spawn_achievement_load_worker(detail.rom.id);
+        }
+    }
+
+    fn drain_achievement_results(&mut self) -> Vec<AppEvent> {
+        let mut events = Vec::new();
+        while let Ok(done) = self.achievement_load_rx.try_recv() {
+            events.push(AppEvent::Background(BackgroundAction::AchievementLoad(
+                done,
+            )));
+        }
+        events
     }
 
     pub(in crate::tui::app) fn spawn_metadata_search_worker(

@@ -45,6 +45,8 @@ fn rom_fixture_with_platform(platform_fs_slug: Option<&str>, fs_name: &str) -> R
         is_unidentified: false,
         is_identified: true,
         files: Vec::new(),
+        ra_id: None,
+        merged_ra_metadata: None,
     }
 }
 

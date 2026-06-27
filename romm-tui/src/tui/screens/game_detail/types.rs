@@ -7,7 +7,7 @@ use ratatui_image::protocol::StatefulProtocol;
 use crate::tui::path_picker::PathPicker;
 use crate::tui::screens::{LibraryBrowseScreen, SearchScreen};
 use romm_api::core::download::DownloadJob;
-use romm_api::types::{Rom, SaveMetadata};
+use romm_api::types::{AchievementRow, Rom, SaveMetadata};
 
 /// Previous screen when opening game detail (so Esc can return).
 pub enum GameDetailPrevious {
@@ -38,6 +38,19 @@ pub enum SaveListState {
     Failed(String),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AchievementListState {
+    Idle,
+    Loading,
+    Loaded {
+        rows: Vec<AchievementRow>,
+        summary: (usize, usize),
+    },
+    Empty(String),
+    Failed(String),
+    Unsupported(String),
+}
+
 pub use romm_api::config::{
     GAME_DETAIL_COVER_PANEL_WIDTH_DEFAULT as COVER_PANEL_WIDTH_DEFAULT,
     GAME_DETAIL_COVER_PANEL_WIDTH_MAX as COVER_PANEL_WIDTH_MAX,
@@ -66,6 +79,7 @@ pub struct GameDetailScreen {
     pub cover_image: Option<StatefulProtocol>,
     pub saves_state: SaveListState,
     pub selected_save_index: usize,
+    pub achievements_state: AchievementListState,
     pub save_upload_picker: Option<PathPicker>,
     /// Pending confirmation before `PUT ?unmatch_metadata=true`.
     pub metadata_unmatch_confirm: bool,

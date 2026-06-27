@@ -89,6 +89,12 @@ pub(crate) struct SaveListDone {
 }
 
 #[derive(Debug)]
+pub(crate) struct AchievementLoadDone {
+    pub(crate) rom_id: u64,
+    pub(crate) result: Result<romm_api::core::achievements::AchievementLoadResult, RommError>,
+}
+
+#[derive(Debug)]
 pub(crate) struct SaveUploadDone {
     pub(crate) rom_id: u64,
     pub(crate) result: Result<(), RommError>,

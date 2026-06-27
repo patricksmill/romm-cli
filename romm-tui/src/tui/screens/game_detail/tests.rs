@@ -54,6 +54,8 @@ fn missing_protocol_still_requests_cover_load() {
         is_unidentified: false,
         is_identified: true,
         files: Vec::new(),
+        ra_id: None,
+        merged_ra_metadata: None,
     };
     let previous = GameDetailPrevious::Search(SearchScreen::new());
     let downloads = Arc::new(Mutex::new(Vec::new()));
@@ -191,6 +193,8 @@ fn test_rom(id: u64, url_cover: Option<String>) -> romm_api::types::Rom {
         is_unidentified: false,
         is_identified: true,
         files: Vec::new(),
+        ra_id: None,
+        merged_ra_metadata: None,
     }
 }
 

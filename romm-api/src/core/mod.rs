@@ -2,6 +2,7 @@
 //!
 //! This module groups reusable state and utilities shared across all frontends.
 
+pub mod achievements;
 pub mod cache;
 pub mod download;
 pub mod extras;
