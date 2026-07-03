@@ -36,7 +36,6 @@ impl super::App {
                 }
                 AppScreen::GameDetail(detail) => detail.render(f, area, &styles),
                 AppScreen::MetadataMatch(picker) => picker.render(f, area, &styles),
-                AppScreen::ExtrasPicker(picker) => picker.render(f, area, &styles),
                 AppScreen::Download(d) => d.render(f, area, &styles),
                 AppScreen::SetupWizard(wizard) => {
                     wizard.render(f, area, &styles);

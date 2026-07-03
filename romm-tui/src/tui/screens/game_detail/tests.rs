@@ -81,37 +81,55 @@ fn has_any_extras_false_when_no_assets() {
 }
 
 #[test]
-fn footer_help_entries_mention_extras_shortcut() {
-    let detail = new_detail(test_rom(1, None));
+fn footer_info_tab_shows_match_for_unidentified() {
+    let mut rom = test_rom(1, None);
+    rom.is_identified = false;
+    let detail = new_detail(rom);
     assert_eq!(detail.active_tab, DetailTab::Info);
     let entries = detail.footer_help_entries();
     assert!(entries
         .iter()
-        .any(|entry| entry.key == "e" && entry.label == "Extras"));
+        .any(|entry| entry.key == "m" && entry.label == "Match"));
     assert!(entries
         .iter()
         .any(|entry| entry.key == "Ctrl+←/→" && entry.label == "Resize cover"));
     assert!(entries
         .iter()
-        .any(|entry| entry.key == "1/2/3" && entry.label == "Tabs"));
+        .any(|entry| entry.key == "1-5" && entry.label == "Tabs"));
 }
 
 #[test]
-fn footer_help_entries_track_technical_mode() {
-    let mut detail = new_detail(test_rom(1, None));
-    let non_technical = detail.footer_help_entries();
-    assert!(non_technical
+fn footer_info_tab_shows_unmatch_for_identified() {
+    let detail = new_detail(test_rom(1, None));
+    assert_eq!(detail.active_tab, DetailTab::Info);
+    let entries = detail.footer_help_entries();
+    assert!(entries
         .iter()
-        .any(|entry| entry.key == "m" && entry.label == "Match metadata"));
-    assert!(non_technical
-        .iter()
-        .any(|entry| entry.key == "t" && entry.label == "More details"));
+        .any(|entry| entry.key == "m" && entry.label == "Unmatch"));
+}
 
-    detail.show_technical = true;
-    let technical = detail.footer_help_entries();
-    assert!(technical
+#[test]
+fn footer_extras_tab_hints() {
+    let mut detail = new_detail(test_rom(1, None));
+    detail.select_tab(DetailTab::Extras);
+    let entries = detail.footer_help_entries();
+    assert!(entries
         .iter()
-        .any(|entry| entry.label == "Hide technical"));
+        .any(|entry| entry.key == "Space" && entry.label == "Toggle"));
+    assert!(entries
+        .iter()
+        .any(|entry| entry.key == "Enter" && entry.label == "Download"));
+}
+
+#[test]
+fn footer_technical_tab_has_match_unmatch() {
+    let detail = new_detail(test_rom(1, None));
+    let mut d = detail;
+    d.select_tab(DetailTab::Technical);
+    let entries = d.footer_help_entries();
+    assert!(entries
+        .iter()
+        .any(|entry| entry.key == "m" && entry.label == "Unmatch"));
 }
 
 #[test]
@@ -131,10 +149,14 @@ fn footer_saves_tab_shows_upload_download() {
 fn tab_switching_changes_active_tab() {
     let mut detail = new_detail(test_rom(1, None));
     assert_eq!(detail.active_tab, DetailTab::Info);
+    detail.select_tab(DetailTab::Extras);
+    assert_eq!(detail.active_tab, DetailTab::Extras);
     detail.select_tab(DetailTab::Saves);
     assert_eq!(detail.active_tab, DetailTab::Saves);
     detail.select_tab(DetailTab::Achievements);
     assert_eq!(detail.active_tab, DetailTab::Achievements);
+    detail.select_tab(DetailTab::Technical);
+    assert_eq!(detail.active_tab, DetailTab::Technical);
     detail.select_tab(DetailTab::Info);
     assert_eq!(detail.active_tab, DetailTab::Info);
 }

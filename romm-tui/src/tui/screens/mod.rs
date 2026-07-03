@@ -16,7 +16,6 @@ pub mod settings;
 pub mod setup_wizard;
 
 pub use download::DownloadScreen;
-pub use extras_picker::ExtrasPickerScreen;
 pub use game_detail::{GameDetailPrevious, GameDetailScreen};
 pub use library_browse::LibraryBrowseScreen;
 pub use metadata_match::MetadataMatchScreen;

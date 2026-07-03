@@ -12,7 +12,6 @@ pub(in crate::tui::app) fn map_screen_key(app: &App, key: &KeyEvent) -> Vec<Acti
         AppScreen::Search(_) => vec![Action::SearchKey(*key)],
         AppScreen::Settings(_) => vec![Action::SettingsKey(*key)],
         AppScreen::GameDetail(_) => vec![Action::GameDetailKey(*key)],
-        AppScreen::ExtrasPicker(_) => vec![Action::ExtrasPickerKey(*key)],
         AppScreen::MetadataMatch(_) => vec![Action::MetadataMatchKey(*key)],
         AppScreen::Download(_) => super::download::map_download_key(key),
         AppScreen::SetupWizard(_) => vec![Action::SetupWizardKey(*key)],

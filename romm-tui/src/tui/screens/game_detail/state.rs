@@ -7,7 +7,6 @@ use crate::tui::footer_hint::FooterHintEntry;
 use crate::tui::path_picker::{PathPicker, PathPickerMode};
 use crate::tui::utils::open_in_browser;
 use romm_api::core::download::{DownloadJob, DownloadStatus};
-use romm_api::core::extras::collect_update_dlc_files;
 use romm_api::types::{Rom, SaveMetadata};
 
 use super::cover::detect_cover_protocol;
@@ -31,11 +30,11 @@ impl GameDetailScreen {
         } else {
             CoverState::Loading
         };
+        let extras_items = GameDetailScreen::build_extras_items(&rom, &other_files);
         Self {
             rom,
             other_files,
             previous,
-            show_technical: false,
             message: None,
             message_clear_at: None,
             downloads,
@@ -54,6 +53,8 @@ impl GameDetailScreen {
             save_upload_picker: None,
             save_screenshot_state: CoverState::Idle,
             save_screenshot_image: None,
+            extras_items,
+            selected_extras_index: 0,
             metadata_unmatch_confirm: false,
             cover_panel_width: cover_panel_width
                 .clamp(COVER_PANEL_WIDTH_MIN, COVER_PANEL_WIDTH_MAX),
@@ -68,10 +69,6 @@ impl GameDetailScreen {
         let next = (self.cover_panel_width as i16 + delta)
             .clamp(COVER_PANEL_WIDTH_MIN as i16, COVER_PANEL_WIDTH_MAX as i16);
         self.cover_panel_width = next as u16;
-    }
-
-    pub fn toggle_technical(&mut self) {
-        self.show_technical = !self.show_technical;
     }
 
     /// Replace ROM fields after metadata edit; reload cover when URL changes.
@@ -170,53 +167,48 @@ impl GameDetailScreen {
         self.cover_state = CoverState::Failed(message);
     }
 
-    pub(crate) fn footer_help_entries(&self) -> &'static [FooterHintEntry] {
+    pub(crate) fn footer_help_entries(&self) -> Vec<FooterHintEntry> {
+        let match_label = if self.rom.is_identified {
+            "Unmatch"
+        } else {
+            "Match"
+        };
+        let tabs_hint = FooterHintEntry {
+            key: "1-5",
+            label: "Tabs",
+        };
         match self.active_tab {
-            DetailTab::Info if self.show_technical => &[
-                FooterHintEntry {
-                    key: "e",
-                    label: "Extras",
-                },
+            DetailTab::Info => vec![
                 FooterHintEntry {
                     key: "m",
-                    label: "Hide technical",
-                },
-                FooterHintEntry {
-                    key: "Shift+U",
-                    label: "Unmatch metadata",
+                    label: match_label,
                 },
                 FooterHintEntry {
                     key: "Ctrl+←/→",
                     label: "Resize cover",
                 },
-                FooterHintEntry {
-                    key: "1/2/3",
-                    label: "Tabs",
-                },
+                tabs_hint,
             ],
-            DetailTab::Info => &[
+            DetailTab::Extras => vec![
                 FooterHintEntry {
-                    key: "e",
-                    label: "Extras",
+                    key: "Space",
+                    label: "Toggle",
                 },
                 FooterHintEntry {
-                    key: "m",
-                    label: "Match metadata",
+                    key: "a",
+                    label: "Toggle all",
                 },
                 FooterHintEntry {
-                    key: "t",
-                    label: "More details",
+                    key: "Enter",
+                    label: "Download",
                 },
                 FooterHintEntry {
-                    key: "Ctrl+←/→",
-                    label: "Resize cover",
+                    key: "j/k",
+                    label: "Navigate",
                 },
-                FooterHintEntry {
-                    key: "1/2/3",
-                    label: "Tabs",
-                },
+                tabs_hint,
             ],
-            DetailTab::Saves => &[
+            DetailTab::Saves => vec![
                 FooterHintEntry {
                     key: "u",
                     label: "Upload save",
@@ -229,20 +221,21 @@ impl GameDetailScreen {
                     key: "j/k",
                     label: "Navigate",
                 },
-                FooterHintEntry {
-                    key: "1/2/3",
-                    label: "Tabs",
-                },
+                tabs_hint,
             ],
-            DetailTab::Achievements => &[
+            DetailTab::Achievements => vec![
                 FooterHintEntry {
                     key: "j/k",
-                    label: "Scroll",
+                    label: "Navigate",
                 },
+                tabs_hint,
+            ],
+            DetailTab::Technical => vec![
                 FooterHintEntry {
-                    key: "1/2/3",
-                    label: "Tabs",
+                    key: "m",
+                    label: match_label,
                 },
+                tabs_hint,
             ],
         }
     }
@@ -357,24 +350,36 @@ impl GameDetailScreen {
         self.message_clear_at = None;
     }
 
-    /// True when the extras picker can offer at least one row.
     pub fn has_any_extras(&self) -> bool {
-        !self.other_files.is_empty()
-            || !collect_update_dlc_files(&self.rom).is_empty()
-            || self
-                .rom
-                .url_cover
-                .as_deref()
-                .map(str::trim)
-                .filter(|s| !s.is_empty())
-                .is_some()
-            || self
-                .rom
-                .url_manual
-                .as_deref()
-                .map(str::trim)
-                .filter(|s| !s.is_empty())
-                .is_some()
+        !self.extras_items.is_empty()
+    }
+
+    pub fn extras_selection_next(&mut self) {
+        if !self.extras_items.is_empty() {
+            self.selected_extras_index =
+                (self.selected_extras_index + 1).min(self.extras_items.len() - 1);
+        }
+    }
+
+    pub fn extras_selection_previous(&mut self) {
+        self.selected_extras_index = self.selected_extras_index.saturating_sub(1);
+    }
+
+    pub fn extras_toggle_current(&mut self) {
+        if let Some(item) = self.extras_items.get_mut(self.selected_extras_index) {
+            item.checked = !item.checked;
+        }
+    }
+
+    pub fn extras_toggle_all(&mut self) {
+        let all_checked = self.extras_items.iter().all(|i| i.checked);
+        for item in &mut self.extras_items {
+            item.checked = !all_checked;
+        }
+    }
+
+    pub fn extras_selected_count(&self) -> usize {
+        self.extras_items.iter().filter(|i| i.checked).count()
     }
 
     pub(crate) fn cover_pipeline_label(&self) -> &'static str {

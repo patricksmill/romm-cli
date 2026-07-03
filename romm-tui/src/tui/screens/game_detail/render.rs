@@ -43,19 +43,24 @@ impl GameDetailScreen {
             .constraints([Constraint::Min(10), Constraint::Length(3)])
             .direction(Direction::Vertical)
             .split(area);
-        let body = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Min(10),
-                Constraint::Length(self.cover_panel_width),
-            ])
-            .split(chunks[0]);
-
-        self.render_metadata_panel(f, body[0], styles);
-        match self.active_tab {
-            DetailTab::Info => self.render_cover_panel(f, body[1], styles),
-            DetailTab::Saves => self.render_save_screenshot_panel(f, body[1], styles),
-            DetailTab::Achievements => self.render_achievement_detail_panel(f, body[1], styles),
+        let hide_right_panel = matches!(self.active_tab, DetailTab::Extras | DetailTab::Technical);
+        if hide_right_panel {
+            self.render_metadata_panel(f, chunks[0], styles);
+        } else {
+            let body = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([
+                    Constraint::Min(10),
+                    Constraint::Length(self.cover_panel_width),
+                ])
+                .split(chunks[0]);
+            self.render_metadata_panel(f, body[0], styles);
+            match self.active_tab {
+                DetailTab::Info => self.render_cover_panel(f, body[1], styles),
+                DetailTab::Saves => self.render_save_screenshot_panel(f, body[1], styles),
+                DetailTab::Achievements => self.render_achievement_detail_panel(f, body[1], styles),
+                _ => {}
+            }
         }
         self.render_footer_panel(f, chunks[1], styles);
     }
@@ -216,8 +221,10 @@ impl GameDetailScreen {
 
         match self.active_tab {
             DetailTab::Info => self.render_info_tab(f, meta_chunks[1], styles),
+            DetailTab::Extras => self.render_extras_tab(f, meta_chunks[1], styles),
             DetailTab::Saves => self.render_saves_tab(f, meta_chunks[1], styles),
             DetailTab::Achievements => self.render_achievements_tab(f, meta_chunks[1], styles),
+            DetailTab::Technical => self.render_technical_tab(f, meta_chunks[1], styles),
         }
     }
 
@@ -291,23 +298,6 @@ impl GameDetailScreen {
             }
         }
 
-        if self.show_technical {
-            lines.push(Line::from(""));
-            lines.push(Line::from(Span::styled("Technical:", styles.warning())));
-            lines.push(Line::from(format!("  ID: {}", self.rom.id)));
-            lines.push(Line::from(format!(
-                "  Platform ID: {}",
-                self.rom.platform_id
-            )));
-            if let Some(s) = &self.rom.slug {
-                lines.push(Line::from(format!("  Slug: {}", s)));
-            }
-            lines.push(Line::from(format!(
-                "  Identified: {}",
-                self.rom.is_identified
-            )));
-        }
-
         let block = styles.panel_block("Info");
         let p = Paragraph::new(lines)
             .block(block)
@@ -339,6 +329,97 @@ impl GameDetailScreen {
         let start = selected_line.saturating_sub(visible_height.saturating_sub(1));
         let windowed: Vec<_> = lines.into_iter().skip(start).take(visible_height).collect();
         let p = Paragraph::new(windowed).block(block).style(styles.text());
+        f.render_widget(p, area);
+    }
+
+    fn render_extras_tab(&self, f: &mut Frame, area: Rect, styles: &RommStyles) {
+        let block = styles.panel_block("Extras");
+        let inner = block.inner(area);
+        let visible_height = inner.height as usize;
+        if self.extras_items.is_empty() {
+            let p = Paragraph::new("  No extras available for this ROM")
+                .block(block)
+                .style(styles.text());
+            f.render_widget(p, area);
+            return;
+        }
+        let lines: Vec<Line> = self
+            .extras_items
+            .iter()
+            .enumerate()
+            .map(|(i, item)| {
+                let cursor = if i == self.selected_extras_index {
+                    ">"
+                } else {
+                    " "
+                };
+                let check = if item.checked { "[x]" } else { "[ ]" };
+                Line::from(format!(
+                    " {} {} {} — {}",
+                    cursor, check, item.label, item.sublabel
+                ))
+            })
+            .collect();
+        let start = self
+            .selected_extras_index
+            .saturating_sub(visible_height.saturating_sub(1));
+        let windowed: Vec<_> = lines.into_iter().skip(start).take(visible_height).collect();
+        let p = Paragraph::new(windowed).block(block).style(styles.text());
+        f.render_widget(p, area);
+    }
+
+    fn render_technical_tab(&self, f: &mut Frame, area: Rect, styles: &RommStyles) {
+        let mut lines: Vec<Line> = vec![
+            Line::from(vec![
+                Span::styled("ID: ", styles.label()),
+                Span::raw(format!("{}", self.rom.id)),
+            ]),
+            Line::from(vec![
+                Span::styled("Platform ID: ", styles.label()),
+                Span::raw(format!("{}", self.rom.platform_id)),
+            ]),
+        ];
+        if let Some(s) = &self.rom.slug {
+            lines.push(Line::from(vec![
+                Span::styled("Slug: ", styles.label()),
+                Span::raw(s.as_str()),
+            ]));
+        }
+        lines.push(Line::from(vec![
+            Span::styled("Identified: ", styles.label()),
+            Span::raw(format!("{}", self.rom.is_identified)),
+        ]));
+        if let Some(s) = &self.rom.platform_slug {
+            lines.push(Line::from(vec![
+                Span::styled("Platform slug: ", styles.label()),
+                Span::raw(s.as_str()),
+            ]));
+        }
+        if let Some(s) = &self.rom.platform_fs_slug {
+            lines.push(Line::from(vec![
+                Span::styled("Platform FS slug: ", styles.label()),
+                Span::raw(s.as_str()),
+            ]));
+        }
+        lines.push(Line::from(vec![
+            Span::styled("FS name: ", styles.label()),
+            Span::raw(&self.rom.fs_name),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("Extension: ", styles.label()),
+            Span::raw(&self.rom.fs_extension),
+        ]));
+        if let Some(ra_id) = self.rom.ra_id {
+            lines.push(Line::from(vec![
+                Span::styled("RA ID: ", styles.label()),
+                Span::raw(format!("{ra_id}")),
+            ]));
+        }
+        let block = styles.panel_block("Technical");
+        let p = Paragraph::new(lines)
+            .block(block)
+            .style(styles.text())
+            .wrap(ratatui::widgets::Wrap { trim: true });
         f.render_widget(p, area);
     }
 
@@ -375,7 +456,7 @@ impl GameDetailScreen {
                 .block(styles.panel_block_untitled());
             f.render_widget(footer, footer_area);
         } else {
-            render_footer_panel(f, footer_area, styles, self.footer_help_entries(), None);
+            render_footer_panel(f, footer_area, styles, &self.footer_help_entries(), None);
         }
     }
 }

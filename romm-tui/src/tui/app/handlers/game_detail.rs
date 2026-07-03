@@ -13,7 +13,7 @@ use romm_api::error::{ApiError, RommError};
 use super::super::background::types::{SaveDownloadDone, SaveUploadDone};
 use super::super::{App, AppScreen};
 use crate::tui::screens::game_detail::DetailTab;
-use crate::tui::screens::{ExtrasPickerScreen, GameDetailPrevious};
+use crate::tui::screens::GameDetailPrevious;
 
 fn safe_path_segment(input: &str) -> String {
     let cleaned: String = input
@@ -109,15 +109,17 @@ impl App {
             return Ok(false);
         }
 
-        match key.code {
-            KeyCode::Char('m') => {
+        if key.code == KeyCode::Char('m') {
+            let is_identified = match &self.screen {
+                AppScreen::GameDetail(d) => d.rom.is_identified,
+                _ => false,
+            };
+            if is_identified {
+                return self.prompt_metadata_unmatch();
+            } else {
                 self.open_metadata_match_screen();
                 return Ok(false);
             }
-            KeyCode::Char('U') if key.modifiers.contains(KeyModifiers::SHIFT) => {
-                return self.prompt_metadata_unmatch();
-            }
-            _ => {}
         }
 
         if let AppScreen::GameDetail(detail) = &mut self.screen {
@@ -188,33 +190,46 @@ impl App {
             }
         }
 
-        let wants_extras = matches!(key.code, KeyCode::Char('e') | KeyCode::Char('E'))
-            || (key.code == KeyCode::Enter && key.modifiers.contains(KeyModifiers::SHIFT));
-        if wants_extras {
-            if !detail.has_any_extras() {
-                detail.message = Some("No extras available for this ROM".to_string());
-                detail.message_clear_at = Some(Instant::now() + Duration::from_secs(3));
-                return Ok(false);
+        if key.modifiers.contains(KeyModifiers::CONTROL) {
+            match key.code {
+                KeyCode::Left => {
+                    detail.adjust_cover_panel_width(-2);
+                    self.config.tui_layout.game_detail_cover_panel_width = detail.cover_panel_width;
+                    self.persist_tui_layout();
+                    return Ok(false);
+                }
+                KeyCode::Right => {
+                    detail.adjust_cover_panel_width(2);
+                    self.config.tui_layout.game_detail_cover_panel_width = detail.cover_panel_width;
+                    self.persist_tui_layout();
+                    return Ok(false);
+                }
+                _ => {}
             }
-            let placeholder = self.transient_screen_placeholder();
-            let prev = std::mem::replace(&mut self.screen, placeholder);
-            if let AppScreen::GameDetail(g) = prev {
-                self.screen = AppScreen::ExtrasPicker(Box::new(ExtrasPickerScreen::new(
-                    g,
-                    &self.config.extras_defaults,
-                )));
-            }
-            return Ok(false);
         }
 
         let mut trigger_screenshot = false;
         match key.code {
             KeyCode::Char('1') => detail.select_tab(DetailTab::Info),
-            KeyCode::Char('2') => {
+            KeyCode::Char('2') => detail.select_tab(DetailTab::Extras),
+            KeyCode::Char('3') => {
                 detail.select_tab(DetailTab::Saves);
                 trigger_screenshot = true;
             }
-            KeyCode::Char('3') => detail.select_tab(DetailTab::Achievements),
+            KeyCode::Char('4') => detail.select_tab(DetailTab::Achievements),
+            KeyCode::Char('5') => detail.select_tab(DetailTab::Technical),
+            KeyCode::Up | KeyCode::Char('k') if detail.active_tab == DetailTab::Extras => {
+                detail.extras_selection_previous();
+            }
+            KeyCode::Down | KeyCode::Char('j') if detail.active_tab == DetailTab::Extras => {
+                detail.extras_selection_next();
+            }
+            KeyCode::Char(' ') if detail.active_tab == DetailTab::Extras => {
+                detail.extras_toggle_current();
+            }
+            KeyCode::Char('a') | KeyCode::Char('A') if detail.active_tab == DetailTab::Extras => {
+                detail.extras_toggle_all();
+            }
             KeyCode::Up | KeyCode::Char('k') if detail.active_tab == DetailTab::Saves => {
                 detail.save_selection_previous();
                 trigger_screenshot = true;
@@ -275,6 +290,47 @@ impl App {
                     let _ = tx.send(SaveDownloadDone { rom_id, result });
                 });
             }
+            KeyCode::Enter if detail.active_tab == DetailTab::Extras => {
+                if detail.extras_selected_count() == 0 {
+                    detail.message = Some("Select at least one item (Space to toggle)".into());
+                    detail.message_clear_at = Some(Instant::now() + Duration::from_secs(2));
+                } else {
+                    let rom = detail.rom.clone();
+                    let items = &detail.extras_items;
+                    let targets =
+                        crate::tui::screens::extras_picker::build_selected_targets_from_items(
+                            items,
+                            &rom,
+                            &self.config.roms_layout,
+                            Some(self.config.download_dir.as_str()),
+                        );
+                    match targets {
+                        Ok(targets) => {
+                            match self.downloads.start_extras_download(
+                                &rom,
+                                targets,
+                                self.client.clone(),
+                                Some(self.config.download_dir.as_str()),
+                            ) {
+                                Ok(()) => {
+                                    detail.message = Some("Extras download started".into());
+                                    detail.message_clear_at =
+                                        Some(Instant::now() + Duration::from_secs(3));
+                                }
+                                Err(e) => {
+                                    detail.message = Some(format!("Extras: {e:#}"));
+                                    detail.message_clear_at =
+                                        Some(Instant::now() + Duration::from_secs(5));
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            detail.message = Some(format!("{e:#}"));
+                            detail.message_clear_at = Some(Instant::now() + Duration::from_secs(4));
+                        }
+                    }
+                }
+            }
             // Only start a download once per detail view and avoid
             // stacking multiple concurrent downloads for the same ROM.
             KeyCode::Enter if !detail.has_started_download => {
@@ -288,7 +344,8 @@ impl App {
                         detail.has_started_download = true;
                         if has_update_or_dlc_extras(&detail.rom, &detail.other_files) {
                             detail.message = Some(
-                                "Updates/DLC available. Press e to download extras.".to_string(),
+                                "Updates/DLC available. Switch to Extras tab to download."
+                                    .to_string(),
                             );
                             detail.message_clear_at = Some(Instant::now() + Duration::from_secs(5));
                         }
@@ -302,7 +359,6 @@ impl App {
                 }
             }
             KeyCode::Char('o') => detail.open_cover(),
-            KeyCode::Char('t') => detail.toggle_technical(),
             KeyCode::Esc => {
                 detail.clear_message();
                 let placeholder = self.transient_screen_placeholder();
@@ -319,71 +375,6 @@ impl App {
         }
         if trigger_screenshot {
             self.maybe_start_save_screenshot_load();
-        }
-        Ok(false)
-    }
-
-    pub(in crate::tui::app) fn handle_extras_picker(&mut self, key: &KeyEvent) -> Result<bool> {
-        let picker = match &mut self.screen {
-            AppScreen::ExtrasPicker(p) => p,
-            _ => return Ok(false),
-        };
-        picker.tick_message();
-
-        match key.code {
-            KeyCode::Esc => {
-                let placeholder = self.transient_screen_placeholder();
-                let prev = std::mem::replace(&mut self.screen, placeholder);
-                if let AppScreen::ExtrasPicker(p) = prev {
-                    self.screen = AppScreen::GameDetail(p.previous);
-                }
-            }
-            KeyCode::Up | KeyCode::Char('k') => picker.move_up(),
-            KeyCode::Down | KeyCode::Char('j') => picker.move_down(),
-            KeyCode::Char(' ') => picker.toggle_current(),
-            KeyCode::Char('a') | KeyCode::Char('A') => picker.toggle_all(),
-            KeyCode::Enter => {
-                if picker.selected_count() == 0 {
-                    picker.show_message(
-                        "Select at least one item (Space to toggle)",
-                        Duration::from_secs(2),
-                    );
-                    return Ok(false);
-                }
-                let targets = match picker.build_selected_targets(
-                    &self.config.roms_layout,
-                    Some(self.config.download_dir.as_str()),
-                ) {
-                    Ok(t) => t,
-                    Err(e) => {
-                        picker.show_message(format!("{e:#}"), Duration::from_secs(4));
-                        return Ok(false);
-                    }
-                };
-                let rom = picker.rom.clone();
-                let placeholder = self.transient_screen_placeholder();
-                let prev = std::mem::replace(&mut self.screen, placeholder);
-                if let AppScreen::ExtrasPicker(p) = prev {
-                    match self.downloads.start_extras_download(
-                        &rom,
-                        targets,
-                        self.client.clone(),
-                        Some(self.config.download_dir.as_str()),
-                    ) {
-                        Ok(()) => {
-                            self.screen = AppScreen::GameDetail(p.previous);
-                        }
-                        Err(e) => {
-                            let mut detail = *p.previous;
-                            detail.message = Some(format!("Extras: {e:#}"));
-                            detail.message_clear_at = Some(Instant::now() + Duration::from_secs(5));
-                            self.screen = AppScreen::GameDetail(Box::new(detail));
-                        }
-                    }
-                }
-            }
-            KeyCode::Char('q') => return Ok(true),
-            _ => {}
         }
         Ok(false)
     }

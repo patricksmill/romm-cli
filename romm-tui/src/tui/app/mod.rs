@@ -35,8 +35,8 @@ use romm_api::update::UpdateStatus;
 
 use super::screens::connected_splash::StartupSplash;
 use super::screens::{
-    DownloadScreen, ExtrasPickerScreen, GameDetailScreen, LibraryBrowseScreen, MetadataMatchScreen,
-    SearchScreen, SettingsScreen,
+    DownloadScreen, GameDetailScreen, LibraryBrowseScreen, MetadataMatchScreen, SearchScreen,
+    SettingsScreen,
 };
 use super::theme::resolve_theme_or_default;
 use ratatui_themekit::Theme;
@@ -58,7 +58,6 @@ pub enum AppScreen {
     Settings(Box<SettingsScreen>),
     GameDetail(Box<GameDetailScreen>),
     MetadataMatch(Box<MetadataMatchScreen>),
-    ExtrasPicker(Box<ExtrasPickerScreen>),
     Download(DownloadScreen),
     SetupWizard(Box<crate::tui::screens::setup_wizard::SetupWizard>),
 }

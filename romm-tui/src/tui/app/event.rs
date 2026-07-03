@@ -76,7 +76,6 @@ pub(crate) enum Action {
     SearchKey(KeyEvent),
     SettingsKey(KeyEvent),
     GameDetailKey(KeyEvent),
-    ExtrasPickerKey(KeyEvent),
     MetadataMatchKey(KeyEvent),
     SetupWizardKey(KeyEvent),
     Background(BackgroundAction),

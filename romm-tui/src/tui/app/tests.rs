@@ -568,7 +568,7 @@ fn search_complete_event_stops_loading() {
 }
 
 #[tokio::test]
-async fn pressing_e_with_no_extras_shows_toast_not_picker() {
+async fn pressing_2_switches_to_extras_tab() {
     let mut app = app_with_library(vec![platform(1, "NES", 1)]);
     let previous = LibraryBrowseScreen::new(
         vec![platform(1, "NES", 1)],
@@ -584,51 +584,19 @@ async fn pressing_e_with_no_extras_shows_toast_not_picker() {
     );
     app.screen = AppScreen::GameDetail(Box::new(detail));
 
-    app.handle_key_event(&KeyEvent::new(KeyCode::Char('e'), KeyModifiers::empty()))
+    app.handle_key_event(&KeyEvent::new(KeyCode::Char('2'), KeyModifiers::empty()))
         .await
         .expect("handled");
 
     match &app.screen {
         AppScreen::GameDetail(d) => {
-            assert!(
-                d.message
-                    .as_deref()
-                    .is_some_and(|m| m.contains("No extras")),
-                "expected toast, got {:?}",
-                d.message
+            assert_eq!(
+                d.active_tab,
+                crate::tui::screens::game_detail::DetailTab::Extras
             );
         }
         _ => panic!("expected game detail"),
     }
-}
-
-#[tokio::test]
-async fn pressing_e_with_extras_opens_picker() {
-    let mut rom = rom_fixture();
-    rom.url_cover = Some("https://example.com/c.png".into());
-    let mut app = app_with_library(vec![platform(1, "NES", 1)]);
-    let previous = LibraryBrowseScreen::new(
-        vec![platform(1, "NES", 1)],
-        vec![],
-        LIBRARY_LEFT_PANEL_PERCENT_DEFAULT,
-    );
-    let detail = GameDetailScreen::new(
-        rom,
-        Vec::new(),
-        GameDetailPrevious::Library(Box::new(previous)),
-        app.downloads.shared(),
-        COVER_PANEL_WIDTH_DEFAULT,
-    );
-    app.screen = AppScreen::GameDetail(Box::new(detail));
-
-    app.handle_key_event(&KeyEvent::new(KeyCode::Char('e'), KeyModifiers::empty()))
-        .await
-        .expect("handled");
-
-    assert!(
-        matches!(app.screen, AppScreen::ExtrasPicker(_)),
-        "expected extras picker"
-    );
 }
 
 fn app_on_library() -> App {
