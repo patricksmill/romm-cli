@@ -51,6 +51,33 @@ pub enum AchievementListState {
     Unsupported(String),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DetailTab {
+    Info,
+    Saves,
+    Achievements,
+}
+
+impl DetailTab {
+    pub const ALL: [DetailTab; 3] = [DetailTab::Info, DetailTab::Saves, DetailTab::Achievements];
+
+    pub fn index(self) -> usize {
+        match self {
+            DetailTab::Info => 0,
+            DetailTab::Saves => 1,
+            DetailTab::Achievements => 2,
+        }
+    }
+
+    pub fn title(self) -> &'static str {
+        match self {
+            DetailTab::Info => "Info",
+            DetailTab::Saves => "Saves",
+            DetailTab::Achievements => "Achievements",
+        }
+    }
+}
+
 pub use romm_api::config::{
     GAME_DETAIL_COVER_PANEL_WIDTH_DEFAULT as COVER_PANEL_WIDTH_DEFAULT,
     GAME_DETAIL_COVER_PANEL_WIDTH_MAX as COVER_PANEL_WIDTH_MAX,
@@ -77,10 +104,14 @@ pub struct GameDetailScreen {
     pub cover_last_url: Option<String>,
     pub cover_protocol: Option<ProtocolType>,
     pub cover_image: Option<StatefulProtocol>,
+    pub active_tab: DetailTab,
     pub saves_state: SaveListState,
     pub selected_save_index: usize,
     pub achievements_state: AchievementListState,
+    pub selected_achievement_index: usize,
     pub save_upload_picker: Option<PathPicker>,
+    pub save_screenshot_state: CoverState,
+    pub save_screenshot_image: Option<StatefulProtocol>,
     /// Pending confirmation before `PUT ?unmatch_metadata=true`.
     pub metadata_unmatch_confirm: bool,
     /// Width of the cover column in terminal cells.

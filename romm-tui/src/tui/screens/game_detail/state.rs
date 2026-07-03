@@ -12,8 +12,8 @@ use romm_api::types::{Rom, SaveMetadata};
 
 use super::cover::detect_cover_protocol;
 use super::types::{
-    AchievementListState, CoverRenderMode, CoverState, GameDetailPrevious, GameDetailScreen,
-    SaveListState, COVER_PANEL_WIDTH_MAX, COVER_PANEL_WIDTH_MIN,
+    AchievementListState, CoverRenderMode, CoverState, DetailTab, GameDetailPrevious,
+    GameDetailScreen, SaveListState, COVER_PANEL_WIDTH_MAX, COVER_PANEL_WIDTH_MIN,
 };
 
 impl GameDetailScreen {
@@ -46,14 +46,22 @@ impl GameDetailScreen {
             cover_last_url,
             cover_protocol,
             cover_image: None,
+            active_tab: DetailTab::Info,
             saves_state: SaveListState::Idle,
             selected_save_index: 0,
             achievements_state: AchievementListState::Idle,
+            selected_achievement_index: 0,
             save_upload_picker: None,
+            save_screenshot_state: CoverState::Idle,
+            save_screenshot_image: None,
             metadata_unmatch_confirm: false,
             cover_panel_width: cover_panel_width
                 .clamp(COVER_PANEL_WIDTH_MIN, COVER_PANEL_WIDTH_MAX),
         }
+    }
+
+    pub fn select_tab(&mut self, tab: DetailTab) {
+        self.active_tab = tab;
     }
 
     pub fn adjust_cover_panel_width(&mut self, delta: i16) {
@@ -163,19 +171,11 @@ impl GameDetailScreen {
     }
 
     pub(crate) fn footer_help_entries(&self) -> &'static [FooterHintEntry] {
-        if self.show_technical {
-            &[
+        match self.active_tab {
+            DetailTab::Info if self.show_technical => &[
                 FooterHintEntry {
                     key: "e",
                     label: "Extras",
-                },
-                FooterHintEntry {
-                    key: "u",
-                    label: "Upload save",
-                },
-                FooterHintEntry {
-                    key: "D",
-                    label: "Download save",
                 },
                 FooterHintEntry {
                     key: "m",
@@ -189,20 +189,15 @@ impl GameDetailScreen {
                     key: "Ctrl+←/→",
                     label: "Resize cover",
                 },
-            ]
-        } else {
-            &[
+                FooterHintEntry {
+                    key: "1/2/3",
+                    label: "Tabs",
+                },
+            ],
+            DetailTab::Info => &[
                 FooterHintEntry {
                     key: "e",
                     label: "Extras",
-                },
-                FooterHintEntry {
-                    key: "u",
-                    label: "Upload save",
-                },
-                FooterHintEntry {
-                    key: "D",
-                    label: "Download save",
                 },
                 FooterHintEntry {
                     key: "m",
@@ -213,14 +208,42 @@ impl GameDetailScreen {
                     label: "More details",
                 },
                 FooterHintEntry {
-                    key: "Shift+U",
-                    label: "Unmatch metadata",
-                },
-                FooterHintEntry {
                     key: "Ctrl+←/→",
                     label: "Resize cover",
                 },
-            ]
+                FooterHintEntry {
+                    key: "1/2/3",
+                    label: "Tabs",
+                },
+            ],
+            DetailTab::Saves => &[
+                FooterHintEntry {
+                    key: "u",
+                    label: "Upload save",
+                },
+                FooterHintEntry {
+                    key: "D",
+                    label: "Download save",
+                },
+                FooterHintEntry {
+                    key: "j/k",
+                    label: "Navigate",
+                },
+                FooterHintEntry {
+                    key: "1/2/3",
+                    label: "Tabs",
+                },
+            ],
+            DetailTab::Achievements => &[
+                FooterHintEntry {
+                    key: "j/k",
+                    label: "Scroll",
+                },
+                FooterHintEntry {
+                    key: "1/2/3",
+                    label: "Tabs",
+                },
+            ],
         }
     }
 
@@ -266,6 +289,54 @@ impl GameDetailScreen {
             SaveListState::Loaded(rows) => rows.get(self.selected_save_index),
             _ => None,
         }
+    }
+
+    pub fn achievement_selection_next(&mut self) {
+        if let AchievementListState::Loaded { rows, .. } = &self.achievements_state {
+            if !rows.is_empty() {
+                self.selected_achievement_index =
+                    (self.selected_achievement_index + 1).min(rows.len() - 1);
+            }
+        }
+    }
+
+    pub fn achievement_selection_previous(&mut self) {
+        self.selected_achievement_index = self.selected_achievement_index.saturating_sub(1);
+    }
+
+    pub fn selected_achievement(&self) -> Option<&romm_api::types::AchievementRow> {
+        match &self.achievements_state {
+            AchievementListState::Loaded { rows, .. } => rows.get(self.selected_achievement_index),
+            _ => None,
+        }
+    }
+
+    pub fn apply_save_screenshot_image(&mut self, image: image::DynamicImage) {
+        let picker = match self.cover_protocol {
+            None => ratatui_image::picker::Picker::halfblocks(),
+            Some(env_protocol) => match ratatui_image::picker::Picker::from_query_stdio() {
+                Ok(mut p) => {
+                    if matches!(env_protocol, ratatui_image::picker::ProtocolType::Kitty) {
+                        p.set_protocol_type(ratatui_image::picker::ProtocolType::Kitty);
+                    } else if p.protocol_type() == ratatui_image::picker::ProtocolType::Halfblocks {
+                        p.set_protocol_type(env_protocol);
+                    }
+                    p
+                }
+                Err(_) => {
+                    let mut p = ratatui_image::picker::Picker::halfblocks();
+                    p.set_protocol_type(env_protocol);
+                    p
+                }
+            },
+        };
+        self.save_screenshot_image = Some(picker.new_resize_protocol(image));
+        self.save_screenshot_state = CoverState::Ready;
+    }
+
+    pub fn apply_save_screenshot_error(&mut self, message: String) {
+        self.save_screenshot_image = None;
+        self.save_screenshot_state = CoverState::Failed(message);
     }
 
     pub fn save_selection_next(&mut self) {

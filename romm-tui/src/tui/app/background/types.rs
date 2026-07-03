@@ -95,6 +95,12 @@ pub(crate) struct AchievementLoadDone {
 }
 
 #[derive(Debug)]
+pub(crate) struct SaveScreenshotLoadDone {
+    pub(crate) rom_id: u64,
+    pub(crate) result: Result<image::DynamicImage, RommError>,
+}
+
+#[derive(Debug)]
 pub(crate) struct SaveUploadDone {
     pub(crate) rom_id: u64,
     pub(crate) result: Result<(), RommError>,

@@ -45,6 +45,7 @@ pub fn merge_achievements(
                 order,
                 AchievementRow {
                     title: a.title.clone(),
+                    description: a.description.clone(),
                     points: a.points,
                     earned: earned.is_some(),
                     earned_at: earned.and_then(|e| e.date.clone()),
@@ -113,6 +114,7 @@ mod tests {
             achievements: vec![
                 RaAchievement {
                     title: "First steps".into(),
+                    description: Some("Begin the adventure".into()),
                     points: Some(5),
                     badge_id: Some("85541".into()),
                     badge_name: None,
@@ -120,6 +122,7 @@ mod tests {
                 },
                 RaAchievement {
                     title: "Speed run".into(),
+                    description: None,
                     points: Some(10),
                     badge_id: Some("85542".into()),
                     badge_name: None,

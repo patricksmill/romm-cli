@@ -17,7 +17,7 @@ use super::super::event::{AppEvent, BackgroundAction};
 use super::super::AppScreen;
 use super::types::{
     AchievementLoadDone, CoverLoadDone, LibraryMetadataRefreshDone, LibraryUploadComplete,
-    MetadataApplyDone, MetadataSearchDone, SaveListDone,
+    MetadataApplyDone, MetadataSearchDone, SaveListDone, SaveScreenshotLoadDone,
 };
 
 impl super::super::App {
@@ -47,6 +47,7 @@ impl super::super::App {
         events.extend(self.drain_collection_prefetch_results());
         events.extend(self.drain_search_load_results());
         events.extend(self.drain_cover_load_results());
+        events.extend(self.drain_save_screenshot_results());
         events.extend(self.drain_save_results());
         events.extend(self.drain_achievement_results());
         events.extend(self.drain_metadata_results());
@@ -291,6 +292,91 @@ impl super::super::App {
             }
         }
         events
+    }
+
+    pub(in crate::tui::app) fn spawn_save_screenshot_worker(&mut self, rom_id: u64, url: String) {
+        if let Some(task) = self.save_screenshot_task.take() {
+            task.abort();
+        }
+        if let AppScreen::GameDetail(detail) = &mut self.screen {
+            detail.save_screenshot_state = crate::tui::screens::game_detail::CoverState::Loading;
+            detail.save_screenshot_image = None;
+        }
+        let tx = self.save_screenshot_tx.clone();
+        self.save_screenshot_task = Some(tokio::spawn(async move {
+            let result = async {
+                let response = reqwest::get(&url)
+                    .await
+                    .map_err(|e| RommError::Api(ApiError::from(e)))?;
+                let status = response.status();
+                if !status.is_success() {
+                    return Err(RommError::Api(ApiError::from_http_response(
+                        status,
+                        format!("screenshot HTTP {}", status.as_u16()),
+                    )));
+                }
+                let bytes = response
+                    .bytes()
+                    .await
+                    .map_err(|e| RommError::Api(ApiError::from(e)))?;
+                image::load_from_memory(&bytes)
+                    .map_err(|e| RommError::Other(format!("invalid screenshot image: {e}")))
+            }
+            .await;
+            let _ = tx.send(SaveScreenshotLoadDone { rom_id, result });
+        }));
+    }
+
+    fn drain_save_screenshot_results(&mut self) -> Vec<AppEvent> {
+        let mut events = Vec::new();
+        loop {
+            match self.save_screenshot_rx.try_recv() {
+                Ok(done) => events.push(AppEvent::Background(
+                    BackgroundAction::SaveScreenshotLoad(done),
+                )),
+                Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
+                Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => break,
+            }
+        }
+        events
+    }
+
+    pub(in crate::tui::app) fn maybe_start_save_screenshot_load(&mut self) {
+        let (rom_id, url) = match &self.screen {
+            AppScreen::GameDetail(detail)
+                if detail.active_tab == crate::tui::screens::game_detail::DetailTab::Saves =>
+            {
+                let save = match detail.selected_save() {
+                    Some(s) => s,
+                    None => return,
+                };
+                let path = match save
+                    .screenshot
+                    .as_ref()
+                    .and_then(|s| s.download_path.as_deref())
+                {
+                    Some(p) if !p.is_empty() => p,
+                    _ => {
+                        // No screenshot for this save — reset to idle
+                        if let AppScreen::GameDetail(d) = &mut self.screen {
+                            d.save_screenshot_state =
+                                crate::tui::screens::game_detail::CoverState::Idle;
+                            d.save_screenshot_image = None;
+                        }
+                        return;
+                    }
+                };
+                let base = self.client.base_url();
+                let url = if path.starts_with("http://") || path.starts_with("https://") {
+                    path.to_string()
+                } else {
+                    format!("{}{}", base.trim_end_matches('/'), path)
+                };
+                (detail.rom.id, url)
+            }
+            _ => return,
+        };
+        self.spawn_save_screenshot_worker(rom_id, url);
     }
 
     pub(in crate::tui::app) fn maybe_start_game_detail_cover_load(&mut self) {

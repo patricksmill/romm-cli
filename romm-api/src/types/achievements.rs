@@ -18,6 +18,8 @@ pub struct RaAchievement {
     #[serde(default, alias = "badge_name")]
     pub badge_name: Option<String>,
     #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
     pub display_order: Option<i64>,
 }
 
@@ -51,6 +53,7 @@ pub struct EarnedAchievement {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AchievementRow {
     pub title: String,
+    pub description: Option<String>,
     pub points: Option<i64>,
     pub earned: bool,
     pub earned_at: Option<String>,

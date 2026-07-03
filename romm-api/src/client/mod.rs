@@ -74,6 +74,10 @@ impl RommClient {
         self.verbose
     }
 
+    pub fn base_url(&self) -> &str {
+        &self.base_url
+    }
+
     /// Build the HTTP headers for the current authentication mode.
     pub(crate) fn build_headers(&self) -> Result<HeaderMap, ApiError> {
         let mut headers = HeaderMap::new();

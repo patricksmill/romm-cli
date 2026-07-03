@@ -11,6 +11,6 @@ mod types;
 mod tests;
 
 pub use types::{
-    GameDetailPrevious, GameDetailScreen, COVER_PANEL_WIDTH_DEFAULT, COVER_PANEL_WIDTH_MAX,
-    COVER_PANEL_WIDTH_MIN,
+    CoverState, DetailTab, GameDetailPrevious, GameDetailScreen, COVER_PANEL_WIDTH_DEFAULT,
+    COVER_PANEL_WIDTH_MAX, COVER_PANEL_WIDTH_MIN,
 };

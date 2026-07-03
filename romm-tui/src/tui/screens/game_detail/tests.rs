@@ -5,7 +5,8 @@ use ratatui_image::picker::ProtocolType;
 use super::cover::detect_cover_protocol_from_env;
 use super::saves::save_lines;
 use super::types::{
-    CoverState, GameDetailPrevious, GameDetailScreen, SaveListState, COVER_PANEL_WIDTH_DEFAULT,
+    CoverState, DetailTab, GameDetailPrevious, GameDetailScreen, SaveListState,
+    COVER_PANEL_WIDTH_DEFAULT,
 };
 use crate::tui::screens::SearchScreen;
 use romm_api::types::SaveMetadata;
@@ -82,6 +83,7 @@ fn has_any_extras_false_when_no_assets() {
 #[test]
 fn footer_help_entries_mention_extras_shortcut() {
     let detail = new_detail(test_rom(1, None));
+    assert_eq!(detail.active_tab, DetailTab::Info);
     let entries = detail.footer_help_entries();
     assert!(entries
         .iter()
@@ -89,6 +91,9 @@ fn footer_help_entries_mention_extras_shortcut() {
     assert!(entries
         .iter()
         .any(|entry| entry.key == "Ctrl+←/→" && entry.label == "Resize cover"));
+    assert!(entries
+        .iter()
+        .any(|entry| entry.key == "1/2/3" && entry.label == "Tabs"));
 }
 
 #[test]
@@ -107,6 +112,31 @@ fn footer_help_entries_track_technical_mode() {
     assert!(technical
         .iter()
         .any(|entry| entry.label == "Hide technical"));
+}
+
+#[test]
+fn footer_saves_tab_shows_upload_download() {
+    let mut detail = new_detail(test_rom(1, None));
+    detail.select_tab(DetailTab::Saves);
+    let entries = detail.footer_help_entries();
+    assert!(entries
+        .iter()
+        .any(|entry| entry.key == "u" && entry.label == "Upload save"));
+    assert!(entries
+        .iter()
+        .any(|entry| entry.key == "D" && entry.label == "Download save"));
+}
+
+#[test]
+fn tab_switching_changes_active_tab() {
+    let mut detail = new_detail(test_rom(1, None));
+    assert_eq!(detail.active_tab, DetailTab::Info);
+    detail.select_tab(DetailTab::Saves);
+    assert_eq!(detail.active_tab, DetailTab::Saves);
+    detail.select_tab(DetailTab::Achievements);
+    assert_eq!(detail.active_tab, DetailTab::Achievements);
+    detail.select_tab(DetailTab::Info);
+    assert_eq!(detail.active_tab, DetailTab::Info);
 }
 
 #[test]
@@ -160,6 +190,7 @@ fn save_list_formatting_handles_states() {
         size_bytes: Some(1024),
         device_id: Some("dev1".into()),
         device_name: None,
+        screenshot: None,
     }];
     let line = save_lines(&SaveListState::Loaded(rows), 0)[0].to_string();
     assert!(line.contains("> game.sav"));
@@ -196,6 +227,62 @@ fn test_rom(id: u64, url_cover: Option<String>) -> romm_api::types::Rom {
         ra_id: None,
         merged_ra_metadata: None,
     }
+}
+
+#[test]
+fn achievement_selection_nav_clamps() {
+    let mut detail = new_detail(test_rom(1, None));
+    use super::types::AchievementListState;
+    detail.achievements_state = AchievementListState::Loaded {
+        rows: vec![
+            romm_api::types::AchievementRow {
+                title: "A".into(),
+                description: Some("Desc A".into()),
+                points: Some(5),
+                earned: false,
+                earned_at: None,
+            },
+            romm_api::types::AchievementRow {
+                title: "B".into(),
+                description: None,
+                points: Some(10),
+                earned: true,
+                earned_at: Some("2024-01-01".into()),
+            },
+        ],
+        summary: (1, 2),
+    };
+    assert_eq!(detail.selected_achievement_index, 0);
+    detail.achievement_selection_next();
+    assert_eq!(detail.selected_achievement_index, 1);
+    detail.achievement_selection_next();
+    assert_eq!(detail.selected_achievement_index, 1);
+    detail.achievement_selection_previous();
+    assert_eq!(detail.selected_achievement_index, 0);
+    detail.achievement_selection_previous();
+    assert_eq!(detail.selected_achievement_index, 0);
+
+    let sel = detail.selected_achievement().unwrap();
+    assert_eq!(sel.title, "A");
+    assert_eq!(sel.description.as_deref(), Some("Desc A"));
+}
+
+#[test]
+fn save_screenshot_state_transitions() {
+    let mut detail = new_detail(test_rom(1, None));
+    assert_eq!(detail.save_screenshot_state, CoverState::Idle);
+    assert!(detail.save_screenshot_image.is_none());
+
+    detail.apply_save_screenshot_image(image::DynamicImage::new_rgba8(4, 4));
+    assert_eq!(detail.save_screenshot_state, CoverState::Ready);
+    assert!(detail.save_screenshot_image.is_some());
+
+    detail.apply_save_screenshot_error("bad".to_string());
+    assert_eq!(
+        detail.save_screenshot_state,
+        CoverState::Failed("bad".to_string())
+    );
+    assert!(detail.save_screenshot_image.is_none());
 }
 
 fn new_detail(rom: romm_api::types::Rom) -> GameDetailScreen {

@@ -223,6 +223,16 @@ pub struct RomList {
     pub offset: u64,
 }
 
+/// Screenshot attached to a save file.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+pub struct SaveScreenshot {
+    pub id: u64,
+    #[serde(default)]
+    pub download_path: Option<String>,
+    #[serde(default)]
+    pub file_name: Option<String>,
+}
+
 /// Save metadata returned by RomM `/api/saves`.
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct SaveMetadata {
@@ -243,6 +253,8 @@ pub struct SaveMetadata {
     pub device_id: Option<String>,
     #[serde(default)]
     pub device_name: Option<String>,
+    #[serde(default)]
+    pub screenshot: Option<SaveScreenshot>,
 }
 
 impl SaveMetadata {
