@@ -21,3 +21,9 @@ romm_cli = "1.1.0"
 romm_tui = "1.2.0"
 min_romm_api = "1.1.0"
 notes = "Footer hints; library pane highlight; metadata match/edit (RomM 4.8+)"
+
+[[combination]]
+romm_cli = "1.2.0"
+romm_tui = "1.3.0"
+min_romm_api = "1.2.0"
+notes = "RetroAchievements; tabbed game detail; metadata CLI subcommand; extras/technical tabs"
