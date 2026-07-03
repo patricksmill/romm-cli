@@ -7,6 +7,18 @@ Entries before the workspace split (1.0.0) are filtered from the unified monolit
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0](https://github.com/patricksmill/romm-cli/compare/romm-api-v1.1.0...romm-api-v1.2.0) (2026-07-03)
+
+
+### Features
+
+* **achievements:** integrate RetroAchievements into game detail view ([7a80ed6](https://github.com/patricksmill/romm-cli/commit/7a80ed63ce35b5d5003dd3dbdad7e9c935f8fe16))
+* add ROM metadata search, match, and edit ([ba5031e](https://github.com/patricksmill/romm-cli/commit/ba5031e44c3c5cf9cf00e4121b6b283bb2642915))
+* **game-detail:** tab-aware right panel and achievement navigation ([ad20caf](https://github.com/patricksmill/romm-cli/commit/ad20cafaa4001ee3f2411d2ea6a56039bbef6b92))
+* **game-detail:** tabbed layout with context-aware right panel ([15370a2](https://github.com/patricksmill/romm-cli/commit/15370a2f4c44ea82818eaab15c151b12022a88a5))
+* **metadata:** add ROM metadata editing functionality to CLI and TUI ([d041ffb](https://github.com/patricksmill/romm-cli/commit/d041ffb0ac57413b533bab9b2a4627c7eaa793c0))
+* **metadata:** enhance error handling and metadata application in TUI and API ([9ac601d](https://github.com/patricksmill/romm-cli/commit/9ac601d45e873cdfc4743de2bbe121107fd3c7ac))
+
 ## [1.1.0](https://github.com/patricksmill/romm-cli/compare/romm-api-v1.0.0...romm-api-v1.1.0) (2026-06-21)
 
 
