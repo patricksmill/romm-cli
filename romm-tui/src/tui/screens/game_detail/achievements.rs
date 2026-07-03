@@ -25,10 +25,7 @@ pub fn achievement_lines(state: &AchievementListState) -> Vec<Line<'static>> {
                 earned.saturating_mul(100).checked_div(total).unwrap_or(0)
             };
             let mut lines = vec![Line::from(format!("  {earned}/{total} ({pct}%)"))];
-            lines.extend(rows.iter().take(8).map(format_row));
-            if rows.len() > 8 {
-                lines.push(Line::from(format!("  … and {} more", rows.len() - 8)));
-            }
+            lines.extend(rows.iter().map(format_row));
             lines
         }
     }

@@ -1,6 +1,6 @@
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Gauge, Paragraph};
+use ratatui::widgets::{Gauge, Paragraph, Tabs};
 use ratatui::Frame;
 use ratatui_image::{Resize, StatefulImage};
 
@@ -12,7 +12,7 @@ use romm_api::core::utils::truncate;
 
 use super::achievements::achievement_lines;
 use super::saves::save_lines;
-use super::types::{CoverState, GameDetailScreen};
+use super::types::{CoverState, DetailTab, GameDetailScreen};
 
 impl GameDetailScreen {
     pub fn render(&mut self, f: &mut Frame, area: Rect, styles: &RommStyles) {
@@ -126,6 +126,30 @@ impl GameDetailScreen {
     }
 
     fn render_metadata_panel(&self, f: &mut Frame, area: Rect, styles: &RommStyles) {
+        let meta_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(3), Constraint::Min(1)])
+            .split(area);
+
+        let titles = DetailTab::ALL
+            .iter()
+            .map(|tab| Line::from(Span::raw(tab.title())))
+            .collect::<Vec<_>>();
+        let tabs = Tabs::new(titles)
+            .select(self.active_tab.index())
+            .block(styles.panel_block_untitled())
+            .style(styles.muted())
+            .highlight_style(styles.selection());
+        f.render_widget(tabs, meta_chunks[0]);
+
+        match self.active_tab {
+            DetailTab::Info => self.render_info_tab(f, meta_chunks[1], styles),
+            DetailTab::Saves => self.render_saves_tab(f, meta_chunks[1], styles),
+            DetailTab::Achievements => self.render_achievements_tab(f, meta_chunks[1], styles),
+        }
+    }
+
+    fn render_info_tab(&self, f: &mut Frame, area: Rect, styles: &RommStyles) {
         let title = self.rom.name.as_str();
         let platform = self
             .rom
@@ -212,19 +236,37 @@ impl GameDetailScreen {
             )));
         }
 
-        lines.push(Line::from(""));
-        lines.push(Line::from(Span::styled("Saves:", styles.label())));
-        lines.extend(save_lines(&self.saves_state, self.selected_save_index));
-
-        lines.push(Line::from(""));
-        lines.push(Line::from(Span::styled("Achievements:", styles.label())));
-        lines.extend(achievement_lines(&self.achievements_state));
-
-        let block = styles.panel_block("Game detail");
+        let block = styles.panel_block("Info");
         let p = Paragraph::new(lines)
             .block(block)
             .style(styles.text())
             .wrap(ratatui::widgets::Wrap { trim: true });
+        f.render_widget(p, area);
+    }
+
+    fn render_saves_tab(&self, f: &mut Frame, area: Rect, styles: &RommStyles) {
+        let block = styles.panel_block("Saves");
+        let inner = block.inner(area);
+        let visible_height = inner.height as usize;
+        let lines = save_lines(&self.saves_state, self.selected_save_index);
+        let start = self
+            .selected_save_index
+            .saturating_sub(visible_height.saturating_sub(1));
+        let windowed: Vec<_> = lines.into_iter().skip(start).take(visible_height).collect();
+        let p = Paragraph::new(windowed).block(block).style(styles.text());
+        f.render_widget(p, area);
+    }
+
+    fn render_achievements_tab(&self, f: &mut Frame, area: Rect, styles: &RommStyles) {
+        let block = styles.panel_block("Achievements");
+        let inner = block.inner(area);
+        let visible_height = inner.height as usize;
+        let lines = achievement_lines(&self.achievements_state);
+        let start = self
+            .achievement_scroll_offset
+            .min(lines.len().saturating_sub(1));
+        let windowed: Vec<_> = lines.into_iter().skip(start).take(visible_height).collect();
+        let p = Paragraph::new(windowed).block(block).style(styles.text());
         f.render_widget(p, area);
     }
 

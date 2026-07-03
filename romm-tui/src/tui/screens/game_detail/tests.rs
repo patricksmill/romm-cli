@@ -5,7 +5,8 @@ use ratatui_image::picker::ProtocolType;
 use super::cover::detect_cover_protocol_from_env;
 use super::saves::save_lines;
 use super::types::{
-    CoverState, GameDetailPrevious, GameDetailScreen, SaveListState, COVER_PANEL_WIDTH_DEFAULT,
+    CoverState, DetailTab, GameDetailPrevious, GameDetailScreen, SaveListState,
+    COVER_PANEL_WIDTH_DEFAULT,
 };
 use crate::tui::screens::SearchScreen;
 use romm_api::types::SaveMetadata;
@@ -82,6 +83,7 @@ fn has_any_extras_false_when_no_assets() {
 #[test]
 fn footer_help_entries_mention_extras_shortcut() {
     let detail = new_detail(test_rom(1, None));
+    assert_eq!(detail.active_tab, DetailTab::Info);
     let entries = detail.footer_help_entries();
     assert!(entries
         .iter()
@@ -89,6 +91,9 @@ fn footer_help_entries_mention_extras_shortcut() {
     assert!(entries
         .iter()
         .any(|entry| entry.key == "Ctrl+←/→" && entry.label == "Resize cover"));
+    assert!(entries
+        .iter()
+        .any(|entry| entry.key == "1/2/3" && entry.label == "Tabs"));
 }
 
 #[test]
@@ -107,6 +112,31 @@ fn footer_help_entries_track_technical_mode() {
     assert!(technical
         .iter()
         .any(|entry| entry.label == "Hide technical"));
+}
+
+#[test]
+fn footer_saves_tab_shows_upload_download() {
+    let mut detail = new_detail(test_rom(1, None));
+    detail.select_tab(DetailTab::Saves);
+    let entries = detail.footer_help_entries();
+    assert!(entries
+        .iter()
+        .any(|entry| entry.key == "u" && entry.label == "Upload save"));
+    assert!(entries
+        .iter()
+        .any(|entry| entry.key == "D" && entry.label == "Download save"));
+}
+
+#[test]
+fn tab_switching_changes_active_tab() {
+    let mut detail = new_detail(test_rom(1, None));
+    assert_eq!(detail.active_tab, DetailTab::Info);
+    detail.select_tab(DetailTab::Saves);
+    assert_eq!(detail.active_tab, DetailTab::Saves);
+    detail.select_tab(DetailTab::Achievements);
+    assert_eq!(detail.active_tab, DetailTab::Achievements);
+    detail.select_tab(DetailTab::Info);
+    assert_eq!(detail.active_tab, DetailTab::Info);
 }
 
 #[test]

@@ -12,8 +12,8 @@ use romm_api::types::{Rom, SaveMetadata};
 
 use super::cover::detect_cover_protocol;
 use super::types::{
-    AchievementListState, CoverRenderMode, CoverState, GameDetailPrevious, GameDetailScreen,
-    SaveListState, COVER_PANEL_WIDTH_MAX, COVER_PANEL_WIDTH_MIN,
+    AchievementListState, CoverRenderMode, CoverState, DetailTab, GameDetailPrevious,
+    GameDetailScreen, SaveListState, COVER_PANEL_WIDTH_MAX, COVER_PANEL_WIDTH_MIN,
 };
 
 impl GameDetailScreen {
@@ -46,14 +46,20 @@ impl GameDetailScreen {
             cover_last_url,
             cover_protocol,
             cover_image: None,
+            active_tab: DetailTab::Info,
             saves_state: SaveListState::Idle,
             selected_save_index: 0,
             achievements_state: AchievementListState::Idle,
+            achievement_scroll_offset: 0,
             save_upload_picker: None,
             metadata_unmatch_confirm: false,
             cover_panel_width: cover_panel_width
                 .clamp(COVER_PANEL_WIDTH_MIN, COVER_PANEL_WIDTH_MAX),
         }
+    }
+
+    pub fn select_tab(&mut self, tab: DetailTab) {
+        self.active_tab = tab;
     }
 
     pub fn adjust_cover_panel_width(&mut self, delta: i16) {
@@ -163,19 +169,11 @@ impl GameDetailScreen {
     }
 
     pub(crate) fn footer_help_entries(&self) -> &'static [FooterHintEntry] {
-        if self.show_technical {
-            &[
+        match self.active_tab {
+            DetailTab::Info if self.show_technical => &[
                 FooterHintEntry {
                     key: "e",
                     label: "Extras",
-                },
-                FooterHintEntry {
-                    key: "u",
-                    label: "Upload save",
-                },
-                FooterHintEntry {
-                    key: "D",
-                    label: "Download save",
                 },
                 FooterHintEntry {
                     key: "m",
@@ -189,20 +187,15 @@ impl GameDetailScreen {
                     key: "Ctrl+←/→",
                     label: "Resize cover",
                 },
-            ]
-        } else {
-            &[
+                FooterHintEntry {
+                    key: "1/2/3",
+                    label: "Tabs",
+                },
+            ],
+            DetailTab::Info => &[
                 FooterHintEntry {
                     key: "e",
                     label: "Extras",
-                },
-                FooterHintEntry {
-                    key: "u",
-                    label: "Upload save",
-                },
-                FooterHintEntry {
-                    key: "D",
-                    label: "Download save",
                 },
                 FooterHintEntry {
                     key: "m",
@@ -213,14 +206,42 @@ impl GameDetailScreen {
                     label: "More details",
                 },
                 FooterHintEntry {
-                    key: "Shift+U",
-                    label: "Unmatch metadata",
-                },
-                FooterHintEntry {
                     key: "Ctrl+←/→",
                     label: "Resize cover",
                 },
-            ]
+                FooterHintEntry {
+                    key: "1/2/3",
+                    label: "Tabs",
+                },
+            ],
+            DetailTab::Saves => &[
+                FooterHintEntry {
+                    key: "u",
+                    label: "Upload save",
+                },
+                FooterHintEntry {
+                    key: "D",
+                    label: "Download save",
+                },
+                FooterHintEntry {
+                    key: "j/k",
+                    label: "Navigate",
+                },
+                FooterHintEntry {
+                    key: "1/2/3",
+                    label: "Tabs",
+                },
+            ],
+            DetailTab::Achievements => &[
+                FooterHintEntry {
+                    key: "j/k",
+                    label: "Scroll",
+                },
+                FooterHintEntry {
+                    key: "1/2/3",
+                    label: "Tabs",
+                },
+            ],
         }
     }
 

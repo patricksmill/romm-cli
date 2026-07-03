@@ -12,6 +12,7 @@ use romm_api::error::{ApiError, RommError};
 
 use super::super::background::types::{SaveDownloadDone, SaveUploadDone};
 use super::super::{App, AppScreen};
+use crate::tui::screens::game_detail::DetailTab;
 use crate::tui::screens::{ExtrasPickerScreen, GameDetailPrevious};
 
 fn safe_path_segment(input: &str) -> String {
@@ -207,10 +208,26 @@ impl App {
         }
 
         match key.code {
-            KeyCode::Up | KeyCode::Char('k') => detail.save_selection_previous(),
-            KeyCode::Down | KeyCode::Char('j') => detail.save_selection_next(),
-            KeyCode::Char('u') => detail.open_save_upload_picker(),
-            KeyCode::Char('D') => {
+            KeyCode::Char('1') => detail.select_tab(DetailTab::Info),
+            KeyCode::Char('2') => detail.select_tab(DetailTab::Saves),
+            KeyCode::Char('3') => detail.select_tab(DetailTab::Achievements),
+            KeyCode::Up | KeyCode::Char('k') if detail.active_tab == DetailTab::Saves => {
+                detail.save_selection_previous()
+            }
+            KeyCode::Down | KeyCode::Char('j') if detail.active_tab == DetailTab::Saves => {
+                detail.save_selection_next()
+            }
+            KeyCode::Up | KeyCode::Char('k') if detail.active_tab == DetailTab::Achievements => {
+                detail.achievement_scroll_offset =
+                    detail.achievement_scroll_offset.saturating_sub(1);
+            }
+            KeyCode::Down | KeyCode::Char('j') if detail.active_tab == DetailTab::Achievements => {
+                detail.achievement_scroll_offset += 1;
+            }
+            KeyCode::Char('u') if detail.active_tab == DetailTab::Saves => {
+                detail.open_save_upload_picker()
+            }
+            KeyCode::Char('D') if detail.active_tab == DetailTab::Saves => {
                 let Some(save) = detail.selected_save().cloned() else {
                     detail.message = Some("No save selected".into());
                     detail.message_clear_at = Some(Instant::now() + Duration::from_secs(3));

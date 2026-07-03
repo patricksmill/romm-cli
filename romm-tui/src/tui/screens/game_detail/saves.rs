@@ -14,7 +14,6 @@ pub fn save_lines(state: &SaveListState, selected_index: usize) -> Vec<Line<'sta
         SaveListState::Loaded(rows) => rows
             .iter()
             .enumerate()
-            .take(8)
             .map(|(i, save)| {
                 let marker = if i == selected_index { "> " } else { "  " };
                 let mut parts = vec![save.file_name.clone()];
