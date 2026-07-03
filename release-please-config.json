@@ -11,7 +11,8 @@
       "release-type": "rust",
       "component": "romm-api",
       "changelog-path": "CHANGELOG.md",
-      "include-component-in-tag": true
+      "include-component-in-tag": true,
+      "extra-files": ["Cargo.toml"]
     },
     "romm-cli": {
       "release-type": "rust",
