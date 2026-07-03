@@ -50,8 +50,10 @@ impl GameDetailScreen {
             saves_state: SaveListState::Idle,
             selected_save_index: 0,
             achievements_state: AchievementListState::Idle,
-            achievement_scroll_offset: 0,
+            selected_achievement_index: 0,
             save_upload_picker: None,
+            save_screenshot_state: CoverState::Idle,
+            save_screenshot_image: None,
             metadata_unmatch_confirm: false,
             cover_panel_width: cover_panel_width
                 .clamp(COVER_PANEL_WIDTH_MIN, COVER_PANEL_WIDTH_MAX),
@@ -287,6 +289,54 @@ impl GameDetailScreen {
             SaveListState::Loaded(rows) => rows.get(self.selected_save_index),
             _ => None,
         }
+    }
+
+    pub fn achievement_selection_next(&mut self) {
+        if let AchievementListState::Loaded { rows, .. } = &self.achievements_state {
+            if !rows.is_empty() {
+                self.selected_achievement_index =
+                    (self.selected_achievement_index + 1).min(rows.len() - 1);
+            }
+        }
+    }
+
+    pub fn achievement_selection_previous(&mut self) {
+        self.selected_achievement_index = self.selected_achievement_index.saturating_sub(1);
+    }
+
+    pub fn selected_achievement(&self) -> Option<&romm_api::types::AchievementRow> {
+        match &self.achievements_state {
+            AchievementListState::Loaded { rows, .. } => rows.get(self.selected_achievement_index),
+            _ => None,
+        }
+    }
+
+    pub fn apply_save_screenshot_image(&mut self, image: image::DynamicImage) {
+        let picker = match self.cover_protocol {
+            None => ratatui_image::picker::Picker::halfblocks(),
+            Some(env_protocol) => match ratatui_image::picker::Picker::from_query_stdio() {
+                Ok(mut p) => {
+                    if matches!(env_protocol, ratatui_image::picker::ProtocolType::Kitty) {
+                        p.set_protocol_type(ratatui_image::picker::ProtocolType::Kitty);
+                    } else if p.protocol_type() == ratatui_image::picker::ProtocolType::Halfblocks {
+                        p.set_protocol_type(env_protocol);
+                    }
+                    p
+                }
+                Err(_) => {
+                    let mut p = ratatui_image::picker::Picker::halfblocks();
+                    p.set_protocol_type(env_protocol);
+                    p
+                }
+            },
+        };
+        self.save_screenshot_image = Some(picker.new_resize_protocol(image));
+        self.save_screenshot_state = CoverState::Ready;
+    }
+
+    pub fn apply_save_screenshot_error(&mut self, message: String) {
+        self.save_screenshot_image = None;
+        self.save_screenshot_state = CoverState::Failed(message);
     }
 
     pub fn save_selection_next(&mut self) {

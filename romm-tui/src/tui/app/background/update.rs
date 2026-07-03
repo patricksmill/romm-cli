@@ -20,6 +20,9 @@ impl App {
             }
             BackgroundAction::SearchLoad(done) => self.apply_search_load_complete(done),
             BackgroundAction::CoverLoad(done) => self.apply_cover_load_complete(done),
+            BackgroundAction::SaveScreenshotLoad(done) => {
+                self.apply_save_screenshot_load_complete(done)
+            }
             BackgroundAction::SaveList(done) => self.apply_save_list_complete(done),
             BackgroundAction::AchievementLoad(done) => self.apply_achievement_load_complete(done),
             BackgroundAction::SaveUpload(done) => self.apply_save_upload_complete(done),
@@ -131,6 +134,21 @@ impl App {
         }
     }
 
+    fn apply_save_screenshot_load_complete(&mut self, done: super::types::SaveScreenshotLoadDone) {
+        if let AppScreen::GameDetail(detail) = &mut self.screen {
+            if detail.rom.id != done.rom_id {
+                return;
+            }
+            match done.result {
+                Ok(image) => detail.apply_save_screenshot_image(image),
+                Err(err) => detail.apply_save_screenshot_error(format!(
+                    "Screenshot failed: {}",
+                    romm_api::core::utils::truncate(&user_message(&err), 120)
+                )),
+            }
+        }
+    }
+
     fn apply_save_list_complete(&mut self, done: super::types::SaveListDone) {
         if let AppScreen::GameDetail(detail) = &mut self.screen {
             if detail.rom.id == done.rom_id {
@@ -140,6 +158,7 @@ impl App {
                 }
             }
         }
+        self.maybe_start_save_screenshot_load();
     }
 
     fn apply_achievement_load_complete(&mut self, done: super::types::AchievementLoadDone) {

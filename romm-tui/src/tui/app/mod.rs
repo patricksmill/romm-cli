@@ -44,8 +44,8 @@ use ratatui_themekit::Theme;
 use background::types::{
     AchievementLoadDone, CollectionPrefetchDone, CoverLoadDone, DeferredLoadRoms, DeviceListDone,
     LibraryMetadataRefreshDone, LibraryUploadComplete, MetadataApplyDone, MetadataSearchDone,
-    PlatformListDone, RomLoadDone, SaveDownloadDone, SaveListDone, SaveUploadDone, SearchLoadDone,
-    StartupUpdatePrompt, SyncPushPullDone,
+    PlatformListDone, RomLoadDone, SaveDownloadDone, SaveListDone, SaveScreenshotLoadDone,
+    SaveUploadDone, SearchLoadDone, StartupUpdatePrompt, SyncPushPullDone,
 };
 
 /// All possible high-level screens in the TUI.
@@ -113,6 +113,9 @@ pub struct App {
     cover_load_rx: tokio::sync::mpsc::UnboundedReceiver<CoverLoadDone>,
     cover_load_tx: tokio::sync::mpsc::UnboundedSender<CoverLoadDone>,
     cover_load_task: Option<tokio::task::JoinHandle<()>>,
+    save_screenshot_rx: tokio::sync::mpsc::UnboundedReceiver<SaveScreenshotLoadDone>,
+    save_screenshot_tx: tokio::sync::mpsc::UnboundedSender<SaveScreenshotLoadDone>,
+    save_screenshot_task: Option<tokio::task::JoinHandle<()>>,
     /// Receives `Ok(())` when a background `scan_library` (with wait) finishes successfully.
     library_scan_rx:
         Option<tokio::sync::mpsc::UnboundedReceiver<Result<(), romm_api::error::RommError>>>,
@@ -231,6 +234,7 @@ impl App {
         let (rom_load_tx, rom_load_rx) = tokio::sync::mpsc::unbounded_channel();
         let (search_load_tx, search_load_rx) = tokio::sync::mpsc::unbounded_channel();
         let (cover_load_tx, cover_load_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (save_screenshot_tx, save_screenshot_rx) = tokio::sync::mpsc::unbounded_channel();
         let (save_list_tx, save_list_rx) = tokio::sync::mpsc::unbounded_channel();
         let (achievement_load_tx, achievement_load_rx) = tokio::sync::mpsc::unbounded_channel();
         let (save_upload_tx, save_upload_rx) = tokio::sync::mpsc::unbounded_channel();
@@ -285,6 +289,9 @@ impl App {
             cover_load_rx,
             cover_load_tx,
             cover_load_task: None,
+            save_screenshot_rx,
+            save_screenshot_tx,
+            save_screenshot_task: None,
             library_scan_rx: None,
             library_scan_inflight: false,
             library_scan_pending_invalidate: None,

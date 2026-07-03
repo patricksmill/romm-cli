@@ -52,7 +52,11 @@ impl GameDetailScreen {
             .split(chunks[0]);
 
         self.render_metadata_panel(f, body[0], styles);
-        self.render_cover_panel(f, body[1], styles);
+        match self.active_tab {
+            DetailTab::Info => self.render_cover_panel(f, body[1], styles),
+            DetailTab::Saves => self.render_save_screenshot_panel(f, body[1], styles),
+            DetailTab::Achievements => self.render_achievement_detail_panel(f, body[1], styles),
+        }
         self.render_footer_panel(f, chunks[1], styles);
     }
 
@@ -121,6 +125,74 @@ impl GameDetailScreen {
         let widget = Paragraph::new(lines)
             .alignment(Alignment::Center)
             .block(styles.panel_block("Cover"))
+            .wrap(ratatui::widgets::Wrap { trim: true });
+        f.render_widget(widget, area);
+    }
+
+    fn render_save_screenshot_panel(&mut self, f: &mut Frame, area: Rect, styles: &RommStyles) {
+        if matches!(self.save_screenshot_state, CoverState::Ready) {
+            if let Some(image_state) = self.save_screenshot_image.as_mut() {
+                let block = styles.panel_block("Screenshot");
+                let inner = block.inner(area);
+                f.render_widget(block, area);
+                let widget = StatefulImage::default().resize(Resize::Fit(None));
+                f.render_stateful_widget(widget, inner, image_state);
+                return;
+            }
+        }
+        let content = match &self.save_screenshot_state {
+            CoverState::Loading => vec![
+                Line::from(""),
+                Line::from(Span::styled("Loading screenshot...", styles.warning())),
+            ],
+            CoverState::Failed(msg) => vec![
+                Line::from(""),
+                Line::from(Span::styled("Screenshot unavailable", styles.error())),
+                Line::from(""),
+                Line::from(truncate(msg, 26)),
+            ],
+            _ => vec![Line::from(""), Line::from("No screenshot")],
+        };
+        let widget = Paragraph::new(content)
+            .alignment(Alignment::Center)
+            .block(styles.panel_block("Screenshot"))
+            .wrap(ratatui::widgets::Wrap { trim: true });
+        f.render_widget(widget, area);
+    }
+
+    fn render_achievement_detail_panel(&self, f: &mut Frame, area: Rect, styles: &RommStyles) {
+        let lines = if let Some(row) = self.selected_achievement() {
+            let earned_line = if row.earned {
+                match &row.earned_at {
+                    Some(date) => format!("Earned: Yes ({})", date),
+                    None => "Earned: Yes".to_string(),
+                }
+            } else {
+                "Earned: No".to_string()
+            };
+            let points = row
+                .points
+                .map(|p| format!("{p} pts"))
+                .unwrap_or_else(|| "—".to_string());
+            vec![
+                Line::from(Span::styled(&row.title, styles.primary_text())),
+                Line::from(""),
+                Line::from(row.description.as_deref().unwrap_or("No description")),
+                Line::from(""),
+                Line::from(vec![
+                    Span::styled("Points: ", styles.label()),
+                    Span::raw(points),
+                ]),
+                Line::from(vec![
+                    Span::styled("Status: ", styles.label()),
+                    Span::raw(earned_line),
+                ]),
+            ]
+        } else {
+            vec![Line::from(""), Line::from("No achievement selected")]
+        };
+        let widget = Paragraph::new(lines)
+            .block(styles.panel_block("Detail"))
             .wrap(ratatui::widgets::Wrap { trim: true });
         f.render_widget(widget, area);
     }
@@ -261,10 +333,10 @@ impl GameDetailScreen {
         let block = styles.panel_block("Achievements");
         let inner = block.inner(area);
         let visible_height = inner.height as usize;
-        let lines = achievement_lines(&self.achievements_state);
-        let start = self
-            .achievement_scroll_offset
-            .min(lines.len().saturating_sub(1));
+        let lines = achievement_lines(&self.achievements_state, self.selected_achievement_index);
+        // +1 for the summary header line
+        let selected_line = self.selected_achievement_index + 1;
+        let start = selected_line.saturating_sub(visible_height.saturating_sub(1));
         let windowed: Vec<_> = lines.into_iter().skip(start).take(visible_height).collect();
         let p = Paragraph::new(windowed).block(block).style(styles.text());
         f.render_widget(p, area);

@@ -108,8 +108,10 @@ pub struct GameDetailScreen {
     pub saves_state: SaveListState,
     pub selected_save_index: usize,
     pub achievements_state: AchievementListState,
-    pub achievement_scroll_offset: usize,
+    pub selected_achievement_index: usize,
     pub save_upload_picker: Option<PathPicker>,
+    pub save_screenshot_state: CoverState,
+    pub save_screenshot_image: Option<StatefulProtocol>,
     /// Pending confirmation before `PUT ?unmatch_metadata=true`.
     pub metadata_unmatch_confirm: bool,
     /// Width of the cover column in terminal cells.

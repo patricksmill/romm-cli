@@ -207,22 +207,27 @@ impl App {
             return Ok(false);
         }
 
+        let mut trigger_screenshot = false;
         match key.code {
             KeyCode::Char('1') => detail.select_tab(DetailTab::Info),
-            KeyCode::Char('2') => detail.select_tab(DetailTab::Saves),
+            KeyCode::Char('2') => {
+                detail.select_tab(DetailTab::Saves);
+                trigger_screenshot = true;
+            }
             KeyCode::Char('3') => detail.select_tab(DetailTab::Achievements),
             KeyCode::Up | KeyCode::Char('k') if detail.active_tab == DetailTab::Saves => {
-                detail.save_selection_previous()
+                detail.save_selection_previous();
+                trigger_screenshot = true;
             }
             KeyCode::Down | KeyCode::Char('j') if detail.active_tab == DetailTab::Saves => {
-                detail.save_selection_next()
+                detail.save_selection_next();
+                trigger_screenshot = true;
             }
             KeyCode::Up | KeyCode::Char('k') if detail.active_tab == DetailTab::Achievements => {
-                detail.achievement_scroll_offset =
-                    detail.achievement_scroll_offset.saturating_sub(1);
+                detail.achievement_selection_previous();
             }
             KeyCode::Down | KeyCode::Char('j') if detail.active_tab == DetailTab::Achievements => {
-                detail.achievement_scroll_offset += 1;
+                detail.achievement_selection_next();
             }
             KeyCode::Char('u') if detail.active_tab == DetailTab::Saves => {
                 detail.open_save_upload_picker()
@@ -311,6 +316,9 @@ impl App {
             }
             KeyCode::Char('q') => return Ok(true),
             _ => {}
+        }
+        if trigger_screenshot {
+            self.maybe_start_save_screenshot_load();
         }
         Ok(false)
     }
