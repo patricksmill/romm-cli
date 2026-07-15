@@ -131,14 +131,19 @@ impl super::super::App {
         match inv {
             ScanCacheInvalidate::None => {}
             ScanCacheInvalidate::Platform(pid) => {
-                self.rom_cache.remove(&RomCacheKey::Platform(*pid));
+                let key = RomCacheKey::Platform(*pid);
+                self.rom_cache.remove(&key);
+                self.clear_rom_partial(&key);
             }
             ScanCacheInvalidate::AllPlatforms => {
                 self.rom_cache.remove_all_platform_entries();
+                self.rom_partials
+                    .retain(|k, _| !matches!(k, RomCacheKey::Platform(_)));
                 if let AppScreen::LibraryBrowse(lib) = &self.screen {
                     if let Some(ref k) = lib.cache_key() {
                         if !matches!(k, RomCacheKey::Platform(_)) {
                             self.rom_cache.remove(k);
+                            self.clear_rom_partial(k);
                         }
                     }
                 }

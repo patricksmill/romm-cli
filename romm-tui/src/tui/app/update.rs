@@ -166,7 +166,8 @@ impl App {
     }
 
     fn process_deferred_rom_load(&mut self) {
-        let Some((key, req, expected, context, started)) = self.deferred_load_roms.take() else {
+        let Some((key, mut req, expected, context, started)) = self.deferred_load_roms.take()
+        else {
             return;
         };
 
@@ -190,6 +191,35 @@ impl App {
                     }
                 }
                 return;
+            }
+        }
+
+        let mut aggregated: Option<romm_api::types::RomList> = None;
+        if let Some(ref k) = key {
+            if let Some(partial) = self.matching_rom_partial(k, expected) {
+                if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
+                    if super::rom_load::primary_rom_load_result_matches_selection(lib, &key) {
+                        lib.set_roms(partial.clone());
+                        tracing::debug!(
+                            "rom-list-render context={} latency_ms={} (partial_resume items={})",
+                            context,
+                            started.elapsed().as_millis(),
+                            partial.items.len()
+                        );
+                    }
+                }
+                if let Some(offset) = super::rom_load::rom_partial_resume_offset(&partial) {
+                    if let Some(ref mut r) = req {
+                        r.offset = Some(offset);
+                    }
+                    aggregated = Some(partial);
+                } else {
+                    if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
+                        lib.set_rom_loading(false);
+                    }
+                    self.clear_rom_partial(k);
+                    return;
+                }
             }
         }
 
@@ -220,7 +250,7 @@ impl App {
 
         self.rom_load_task = Some(tokio::spawn(async move {
             let mut req = r;
-            let mut aggregated: Option<romm_api::types::RomList> = None;
+            let mut aggregated = aggregated;
 
             loop {
                 match client.call(&req).await {
@@ -288,5 +318,10 @@ impl App {
                 started,
             });
         }));
+    }
+
+    #[cfg(test)]
+    pub(crate) fn process_deferred_rom_load_for_test(&mut self) {
+        self.process_deferred_rom_load();
     }
 }

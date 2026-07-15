@@ -248,6 +248,124 @@ fn primary_rom_load_batch_for_wrong_platform_is_ignored() {
     }
 }
 
+#[test]
+fn primary_rom_load_partial_batch_is_not_treated_as_cache_hit() {
+    let mut app = app_with_library(vec![platform(1, "NES", 100)]);
+    app.rom_load_gen = 1;
+    app.rom_load_tx
+        .send(RomLoadDone {
+            gen: 1,
+            key: Some(RomCacheKey::Platform(1)),
+            expected: 100,
+            event: RomLoadEvent::Batch(RomList {
+                total: 100,
+                limit: 50,
+                offset: 0,
+                items: vec![rom_fixture()],
+            }),
+            context: "test_partial_batch",
+            started: Instant::now(),
+        })
+        .expect("send partial batch");
+
+    app.poll_background_tasks();
+
+    assert!(
+        app.rom_cache
+            .get_valid(&RomCacheKey::Platform(1), 100)
+            .is_none(),
+        "navigating away mid-pagination must not leave a truncated list as a valid cache hit"
+    );
+    assert_eq!(
+        app.rom_partials
+            .get(&RomCacheKey::Platform(1))
+            .map(|(expected, list)| (*expected, list.items.len())),
+        Some((100, 1)),
+        "partial pages must remain available for resume"
+    );
+}
+
+#[tokio::test]
+async fn deferred_rom_load_seeds_ui_from_partial_and_resumes_offset() {
+    let mut app = app_with_library(vec![platform(1, "NES", 100)]);
+    let partial = RomList {
+        total: 100,
+        limit: 50,
+        offset: 0,
+        items: vec![rom_fixture(), rom_fixture()],
+    };
+    assert_eq!(
+        super::rom_load::rom_partial_resume_offset(&partial),
+        Some(2),
+        "next fetch must continue after already-loaded items"
+    );
+    app.rom_partials
+        .insert(RomCacheKey::Platform(1), (100, partial));
+
+    if let AppScreen::LibraryBrowse(ref mut lib) = app.screen {
+        lib.clear_roms();
+        lib.set_rom_loading(true);
+    }
+
+    let req = romm_api::endpoints::roms::GetRoms {
+        platform_id: Some(1),
+        limit: Some(50),
+        ..Default::default()
+    };
+    app.deferred_load_roms = Some((
+        Some(RomCacheKey::Platform(1)),
+        Some(req),
+        100,
+        "test_resume_partial",
+        Instant::now() - std::time::Duration::from_millis(300),
+    ));
+    app.process_deferred_rom_load_for_test();
+
+    if let AppScreen::LibraryBrowse(ref lib) = app.screen {
+        assert_eq!(
+            lib.roms.as_ref().map(|r| r.items.len()),
+            Some(2),
+            "reselecting mid-fetch must restore partial progress, not restart empty"
+        );
+        assert!(lib.rom_loading, "resume should keep loading until complete");
+    } else {
+        panic!("expected library browse screen");
+    }
+    if let Some(task) = app.rom_load_task.take() {
+        task.abort();
+    }
+}
+
+#[test]
+fn primary_rom_load_complete_batch_is_cached() {
+    let mut app = app_with_library(vec![platform(1, "NES", 1)]);
+    app.rom_load_gen = 1;
+    app.rom_load_tx
+        .send(RomLoadDone {
+            gen: 1,
+            key: Some(RomCacheKey::Platform(1)),
+            expected: 1,
+            event: RomLoadEvent::Batch(RomList {
+                total: 1,
+                limit: 50,
+                offset: 0,
+                items: vec![rom_fixture()],
+            }),
+            context: "test_complete_batch",
+            started: Instant::now(),
+        })
+        .expect("send complete batch");
+
+    app.poll_background_tasks();
+
+    assert!(
+        app.rom_cache
+            .get_valid(&RomCacheKey::Platform(1), 1)
+            .is_some(),
+        "finished ROM list should still be cached"
+    );
+}
+
 #[tokio::test]
 async fn game_detail_esc_returns_to_previous_library_screen() {
     let mut app = app_with_library(vec![platform(1, "NES", 1)]);

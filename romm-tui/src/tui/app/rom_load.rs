@@ -4,9 +4,10 @@ use std::time::Instant;
 
 use crate::tui::screens::library_browse::LibraryBrowseScreen;
 use romm_api::core::cache::RomCacheKey;
-use romm_api::core::roms::fetch_roms_paginated;
+use romm_api::core::roms::{fetch_roms_paginated, ROM_PAGE_CEILING};
 use romm_api::endpoints::roms::GetRoms;
 use romm_api::log_redact::redact_anyhow_for_log;
+use romm_api::types::RomList;
 
 use super::background::types::CollectionPrefetchDone;
 use super::AppScreen;
@@ -24,7 +25,57 @@ pub(crate) fn primary_rom_load_result_matches_selection(
     lib.cache_key().as_ref() == key.as_ref()
 }
 
+#[inline]
+pub(crate) fn rom_list_fetch_complete(list: &RomList) -> bool {
+    let loaded = list.items.len() as u64;
+    loaded >= list.total || loaded >= ROM_PAGE_CEILING
+}
+
+/// Offset for the next page when resuming a mid-fetch list.
+#[inline]
+pub(crate) fn rom_partial_resume_offset(list: &RomList) -> Option<u32> {
+    if rom_list_fetch_complete(list) {
+        None
+    } else {
+        Some(list.items.len() as u32)
+    }
+}
+
 impl super::App {
+    pub(in crate::tui::app) fn stash_rom_partial(
+        &mut self,
+        key: RomCacheKey,
+        expected: u64,
+        roms: RomList,
+    ) {
+        if rom_list_fetch_complete(&roms) {
+            self.rom_partials.remove(&key);
+        } else {
+            self.rom_partials.insert(key, (expected, roms));
+        }
+    }
+
+    pub(in crate::tui::app) fn clear_rom_partial(&mut self, key: &RomCacheKey) {
+        self.rom_partials.remove(key);
+    }
+
+    pub(in crate::tui::app) fn matching_rom_partial(
+        &mut self,
+        key: &RomCacheKey,
+        expected: u64,
+    ) -> Option<RomList> {
+        match self.rom_partials.get(key) {
+            Some((stored, list)) if *stored == expected && !rom_list_fetch_complete(list) => {
+                Some(list.clone())
+            }
+            Some(_) => {
+                self.rom_partials.remove(key);
+                None
+            }
+            None => None,
+        }
+    }
+
     /// Drop in-flight primary ROM fetches so stale batches cannot overwrite a new selection.
     pub(in crate::tui::app) fn invalidate_primary_rom_load(&mut self) {
         self.rom_load_gen = self.rom_load_gen.saturating_add(1);

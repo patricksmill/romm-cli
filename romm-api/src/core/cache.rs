@@ -214,10 +214,15 @@ impl RomCache {
     /// since we cached it.  We compare the stored count (from the platforms
     /// endpoint at cache time) against the current count — NOT `RomList.total`,
     /// which can legitimately differ from `rom_count`.
+    ///
+    /// Also rejects incomplete paginated lists (`items.len() < total`) so a
+    /// mid-fetch abort cannot poison later cache hits.
     pub fn get_valid(&self, key: &RomCacheKey, expected_count: u64) -> Option<&RomList> {
         self.entries
             .get(key)
-            .filter(|(stored_count, _)| *stored_count == expected_count)
+            .filter(|(stored_count, list)| {
+                *stored_count == expected_count && rom_list_fetch_complete(list)
+            })
             .map(|(_, list)| list)
     }
 
@@ -248,6 +253,11 @@ impl RomCache {
         }
         removed
     }
+}
+
+fn rom_list_fetch_complete(list: &RomList) -> bool {
+    let loaded = list.items.len() as u64;
+    loaded >= list.total || loaded >= crate::core::roms::ROM_PAGE_CEILING
 }
 
 fn cache_path_with_override() -> (PathBuf, bool) {
@@ -398,6 +408,23 @@ mod tests {
 
         assert!(cache.get_valid(&key, 7).is_some());
         assert!(cache.get_valid(&key, 8).is_none());
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn get_valid_rejects_incomplete_paginated_list() {
+        let path = temp_cache_path();
+        let mut cache = RomCache::load_from(path.clone());
+        let key = RomCacheKey::Platform(42);
+        let mut list = sample_rom_list();
+        list.total = 100;
+        cache.insert(key.clone(), list, 100);
+
+        assert!(
+            cache.get_valid(&key, 100).is_none(),
+            "partial page must not count as a valid cache hit"
+        );
 
         let _ = std::fs::remove_file(path);
     }

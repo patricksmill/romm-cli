@@ -53,12 +53,16 @@ impl App {
         {
             return;
         }
-        let AppScreen::LibraryBrowse(ref mut lib) = self.screen else {
-            return;
-        };
-        if !super::super::rom_load::primary_rom_load_result_matches_selection(lib, &done.key) {
+        let matches_selection = matches!(
+            &self.screen,
+            AppScreen::LibraryBrowse(lib)
+                if super::super::rom_load::primary_rom_load_result_matches_selection(lib, &done.key)
+        );
+        if !matches_selection {
             if matches!(done.event, RomLoadEvent::Complete | RomLoadEvent::Failed(_)) {
-                lib.set_rom_loading(false);
+                if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
+                    lib.set_rom_loading(false);
+                }
             }
             tracing::debug!(
                 "rom-list-render skipped stale completion context={}",
@@ -68,11 +72,20 @@ impl App {
         }
         match done.event {
             RomLoadEvent::Batch(roms) => {
+                // ponytail: disk cache stays complete-only; in-memory partials resume mid-fetch.
+                let fetch_complete = super::super::rom_load::rom_list_fetch_complete(&roms);
                 if let Some(ref k) = done.key {
-                    self.rom_cache
-                        .insert(k.clone(), roms.clone(), done.expected);
+                    if fetch_complete {
+                        self.rom_cache
+                            .insert(k.clone(), roms.clone(), done.expected);
+                        self.clear_rom_partial(k);
+                    } else {
+                        self.stash_rom_partial(k.clone(), done.expected, roms.clone());
+                    }
                 }
-                lib.set_roms(roms);
+                if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
+                    lib.set_roms(roms);
+                }
                 tracing::debug!(
                     "rom-list-render batch context={} latency_ms={}",
                     done.context,
@@ -80,14 +93,21 @@ impl App {
                 );
             }
             RomLoadEvent::Failed(e) => {
-                lib.set_metadata_footer(Some(format!(
-                    "Could not load games: {}",
-                    user_message(&e)
-                )));
-                lib.set_rom_loading(false);
+                if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
+                    lib.set_metadata_footer(Some(format!(
+                        "Could not load games: {}",
+                        user_message(&e)
+                    )));
+                    lib.set_rom_loading(false);
+                }
             }
             RomLoadEvent::Complete => {
-                lib.set_rom_loading(false);
+                if let Some(ref k) = done.key {
+                    self.clear_rom_partial(k);
+                }
+                if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
+                    lib.set_rom_loading(false);
+                }
             }
         }
     }

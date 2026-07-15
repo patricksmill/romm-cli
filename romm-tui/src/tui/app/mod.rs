@@ -20,7 +20,8 @@ mod tests;
 
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use std::collections::{HashSet, VecDeque};
+use romm_api::types::RomList;
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use romm_api::client::RommClient;
 use romm_api::config::Config;
@@ -76,6 +77,8 @@ pub struct App {
     metadata_edit_compat: MetadataEditCompatibility,
     achievements_compat: AchievementsCompatibility,
     rom_cache: RomCache,
+    /// In-memory mid-pagination pages; disk cache stays complete-only.
+    rom_partials: HashMap<RomCacheKey, (u64, RomList)>,
     downloads: DownloadManager,
     /// Screen to restore when closing the Download overlay.
     screen_before_download: Option<AppScreen>,
@@ -257,6 +260,7 @@ impl App {
             metadata_edit_compat,
             achievements_compat,
             rom_cache: RomCache::load(),
+            rom_partials: HashMap::new(),
             downloads: DownloadManager::new(),
             screen_before_download: None,
             screen_before_search: None,
