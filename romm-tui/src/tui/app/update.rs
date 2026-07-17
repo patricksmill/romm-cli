@@ -208,18 +208,11 @@ impl App {
                         );
                     }
                 }
-                if let Some(offset) = super::rom_load::rom_partial_resume_offset(&partial) {
-                    if let Some(ref mut r) = req {
-                        r.offset = Some(offset);
-                    }
-                    aggregated = Some(partial);
-                } else {
-                    if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
-                        lib.set_rom_loading(false);
-                    }
-                    self.clear_rom_partial(k);
-                    return;
+                // matching_rom_partial only returns incomplete lists
+                if let Some(ref mut r) = req {
+                    r.offset = Some(partial.items.len() as u32);
                 }
+                aggregated = Some(partial);
             }
         }
 

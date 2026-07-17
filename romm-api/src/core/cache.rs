@@ -221,7 +221,7 @@ impl RomCache {
         self.entries
             .get(key)
             .filter(|(stored_count, list)| {
-                *stored_count == expected_count && rom_list_fetch_complete(list)
+                *stored_count == expected_count && crate::core::roms::rom_list_fetch_complete(list)
             })
             .map(|(_, list)| list)
     }
@@ -253,11 +253,6 @@ impl RomCache {
         }
         removed
     }
-}
-
-fn rom_list_fetch_complete(list: &RomList) -> bool {
-    let loaded = list.items.len() as u64;
-    loaded >= list.total || loaded >= crate::core::roms::ROM_PAGE_CEILING
 }
 
 fn cache_path_with_override() -> (PathBuf, bool) {

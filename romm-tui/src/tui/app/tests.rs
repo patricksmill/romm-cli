@@ -1,5 +1,7 @@
 use super::{
-    background::types::{RomLoadDone, RomLoadEvent, SearchLoadDone, SearchLoadEvent},
+    background::types::{
+        CollectionPrefetchDone, RomLoadDone, RomLoadEvent, SearchLoadDone, SearchLoadEvent,
+    },
     event::{map_key_to_actions, Action, AppEvent, BackgroundAction},
     rom_load::{primary_rom_load_result_is_current, primary_rom_load_result_matches_selection},
     App, AppScreen,
@@ -294,11 +296,8 @@ async fn deferred_rom_load_seeds_ui_from_partial_and_resumes_offset() {
         offset: 0,
         items: vec![rom_fixture(), rom_fixture()],
     };
-    assert_eq!(
-        super::rom_load::rom_partial_resume_offset(&partial),
-        Some(2),
-        "next fetch must continue after already-loaded items"
-    );
+    assert_eq!(partial.items.len(), 2);
+    assert!(!romm_api::core::roms::rom_list_fetch_complete(&partial));
     app.rom_partials
         .insert(RomCacheKey::Platform(1), (100, partial));
 
@@ -364,6 +363,28 @@ fn primary_rom_load_complete_batch_is_cached() {
             .is_some(),
         "finished ROM list should still be cached"
     );
+}
+
+#[test]
+fn collection_prefetch_incomplete_list_is_not_disk_cached() {
+    let mut app = app_with_library(vec![platform(1, "NES", 100)]);
+    app.apply_background(BackgroundAction::CollectionPrefetch(
+        CollectionPrefetchDone {
+            key: RomCacheKey::Platform(1),
+            expected: 100,
+            roms: Some(RomList {
+                total: 100,
+                limit: 50,
+                offset: 0,
+                items: vec![rom_fixture()],
+            }),
+            warning: None,
+        },
+    ));
+    assert!(app
+        .rom_cache
+        .get_valid(&RomCacheKey::Platform(1), 100)
+        .is_none());
 }
 
 #[tokio::test]

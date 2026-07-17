@@ -133,7 +133,7 @@ impl super::super::App {
             ScanCacheInvalidate::Platform(pid) => {
                 let key = RomCacheKey::Platform(*pid);
                 self.rom_cache.remove(&key);
-                self.clear_rom_partial(&key);
+                self.rom_partials.remove(&key);
             }
             ScanCacheInvalidate::AllPlatforms => {
                 self.rom_cache.remove_all_platform_entries();
@@ -143,7 +143,7 @@ impl super::super::App {
                     if let Some(ref k) = lib.cache_key() {
                         if !matches!(k, RomCacheKey::Platform(_)) {
                             self.rom_cache.remove(k);
-                            self.clear_rom_partial(k);
+                            self.rom_partials.remove(k);
                         }
                     }
                 }

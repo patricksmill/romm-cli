@@ -73,14 +73,15 @@ impl App {
         match done.event {
             RomLoadEvent::Batch(roms) => {
                 // ponytail: disk cache stays complete-only; in-memory partials resume mid-fetch.
-                let fetch_complete = super::super::rom_load::rom_list_fetch_complete(&roms);
+                let fetch_complete = romm_api::core::roms::rom_list_fetch_complete(&roms);
                 if let Some(ref k) = done.key {
                     if fetch_complete {
                         self.rom_cache
                             .insert(k.clone(), roms.clone(), done.expected);
-                        self.clear_rom_partial(k);
+                        self.rom_partials.remove(k);
                     } else {
-                        self.stash_rom_partial(k.clone(), done.expected, roms.clone());
+                        self.rom_partials
+                            .insert(k.clone(), (done.expected, roms.clone()));
                     }
                 }
                 if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
@@ -93,6 +94,8 @@ impl App {
                 );
             }
             RomLoadEvent::Failed(e) => {
+                // Keep rom_partials for this key: last Batch already stashed progress;
+                // next open resumes offset instead of restarting empty after a transient error.
                 if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
                     lib.set_metadata_footer(Some(format!(
                         "Could not load games: {}",
@@ -103,7 +106,7 @@ impl App {
             }
             RomLoadEvent::Complete => {
                 if let Some(ref k) = done.key {
-                    self.clear_rom_partial(k);
+                    self.rom_partials.remove(k);
                 }
                 if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
                     lib.set_rom_loading(false);
@@ -115,7 +118,14 @@ impl App {
     fn apply_collection_prefetch_complete(&mut self, done: super::types::CollectionPrefetchDone) {
         self.collection_prefetch_inflight_keys.remove(&done.key);
         if let Some(roms) = done.roms {
-            self.rom_cache.insert(done.key, roms, done.expected);
+            if romm_api::core::roms::rom_list_fetch_complete(&roms) {
+                self.rom_cache.insert(done.key, roms, done.expected);
+            } else {
+                tracing::debug!(
+                    "collection prefetch incomplete; not writing disk cache key={:?}",
+                    done.key
+                );
+            }
         } else if let Some(warning) = done.warning {
             tracing::debug!("{warning}");
         }
