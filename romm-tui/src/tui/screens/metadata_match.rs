@@ -71,28 +71,34 @@ impl MetadataMatchScreen {
     }
 
     pub fn add_char(&mut self, c: char) {
-        let pos = self.cursor_pos.min(self.search_query.len());
+        let pos = clamp_to_char_boundary(&self.search_query, self.cursor_pos);
         self.search_query.insert(pos, c);
-        self.cursor_pos = pos + 1;
+        self.cursor_pos = pos + c.len_utf8();
     }
 
     pub fn delete_char(&mut self) {
-        if self.cursor_pos > 0 && self.cursor_pos <= self.search_query.len() {
-            self.search_query.remove(self.cursor_pos - 1);
-            self.cursor_pos -= 1;
+        let pos = clamp_to_char_boundary(&self.search_query, self.cursor_pos);
+        if pos > 0 {
+            let prev = previous_char_boundary(&self.search_query, pos);
+            self.search_query.remove(prev);
+            self.cursor_pos = prev;
+        }
+    }
+
+    pub fn delete_forward_char(&mut self) {
+        let pos = clamp_to_char_boundary(&self.search_query, self.cursor_pos);
+        if pos < self.search_query.len() {
+            self.search_query.remove(pos);
+            self.cursor_pos = pos;
         }
     }
 
     pub fn cursor_left(&mut self) {
-        if self.cursor_pos > 0 {
-            self.cursor_pos -= 1;
-        }
+        self.cursor_pos = previous_char_boundary(&self.search_query, self.cursor_pos);
     }
 
     pub fn cursor_right(&mut self) {
-        if self.cursor_pos < self.search_query.len() {
-            self.cursor_pos += 1;
-        }
+        self.cursor_pos = next_char_boundary(&self.search_query, self.cursor_pos);
     }
 
     pub fn apply_search_result(&mut self, rows: Vec<SearchRom>) {
@@ -241,6 +247,35 @@ impl MetadataMatchScreen {
     }
 }
 
+fn clamp_to_char_boundary(s: &str, pos: usize) -> usize {
+    let mut pos = pos.min(s.len());
+    while pos > 0 && !s.is_char_boundary(pos) {
+        pos -= 1;
+    }
+    pos
+}
+
+fn previous_char_boundary(s: &str, pos: usize) -> usize {
+    let pos = clamp_to_char_boundary(s, pos);
+    if pos == 0 {
+        return 0;
+    }
+    s[..pos]
+        .char_indices()
+        .last()
+        .map(|(idx, _)| idx)
+        .unwrap_or(0)
+}
+
+fn next_char_boundary(s: &str, pos: usize) -> usize {
+    let pos = clamp_to_char_boundary(s, pos);
+    if pos >= s.len() {
+        return s.len();
+    }
+    let next = pos + s[pos..].chars().next().map(char::len_utf8).unwrap_or(0);
+    next.min(s.len())
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::{Arc, Mutex};
@@ -327,6 +362,34 @@ mod tests {
         screen.add_char('A');
         assert_eq!(screen.search_query, "A");
         assert_eq!(screen.cursor_pos, 1);
+    }
+
+    #[test]
+    fn query_input_cursor_moves_across_utf8_characters() {
+        let mut screen = fixture_screen();
+        screen.search_query = "Pokémon".into();
+        screen.cursor_pos = screen.search_query.len();
+
+        for _ in 0..4 {
+            screen.cursor_left();
+        }
+        screen.add_char('X');
+
+        assert_eq!(screen.search_query, "PokXémon");
+    }
+
+    #[test]
+    fn query_input_delete_removes_utf8_character() {
+        let mut screen = fixture_screen();
+        screen.search_query = "Pokémon".into();
+        screen.cursor_pos = screen.search_query.len();
+
+        for _ in 0..4 {
+            screen.cursor_left();
+        }
+        screen.delete_forward_char();
+
+        assert_eq!(screen.search_query, "Pokmon");
     }
 
     #[test]

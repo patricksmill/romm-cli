@@ -123,9 +123,7 @@ impl App {
                 self.spawn_metadata_search_worker(rom_id, term);
             }
             KeyCode::Backspace => picker.delete_char(),
-            KeyCode::Delete if picker.cursor_pos < picker.search_query.len() => {
-                picker.search_query.remove(picker.cursor_pos);
-            }
+            KeyCode::Delete => picker.delete_forward_char(),
             KeyCode::Left => picker.cursor_left(),
             KeyCode::Right => picker.cursor_right(),
             KeyCode::Home => picker.cursor_pos = 0,
