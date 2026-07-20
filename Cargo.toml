@@ -8,7 +8,7 @@ repository = "https://github.com/patricksmill/romm-cli"
 license = "MIT"
 
 [workspace.dependencies]
-romm-api = { path = "romm-api", version = "1.2.0" } # x-release-please-version
+romm-api = { path = "romm-api", version = "1.3.0" } # x-release-please-version
 
 [profile.release]
 strip = true
