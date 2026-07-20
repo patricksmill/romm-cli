@@ -413,6 +413,52 @@ async fn game_detail_esc_returns_to_previous_library_screen() {
 }
 
 #[tokio::test]
+async fn game_detail_esc_resumes_partial_library_rom_load() {
+    let mut app = app_with_library(vec![platform(1, "NES", 100)]);
+    let mut partial = RomList {
+        total: 100,
+        limit: 50,
+        offset: 0,
+        items: vec![rom_fixture()],
+    };
+    partial.items[0].id = 42;
+
+    let mut previous = LibraryBrowseScreen::new(
+        vec![platform(1, "NES", 100)],
+        vec![],
+        LIBRARY_LEFT_PANEL_PERCENT_DEFAULT,
+    );
+    previous.set_roms(partial.clone());
+    previous.switch_view();
+    previous.set_rom_loading(true);
+    app.rom_partials
+        .insert(RomCacheKey::Platform(1), (100, partial));
+
+    let detail = GameDetailScreen::new(
+        rom_fixture(),
+        Vec::new(),
+        GameDetailPrevious::Library(Box::new(previous)),
+        app.downloads.shared(),
+        COVER_PANEL_WIDTH_DEFAULT,
+    );
+    app.screen = AppScreen::GameDetail(Box::new(detail));
+
+    let quit = app
+        .handle_key_event(&KeyEvent::new(KeyCode::Esc, KeyModifiers::empty()))
+        .await
+        .expect("esc handled");
+
+    assert!(!quit);
+    let Some((key, req, expected, context, _started)) = &app.deferred_load_roms else {
+        panic!("restoring a partial loading library should queue a resumed ROM load");
+    };
+    assert_eq!(key, &Some(RomCacheKey::Platform(1)));
+    assert_eq!(expected, &100);
+    assert_eq!(context, &"restore_partial_library");
+    assert!(req.as_ref().is_some_and(|r| r.platform_id == Some(1)));
+}
+
+#[tokio::test]
 async fn startup_splash_enter_dismisses_without_quitting_when_update_pending() {
     let config = Config {
         base_url: "http://127.0.0.1:9".into(),
