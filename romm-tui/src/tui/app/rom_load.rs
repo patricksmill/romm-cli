@@ -67,6 +67,32 @@ impl super::App {
         self.deferred_load_roms = None;
     }
 
+    pub(in crate::tui::app) fn resume_library_rom_load_if_needed(&mut self, context: &'static str) {
+        let pending = {
+            let AppScreen::LibraryBrowse(ref mut lib) = self.screen else {
+                return;
+            };
+            let has_incomplete_roms = lib
+                .roms
+                .as_ref()
+                .is_some_and(|roms| !rom_list_fetch_complete(roms));
+            if !lib.rom_loading && !has_incomplete_roms {
+                return;
+            }
+            let expected = lib.expected_rom_count();
+            if expected == 0 {
+                lib.set_rom_loading(false);
+                return;
+            }
+            (
+                lib.cache_key(),
+                Self::selected_rom_request_for_library(lib),
+                expected,
+            )
+        };
+        self.queue_primary_rom_load(pending.0, pending.1, pending.2, context);
+    }
+
     pub(in crate::tui::app) fn selected_rom_request_for_library(
         lib: &crate::tui::screens::library_browse::LibraryBrowseScreen,
     ) -> Option<GetRoms> {

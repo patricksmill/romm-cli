@@ -368,6 +368,7 @@ impl App {
                         GameDetailPrevious::Library(l) => AppScreen::LibraryBrowse(l),
                         GameDetailPrevious::Search(s) => AppScreen::Search(s),
                     };
+                    self.resume_library_rom_load_if_needed("restore_partial_library");
                 }
             }
             KeyCode::Char('q') => return Ok(true),
