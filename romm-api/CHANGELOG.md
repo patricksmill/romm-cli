@@ -7,6 +7,19 @@ Entries before the workspace split (1.0.0) are filtered from the unified monolit
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0](https://github.com/patricksmill/romm-cli/compare/romm-api-v1.2.0...romm-api-v1.3.0) (2026-07-20)
+
+
+### Features
+
+* **tui:** enhance ROM caching and loading behavior ([02fc454](https://github.com/patricksmill/romm-cli/commit/02fc45408ce1a9d5a23475901fcc0f550344b385))
+
+
+### Bug Fixes
+
+* **api:** reject empty OpenAPI bodies and fall back in TUI ([#60](https://github.com/patricksmill/romm-cli/issues/60)) ([710e072](https://github.com/patricksmill/romm-cli/commit/710e072a18222174203a381a9a07545753a87b9f))
+* **tui:** resume partial ROM list loads after navigation ([#56](https://github.com/patricksmill/romm-cli/issues/56)) ([fcc5ac4](https://github.com/patricksmill/romm-cli/commit/fcc5ac4aa99c836a7ef67e10f42e8b59824664ef))
+
 ## [1.2.0](https://github.com/patricksmill/romm-cli/compare/romm-api-v1.1.0...romm-api-v1.2.0) (2026-07-03)
 
 
