@@ -72,7 +72,11 @@ impl super::App {
             let AppScreen::LibraryBrowse(ref mut lib) = self.screen else {
                 return;
             };
-            if !lib.rom_loading {
+            let has_incomplete_roms = lib
+                .roms
+                .as_ref()
+                .is_some_and(|roms| !rom_list_fetch_complete(roms));
+            if !lib.rom_loading && !has_incomplete_roms {
                 return;
             }
             let expected = lib.expected_rom_count();

@@ -430,7 +430,6 @@ async fn game_detail_esc_resumes_partial_library_rom_load() {
     );
     previous.set_roms(partial.clone());
     previous.switch_view();
-    previous.set_rom_loading(true);
     app.rom_partials
         .insert(RomCacheKey::Platform(1), (100, partial));
 
