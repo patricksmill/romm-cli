@@ -64,27 +64,37 @@ pub async fn sync_openapi_registry(
             body
         }
         Err(e) => {
-            if let Some(body) = openapi_from_cwd() {
-                tracing::warn!(
-                    "Using ./openapi.json (could not fetch from server: {})",
-                    e.redacted_for_log()
-                );
-                body
-            } else if let Ok(cached) = std::fs::read_to_string(cache_path) {
-                tracing::warn!(
-                    "Using cached OpenAPI at {} (server unreachable: {})",
-                    cache_path.display(),
-                    e.redacted_for_log()
-                );
-                cached
-            } else {
+            // Skip unusable cwd/cache (e.g. empty file left by older builds) before bundled.
+            let mut body = None;
+            if let Some(cwd) = openapi_from_cwd() {
+                if EndpointRegistry::from_openapi_json(&cwd).is_ok() {
+                    tracing::warn!(
+                        "Using ./openapi.json (could not fetch from server: {})",
+                        e.redacted_for_log()
+                    );
+                    body = Some(cwd);
+                }
+            }
+            if body.is_none() {
+                if let Ok(cached) = std::fs::read_to_string(cache_path) {
+                    if EndpointRegistry::from_openapi_json(&cached).is_ok() {
+                        tracing::warn!(
+                            "Using cached OpenAPI at {} (server unreachable: {})",
+                            cache_path.display(),
+                            e.redacted_for_log()
+                        );
+                        body = Some(cached);
+                    }
+                }
+            }
+            body.unwrap_or_else(|| {
                 tracing::warn!(
                     "Using bundled OpenAPI spec (server unreachable: {}). \
                      OpenAPI paths match the build-time snapshot; connect to refresh from your server.",
                     e.redacted_for_log()
                 );
                 EMBEDDED_OPENAPI_JSON.to_string()
-            }
+            })
         }
     };
 
@@ -110,5 +120,62 @@ mod tests {
     fn embedded_openapi_json_parses() {
         super::EndpointRegistry::from_openapi_json(EMBEDDED_OPENAPI_JSON)
             .expect("bundled openapi.json");
+    }
+
+    #[tokio::test]
+    async fn sync_falls_back_to_bundled_when_remote_and_cache_unusable() {
+        use romm_api::client::RommClient;
+        use romm_api::config::{AuthConfig, Config, ExtrasDefaults};
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        for p in ["/openapi.json", "/api/openapi.json"] {
+            Mock::given(method("GET"))
+                .and(path(p))
+                .respond_with(ResponseTemplate::new(200).set_body_string(""))
+                .mount(&server)
+                .await;
+        }
+
+        let cache_dir = std::env::temp_dir().join(format!(
+            "romm-openapi-sync-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&cache_dir).unwrap();
+        let cache_path = cache_dir.join("openapi.json");
+        std::fs::write(&cache_path, "").unwrap();
+
+        let client = RommClient::new(
+            &Config {
+                base_url: server.uri(),
+                download_dir: ".".to_string(),
+                use_https: false,
+                auth: Some(AuthConfig::Bearer {
+                    token: "t".to_string(),
+                }),
+                extras_defaults: ExtrasDefaults::default(),
+                save_sync: Default::default(),
+                roms_layout: Default::default(),
+                theme: romm_api::config::default_theme_id(),
+                tui_layout: Default::default(),
+            },
+            false,
+        )
+        .unwrap();
+
+        let (registry, _) = sync_openapi_registry(&client, &cache_path)
+            .await
+            .expect("should fall back to bundled OpenAPI");
+        assert!(
+            !registry.endpoints.is_empty(),
+            "bundled registry should have endpoints"
+        );
+
+        let _ = std::fs::remove_dir_all(&cache_dir);
     }
 }

@@ -100,6 +100,102 @@ impl RommClient {
             return Err(api_error_from_response_truncated(status, &body, 500));
         }
 
-        resp.text().await.map_err(ApiError::from)
+        let body = resp.text().await.map_err(ApiError::from)?;
+        validate_openapi_json_body(&body)?;
+        Ok(body)
+    }
+}
+
+/// Reject empty/HTML/non-OpenAPI 200 bodies so callers can try the next URL or fall back.
+fn validate_openapi_json_body(body: &str) -> Result<(), ApiError> {
+    let trimmed = body.trim();
+    if trimmed.is_empty() {
+        return Err(ApiError::UnexpectedResponse(
+            "OpenAPI response body is empty".into(),
+        ));
+    }
+    let value: serde_json::Value = serde_json::from_str(trimmed)
+        .map_err(|e| ApiError::UnexpectedResponse(format!("OpenAPI response is not JSON: {e}")))?;
+    if value.get("paths").and_then(|p| p.as_object()).is_none() {
+        return Err(ApiError::UnexpectedResponse(
+            "OpenAPI JSON missing 'paths' object".into(),
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::config::{AuthConfig, Config, ExtrasDefaults};
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    use super::*;
+
+    fn client_for(base_url: &str) -> RommClient {
+        RommClient::new(
+            &Config {
+                base_url: base_url.to_string(),
+                download_dir: ".".to_string(),
+                use_https: false,
+                auth: Some(AuthConfig::Bearer {
+                    token: "secret".to_string(),
+                }),
+                extras_defaults: ExtrasDefaults::default(),
+                save_sync: Default::default(),
+                roms_layout: Default::default(),
+                theme: crate::config::default_theme_id(),
+                tui_layout: Default::default(),
+            },
+            false,
+        )
+        .expect("client")
+    }
+
+    #[tokio::test]
+    async fn fetch_openapi_json_rejects_empty_200_body() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/openapi.json"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(""))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/api/openapi.json"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(""))
+            .mount(&server)
+            .await;
+
+        let err = client_for(&server.uri())
+            .fetch_openapi_json()
+            .await
+            .expect_err("empty OpenAPI body must not succeed");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("OpenAPI") || msg.contains("empty") || msg.contains("JSON"),
+            "{msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn fetch_openapi_json_skips_empty_and_uses_next_url() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/openapi.json"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(""))
+            .mount(&server)
+            .await;
+        let body = r#"{"openapi":"3.0.0","info":{"version":"1.0.0"},"paths":{}}"#;
+        Mock::given(method("GET"))
+            .and(path("/api/openapi.json"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(body))
+            .mount(&server)
+            .await;
+
+        let got = client_for(&server.uri())
+            .fetch_openapi_json()
+            .await
+            .expect("second URL should supply valid OpenAPI JSON");
+        assert!(got.contains("\"paths\""));
     }
 }
