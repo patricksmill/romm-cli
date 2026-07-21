@@ -486,6 +486,8 @@ impl super::super::App {
         rom_id: u64,
         search_term: String,
     ) {
+        self.metadata_search_gen = self.metadata_search_gen.wrapping_add(1);
+        let gen = self.metadata_search_gen;
         let client = self.client.clone();
         let tx = self.metadata_search_tx.clone();
         tokio::spawn(async move {
@@ -493,7 +495,11 @@ impl super::super::App {
                 search_metadata_matches(&client, rom_id, Some(search_term), Some("name".into()))
                     .await
                     .map_err(RommError::from);
-            let _ = tx.send(MetadataSearchDone { rom_id, result });
+            let _ = tx.send(MetadataSearchDone {
+                gen,
+                rom_id,
+                result,
+            });
         });
     }
 
@@ -504,6 +510,10 @@ impl super::super::App {
         fields: romm_api::endpoints::roms::RomUpdateFields,
         unmatch_metadata: bool,
     ) {
+        if !self.metadata_apply_inflight_roms.insert(rom_id) {
+            tracing::debug!("metadata apply already in flight for rom_id={rom_id}");
+            return;
+        }
         let client = self.client.clone();
         let tx = self.metadata_apply_tx.clone();
         tokio::spawn(async move {
