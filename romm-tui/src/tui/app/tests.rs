@@ -918,6 +918,44 @@ async fn scan_completed_off_library_reloads_complete_roms_when_returning_to_libr
 }
 
 #[tokio::test]
+async fn metadata_apply_refreshes_achievement_state() {
+    let mut app = app_with_library(vec![platform(1, "NES", 1)]);
+    let previous = LibraryBrowseScreen::new(
+        vec![platform(1, "NES", 1)],
+        vec![],
+        LIBRARY_LEFT_PANEL_PERCENT_DEFAULT,
+    );
+    let mut detail = GameDetailScreen::new(
+        rom_fixture(),
+        Vec::new(),
+        GameDetailPrevious::Library(Box::new(previous)),
+        app.downloads.shared(),
+        COVER_PANEL_WIDTH_DEFAULT,
+    );
+    detail.apply_achievements_empty("Not matched to RetroAchievements".into());
+    app.screen = AppScreen::GameDetail(Box::new(detail));
+
+    let mut refreshed = rom_fixture();
+    refreshed.ra_id = Some(1234);
+    app.apply_background(BackgroundAction::MetadataApply(MetadataApplyDone {
+        rom_id: refreshed.id,
+        platform_id: refreshed.platform_id,
+        result: Ok(Box::new(refreshed)),
+    }));
+
+    match &app.screen {
+        AppScreen::GameDetail(detail) => {
+            assert_eq!(
+                format!("{:?}", detail.achievements_state),
+                "Loading",
+                "metadata updates can change RA linkage, so achievements must be refreshed"
+            );
+        }
+        _ => panic!("expected game detail"),
+    }
+}
+
+#[tokio::test]
 async fn startup_splash_enter_dismisses_without_quitting_when_update_pending() {
     let config = Config {
         base_url: "http://127.0.0.1:9".into(),
