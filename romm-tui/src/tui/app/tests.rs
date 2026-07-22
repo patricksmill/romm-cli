@@ -11,7 +11,9 @@ use crate::tui::screens::connected_splash::StartupSplash;
 use crate::tui::screens::game_detail::COVER_PANEL_WIDTH_DEFAULT;
 use crate::tui::screens::library_browse::{LibraryBrowseScreen, LibrarySearchMode};
 use crate::tui::screens::settings::{SettingsScreen, SettingsTab};
-use crate::tui::screens::{GameDetailPrevious, GameDetailScreen, SearchScreen};
+use crate::tui::screens::{
+    GameDetailPrevious, GameDetailScreen, MetadataMatchScreen, SearchScreen,
+};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use romm_api::client::RommClient;
 use romm_api::config::LIBRARY_LEFT_PANEL_PERCENT_DEFAULT;
@@ -533,6 +535,45 @@ async fn stale_metadata_apply_does_not_refresh_current_achievements() {
             );
         }
         _ => panic!("expected game detail"),
+    }
+}
+
+#[tokio::test]
+async fn stale_metadata_apply_does_not_close_current_metadata_picker() {
+    let mut app = app_with_library(vec![platform(1, "NES", 1)]);
+    let previous = LibraryBrowseScreen::new(
+        vec![platform(1, "NES", 1)],
+        vec![],
+        LIBRARY_LEFT_PANEL_PERCENT_DEFAULT,
+    );
+    let mut current_rom = rom_fixture();
+    current_rom.id = 20;
+    let detail = GameDetailScreen::new(
+        current_rom,
+        Vec::new(),
+        GameDetailPrevious::Library(Box::new(previous)),
+        app.downloads.shared(),
+        COVER_PANEL_WIDTH_DEFAULT,
+    );
+    app.screen =
+        AppScreen::MetadataMatch(Box::new(MetadataMatchScreen::new_for_rom(Box::new(detail))));
+
+    let mut stale_rom = rom_fixture();
+    stale_rom.id = 10;
+    app.apply_background(BackgroundAction::MetadataApply(MetadataApplyDone {
+        rom_id: stale_rom.id,
+        platform_id: stale_rom.platform_id,
+        result: Ok(Box::new(stale_rom)),
+    }));
+
+    match &app.screen {
+        AppScreen::MetadataMatch(picker) => {
+            assert_eq!(
+                picker.previous.rom.id, 20,
+                "a stale metadata completion must not close or replace the active picker"
+            );
+        }
+        _ => panic!("expected metadata match screen"),
     }
 }
 
