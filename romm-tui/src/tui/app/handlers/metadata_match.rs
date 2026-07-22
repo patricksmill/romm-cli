@@ -172,6 +172,7 @@ impl App {
         }
         self.force_rom_reload_after_metadata = true;
         self.maybe_start_game_detail_cover_load();
+        self.refresh_current_game_achievements();
     }
 
     fn invalidate_rom_lists_after_metadata_update(&mut self, platform_id: u64) {
