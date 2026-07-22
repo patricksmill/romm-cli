@@ -142,7 +142,7 @@ impl App {
     }
 
     fn finish_metadata_apply_success(&mut self, rom: romm_api::types::Rom) {
-        match &mut self.screen {
+        let applied = match &mut self.screen {
             AppScreen::MetadataMatch(picker) => {
                 picker.previous.apply_refreshed_rom(rom);
                 let placeholder = self.transient_screen_placeholder();
@@ -153,18 +153,22 @@ impl App {
                     detail.message_clear_at = Some(Instant::now() + Duration::from_secs(3));
                     self.screen = AppScreen::GameDetail(Box::new(detail));
                 }
+                true
             }
             AppScreen::GameDetail(detail) if detail.rom.id == rom.id => {
                 detail.apply_refreshed_rom(rom);
                 detail.metadata_unmatch_confirm = false;
                 detail.message = Some("Metadata updated.".into());
                 detail.message_clear_at = Some(Instant::now() + Duration::from_secs(3));
+                true
             }
-            _ => {}
+            _ => false,
+        };
+        if applied {
+            self.force_rom_reload_after_metadata = true;
+            self.maybe_start_game_detail_cover_load();
+            self.refresh_current_game_achievements();
         }
-        self.force_rom_reload_after_metadata = true;
-        self.maybe_start_game_detail_cover_load();
-        self.refresh_current_game_achievements();
     }
 
     pub(in crate::tui::app) fn apply_metadata_search_complete(

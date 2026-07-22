@@ -193,6 +193,9 @@ impl App {
 
     fn apply_achievement_load_complete(&mut self, done: super::types::AchievementLoadDone) {
         use romm_api::core::achievements::AchievementLoadResult;
+        if done.gen != self.achievement_load_gen {
+            return;
+        }
         if let AppScreen::GameDetail(detail) = &mut self.screen {
             if detail.rom.id != done.rom_id {
                 return;
