@@ -145,7 +145,7 @@ impl App {
 
     fn finish_metadata_apply_success(&mut self, rom: romm_api::types::Rom) {
         let platform_id = rom.platform_id;
-        match &mut self.screen {
+        let applied = match &mut self.screen {
             AppScreen::MetadataMatch(picker) => {
                 picker.previous.apply_refreshed_rom(rom);
                 let placeholder = self.transient_screen_placeholder();
@@ -156,23 +156,27 @@ impl App {
                     detail.message_clear_at = Some(Instant::now() + Duration::from_secs(3));
                     self.screen = AppScreen::GameDetail(Box::new(detail));
                 }
+                true
             }
             AppScreen::GameDetail(detail) if detail.rom.id == rom.id => {
                 detail.apply_refreshed_rom(rom);
                 detail.metadata_unmatch_confirm = false;
                 detail.message = Some("Metadata updated.".into());
                 detail.message_clear_at = Some(Instant::now() + Duration::from_secs(3));
+                true
             }
-            _ => {}
+            _ => false,
+        };
+        if applied {
+            self.invalidate_rom_lists_after_metadata_update(platform_id);
+            self.mark_rom_list_screens_stale_after_metadata_update();
+            if matches!(self.screen, AppScreen::LibraryBrowse(_)) {
+                self.resume_library_rom_load_if_needed("metadata_apply_reload");
+            }
+            self.force_rom_reload_after_metadata = true;
+            self.maybe_start_game_detail_cover_load();
+            self.refresh_current_game_achievements();
         }
-        self.invalidate_rom_lists_after_metadata_update(platform_id);
-        self.mark_rom_list_screens_stale_after_metadata_update();
-        if matches!(self.screen, AppScreen::LibraryBrowse(_)) {
-            self.resume_library_rom_load_if_needed("metadata_apply_reload");
-        }
-        self.force_rom_reload_after_metadata = true;
-        self.maybe_start_game_detail_cover_load();
-        self.refresh_current_game_achievements();
     }
 
     fn invalidate_rom_lists_after_metadata_update(&mut self, platform_id: u64) {
