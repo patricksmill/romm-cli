@@ -141,9 +141,11 @@ impl App {
         self.spawn_metadata_apply_worker(rom_id, platform_id, Default::default(), true);
     }
 
-    fn finish_metadata_apply_success(&mut self, rom: romm_api::types::Rom) {
+    fn finish_metadata_apply_success(&mut self, completed_rom_id: u64, rom: romm_api::types::Rom) {
         let applied = match &mut self.screen {
-            AppScreen::MetadataMatch(picker) => {
+            AppScreen::MetadataMatch(picker)
+                if picker.previous.rom.id == completed_rom_id && rom.id == completed_rom_id =>
+            {
                 picker.previous.apply_refreshed_rom(rom);
                 let placeholder = self.transient_screen_placeholder();
                 let prev = std::mem::replace(&mut self.screen, placeholder);
@@ -155,7 +157,9 @@ impl App {
                 }
                 true
             }
-            AppScreen::GameDetail(detail) if detail.rom.id == rom.id => {
+            AppScreen::GameDetail(detail)
+                if detail.rom.id == completed_rom_id && rom.id == completed_rom_id =>
+            {
                 detail.apply_refreshed_rom(rom);
                 detail.metadata_unmatch_confirm = false;
                 detail.message = Some("Metadata updated.".into());
@@ -191,7 +195,7 @@ impl App {
         done: super::super::background::types::MetadataApplyDone,
     ) {
         match done.result {
-            Ok(rom) => self.finish_metadata_apply_success(*rom),
+            Ok(rom) => self.finish_metadata_apply_success(done.rom_id, *rom),
             Err(e) => {
                 let msg = format!(
                     "Metadata update failed: {}",
