@@ -164,6 +164,7 @@ impl App {
         }
         self.force_rom_reload_after_metadata = true;
         self.maybe_start_game_detail_cover_load();
+        self.refresh_current_game_achievements();
     }
 
     pub(in crate::tui::app) fn apply_metadata_search_complete(
