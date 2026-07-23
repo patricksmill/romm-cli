@@ -7,6 +7,13 @@ Entries before the workspace split (1.0.0) are filtered from the unified monolit
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1](https://github.com/patricksmill/romm-cli/compare/romm-api-v1.3.0...romm-api-v1.3.1) (2026-07-23)
+
+
+### Bug Fixes
+
+* **api:** prevent OpenAPI HTTPS auth downgrade ([#64](https://github.com/patricksmill/romm-cli/issues/64)) ([5bd4edf](https://github.com/patricksmill/romm-cli/commit/5bd4edf90f9ccfc2406e544a0463968e3d57df23))
+
 ## [1.3.0](https://github.com/patricksmill/romm-cli/compare/romm-api-v1.2.0...romm-api-v1.3.0) (2026-07-20)
 
 
