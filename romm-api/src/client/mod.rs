@@ -182,9 +182,6 @@ mod tests {
         let urls = super::openapi_spec_urls("https://example.test");
         assert_eq!(urls[0], "https://example.test/openapi.json");
         assert_eq!(urls[1], "https://example.test/api/openapi.json");
-        assert!(
-            urls.iter().all(|u| u.starts_with("https://")),
-            "{urls:?}"
-        );
+        assert!(urls.iter().all(|u| u.starts_with("https://")), "{urls:?}");
     }
 }
