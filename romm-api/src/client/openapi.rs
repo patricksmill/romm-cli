@@ -16,10 +16,6 @@ pub fn api_root_url(base_url: &str) -> String {
 fn alternate_http_scheme_root(root: &str) -> Option<String> {
     root.strip_prefix("http://")
         .map(|rest| format!("https://{}", rest))
-        .or_else(|| {
-            root.strip_prefix("https://")
-                .map(|rest| format!("http://{}", rest))
-        })
 }
 
 /// Resolves the origin used to fetch `/openapi.json`.
