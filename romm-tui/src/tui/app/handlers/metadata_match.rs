@@ -5,9 +5,11 @@ use std::time::{Duration, Instant};
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 
+use romm_api::core::cache::RomCacheKey;
 use romm_api::error::user_message_with_server_detail;
 
 use super::super::{App, AppScreen};
+use crate::tui::screens::game_detail::GameDetailPrevious;
 use crate::tui::screens::metadata_match::{MetadataMatchPhase, MetadataMatchScreen};
 
 impl App {
@@ -142,6 +144,7 @@ impl App {
     }
 
     fn finish_metadata_apply_success(&mut self, rom: romm_api::types::Rom) {
+        let platform_id = rom.platform_id;
         match &mut self.screen {
             AppScreen::MetadataMatch(picker) => {
                 picker.previous.apply_refreshed_rom(rom);
@@ -162,8 +165,46 @@ impl App {
             }
             _ => {}
         }
+        self.invalidate_rom_lists_after_metadata_update(platform_id);
+        self.mark_rom_list_screens_stale_after_metadata_update();
+        if matches!(self.screen, AppScreen::LibraryBrowse(_)) {
+            self.resume_library_rom_load_if_needed("metadata_apply_reload");
+        }
         self.force_rom_reload_after_metadata = true;
         self.maybe_start_game_detail_cover_load();
+    }
+
+    fn invalidate_rom_lists_after_metadata_update(&mut self, platform_id: u64) {
+        self.rom_cache
+            .remove_metadata_dependent_entries(platform_id);
+        self.rom_partials
+            .retain(|key, _| matches!(key, RomCacheKey::Platform(pid) if *pid != platform_id));
+    }
+
+    fn mark_rom_list_screens_stale_after_metadata_update(&mut self) {
+        match &mut self.screen {
+            AppScreen::GameDetail(detail) => match &mut detail.previous {
+                GameDetailPrevious::Library(lib) => {
+                    lib.clear_roms();
+                    let should_reload = lib.expected_rom_count() > 0;
+                    lib.set_rom_loading(should_reload);
+                }
+                GameDetailPrevious::Search(search) => {
+                    search.clear_results();
+                    search.loading = false;
+                }
+            },
+            AppScreen::LibraryBrowse(lib) => {
+                lib.clear_roms();
+                let should_reload = lib.expected_rom_count() > 0;
+                lib.set_rom_loading(should_reload);
+            }
+            AppScreen::Search(search) => {
+                search.clear_results();
+                search.loading = false;
+            }
+            _ => {}
+        }
     }
 
     pub(in crate::tui::app) fn apply_metadata_search_complete(
