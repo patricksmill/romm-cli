@@ -253,6 +253,18 @@ impl RomCache {
         }
         removed
     }
+
+    /// Remove cached lists that can contain stale rows after one ROM's metadata changes.
+    pub fn remove_metadata_dependent_entries(&mut self, platform_id: u64) -> usize {
+        let before = self.entries.len();
+        self.entries
+            .retain(|k, _| matches!(k, RomCacheKey::Platform(pid) if *pid != platform_id));
+        let removed = before - self.entries.len();
+        if removed > 0 {
+            self.save();
+        }
+        removed
+    }
 }
 
 fn cache_path_with_override() -> (PathBuf, bool) {
@@ -470,6 +482,34 @@ mod tests {
         assert_eq!(cache.remove_all_platform_entries(), 1);
         assert!(cache.get_valid(&RomCacheKey::Platform(2), 1).is_none());
         assert!(cache.get_valid(&RomCacheKey::Collection(9), 1).is_some());
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn remove_metadata_dependent_entries_keeps_only_other_platforms() {
+        let path = temp_cache_path();
+        let mut cache = RomCache::load_from(path.clone());
+        cache.insert(RomCacheKey::Platform(1), sample_rom_list(), 1);
+        cache.insert(RomCacheKey::Platform(2), sample_rom_list(), 1);
+        cache.insert(RomCacheKey::Collection(9), sample_rom_list(), 1);
+        cache.insert(RomCacheKey::SmartCollection(10), sample_rom_list(), 1);
+        cache.insert(
+            RomCacheKey::VirtualCollection("recent".into()),
+            sample_rom_list(),
+            1,
+        );
+
+        assert_eq!(cache.remove_metadata_dependent_entries(1), 4);
+        assert!(cache.get_valid(&RomCacheKey::Platform(1), 1).is_none());
+        assert!(cache.get_valid(&RomCacheKey::Platform(2), 1).is_some());
+        assert!(cache.get_valid(&RomCacheKey::Collection(9), 1).is_none());
+        assert!(cache
+            .get_valid(&RomCacheKey::SmartCollection(10), 1)
+            .is_none());
+        assert!(cache
+            .get_valid(&RomCacheKey::VirtualCollection("recent".into()), 1)
+            .is_none());
 
         let _ = std::fs::remove_file(path);
     }
