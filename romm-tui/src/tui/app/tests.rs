@@ -1,6 +1,7 @@
 use super::{
     background::types::{
-        CollectionPrefetchDone, RomLoadDone, RomLoadEvent, SearchLoadDone, SearchLoadEvent,
+        CollectionPrefetchDone, MetadataApplyDone, RomLoadDone, RomLoadEvent, SearchLoadDone,
+        SearchLoadEvent,
     },
     event::{map_key_to_actions, Action, AppEvent, BackgroundAction},
     rom_load::{primary_rom_load_result_is_current, primary_rom_load_result_matches_selection},
@@ -455,6 +456,79 @@ async fn game_detail_esc_resumes_partial_library_rom_load() {
     assert_eq!(expected, &100);
     assert_eq!(context, &"restore_partial_library");
     assert!(req.as_ref().is_some_and(|r| r.platform_id == Some(1)));
+}
+
+#[test]
+fn metadata_apply_success_marks_previous_library_stale_and_clears_live_cache() {
+    let mut app = app_with_library(vec![platform(1, "NES", 1)]);
+    let stale_list = RomList {
+        total: 1,
+        limit: 50,
+        offset: 0,
+        items: vec![rom_fixture()],
+    };
+    let partial_list = RomList {
+        total: 2,
+        limit: 50,
+        offset: 0,
+        items: vec![rom_fixture()],
+    };
+
+    let mut previous = LibraryBrowseScreen::new(
+        vec![platform(1, "NES", 1)],
+        vec![],
+        LIBRARY_LEFT_PANEL_PERCENT_DEFAULT,
+    );
+    previous.set_roms(stale_list.clone());
+    app.rom_cache
+        .insert(RomCacheKey::Platform(1), stale_list.clone(), 1);
+    app.rom_cache
+        .insert(RomCacheKey::Collection(9), stale_list, 1);
+    app.rom_partials
+        .insert(RomCacheKey::Platform(1), (2, partial_list));
+
+    let detail = GameDetailScreen::new(
+        rom_fixture(),
+        Vec::new(),
+        GameDetailPrevious::Library(Box::new(previous)),
+        app.downloads.shared(),
+        COVER_PANEL_WIDTH_DEFAULT,
+    );
+    app.screen = AppScreen::GameDetail(Box::new(detail));
+
+    let mut updated = rom_fixture();
+    updated.name = "Updated Metadata".into();
+    app.apply_background(BackgroundAction::MetadataApply(MetadataApplyDone {
+        rom_id: updated.id,
+        platform_id: updated.platform_id,
+        result: Ok(Box::new(updated)),
+    }));
+
+    assert!(app
+        .rom_cache
+        .get_valid(&RomCacheKey::Platform(1), 1)
+        .is_none());
+    assert!(app
+        .rom_cache
+        .get_valid(&RomCacheKey::Collection(9), 1)
+        .is_none());
+    assert!(!app.rom_partials.contains_key(&RomCacheKey::Platform(1)));
+
+    let AppScreen::GameDetail(detail) = &app.screen else {
+        panic!("expected game detail after metadata apply");
+    };
+    assert_eq!(detail.rom.name, "Updated Metadata");
+    let GameDetailPrevious::Library(previous) = &detail.previous else {
+        panic!("expected previous library screen");
+    };
+    assert!(
+        previous.roms.is_none(),
+        "stale library ROM list should be cleared after metadata apply"
+    );
+    assert!(
+        previous.rom_loading,
+        "returning to the previous library should trigger a fresh load"
+    );
 }
 
 #[tokio::test]
