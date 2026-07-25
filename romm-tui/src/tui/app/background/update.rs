@@ -74,12 +74,13 @@ impl App {
             RomLoadEvent::Batch(roms) => {
                 // ponytail: disk cache stays complete-only; in-memory partials resume mid-fetch.
                 let fetch_complete = romm_api::core::roms::rom_list_fetch_complete(&roms);
+                let cache_complete = romm_api::core::roms::rom_list_cache_complete(&roms);
                 if let Some(ref k) = done.key {
-                    if fetch_complete {
+                    if cache_complete {
                         self.rom_cache
                             .insert(k.clone(), roms.clone(), done.expected);
                         self.rom_partials.remove(k);
-                    } else {
+                    } else if !fetch_complete {
                         self.rom_partials
                             .insert(k.clone(), (done.expected, roms.clone()));
                     }
@@ -118,7 +119,7 @@ impl App {
     fn apply_collection_prefetch_complete(&mut self, done: super::types::CollectionPrefetchDone) {
         self.collection_prefetch_inflight_keys.remove(&done.key);
         if let Some(roms) = done.roms {
-            if romm_api::core::roms::rom_list_fetch_complete(&roms) {
+            if romm_api::core::roms::rom_list_cache_complete(&roms) {
                 self.rom_cache.insert(done.key, roms, done.expected);
             } else {
                 tracing::debug!(

@@ -4,7 +4,8 @@ use anyhow::Result;
 
 use crate::tui::screens::library_browse::LibrarySubsection;
 use romm_api::core::library_scan::ScanCacheInvalidate;
-use romm_api::error::RommError;
+use romm_api::core::roms::ROM_PAGE_CEILING;
+use romm_api::error::{ApiError, RommError};
 
 use super::background::types::{RomLoadDone, RomLoadEvent};
 use crate::tui::keyboard_help::apply_keyboard_help_scroll;
@@ -250,7 +251,24 @@ impl App {
                     Ok(mut batch) => {
                         if let Some(ref mut all) = aggregated {
                             if batch.items.is_empty() {
-                                break;
+                                if all.items.len() as u64 >= all.total {
+                                    break;
+                                }
+                                let _ = tx.send(RomLoadDone {
+                                    gen,
+                                    key: key.clone(),
+                                    expected,
+                                    event: RomLoadEvent::Failed(RommError::Api(
+                                        ApiError::UnexpectedResponse(format!(
+                                            "ROM list pagination returned no rows at offset {} before total {}",
+                                            all.items.len(),
+                                            all.total
+                                        )),
+                                    )),
+                                    context,
+                                    started,
+                                });
+                                return;
                             }
                             all.items.append(&mut batch.items);
                             let _ = tx.send(RomLoadDone {
@@ -268,6 +286,22 @@ impl App {
                         } else {
                             let loaded = batch.items.len() as u64;
                             let total = batch.total;
+                            if loaded == 0 && total > 0 {
+                                let _ = tx.send(RomLoadDone {
+                                    gen,
+                                    key: key.clone(),
+                                    expected,
+                                    event: RomLoadEvent::Failed(RommError::Api(
+                                        ApiError::UnexpectedResponse(format!(
+                                            "ROM list pagination returned no rows at offset {} before total {}",
+                                            batch.offset, total
+                                        )),
+                                    )),
+                                    context,
+                                    started,
+                                });
+                                return;
+                            }
                             let _ = tx.send(RomLoadDone {
                                 gen,
                                 key: key.clone(),
@@ -296,7 +330,7 @@ impl App {
                     }
                 }
                 if let Some(ref all) = aggregated {
-                    if all.items.len() >= 20000 {
+                    if all.items.len() as u64 >= ROM_PAGE_CEILING {
                         break;
                     }
                 }

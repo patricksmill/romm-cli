@@ -221,7 +221,7 @@ impl RomCache {
         self.entries
             .get(key)
             .filter(|(stored_count, list)| {
-                *stored_count == expected_count && crate::core::roms::rom_list_fetch_complete(list)
+                *stored_count == expected_count && crate::core::roms::rom_list_cache_complete(list)
             })
             .map(|(_, list)| list)
     }
@@ -419,6 +419,27 @@ mod tests {
         assert!(
             cache.get_valid(&key, 100).is_none(),
             "partial page must not count as a valid cache hit"
+        );
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn get_valid_rejects_safety_capped_list_short_of_total() {
+        let path = temp_cache_path();
+        let mut cache = RomCache::load_from(path.clone());
+        let key = RomCacheKey::Platform(42);
+        let mut list = sample_rom_list();
+        let rom = list.items[0].clone();
+        list.total = crate::core::roms::ROM_PAGE_CEILING + 1;
+        list.items = vec![rom; crate::core::roms::ROM_PAGE_CEILING as usize];
+        cache.entries.insert(key.clone(), (list.total, list));
+
+        assert!(
+            cache
+                .get_valid(&key, crate::core::roms::ROM_PAGE_CEILING + 1)
+                .is_none(),
+            "safety-capped lists are truncated and must not count as valid cache hits"
         );
 
         let _ = std::fs::remove_file(path);

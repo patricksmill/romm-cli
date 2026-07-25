@@ -13,7 +13,12 @@ pub const ROM_PAGE_CEILING: u64 = 20000;
 /// (`items.len() >= total`, or the safety ceiling was hit).
 pub fn rom_list_fetch_complete(list: &RomList) -> bool {
     let loaded = list.items.len() as u64;
-    loaded >= list.total || loaded >= ROM_PAGE_CEILING
+    rom_list_cache_complete(list) || loaded >= ROM_PAGE_CEILING
+}
+
+/// True when a ROM list contains every row advertised by the API.
+pub fn rom_list_cache_complete(list: &RomList) -> bool {
+    list.items.len() as u64 >= list.total
 }
 
 /// Fetch all pages for a `GetRoms` request up to [`ROM_PAGE_CEILING`].
