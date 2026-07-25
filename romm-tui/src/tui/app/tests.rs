@@ -23,7 +23,9 @@ use romm_api::feature_compat::{
 use romm_api::types::{Platform, RomList};
 use romm_api::update::UpdateStatus;
 use serde_json::json;
-use std::time::Instant;
+use std::time::{Duration, Instant};
+use wiremock::matchers::{method, path, query_param};
+use wiremock::{Mock, MockServer, ResponseTemplate};
 
 fn platform(id: u64, name: &str, rom_count: u64) -> Platform {
     serde_json::from_value(json!({
@@ -64,9 +66,9 @@ fn platform(id: u64, name: &str, rom_count: u64) -> Platform {
     .expect("valid platform fixture")
 }
 
-fn app_with_library(platforms: Vec<Platform>) -> App {
+fn app_with_library_base_url(platforms: Vec<Platform>, base_url: String) -> App {
     let config = Config {
-        base_url: "http://127.0.0.1:9".into(),
+        base_url,
         download_dir: "/tmp".into(),
         use_https: false,
         auth: None,
@@ -93,6 +95,10 @@ fn app_with_library(platforms: Vec<Platform>) -> App {
         LIBRARY_LEFT_PANEL_PERCENT_DEFAULT,
     )));
     app
+}
+
+fn app_with_library(platforms: Vec<Platform>) -> App {
+    app_with_library_base_url(platforms, "http://127.0.0.1:9".into())
 }
 
 fn update_status_fixture() -> UpdateStatus {
@@ -362,6 +368,102 @@ fn primary_rom_load_complete_batch_is_cached() {
             .get_valid(&RomCacheKey::Platform(1), 1)
             .is_some(),
         "finished ROM list should still be cached"
+    );
+}
+
+#[test]
+fn primary_rom_load_ceiling_batch_is_not_disk_cached() {
+    let total = romm_api::core::roms::ROM_PAGE_CEILING + 1;
+    let mut app = app_with_library(vec![platform(1, "NES", total)]);
+    app.rom_load_gen = 1;
+    app.rom_load_tx
+        .send(RomLoadDone {
+            gen: 1,
+            key: Some(RomCacheKey::Platform(1)),
+            expected: total,
+            event: RomLoadEvent::Batch(RomList {
+                total,
+                limit: 50,
+                offset: 0,
+                items: (0..romm_api::core::roms::ROM_PAGE_CEILING)
+                    .map(|_| rom_fixture())
+                    .collect(),
+            }),
+            context: "test_ceiling_batch",
+            started: Instant::now(),
+        })
+        .expect("send ceiling batch");
+
+    app.poll_background_tasks();
+
+    assert!(
+        app.rom_cache
+            .get_valid(&RomCacheKey::Platform(1), total)
+            .is_none(),
+        "safety-capped lists must not persist as complete cache entries"
+    );
+}
+
+#[tokio::test]
+async fn deferred_rom_load_empty_page_before_total_fails_instead_of_completing() {
+    let mock_server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/roms"))
+        .and(query_param("platform_ids", "1"))
+        .and(query_param("limit", "50"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "items": [],
+            "total": 100,
+            "limit": 50,
+            "offset": 0
+        })))
+        .mount(&mock_server)
+        .await;
+
+    let mut app = app_with_library_base_url(vec![platform(1, "NES", 100)], mock_server.uri());
+    let req = romm_api::endpoints::roms::GetRoms {
+        platform_id: Some(1),
+        limit: Some(50),
+        ..Default::default()
+    };
+    app.deferred_load_roms = Some((
+        Some(RomCacheKey::Platform(1)),
+        Some(req),
+        100,
+        "test_empty_page",
+        Instant::now() - Duration::from_millis(300),
+    ));
+
+    app.process_deferred_rom_load_for_test();
+
+    let mut saw_failure_footer = false;
+    let mut last_state = String::new();
+    for _ in 0..40 {
+        app.poll_background_tasks();
+        if let AppScreen::LibraryBrowse(ref lib) = app.screen {
+            last_state = format!(
+                "loading={}, footer={:?}, rom_count={:?}, cache_key={:?}",
+                lib.rom_loading,
+                lib.metadata_footer,
+                lib.roms.as_ref().map(|roms| roms.items.len()),
+                lib.cache_key()
+            );
+            if !lib.rom_loading
+                && lib
+                    .metadata_footer
+                    .as_deref()
+                    .is_some_and(|footer| footer.contains("Could not load games"))
+            {
+                saw_failure_footer = true;
+                break;
+            }
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+
+    assert!(
+        saw_failure_footer,
+        "empty page before total should surface a load failure instead of silently completing; last state: {last_state}"
     );
 }
 
