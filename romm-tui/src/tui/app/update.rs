@@ -4,6 +4,7 @@ use anyhow::Result;
 
 use crate::tui::screens::library_browse::LibrarySubsection;
 use romm_api::core::library_scan::ScanCacheInvalidate;
+use romm_api::core::roms::ROM_PAGE_CEILING;
 use romm_api::error::{ApiError, RommError};
 
 use super::background::types::{RomLoadDone, RomLoadEvent};
@@ -329,7 +330,7 @@ impl App {
                     }
                 }
                 if let Some(ref all) = aggregated {
-                    if all.items.len() >= 20000 {
+                    if all.items.len() as u64 >= ROM_PAGE_CEILING {
                         break;
                     }
                 }
