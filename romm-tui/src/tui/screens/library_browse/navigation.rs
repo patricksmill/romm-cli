@@ -238,8 +238,27 @@ impl LibraryBrowseScreen {
     }
 
     pub fn set_roms(&mut self, roms: RomList) {
+        let selected_key = self
+            .get_selected_group()
+            .map(|(primary, _)| (primary.name.clone(), primary.platform_id));
         self.roms = Some(roms.clone());
         self.rom_groups = Some(utils::group_roms_by_name(&roms.items));
+        let visible = self.visible_rom_groups();
+        if let Some((name, platform_id)) = selected_key {
+            if let Some(index) = visible
+                .iter()
+                .position(|g| g.name == name && g.primary.platform_id == platform_id)
+            {
+                self.rom_selected = index;
+            } else if self.rom_selected >= visible.len() {
+                self.rom_selected = 0;
+                self.scroll_offset = 0;
+            }
+        } else if self.rom_selected >= visible.len() {
+            self.rom_selected = 0;
+            self.scroll_offset = 0;
+        }
+        self.update_rom_scroll(self.visible_rows);
         self.rom_loading = false;
     }
 

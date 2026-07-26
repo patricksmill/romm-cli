@@ -185,6 +185,37 @@ fn rom_next_wraps_within_list() {
 }
 
 #[test]
+fn set_roms_preserves_selected_group_when_new_page_sorts_before_it() {
+    let mut s = LibraryBrowseScreen::new(vec![], vec![], LEFT_PANEL_PERCENT_DEFAULT);
+    s.view_mode = LibraryViewMode::Roms;
+    s.set_roms(RomList {
+        total: 3,
+        limit: 2,
+        offset: 0,
+        items: vec![rom(1, "Bravo", "bravo.zip"), rom(2, "Delta", "delta.zip")],
+    });
+    s.rom_selected = 1;
+    assert_eq!(s.get_selected_group().unwrap().0.id, 2);
+
+    s.set_roms(RomList {
+        total: 3,
+        limit: 3,
+        offset: 0,
+        items: vec![
+            rom(1, "Bravo", "bravo.zip"),
+            rom(2, "Delta", "delta.zip"),
+            rom(3, "Alpha", "alpha.zip"),
+        ],
+    });
+
+    assert_eq!(
+        s.get_selected_group().unwrap().0.id,
+        2,
+        "the highlighted game should remain Delta after regrouping"
+    );
+}
+
+#[test]
 fn zero_rom_platform_builds_no_rom_request() {
     let s = LibraryBrowseScreen::new(
         vec![platform(1, "Empty", 0)],

@@ -74,12 +74,36 @@ impl SearchScreen {
 
     pub fn set_results_for_query(&mut self, query: String, results: RomList) {
         let query_changed = self.last_searched_query.as_ref() != Some(&query);
+        let selected_key = if query_changed {
+            None
+        } else {
+            self.result_groups
+                .as_ref()
+                .and_then(|groups| groups.get(self.selected))
+                .map(|group| (group.name.clone(), group.primary.platform_id))
+        };
         self.results = Some(results.clone());
         self.result_groups = Some(utils::group_roms_by_name(&results.items));
         self.last_searched_query = Some(query);
         if query_changed {
             self.selected = 0;
             self.scroll_offset = 0;
+        } else if let Some(groups) = self.result_groups.as_ref() {
+            if let Some((name, platform_id)) = selected_key {
+                if let Some(index) = groups
+                    .iter()
+                    .position(|g| g.name == name && g.primary.platform_id == platform_id)
+                {
+                    self.selected = index;
+                } else if self.selected >= groups.len() {
+                    self.selected = 0;
+                    self.scroll_offset = 0;
+                }
+            } else if self.selected >= groups.len() {
+                self.selected = 0;
+                self.scroll_offset = 0;
+            }
+            self.update_scroll(self.visible_rows);
         }
     }
 
@@ -255,7 +279,38 @@ impl SearchScreen {
 #[cfg(test)]
 mod tests {
     use super::SearchScreen;
-    use romm_api::types::RomList;
+    use romm_api::types::{Rom, RomList};
+
+    fn rom(id: u64, name: &str, fs_name: &str) -> Rom {
+        Rom {
+            id,
+            platform_id: 1,
+            platform_slug: None,
+            platform_fs_slug: None,
+            platform_custom_name: None,
+            platform_display_name: Some("NES".to_string()),
+            fs_name: fs_name.to_string(),
+            fs_name_no_tags: name.to_string(),
+            fs_name_no_ext: name.to_string(),
+            fs_extension: "zip".to_string(),
+            fs_path: format!("/{id}.zip"),
+            fs_size_bytes: 1,
+            name: name.to_string(),
+            slug: None,
+            summary: None,
+            path_cover_small: None,
+            path_cover_large: None,
+            url_cover: None,
+            has_manual: false,
+            path_manual: None,
+            url_manual: None,
+            is_unidentified: false,
+            is_identified: true,
+            files: Vec::new(),
+            ra_id: None,
+            merged_ra_metadata: None,
+        }
+    }
 
     fn empty_list() -> RomList {
         RomList {
@@ -303,5 +358,41 @@ mod tests {
         s.set_results_for_query("zelda".to_string(), empty_list());
         assert_eq!(s.last_searched_query.as_deref(), Some("zelda"));
         assert!(!s.results_match_current_query());
+    }
+
+    #[test]
+    fn set_results_for_same_query_preserves_selected_group_when_new_page_sorts_before_it() {
+        let mut s = SearchScreen::new();
+        s.set_results_for_query(
+            "a".to_string(),
+            RomList {
+                items: vec![rom(1, "Bravo", "bravo.zip"), rom(2, "Delta", "delta.zip")],
+                total: 3,
+                limit: 2,
+                offset: 0,
+            },
+        );
+        s.selected = 1;
+        assert_eq!(s.get_selected_group().unwrap().0.id, 2);
+
+        s.set_results_for_query(
+            "a".to_string(),
+            RomList {
+                items: vec![
+                    rom(1, "Bravo", "bravo.zip"),
+                    rom(2, "Delta", "delta.zip"),
+                    rom(3, "Alpha", "alpha.zip"),
+                ],
+                total: 3,
+                limit: 3,
+                offset: 0,
+            },
+        );
+
+        assert_eq!(
+            s.get_selected_group().unwrap().0.id,
+            2,
+            "the highlighted result should remain Delta after regrouping"
+        );
     }
 }
