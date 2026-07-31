@@ -236,9 +236,7 @@ mod tests {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
         drop(listener);
-        let base_url = format!(
-            "http://user:url-secret@127.0.0.1:{port}?token=query-secret"
-        );
+        let base_url = format!("http://user:url-secret@127.0.0.1:{port}?token=query-secret");
 
         let err = client_for(&base_url)
             .fetch_openapi_json()
