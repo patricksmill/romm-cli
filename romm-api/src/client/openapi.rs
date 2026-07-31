@@ -194,4 +194,29 @@ mod tests {
             .expect("second URL should supply valid OpenAPI JSON");
         assert!(got.contains("\"paths\""));
     }
+
+    #[tokio::test]
+    async fn fetch_openapi_json_failure_does_not_echo_auth_body() {
+        let server = MockServer::start().await;
+        let echoed_secret = "proxy echoed Authorization: Bearer secret";
+        Mock::given(method("GET"))
+            .and(path("/openapi.json"))
+            .respond_with(ResponseTemplate::new(401).set_body_string(echoed_secret))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/api/openapi.json"))
+            .respond_with(ResponseTemplate::new(401).set_body_string(echoed_secret))
+            .mount(&server)
+            .await;
+
+        let err = client_for(&server.uri())
+            .fetch_openapi_json()
+            .await
+            .expect_err("failed OpenAPI downloads should report sanitized attempts");
+        let msg = err.to_string();
+        assert!(!msg.contains("Bearer secret"), "{msg}");
+        assert!(!err.redacted_for_log().contains("Bearer secret"));
+        assert!(msg.contains("401"));
+    }
 }
