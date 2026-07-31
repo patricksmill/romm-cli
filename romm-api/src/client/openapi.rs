@@ -48,6 +48,17 @@ pub fn openapi_spec_urls(api_root: &str) -> Vec<String> {
     urls
 }
 
+fn openapi_failure_summary(url: &str, error: &ApiError) -> String {
+    let reason = match error {
+        ApiError::Request(e) => format!(
+            "ApiError: request failed: {}",
+            crate::log_redact::redact_url_for_log(&e.to_string())
+        ),
+        _ => error.redacted_for_log(),
+    };
+    format!("{}: {reason}", crate::log_redact::redact_url_for_log(url))
+}
+
 impl RommClient {
     /// RomM application version from `GET /api/heartbeat` (`SYSTEM.VERSION`), if the endpoint succeeds.
     pub async fn rom_server_version_from_heartbeat(&self) -> Option<String> {
@@ -66,11 +77,7 @@ impl RommClient {
         for url in &urls {
             match self.fetch_openapi_json_once(url).await {
                 Ok(body) => return Ok(body),
-                Err(e) => failures.push(format!(
-                    "{}: {}",
-                    crate::log_redact::redact_url_for_log(url),
-                    e.redacted_for_log()
-                )),
+                Err(e) => failures.push(openapi_failure_summary(url, &e)),
             }
         }
         Err(ApiError::UnexpectedResponse(format!(
