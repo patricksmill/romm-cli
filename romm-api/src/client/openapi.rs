@@ -48,6 +48,17 @@ pub fn openapi_spec_urls(api_root: &str) -> Vec<String> {
     urls
 }
 
+fn openapi_failure_summary(url: &str, error: &ApiError) -> String {
+    let reason = match error {
+        ApiError::Request(e) => format!(
+            "ApiError: request failed: {}",
+            crate::log_redact::redact_url_for_log(&e.to_string())
+        ),
+        _ => error.redacted_for_log(),
+    };
+    format!("{}: {reason}", crate::log_redact::redact_url_for_log(url))
+}
+
 impl RommClient {
     /// RomM application version from `GET /api/heartbeat` (`SYSTEM.VERSION`), if the endpoint succeeds.
     pub async fn rom_server_version_from_heartbeat(&self) -> Option<String> {
@@ -66,7 +77,7 @@ impl RommClient {
         for url in &urls {
             match self.fetch_openapi_json_once(url).await {
                 Ok(body) => return Ok(body),
-                Err(e) => failures.push(format!("{url}: {e}")),
+                Err(e) => failures.push(openapi_failure_summary(url, &e)),
             }
         }
         Err(ApiError::UnexpectedResponse(format!(
@@ -193,5 +204,49 @@ mod tests {
             .await
             .expect("second URL should supply valid OpenAPI JSON");
         assert!(got.contains("\"paths\""));
+    }
+
+    #[tokio::test]
+    async fn fetch_openapi_json_failure_does_not_echo_auth_body() {
+        let server = MockServer::start().await;
+        let echoed_secret = "proxy echoed Authorization: Bearer secret";
+        Mock::given(method("GET"))
+            .and(path("/openapi.json"))
+            .respond_with(ResponseTemplate::new(401).set_body_string(echoed_secret))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/api/openapi.json"))
+            .respond_with(ResponseTemplate::new(401).set_body_string(echoed_secret))
+            .mount(&server)
+            .await;
+
+        let err = client_for(&server.uri())
+            .fetch_openapi_json()
+            .await
+            .expect_err("failed OpenAPI downloads should report sanitized attempts");
+        let msg = err.to_string();
+        assert!(!msg.contains("Bearer secret"), "{msg}");
+        assert!(!err.redacted_for_log().contains("Bearer secret"));
+        assert!(msg.contains("401"));
+    }
+
+    #[tokio::test]
+    async fn fetch_openapi_json_request_error_redacts_url_secrets() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        drop(listener);
+        let base_url = format!("http://user:url-secret@127.0.0.1:{port}?token=query-secret");
+
+        let err = client_for(&base_url)
+            .fetch_openapi_json()
+            .await
+            .expect_err("connection failures should report sanitized URLs");
+        let msg = err.to_string();
+        assert!(!msg.contains("url-secret"), "{msg}");
+        assert!(!msg.contains("query-secret"), "{msg}");
+        let log_msg = err.redacted_for_log();
+        assert!(!log_msg.contains("url-secret"), "{log_msg}");
+        assert!(!log_msg.contains("query-secret"), "{log_msg}");
     }
 }
