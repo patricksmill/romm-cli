@@ -66,7 +66,11 @@ impl RommClient {
         for url in &urls {
             match self.fetch_openapi_json_once(url).await {
                 Ok(body) => return Ok(body),
-                Err(e) => failures.push(format!("{url}: {e}")),
+                Err(e) => failures.push(format!(
+                    "{}: {}",
+                    crate::log_redact::redact_url_for_log(url),
+                    e.redacted_for_log()
+                )),
             }
         }
         Err(ApiError::UnexpectedResponse(format!(
