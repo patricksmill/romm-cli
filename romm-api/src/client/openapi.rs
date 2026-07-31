@@ -223,4 +223,25 @@ mod tests {
         assert!(!err.redacted_for_log().contains("Bearer secret"));
         assert!(msg.contains("401"));
     }
+
+    #[tokio::test]
+    async fn fetch_openapi_json_request_error_redacts_url_secrets() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        drop(listener);
+        let base_url = format!(
+            "http://user:url-secret@127.0.0.1:{port}?token=query-secret"
+        );
+
+        let err = client_for(&base_url)
+            .fetch_openapi_json()
+            .await
+            .expect_err("connection failures should report sanitized URLs");
+        let msg = err.to_string();
+        assert!(!msg.contains("url-secret"), "{msg}");
+        assert!(!msg.contains("query-secret"), "{msg}");
+        let log_msg = err.redacted_for_log();
+        assert!(!log_msg.contains("url-secret"), "{log_msg}");
+        assert!(!log_msg.contains("query-secret"), "{log_msg}");
+    }
 }
