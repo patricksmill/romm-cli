@@ -2,11 +2,12 @@ use std::time::Instant;
 
 use crate::config::normalize_romm_origin;
 use crate::error::ApiError;
+use reqwest::{header::HeaderMap, redirect::Policy, Client as HttpClient, Url};
 
 use super::response::{
     api_error_from_response_truncated, read_error_response_text, version_from_heartbeat_json,
 };
-use super::RommClient;
+use super::{http_user_agent, RommClient};
 
 /// Returns the browser-style origin for RomM (no `/api` suffix).
 pub fn api_root_url(base_url: &str) -> String {
@@ -64,7 +65,7 @@ impl RommClient {
         let urls = openapi_spec_urls(&root);
         let mut failures = Vec::new();
         for url in &urls {
-            match self.fetch_openapi_json_once(url).await {
+            match self.fetch_openapi_json_once(url, &root).await {
                 Ok(body) => return Ok(body),
                 Err(e) => failures.push(format!("{url}: {e}")),
             }
@@ -76,11 +77,20 @@ impl RommClient {
         )))
     }
 
-    async fn fetch_openapi_json_once(&self, url: &str) -> Result<String, ApiError> {
-        let headers = self.build_headers()?;
+    async fn fetch_openapi_json_once(
+        &self,
+        url: &str,
+        auth_origin: &str,
+    ) -> Result<String, ApiError> {
+        let headers = if should_send_auth_to_openapi_url(url, auth_origin) {
+            self.build_headers()?
+        } else {
+            HeaderMap::new()
+        };
 
+        let http = openapi_http_client()?;
         let t0 = Instant::now();
-        let resp = self.http.get(url).headers(headers).send().await?;
+        let resp = http.get(url).headers(headers).send().await?;
 
         let status = resp.status();
         if self.verbose {
@@ -100,6 +110,26 @@ impl RommClient {
         validate_openapi_json_body(&body)?;
         Ok(body)
     }
+}
+
+fn should_send_auth_to_openapi_url(url: &str, auth_origin: &str) -> bool {
+    let Ok(openapi_url) = Url::parse(url) else {
+        return false;
+    };
+    let Ok(auth_origin) = Url::parse(&normalize_romm_origin(auth_origin)) else {
+        return false;
+    };
+
+    openapi_url.scheme() == auth_origin.scheme()
+        && openapi_url.host_str() == auth_origin.host_str()
+        && openapi_url.port_or_known_default() == auth_origin.port_or_known_default()
+}
+
+fn openapi_http_client() -> Result<HttpClient, ApiError> {
+    Ok(HttpClient::builder()
+        .user_agent(http_user_agent())
+        .redirect(Policy::none())
+        .build()?)
 }
 
 /// Reject empty/HTML/non-OpenAPI 200 bodies so callers can try the next URL or fall back.
@@ -124,19 +154,26 @@ fn validate_openapi_json_body(body: &str) -> Result<(), ApiError> {
 mod tests {
     use crate::config::{AuthConfig, Config, ExtrasDefaults};
     use wiremock::matchers::{method, path};
-    use wiremock::{Mock, MockServer, ResponseTemplate};
+    use wiremock::{Match, Mock, MockServer, Request, ResponseTemplate};
 
     use super::*;
 
     fn client_for(base_url: &str) -> RommClient {
+        client_for_auth(
+            base_url,
+            AuthConfig::Bearer {
+                token: "secret".to_string(),
+            },
+        )
+    }
+
+    fn client_for_auth(base_url: &str, auth: AuthConfig) -> RommClient {
         RommClient::new(
             &Config {
                 base_url: base_url.to_string(),
                 download_dir: ".".to_string(),
                 use_https: false,
-                auth: Some(AuthConfig::Bearer {
-                    token: "secret".to_string(),
-                }),
+                auth: Some(auth),
                 extras_defaults: ExtrasDefaults::default(),
                 save_sync: Default::default(),
                 roms_layout: Default::default(),
@@ -146,6 +183,14 @@ mod tests {
             false,
         )
         .expect("client")
+    }
+
+    struct MissingHeader(&'static str);
+
+    impl Match for MissingHeader {
+        fn matches(&self, request: &Request) -> bool {
+            !request.headers.contains_key(self.0)
+        }
     }
 
     #[tokio::test]
@@ -193,5 +238,66 @@ mod tests {
             .await
             .expect("second URL should supply valid OpenAPI JSON");
         assert!(got.contains("\"paths\""));
+    }
+
+    #[tokio::test]
+    async fn fetch_openapi_json_once_omits_auth_for_off_origin_url() {
+        let server = MockServer::start().await;
+        let body = r#"{"openapi":"3.0.0","info":{"version":"1.0.0"},"paths":{}}"#;
+        Mock::given(method("GET"))
+            .and(path("/openapi.json"))
+            .and(MissingHeader("authorization"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(body))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let client = client_for("http://romm.example/api");
+        let got = client
+            .fetch_openapi_json_once(
+                &format!("{}/openapi.json", server.uri()),
+                "http://romm.example",
+            )
+            .await
+            .expect("off-origin OpenAPI fetch should still succeed without auth");
+
+        assert!(got.contains("\"paths\""));
+    }
+
+    #[tokio::test]
+    async fn fetch_openapi_json_once_does_not_follow_off_origin_redirect_with_api_key_auth() {
+        let origin = MockServer::start().await;
+        let redirected = MockServer::start().await;
+        let body = r#"{"openapi":"3.0.0","info":{"version":"1.0.0"},"paths":{}}"#;
+
+        Mock::given(method("GET"))
+            .and(path("/openapi.json"))
+            .respond_with(
+                ResponseTemplate::new(302)
+                    .insert_header("Location", format!("{}/openapi.json", redirected.uri())),
+            )
+            .expect(1)
+            .mount(&origin)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/openapi.json"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(body))
+            .expect(0)
+            .mount(&redirected)
+            .await;
+
+        let client = client_for_auth(
+            &origin.uri(),
+            AuthConfig::ApiKey {
+                header: "X-API-Key".to_string(),
+                key: "secret".to_string(),
+            },
+        );
+        let err = client
+            .fetch_openapi_json_once(&format!("{}/openapi.json", origin.uri()), &origin.uri())
+            .await
+            .expect_err("off-origin OpenAPI redirect should not be followed");
+
+        assert!(err.to_string().contains("302"), "{err}");
     }
 }
