@@ -24,12 +24,12 @@ pub async fn prepare_download_target_destination(
     if current_size == expected_size {
         return Ok(true);
     }
-    if current_size > expected_size {
+    if current_size != expected_size {
         tokio::fs::remove_file(&target.destination)
             .await
             .map_err(|e| DownloadError::IoContext {
                 context: format!(
-                    "remove oversized stale download {} ({} > {} bytes)",
+                    "remove stale download {} ({} != {} bytes)",
                     target.destination.display(),
                     current_size,
                     expected_size
@@ -217,4 +217,46 @@ pub(crate) fn final_download_path_for_rom(
         .unwrap_or_else(|| format!("platform-{}", rom.platform_id));
     let console_dir = roms_dir.join(utils::sanitize_filename(&platform_slug));
     console_dir.join(sanitized_final_filename(&rom.fs_name, rom.id))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::extras::{DownloadAssetKind, DownloadTarget};
+
+    fn temp_path(label: &str) -> std::path::PathBuf {
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("time")
+            .as_nanos();
+        std::env::temp_dir().join(format!("romm-download-{label}-{}-{ts}", std::process::id()))
+    }
+
+    fn target(destination: std::path::PathBuf, expected_size_bytes: Option<u64>) -> DownloadTarget {
+        DownloadTarget {
+            kind: DownloadAssetKind::RomFile,
+            title: "file".into(),
+            source_url: "/api/roms/1/files/content/file.bin".into(),
+            source_query: Vec::new(),
+            destination,
+            expected_size_bytes,
+        }
+    }
+
+    #[tokio::test]
+    async fn prepare_target_removes_undersized_existing_file_before_download() {
+        let path = temp_path("undersized");
+        std::fs::write(&path, b"OLD").expect("write stale partial");
+        let target = target(path.clone(), Some(7));
+
+        let already_present = prepare_download_target_destination(&target)
+            .await
+            .expect("prepare target");
+
+        assert!(!already_present);
+        assert!(
+            !path.exists(),
+            "undersized stale file must be removed so the next download cannot append to it"
+        );
+    }
 }
