@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -213,6 +213,47 @@ fn safe_download_file_name(input: &str, save_id: u64) -> String {
     }
 }
 
+fn reserve_download_target(
+    download_base: &Path,
+    file_name: &str,
+    save_id: u64,
+    reserved: &mut HashSet<PathBuf>,
+) -> PathBuf {
+    let preferred = safe_download_file_name(file_name, save_id);
+    let preferred_path = download_base.join(&preferred);
+    if !reserved.contains(&preferred_path) && !preferred_path.exists() {
+        reserved.insert(preferred_path.clone());
+        return preferred_path;
+    }
+
+    let path = Path::new(&preferred);
+    let stem = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .filter(|s| !s.is_empty())
+        .unwrap_or("save");
+    let extension = path.extension().and_then(|s| s.to_str());
+
+    for attempt in 0u64.. {
+        let suffix = if attempt == 0 {
+            format!("-save-{save_id}")
+        } else {
+            format!("-save-{save_id}-{attempt}")
+        };
+        let candidate = match extension {
+            Some(ext) => format!("{stem}{suffix}.{ext}"),
+            None => format!("{stem}{suffix}"),
+        };
+        let candidate_path = download_base.join(candidate);
+        if !reserved.contains(&candidate_path) && !candidate_path.exists() {
+            reserved.insert(candidate_path.clone());
+            return candidate_path;
+        }
+    }
+
+    unreachable!("unbounded search for save download target should always find a free filename")
+}
+
 #[derive(Debug, Clone, Copy, Default)]
 struct RunCounts {
     uploaded: u64,
@@ -377,6 +418,7 @@ async fn handle_run(args: SyncRunArgs, client: &RommClient, format: OutputFormat
 
     let mut counts = RunCounts::default();
     let mut hard_conflict = false;
+    let mut reserved_download_targets = HashSet::new();
     for op in &negotiate.operations {
         match op.action.as_str() {
             "upload" => {
@@ -431,8 +473,12 @@ async fn handle_run(args: SyncRunArgs, client: &RommClient, format: OutputFormat
                     .await
                 {
                     Ok(bytes) => {
-                        let target =
-                            download_base.join(safe_download_file_name(&op.file_name, save_id));
+                        let target = reserve_download_target(
+                            &download_base,
+                            &op.file_name,
+                            save_id,
+                            &mut reserved_download_targets,
+                        );
                         if let Some(parent) = target.parent() {
                             std::fs::create_dir_all(parent).with_context(|| {
                                 format!("failed to create parent folder {}", parent.display())
@@ -810,5 +856,32 @@ mod tests {
     #[test]
     fn safe_download_file_name_falls_back_when_empty() {
         assert_eq!(safe_download_file_name("...", 42), "save-42.sav");
+    }
+
+    #[test]
+    fn reserve_download_target_avoids_existing_and_reserved_files() {
+        let dir = temp_path("download-targets");
+        fs::create_dir_all(&dir).expect("mkdir");
+        fs::write(dir.join("shared.sav"), b"keep").expect("write existing");
+        let mut reserved = HashSet::new();
+
+        let first = reserve_download_target(&dir, "shared.sav", 55, &mut reserved);
+        assert_eq!(
+            first.file_name().and_then(|n| n.to_str()),
+            Some("shared-save-55.sav")
+        );
+        fs::write(&first, b"first").expect("write reserved");
+
+        let second = reserve_download_target(&dir, "shared.sav", 56, &mut reserved);
+        assert_eq!(
+            second.file_name().and_then(|n| n.to_str()),
+            Some("shared-save-56.sav")
+        );
+        assert_eq!(
+            fs::read(dir.join("shared.sav")).expect("read existing"),
+            b"keep"
+        );
+
+        let _ = fs::remove_dir_all(dir);
     }
 }

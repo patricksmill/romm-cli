@@ -281,10 +281,23 @@ impl App {
                         match romm_api::core::cache::RomCache::clear_file() {
                             Ok(true) => {
                                 self.rom_cache = romm_api::core::cache::RomCache::load();
+                                self.rom_partials.clear();
+                                self.rom_load_gen = self.rom_load_gen.saturating_add(1);
+                                self.deferred_load_roms = None;
+                                if let Some(task) = self.rom_load_task.take() {
+                                    task.abort();
+                                }
                                 settings.message =
                                     Some(("ROM cache cleared.".to_string(), MessageTone::Success));
                             }
                             Ok(false) => {
+                                self.rom_cache = romm_api::core::cache::RomCache::load();
+                                self.rom_partials.clear();
+                                self.rom_load_gen = self.rom_load_gen.saturating_add(1);
+                                self.deferred_load_roms = None;
+                                if let Some(task) = self.rom_load_task.take() {
+                                    task.abort();
+                                }
                                 settings.message = Some((
                                     "ROM cache file does not exist.".to_string(),
                                     MessageTone::Warning,
