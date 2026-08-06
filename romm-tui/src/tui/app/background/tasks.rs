@@ -684,8 +684,14 @@ impl super::super::App {
         };
 
         if let Some((key, req, expected, context)) = selection_reload {
+            if let Some(ref k) = key {
+                self.rom_partials.remove(k);
+            }
             self.queue_primary_rom_load(key, req, expected, context);
         } else if let Some((key, req, expected, context)) = post_scan_reload {
+            if let Some(ref k) = key {
+                self.rom_partials.remove(k);
+            }
             self.queue_primary_rom_load(key, req, expected, context);
         }
 
