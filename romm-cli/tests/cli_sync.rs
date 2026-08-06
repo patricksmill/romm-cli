@@ -321,6 +321,129 @@ async fn sync_run_downloads_file() {
 }
 
 #[tokio::test]
+async fn sync_run_downloads_same_named_saves_without_overwriting() {
+    let server = MockServer::start_async().await;
+    let work = temp_dir("run-download-collision");
+    let download_dir = work.join("downloads");
+    std::fs::create_dir_all(&download_dir).expect("mkdir");
+    let manifest = write_manifest(&work, "");
+
+    let _negotiate = server
+        .mock_async(|when, then| {
+            when.method(POST).path("/api/sync/negotiate");
+            then.status(200)
+                .header("content-type", "application/json")
+                .body(
+                    r#"{
+                        "session_id": 15,
+                        "operations": [
+                            {
+                                "action":"download",
+                                "rom_id":8,
+                                "save_id":55,
+                                "file_name":"shared.sav",
+                                "slot":null,
+                                "emulator":null,
+                                "reason":"server newer",
+                                "server_updated_at":"2026-01-01T00:00:00Z",
+                                "server_content_hash":"abc"
+                            },
+                            {
+                                "action":"download",
+                                "rom_id":9,
+                                "save_id":56,
+                                "file_name":"shared.sav",
+                                "slot":null,
+                                "emulator":null,
+                                "reason":"server newer",
+                                "server_updated_at":"2026-01-01T00:00:00Z",
+                                "server_content_hash":"def"
+                            }
+                        ],
+                        "total_upload": 0,
+                        "total_download": 2,
+                        "total_conflict": 0,
+                        "total_no_op": 0
+                    }"#,
+                );
+        })
+        .await;
+
+    let _download_first = server
+        .mock_async(|when, then| {
+            when.method(GET)
+                .path("/api/saves/55/content")
+                .query_param("device_id", "dev-5")
+                .query_param("session_id", "15");
+            then.status(200).body("first-save");
+        })
+        .await;
+    let _download_second = server
+        .mock_async(|when, then| {
+            when.method(GET)
+                .path("/api/saves/56/content")
+                .query_param("device_id", "dev-5")
+                .query_param("session_id", "15");
+            then.status(200).body("second-save");
+        })
+        .await;
+
+    let complete = server
+        .mock_async(|when, then| {
+            when.method(POST).path("/api/sync/sessions/15/complete");
+            then.status(200)
+                .header("content-type", "application/json")
+                .body(
+                    r#"{
+                        "session": {
+                            "id": 15,
+                            "device_id": "dev-5",
+                            "user_id": 1,
+                            "status": "COMPLETED",
+                            "initiated_at": "2026-01-01T00:00:00Z",
+                            "completed_at": "2026-01-01T00:00:01Z",
+                            "operations_planned": 2,
+                            "operations_completed": 2,
+                            "operations_failed": 0,
+                            "error_message": null,
+                            "created_at": "2026-01-01T00:00:00Z",
+                            "updated_at": "2026-01-01T00:00:01Z"
+                        },
+                        "play_session_ingest": null
+                    }"#,
+                );
+        })
+        .await;
+
+    let mut cmd = Command::cargo_bin("romm-cli").expect("binary");
+    cmd.env("API_BASE_URL", server.base_url())
+        .env("API_USE_HTTPS", "false")
+        .args([
+            "sync",
+            "run",
+            "--device-id",
+            "dev-5",
+            "--manifest",
+            manifest.to_str().expect("manifest str"),
+            "--download-dir",
+            download_dir.to_str().expect("download dir str"),
+        ]);
+
+    cmd.assert().success();
+    complete.assert();
+
+    let mut contents = std::fs::read_dir(&download_dir)
+        .expect("read download dir")
+        .map(|entry| {
+            let entry = entry.expect("download entry");
+            std::fs::read_to_string(entry.path()).expect("download contents")
+        })
+        .collect::<Vec<_>>();
+    contents.sort();
+    assert_eq!(contents, vec!["first-save", "second-save"]);
+}
+
+#[tokio::test]
 async fn sync_run_conflict_fails_by_default() {
     let server = MockServer::start_async().await;
     let work = temp_dir("run-conflict-fail");
