@@ -1,6 +1,7 @@
 use super::{
     background::types::{
-        CollectionPrefetchDone, RomLoadDone, RomLoadEvent, SearchLoadDone, SearchLoadEvent,
+        CollectionPrefetchDone, LibraryMetadataRefreshDone, RomLoadDone, RomLoadEvent,
+        SearchLoadDone, SearchLoadEvent,
     },
     event::{map_key_to_actions, Action, AppEvent, BackgroundAction},
     rom_load::{primary_rom_load_result_is_current, primary_rom_load_result_matches_selection},
@@ -9,7 +10,7 @@ use super::{
 use crate::tui::screens::connected_splash::StartupSplash;
 use crate::tui::screens::game_detail::COVER_PANEL_WIDTH_DEFAULT;
 use crate::tui::screens::library_browse::{LibraryBrowseScreen, LibrarySearchMode};
-use crate::tui::screens::settings::{SettingsScreen, SettingsTab};
+use crate::tui::screens::settings::{SettingsConfirm, SettingsScreen, SettingsTab};
 use crate::tui::screens::{GameDetailPrevious, GameDetailScreen, SearchScreen};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use romm_api::client::RommClient;
@@ -284,6 +285,55 @@ fn primary_rom_load_partial_batch_is_not_treated_as_cache_hit() {
             .map(|(expected, list)| (*expected, list.items.len())),
         Some((100, 1)),
         "partial pages must remain available for resume"
+    );
+}
+
+#[tokio::test]
+async fn settings_clear_cache_drops_in_memory_rom_partials() {
+    let mut app = app_with_library(vec![platform(1, "NES", 100)]);
+    app.rom_partials.insert(
+        RomCacheKey::Platform(1),
+        (100, empty_rom_list_with_total(100)),
+    );
+
+    let mut settings = SettingsScreen::new(&app.config, None, supported_save_sync_compatibility());
+    settings.confirm = Some(SettingsConfirm::ClearCache);
+    app.screen = AppScreen::Settings(Box::new(settings));
+
+    let quit = app
+        .handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()))
+        .await
+        .expect("clear cache");
+
+    assert!(!quit);
+    assert!(
+        app.rom_partials.is_empty(),
+        "Clear cache must also drop in-memory partial ROM lists"
+    );
+}
+
+#[test]
+fn forced_metadata_rom_reload_drops_matching_partial_before_requeue() {
+    let mut app = app_with_library(vec![platform(1, "NES", 100)]);
+    app.rom_partials.insert(
+        RomCacheKey::Platform(1),
+        (100, empty_rom_list_with_total(100)),
+    );
+    app.force_rom_reload_after_metadata = true;
+
+    app.apply_background(BackgroundAction::LibraryMetadataRefresh(
+        LibraryMetadataRefreshDone {
+            gen: app.library_metadata_refresh_gen,
+            platforms: Vec::new(),
+            collections: Vec::new(),
+            collection_digest: Vec::new(),
+            warnings: Vec::new(),
+        },
+    ));
+
+    assert!(
+        app.rom_partials.get(&RomCacheKey::Platform(1)).is_none(),
+        "forced metadata reload must start from a fresh ROM list"
     );
 }
 
