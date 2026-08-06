@@ -146,6 +146,29 @@ fn empty_rom_list_with_total(total: u64) -> RomList {
     }
 }
 
+struct EnvOverride {
+    key: &'static str,
+    previous: Option<std::ffi::OsString>,
+}
+
+impl EnvOverride {
+    fn set_path(key: &'static str, value: &std::path::Path) -> Self {
+        let previous = std::env::var_os(key);
+        std::env::set_var(key, value);
+        Self { key, previous }
+    }
+}
+
+impl Drop for EnvOverride {
+    fn drop(&mut self) {
+        if let Some(previous) = &self.previous {
+            std::env::set_var(self.key, previous);
+        } else {
+            std::env::remove_var(self.key);
+        }
+    }
+}
+
 #[tokio::test]
 async fn list_move_to_zero_rom_selection_does_not_queue_deferred_load() {
     let mut app = app_with_library(vec![platform(1, "HasRoms", 5), platform(2, "Empty", 0)]);
@@ -288,28 +311,49 @@ fn primary_rom_load_partial_batch_is_not_treated_as_cache_hit() {
     );
 }
 
-#[tokio::test]
-async fn settings_clear_cache_drops_in_memory_rom_partials() {
-    let mut app = app_with_library(vec![platform(1, "NES", 100)]);
-    app.rom_partials.insert(
-        RomCacheKey::Platform(1),
-        (100, empty_rom_list_with_total(100)),
-    );
+#[test]
+fn settings_clear_cache_drops_in_memory_rom_partials() {
+    let _env_lock = romm_api::config::test_env_lock()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    let cache_path = std::env::temp_dir().join(format!(
+        "romm-tui-cache-clear-{}.json",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("unix epoch")
+            .as_nanos()
+    ));
+    let _cache_env = EnvOverride::set_path("ROMM_CACHE_PATH", &cache_path);
 
-    let mut settings = SettingsScreen::new(&app.config, None, supported_save_sync_compatibility());
-    settings.confirm = Some(SettingsConfirm::ClearCache);
-    app.screen = AppScreen::Settings(Box::new(settings));
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+    runtime.block_on(async {
+        let mut app = app_with_library(vec![platform(1, "NES", 100)]);
+        app.rom_partials.insert(
+            RomCacheKey::Platform(1),
+            (100, empty_rom_list_with_total(100)),
+        );
 
-    let quit = app
-        .handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()))
-        .await
-        .expect("clear cache");
+        let mut settings =
+            SettingsScreen::new(&app.config, None, supported_save_sync_compatibility());
+        settings.confirm = Some(SettingsConfirm::ClearCache);
+        app.screen = AppScreen::Settings(Box::new(settings));
 
-    assert!(!quit);
-    assert!(
-        app.rom_partials.is_empty(),
-        "Clear cache must also drop in-memory partial ROM lists"
-    );
+        let quit = app
+            .handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()))
+            .await
+            .expect("clear cache");
+
+        assert!(!quit);
+        assert!(
+            app.rom_partials.is_empty(),
+            "Clear cache must also drop in-memory partial ROM lists"
+        );
+    });
+
+    let _ = std::fs::remove_file(cache_path);
 }
 
 #[test]
