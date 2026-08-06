@@ -12,7 +12,7 @@ use crate::tui::screens::game_detail::{
     AchievementListState, SaveListState, COVER_PANEL_WIDTH_DEFAULT,
 };
 use crate::tui::screens::library_browse::{LibraryBrowseScreen, LibrarySearchMode};
-use crate::tui::screens::settings::{SettingsScreen, SettingsTab};
+use crate::tui::screens::settings::{SettingsConfirm, SettingsScreen, SettingsTab};
 use crate::tui::screens::{
     GameDetailPrevious, GameDetailScreen, MetadataMatchScreen, SearchScreen,
 };
@@ -508,6 +508,55 @@ fn primary_rom_load_complete_batch_is_cached_while_in_game_detail() {
             .get_valid(&RomCacheKey::Platform(1), 1)
             .is_some(),
         "off-library complete batches should still warm the ROM cache"
+    );
+}
+
+#[tokio::test]
+async fn settings_clear_cache_drops_in_memory_rom_partials() {
+    let mut app = app_with_library(vec![platform(1, "NES", 100)]);
+    app.rom_partials.insert(
+        RomCacheKey::Platform(1),
+        (100, empty_rom_list_with_total(100)),
+    );
+
+    let mut settings = SettingsScreen::new(&app.config, None, supported_save_sync_compatibility());
+    settings.confirm = Some(SettingsConfirm::ClearCache);
+    app.screen = AppScreen::Settings(Box::new(settings));
+
+    let quit = app
+        .handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()))
+        .await
+        .expect("clear cache");
+
+    assert!(!quit);
+    assert!(
+        app.rom_partials.is_empty(),
+        "Clear cache must also drop in-memory partial ROM lists"
+    );
+}
+
+#[test]
+fn forced_metadata_rom_reload_drops_matching_partial_before_requeue() {
+    let mut app = app_with_library(vec![platform(1, "NES", 100)]);
+    app.rom_partials.insert(
+        RomCacheKey::Platform(1),
+        (100, empty_rom_list_with_total(100)),
+    );
+    app.force_rom_reload_after_metadata = true;
+
+    app.apply_background(BackgroundAction::LibraryMetadataRefresh(
+        LibraryMetadataRefreshDone {
+            gen: app.library_metadata_refresh_gen,
+            platforms: Vec::new(),
+            collections: Vec::new(),
+            collection_digest: Vec::new(),
+            warnings: Vec::new(),
+        },
+    ));
+
+    assert!(
+        app.rom_partials.get(&RomCacheKey::Platform(1)).is_none(),
+        "forced metadata reload must start from a fresh ROM list"
     );
 }
 
