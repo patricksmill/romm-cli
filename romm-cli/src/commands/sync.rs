@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -213,6 +213,47 @@ fn safe_download_file_name(input: &str, save_id: u64) -> String {
     }
 }
 
+fn reserve_download_target(
+    download_base: &Path,
+    file_name: &str,
+    save_id: u64,
+    reserved: &mut HashSet<PathBuf>,
+) -> PathBuf {
+    let preferred = safe_download_file_name(file_name, save_id);
+    let preferred_path = download_base.join(&preferred);
+    if !reserved.contains(&preferred_path) && !preferred_path.exists() {
+        reserved.insert(preferred_path.clone());
+        return preferred_path;
+    }
+
+    let path = Path::new(&preferred);
+    let stem = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .filter(|s| !s.is_empty())
+        .unwrap_or("save");
+    let extension = path.extension().and_then(|s| s.to_str());
+
+    for attempt in 0u64.. {
+        let suffix = if attempt == 0 {
+            format!("-save-{save_id}")
+        } else {
+            format!("-save-{save_id}-{attempt}")
+        };
+        let candidate = match extension {
+            Some(ext) => format!("{stem}{suffix}.{ext}"),
+            None => format!("{stem}{suffix}"),
+        };
+        let candidate_path = download_base.join(candidate);
+        if !reserved.contains(&candidate_path) && !candidate_path.exists() {
+            reserved.insert(candidate_path.clone());
+            return candidate_path;
+        }
+    }
+
+    unreachable!("unbounded search for save download target should always find a free filename")
+}
+
 #[derive(Debug, Clone, Copy, Default)]
 struct RunCounts {
     uploaded: u64,
@@ -377,6 +418,7 @@ async fn handle_run(args: SyncRunArgs, client: &RommClient, format: OutputFormat
 
     let mut counts = RunCounts::default();
     let mut hard_conflict = false;
+    let mut reserved_download_targets = HashSet::new();
     for op in &negotiate.operations {
         match op.action.as_str() {
             "upload" => {
@@ -431,8 +473,12 @@ async fn handle_run(args: SyncRunArgs, client: &RommClient, format: OutputFormat
                     .await
                 {
                     Ok(bytes) => {
-                        let target =
-                            download_base.join(safe_download_file_name(&op.file_name, save_id));
+                        let target = reserve_download_target(
+                            &download_base,
+                            &op.file_name,
+                            save_id,
+                            &mut reserved_download_targets,
+                        );
                         if let Some(parent) = target.parent() {
                             std::fs::create_dir_all(parent).with_context(|| {
                                 format!("failed to create parent folder {}", parent.display())
