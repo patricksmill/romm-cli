@@ -857,4 +857,31 @@ mod tests {
     fn safe_download_file_name_falls_back_when_empty() {
         assert_eq!(safe_download_file_name("...", 42), "save-42.sav");
     }
+
+    #[test]
+    fn reserve_download_target_avoids_existing_and_reserved_files() {
+        let dir = temp_path("download-targets");
+        fs::create_dir_all(&dir).expect("mkdir");
+        fs::write(dir.join("shared.sav"), b"keep").expect("write existing");
+        let mut reserved = HashSet::new();
+
+        let first = reserve_download_target(&dir, "shared.sav", 55, &mut reserved);
+        assert_eq!(
+            first.file_name().and_then(|n| n.to_str()),
+            Some("shared-save-55.sav")
+        );
+        fs::write(&first, b"first").expect("write reserved");
+
+        let second = reserve_download_target(&dir, "shared.sav", 56, &mut reserved);
+        assert_eq!(
+            second.file_name().and_then(|n| n.to_str()),
+            Some("shared-save-56.sav")
+        );
+        assert_eq!(
+            fs::read(dir.join("shared.sav")).expect("read existing"),
+            b"keep"
+        );
+
+        let _ = fs::remove_dir_all(dir);
+    }
 }
