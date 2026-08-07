@@ -743,6 +743,18 @@ mod tests {
     }
 
     #[test]
+    fn batch_zip_path_reservation_skips_already_reserved_names() {
+        let mut reserved = std::collections::HashSet::new();
+        let dir = PathBuf::from("/tmp/out");
+
+        let first = reserve_unique_zip_path(&dir, "Mario", &mut reserved);
+        let second = reserve_unique_zip_path(&dir, "Mario", &mut reserved);
+
+        assert_eq!(first, PathBuf::from("/tmp/out/Mario.zip"));
+        assert_eq!(second, PathBuf::from("/tmp/out/Mario__2.zip"));
+    }
+
+    #[test]
     fn extraction_target_dir_rom_layout() {
         let dir = PathBuf::from("/tmp/out");
         let target = extraction_target_dir(&dir, "SNES", "Super Mario World", ExtractLayout::Rom);
