@@ -287,6 +287,93 @@ fn primary_rom_load_partial_batch_is_not_treated_as_cache_hit() {
     );
 }
 
+#[test]
+fn primary_rom_load_batch_updates_partial_while_in_game_detail() {
+    let mut app = app_with_library(vec![platform(1, "NES", 100)]);
+    let previous = LibraryBrowseScreen::new(
+        vec![platform(1, "NES", 100)],
+        vec![],
+        LIBRARY_LEFT_PANEL_PERCENT_DEFAULT,
+    );
+    app.screen = AppScreen::GameDetail(Box::new(GameDetailScreen::new(
+        rom_fixture(),
+        Vec::new(),
+        GameDetailPrevious::Library(Box::new(previous)),
+        app.downloads.shared(),
+        COVER_PANEL_WIDTH_DEFAULT,
+    )));
+    app.rom_load_gen = 1;
+
+    app.rom_load_tx
+        .send(RomLoadDone {
+            gen: 1,
+            key: Some(RomCacheKey::Platform(1)),
+            expected: 100,
+            event: RomLoadEvent::Batch(RomList {
+                total: 100,
+                limit: 50,
+                offset: 0,
+                items: vec![rom_fixture(), rom_fixture()],
+            }),
+            context: "test_off_library_partial",
+            started: Instant::now(),
+        })
+        .expect("send off-library batch");
+
+    app.poll_background_tasks();
+
+    assert_eq!(
+        app.rom_partials
+            .get(&RomCacheKey::Platform(1))
+            .map(|(expected, list)| (*expected, list.items.len())),
+        Some((100, 2)),
+        "off-library batches should still advance resumable partial progress"
+    );
+}
+
+#[test]
+fn primary_rom_load_complete_batch_is_cached_while_in_game_detail() {
+    let mut app = app_with_library(vec![platform(1, "NES", 1)]);
+    let previous = LibraryBrowseScreen::new(
+        vec![platform(1, "NES", 1)],
+        vec![],
+        LIBRARY_LEFT_PANEL_PERCENT_DEFAULT,
+    );
+    app.screen = AppScreen::GameDetail(Box::new(GameDetailScreen::new(
+        rom_fixture(),
+        Vec::new(),
+        GameDetailPrevious::Library(Box::new(previous)),
+        app.downloads.shared(),
+        COVER_PANEL_WIDTH_DEFAULT,
+    )));
+    app.rom_load_gen = 1;
+
+    app.rom_load_tx
+        .send(RomLoadDone {
+            gen: 1,
+            key: Some(RomCacheKey::Platform(1)),
+            expected: 1,
+            event: RomLoadEvent::Batch(RomList {
+                total: 1,
+                limit: 50,
+                offset: 0,
+                items: vec![rom_fixture()],
+            }),
+            context: "test_off_library_complete",
+            started: Instant::now(),
+        })
+        .expect("send off-library complete batch");
+
+    app.poll_background_tasks();
+
+    assert!(
+        app.rom_cache
+            .get_valid(&RomCacheKey::Platform(1), 1)
+            .is_some(),
+        "off-library complete batches should still warm the ROM cache"
+    );
+}
+
 #[tokio::test]
 async fn deferred_rom_load_seeds_ui_from_partial_and_resumes_offset() {
     let mut app = app_with_library(vec![platform(1, "NES", 100)]);
