@@ -763,13 +763,26 @@ mod tests {
     #[test]
     fn batch_zip_path_reservation_skips_already_reserved_names() {
         let mut reserved = std::collections::HashSet::new();
-        let dir = PathBuf::from("/tmp/out");
+        let dir = std::env::temp_dir().join(format!(
+            "romm-batch-path-reservation-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("time")
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).expect("create temp dir");
 
         let first = reserve_unique_zip_path(&dir, "Mario", &mut reserved);
         let second = reserve_unique_zip_path(&dir, "Mario", &mut reserved);
+        std::fs::write(dir.join("Mario__3.zip"), b"existing").expect("write existing zip");
+        let third = reserve_unique_zip_path(&dir, "Mario", &mut reserved);
 
-        assert_eq!(first, PathBuf::from("/tmp/out/Mario.zip"));
-        assert_eq!(second, PathBuf::from("/tmp/out/Mario__2.zip"));
+        assert_eq!(first, dir.join("Mario.zip"));
+        assert_eq!(second, dir.join("Mario__2.zip"));
+        assert_eq!(third, dir.join("Mario__4.zip"));
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
