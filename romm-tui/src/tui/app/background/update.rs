@@ -58,7 +58,8 @@ impl App {
             AppScreen::LibraryBrowse(lib)
                 if super::super::rom_load::primary_rom_load_result_matches_selection(lib, &done.key)
         );
-        if !matches_selection {
+        let on_library_screen = matches!(self.screen, AppScreen::LibraryBrowse(_));
+        if on_library_screen && !matches_selection {
             if matches!(done.event, RomLoadEvent::Complete | RomLoadEvent::Failed(_)) {
                 if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
                     lib.set_rom_loading(false);
@@ -85,7 +86,9 @@ impl App {
                     }
                 }
                 if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
-                    lib.set_roms(roms);
+                    if matches_selection {
+                        lib.set_roms(roms);
+                    }
                 }
                 tracing::debug!(
                     "rom-list-render batch context={} latency_ms={}",
