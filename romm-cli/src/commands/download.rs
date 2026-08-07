@@ -4,8 +4,9 @@ use dialoguer::Confirm;
 use indicatif::ProgressBar;
 use romm_api::error::{DownloadError, RommError};
 use serde::Serialize;
+use std::collections::HashSet;
 use std::io::{self, IsTerminal};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Semaphore;
 
@@ -13,7 +14,7 @@ use romm_api::client::RommClient;
 use romm_api::config::{load_config, RomsLayoutConfig};
 use romm_api::core::download::{
     download_target_with_fallback, extract_zip_archive, prepare_download_target_destination,
-    resolve_console_roms_dir, resolve_download_directory, unique_zip_path,
+    resolve_console_roms_dir, resolve_download_directory,
 };
 use romm_api::core::extras::{
     build_base_rom_file_targets, build_extras_targets, build_update_dlc_targets_for_rom,
@@ -292,6 +293,7 @@ pub async fn handle(
         let mp = presentation.multi_progress();
         let semaphore = Arc::new(Semaphore::new(cmd.jobs));
         let mut handles = Vec::new();
+        let mut reserved_batch_paths = HashSet::new();
         'enqueue: for rom in results.items {
             if interrupt.is_cancelled() {
                 break 'enqueue;
@@ -329,7 +331,7 @@ pub async fn handle(
                 .rsplit_once('.')
                 .map(|(s, _)| s.to_string())
                 .unwrap_or(base.clone());
-            let save_path = unique_zip_path(&console_dir, &stem);
+            let save_path = reserve_unique_zip_path(&console_dir, &stem, &mut reserved_batch_paths);
             let extract = cmd.extract;
             let extract_layout = cmd.extract_layout;
             let delete_zip_after_extract = cmd.delete_zip_after_extract;
@@ -593,6 +595,22 @@ fn resolve_include_extras_choice(cmd: &DownloadCommand) -> Result<bool, RommErro
         .default(false)
         .interact()
         .map_err(|e| RommError::Other(format!("extras prompt failed: {e}")))
+}
+
+fn reserve_unique_zip_path(dir: &Path, stem: &str, reserved: &mut HashSet<PathBuf>) -> PathBuf {
+    let mut n = 1u32;
+    loop {
+        let name = if n == 1 {
+            format!("{stem}.zip")
+        } else {
+            format!("{stem}__{n}.zip")
+        };
+        let path = dir.join(name);
+        if !path.exists() && reserved.insert(path.clone()) {
+            return path;
+        }
+        n = n.saturating_add(1);
+    }
 }
 
 fn is_interactive_terminal() -> bool {
