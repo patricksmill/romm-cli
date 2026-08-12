@@ -57,6 +57,9 @@ use crate::error::{ConfigError, DownloadError};
 
 use serde::{Deserialize, Serialize};
 
+mod registry;
+pub use registry::*;
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -475,6 +478,158 @@ pub fn should_check_updates() -> bool {
 /// Max bytes read from bearer token files (`ROMM_TOKEN_FILE` / `API_TOKEN_FILE`).
 const MAX_TOKEN_FILE_BYTES: usize = 64 * 1024;
 
+fn load_user_json_config() -> Option<Config> {
+    let path = user_config_json_path()?;
+    if !path.is_file() {
+        return None;
+    }
+    let content = std::fs::read_to_string(&path).ok()?;
+    serde_json::from_str(&content).ok()
+}
+
+fn merge_string_field(
+    env_keys: &[&str],
+    json: &Option<Config>,
+    json_getter: impl Fn(&Config) -> String,
+    default: impl FnOnce() -> String,
+) -> ConfigField<String> {
+    for &key in env_keys {
+        if let Some(v) = env_nonempty(key) {
+            return ConfigField {
+                value: v,
+                source: ConfigSource::Env(key.to_string()),
+            };
+        }
+    }
+    if let Some(c) = json {
+        return ConfigField {
+            value: json_getter(c),
+            source: ConfigSource::File,
+        };
+    }
+    ConfigField {
+        value: default(),
+        source: ConfigSource::Default,
+    }
+}
+
+fn merge_use_https(json: &Option<Config>) -> ConfigField<bool> {
+    if let Ok(s) = std::env::var("API_USE_HTTPS") {
+        return ConfigField {
+            value: s.to_lowercase() == "true",
+            source: ConfigSource::Env("API_USE_HTTPS".into()),
+        };
+    }
+    if let Some(c) = json {
+        return ConfigField {
+            value: c.use_https,
+            source: ConfigSource::File,
+        };
+    }
+    ConfigField {
+        value: true,
+        source: ConfigSource::Default,
+    }
+}
+
+fn merge_bool_field(
+    env_key: &str,
+    json: &Option<Config>,
+    json_getter: impl Fn(&Config) -> bool,
+    default: bool,
+) -> Result<ConfigField<bool>, ConfigError> {
+    if let Some(raw) = env_nonempty(env_key) {
+        return Ok(ConfigField {
+            value: registry::parse_bool(env_key, &raw)?,
+            source: ConfigSource::Env(env_key.to_string()),
+        });
+    }
+    if let Some(c) = json {
+        return Ok(ConfigField {
+            value: json_getter(c),
+            source: ConfigSource::File,
+        });
+    }
+    Ok(ConfigField {
+        value: default,
+        source: ConfigSource::Default,
+    })
+}
+
+fn merge_optional_string_field(
+    env_key: &str,
+    json: &Option<Config>,
+    json_getter: impl Fn(&Config) -> Option<String>,
+) -> ConfigField<Option<String>> {
+    if let Some(v) = env_nonempty(env_key) {
+        return ConfigField {
+            value: Some(v),
+            source: ConfigSource::Env(env_key.to_string()),
+        };
+    }
+    if let Some(c) = json {
+        let value = json_getter(c);
+        if value.is_some() {
+            return ConfigField {
+                value,
+                source: ConfigSource::File,
+            };
+        }
+    }
+    ConfigField {
+        value: None,
+        source: ConfigSource::Default,
+    }
+}
+
+fn env_platform_dirs(prefix: &str) -> HashMap<u64, String> {
+    std::env::vars()
+        .filter_map(|(key, value)| {
+            let id = key.strip_prefix(prefix)?;
+            let id = id.parse::<u64>().ok()?;
+            if value.trim().is_empty() {
+                return None;
+            }
+            Some((id, value))
+        })
+        .collect()
+}
+
+fn parse_platform_dirs_json_env(var: &str) -> Result<HashMap<u64, String>, ConfigError> {
+    let Some(raw) = env_nonempty(var) else {
+        return Ok(HashMap::new());
+    };
+    let map: HashMap<String, String> = serde_json::from_str(&raw)
+        .map_err(|e| ConfigError::Other(format!("invalid {var}: {e}")))?;
+    map.into_iter()
+        .map(|(k, v)| {
+            k.parse::<u64>()
+                .map(|id| (id, v))
+                .map_err(|_| ConfigError::Other(format!("invalid platform id in {var}: {k}")))
+        })
+        .collect()
+}
+
+fn parse_roms_layout_json_env() -> Result<Option<RomsLayoutConfig>, ConfigError> {
+    let Some(raw) = env_nonempty("ROMM_ROMS_LAYOUT_JSON") else {
+        return Ok(None);
+    };
+    serde_json::from_str(&raw)
+        .map_err(|e| ConfigError::Other(format!("invalid ROMM_ROMS_LAYOUT_JSON: {e}")))
+        .map(Some)
+}
+
+fn merge_platform_dirs(
+    file: HashMap<u64, String>,
+    json_env: HashMap<u64, String>,
+    per_platform_env: HashMap<u64, String>,
+) -> HashMap<u64, String> {
+    let mut merged = file;
+    merged.extend(json_env);
+    merged.extend(per_platform_env);
+    merged
+}
+
 /// Bearer token: `API_TOKEN` env, else UTF-8 file at `ROMM_TOKEN_FILE` or `API_TOKEN_FILE` path.
 fn token_from_env_or_file() -> Result<Option<String>, ConfigError> {
     if let Some(t) = env_nonempty("API_TOKEN") {
@@ -530,54 +685,50 @@ pub fn disk_has_unresolved_keyring_sentinel(config: &Config) -> bool {
 /// 2. `config.json` file.
 /// 3. OS Keyring (for secrets).
 ///
+/// Returns the merged [`Config`] together with per-field source attribution for scalar keys.
+///
 /// # Errors
 ///
 /// Returns an error if `API_BASE_URL` is not set or if there are issues reading token files.
-pub fn load_config() -> Result<Config, ConfigError> {
-    // 1. Load from JSON first (if it exists)
-    let mut json_config = None;
-    if let Some(path) = user_config_json_path() {
-        if path.is_file() {
-            if let Ok(content) = std::fs::read_to_string(&path) {
-                if let Ok(config) = serde_json::from_str::<Config>(&content) {
-                    json_config = Some(config);
-                }
-            }
-        }
+pub fn load_config_with_sources() -> Result<(Config, ConfigSources), ConfigError> {
+    let json_config = load_user_json_config();
+
+    let base_raw = merge_string_field(
+        &["API_BASE_URL"],
+        &json_config,
+        |c| c.base_url.clone(),
+        String::new,
+    );
+    if base_raw.value.is_empty() {
+        return Err(ConfigError::MissingBaseUrl);
     }
+    let base_url_normalized = normalize_romm_origin(&base_raw.value);
+    let sources_base_url = ConfigField {
+        value: base_url_normalized.clone(),
+        source: base_raw.source,
+    };
 
-    // 2. Resolve base_url
-    let base_raw = env_nonempty("API_BASE_URL")
-        .or_else(|| json_config.as_ref().map(|c| c.base_url.clone()))
-        .ok_or(ConfigError::MissingBaseUrl)?;
-    let mut base_url = normalize_romm_origin(&base_raw);
-
-    // 3. Resolve ROM storage directory
-    let download_dir = env_nonempty("ROMM_ROMS_DIR")
-        .or_else(|| env_nonempty("ROMM_DOWNLOAD_DIR"))
-        .or_else(|| json_config.as_ref().map(|c| c.download_dir.clone()))
-        .unwrap_or_else(|| {
+    let download_dir = merge_string_field(
+        &["ROMM_ROMS_DIR", "ROMM_DOWNLOAD_DIR"],
+        &json_config,
+        |c| c.download_dir.clone(),
+        || {
             dirs::download_dir()
                 .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join("Downloads"))
                 .join("romm-cli")
                 .display()
                 .to_string()
-        });
+        },
+    );
 
-    // 4. Resolve use_https
-    let use_https = if let Ok(s) = std::env::var("API_USE_HTTPS") {
-        s.to_lowercase() == "true"
-    } else if let Some(c) = &json_config {
-        c.use_https
-    } else {
-        true
-    };
+    let use_https = merge_use_https(&json_config);
 
-    if use_https && base_url.starts_with("http://") {
+    let mut base_url = base_url_normalized;
+    if use_https.value && base_url.starts_with("http://") {
         base_url = base_url.replace("http://", "https://");
     }
 
-    // 5. Resolve Auth
+    // Resolve Auth (no scalar source tracking in ConfigSources)
     let mut username = env_nonempty("API_USERNAME");
     let mut password = env_nonempty("API_PASSWORD");
     let mut token = token_from_env_or_file()?;
@@ -696,40 +847,119 @@ pub fn load_config() -> Result<Config, ConfigError> {
         None
     };
 
-    let extras_defaults = json_config
-        .as_ref()
-        .map(|c| c.extras_defaults.clone())
-        .unwrap_or_default();
-    let save_sync = json_config
-        .as_ref()
-        .map(|c| c.save_sync.clone())
-        .unwrap_or_default();
+    let extras_include_related_roms = merge_bool_field(
+        "ROMM_EXTRAS_INCLUDE_RELATED_ROMS",
+        &json_config,
+        |c| c.extras_defaults.include_related_roms,
+        true,
+    )?;
+    let extras_include_cover = merge_bool_field(
+        "ROMM_EXTRAS_INCLUDE_COVER",
+        &json_config,
+        |c| c.extras_defaults.include_cover,
+        true,
+    )?;
+    let extras_include_manual = merge_bool_field(
+        "ROMM_EXTRAS_INCLUDE_MANUAL",
+        &json_config,
+        |c| c.extras_defaults.include_manual,
+        true,
+    )?;
+    let extras_defaults = ExtrasDefaults {
+        include_related_roms: extras_include_related_roms.value,
+        include_cover: extras_include_cover.value,
+        include_manual: extras_include_manual.value,
+    };
 
-    let roms_layout = json_config
-        .as_ref()
-        .map(|c| c.roms_layout.clone())
-        .unwrap_or_default();
+    let save_sync_save_dir =
+        merge_optional_string_field("ROMM_SAVE_SYNC_SAVE_DIR", &json_config, |c| {
+            c.save_sync.save_dir.clone()
+        });
+    let save_sync_device_id =
+        merge_optional_string_field("ROMM_SAVE_SYNC_DEVICE_ID", &json_config, |c| {
+            c.save_sync.device_id.clone()
+        });
 
-    let theme = env_nonempty("ROMM_THEME")
-        .or_else(|| json_config.as_ref().map(|c| c.theme.clone()))
-        .unwrap_or_else(default_theme_id);
+    let file_save_platform_dirs = json_config
+        .as_ref()
+        .map(|c| c.save_sync.platform_dirs.clone())
+        .unwrap_or_default();
+    let save_platform_dirs = merge_platform_dirs(
+        file_save_platform_dirs,
+        parse_platform_dirs_json_env("ROMM_SAVE_SYNC_PLATFORM_DIRS_JSON")?,
+        env_platform_dirs("ROMM_SAVE_SYNC_PLATFORM_DIR_"),
+    );
+
+    let file_roms_platform_dirs = json_config
+        .as_ref()
+        .map(|c| c.roms_layout.platform_dirs.clone())
+        .unwrap_or_default();
+    let roms_layout_json = parse_roms_layout_json_env()?;
+    let mut roms_platform_dirs = file_roms_platform_dirs;
+    if let Some(layout) = roms_layout_json {
+        roms_platform_dirs.extend(layout.platform_dirs);
+    }
+    roms_platform_dirs.extend(env_platform_dirs("ROMM_ROMS_PLATFORM_DIR_"));
+
+    let save_sync = SaveSyncConfig {
+        save_dir: save_sync_save_dir.value.clone(),
+        device_id: save_sync_device_id.value.clone(),
+        platform_dirs: save_platform_dirs,
+    };
+
+    let roms_layout = RomsLayoutConfig {
+        _legacy_mode: json_config
+            .as_ref()
+            .and_then(|c| c.roms_layout._legacy_mode),
+        platform_dirs: roms_platform_dirs,
+    };
+
+    let theme = merge_string_field(
+        &["ROMM_THEME"],
+        &json_config,
+        |c| c.theme.clone(),
+        default_theme_id,
+    );
 
     let tui_layout = json_config
         .as_ref()
         .map(|c| c.tui_layout.clone().normalized())
         .unwrap_or_default();
 
-    Ok(Config {
+    let config = Config {
         base_url,
-        download_dir,
-        use_https,
+        download_dir: download_dir.value.clone(),
+        use_https: use_https.value,
         auth,
         extras_defaults,
         save_sync,
         roms_layout,
-        theme,
+        theme: theme.value.clone(),
         tui_layout,
-    })
+    };
+
+    let sources = ConfigSources {
+        base_url: sources_base_url,
+        download_dir,
+        use_https,
+        theme,
+        extras_include_related_roms,
+        extras_include_cover,
+        extras_include_manual,
+        save_sync_save_dir,
+        save_sync_device_id,
+    };
+
+    Ok((config, sources))
+}
+
+/// Loads the merged configuration from the process environment, `config.json`, and the OS keyring.
+///
+/// # Errors
+///
+/// Returns an error if `API_BASE_URL` is not set or if there are issues reading token files.
+pub fn load_config() -> Result<Config, ConfigError> {
+    load_config_with_sources().map(|(c, _)| c)
 }
 
 /// Persists the user configuration to `config.json` and stores secrets in the OS keyring.
@@ -839,7 +1069,40 @@ pub fn reset_all_settings() -> Result<(), ConfigError> {
     Ok(())
 }
 
-/// Serializes env var mutation in unit tests (also used by `romm-cli` command tests).
+/// Alias for [`reset_all_settings`] (design spec naming).
+pub fn reset_user_config() -> Result<(), ConfigError> {
+    reset_all_settings()
+}
+
+const REDACTED: &str = "<redacted>";
+
+/// Returns a copy of `config` with auth secrets replaced for display.
+pub fn redact_config(config: &Config) -> Config {
+    let mut out = config.clone();
+    if let Some(auth) = out.auth.as_mut() {
+        match auth {
+            AuthConfig::Basic { password, .. } => *password = REDACTED.to_string(),
+            AuthConfig::Bearer { token } => *token = REDACTED.to_string(),
+            AuthConfig::ApiKey { key, .. } => *key = REDACTED.to_string(),
+        }
+    }
+    out
+}
+
+/// Serializes env var names for platform-specific keys (not in [`ConfigKey::env_var`]).
+pub fn env_var_for_platform_key(key: &str) -> Option<String> {
+    if let Ok(parsed) = ConfigKey::parse(key) {
+        return parsed.env_var().map(str::to_string);
+    }
+    if let Some(id) = key.strip_prefix("save_sync.platform_dirs.") {
+        return Some(format!("ROMM_SAVE_SYNC_PLATFORM_DIR_{id}"));
+    }
+    if let Some(id) = key.strip_prefix("roms_layout.platform_dirs.") {
+        return Some(format!("ROMM_ROMS_PLATFORM_DIR_{id}"));
+    }
+    None
+}
+
 #[doc(hidden)]
 pub fn test_env_lock() -> &'static std::sync::Mutex<()> {
     use std::sync::{Mutex, OnceLock};
@@ -1510,6 +1773,18 @@ mod tests {
             }
             _ => panic!("expected basic password sentinel preserved"),
         }
+    }
+
+    #[test]
+    fn load_config_with_sources_marks_env_override() {
+        let _env = TestEnv::new();
+        std::env::set_var("API_BASE_URL", "http://env.test");
+        let (_cfg, sources) = load_config_with_sources().unwrap();
+        assert_eq!(
+            sources.base_url.source,
+            ConfigSource::Env("API_BASE_URL".into())
+        );
+        assert_eq!(sources.base_url.value, "http://env.test");
     }
 
     #[test]
