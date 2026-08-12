@@ -57,6 +57,9 @@ use crate::error::{ConfigError, DownloadError};
 
 use serde::{Deserialize, Serialize};
 
+mod registry;
+pub use registry::*;
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
