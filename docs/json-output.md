@@ -93,6 +93,25 @@ Summary after batch, single-ROM, or extras downloads:
 
 or `{ "status": "up_to_date", "version": "1.0.0" }`.
 
+### `config`
+
+- `config show` — effective merged config (secrets redacted)
+- `config show --sources` — `{ "config": {…}, "sources": {…} }` with per-field `source` (`default`, `file`, `env:VAR`, `keyring`)
+- `config set` — `{ "key", "value", "path" }`
+- `config reset` — `{ "reset": true }`
+
+### `saves`
+
+- `saves list` — array of save metadata objects (same shape as TUI Saves tab)
+- `saves get` — single save schema object
+- `saves download` — `{ "path", "save_id" }`
+- `saves upload` — server response JSON from `POST /api/saves`
+
+### `collections`
+
+- `collections list` — array of collection rows (`id`, `name`, `rom_count`, `is_smart`, `is_virtual`, `virtual_id`, …)
+- `collections get` / `delete` — passthrough API JSON
+
 ## Text-only commands
 
 These ignore `--json` for structured output (human text or paths only):
@@ -100,3 +119,5 @@ These ignore `--json` for structured output (human text or paths only):
 - `init`
 - `completions`
 - `cache path`
+- `config path`
+- `config env-map` (without `--json`; prints env var names as text)

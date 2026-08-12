@@ -1,7 +1,9 @@
 use crate::cli_presentation::CliPresentation;
 use romm_api::error::{from_anyhow, RommError};
 
-use crate::commands::{api, auth, cache, download, platforms, roms, scan, sync, Commands};
+use crate::commands::{
+    api, auth, cache, collections, config, download, platforms, roms, saves, scan, sync, Commands,
+};
 use romm_api::client::RommClient;
 use romm_api::core::interrupt::InterruptContext;
 
@@ -50,6 +52,18 @@ pub async fn run(
         Commands::Auth(cmd) => {
             let presentation = CliPresentation::from_cli(global_json, false, verbose);
             map_anyhow(auth::handle(cmd, client, presentation).await)
+        }
+        Commands::Config(cmd) => {
+            let presentation = CliPresentation::from_cli(global_json, cmd.json, verbose);
+            map_anyhow(config::handle(cmd, presentation))
+        }
+        Commands::Saves(cmd) => {
+            let presentation = CliPresentation::from_cli(global_json, cmd.json, verbose);
+            map_anyhow(saves::handle(cmd, client, presentation).await)
+        }
+        Commands::Collections(cmd) => {
+            let presentation = CliPresentation::from_cli(global_json, cmd.json, verbose);
+            map_anyhow(collections::handle(cmd, client, presentation).await)
         }
         Commands::Init(_) => Err(RommError::Other(
             "internal routing error: init command in CLI frontend".into(),

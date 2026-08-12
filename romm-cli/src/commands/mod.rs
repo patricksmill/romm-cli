@@ -13,7 +13,9 @@ use romm_api::error::RommError;
 pub mod api;
 pub mod auth;
 pub mod cache;
+pub mod collections;
 pub mod completions;
+pub mod config;
 pub mod download;
 pub mod init;
 pub mod library_scan;
@@ -21,6 +23,7 @@ pub mod metadata;
 pub mod platforms;
 pub mod print;
 pub mod roms;
+pub mod saves;
 pub mod scan;
 pub mod sync;
 pub mod update;
@@ -103,6 +106,12 @@ pub enum Commands {
     Cache(cache::CacheCommand),
     /// Manage authentication credentials.
     Auth(auth::AuthCommand),
+    /// Inspect and update local configuration.
+    Config(config::ConfigCommand),
+    /// List, download, and upload game saves.
+    Saves(saves::SavesCommand),
+    /// List and manage collections.
+    Collections(collections::CollectionsCommand),
     /// Check for and install application updates.
     Update,
     /// Generate shell completion scripts.

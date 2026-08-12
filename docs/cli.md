@@ -124,6 +124,41 @@ Save sync uses RomM sync endpoints from the `4.9.0-alpha.2` pre-release onward. 
 
 Match and edit game metadata from the CLI or TUI. Requires RomM 4.8+. See [metadata-editing.md](metadata-editing.md).
 
+### Configuration (`config`)
+
+Inspect and persist local settings (approach D: file + env + source attribution):
+
+```bash
+romm-cli config path
+romm-cli config show --sources --json
+romm-cli config set theme dracula
+romm-cli config env-map save_sync.device_id
+romm-cli config reset --yes
+```
+
+`config set` writes **`config.json` only**; environment variables still override at runtime. Use `config show --file` for on-disk JSON without env merge.
+
+### Saves (`saves`)
+
+Per-game save management (matches TUI game-detail Saves tab):
+
+```bash
+romm-cli saves list --rom-id 42 --json
+romm-cli saves get 9
+romm-cli saves download 9 --output ./game.sav
+romm-cli saves upload --rom-id 42 ./save.srm --emulator retroarch
+```
+
+### Collections (`collections`)
+
+List and manage library collections:
+
+```bash
+romm-cli collections list --type all --json
+romm-cli collections get 3 --type manual
+romm-cli collections delete 2 --type smart --yes
+```
+
 ---
 
 ## JSON output

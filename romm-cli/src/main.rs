@@ -175,10 +175,14 @@ fn command_requires_config(command: &Commands) -> bool {
         | Commands::Roms(_)
         | Commands::Download(_)
         | Commands::Scan(_)
-        | Commands::Sync(_) => true,
-        Commands::Cache(_) | Commands::Auth(_) | Commands::Update | Commands::Completions(_) => {
-            false
-        }
+        | Commands::Sync(_)
+        | Commands::Saves(_)
+        | Commands::Collections(_) => true,
+        Commands::Cache(_)
+        | Commands::Auth(_)
+        | Commands::Config(_)
+        | Commands::Update
+        | Commands::Completions(_) => false,
         Commands::Init(_) => false,
     }
 }

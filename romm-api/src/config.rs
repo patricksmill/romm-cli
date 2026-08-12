@@ -599,9 +599,8 @@ fn parse_platform_dirs_json_env(var: &str) -> Result<HashMap<u64, String>, Confi
     let Some(raw) = env_nonempty(var) else {
         return Ok(HashMap::new());
     };
-    let map: HashMap<String, String> = serde_json::from_str(&raw).map_err(|e| {
-        ConfigError::Other(format!("invalid {var}: {e}"))
-    })?;
+    let map: HashMap<String, String> = serde_json::from_str(&raw)
+        .map_err(|e| ConfigError::Other(format!("invalid {var}: {e}")))?;
     map.into_iter()
         .map(|(k, v)| {
             k.parse::<u64>()
@@ -872,16 +871,14 @@ pub fn load_config_with_sources() -> Result<(Config, ConfigSources), ConfigError
         include_manual: extras_include_manual.value,
     };
 
-    let save_sync_save_dir = merge_optional_string_field(
-        "ROMM_SAVE_SYNC_SAVE_DIR",
-        &json_config,
-        |c| c.save_sync.save_dir.clone(),
-    );
-    let save_sync_device_id = merge_optional_string_field(
-        "ROMM_SAVE_SYNC_DEVICE_ID",
-        &json_config,
-        |c| c.save_sync.device_id.clone(),
-    );
+    let save_sync_save_dir =
+        merge_optional_string_field("ROMM_SAVE_SYNC_SAVE_DIR", &json_config, |c| {
+            c.save_sync.save_dir.clone()
+        });
+    let save_sync_device_id =
+        merge_optional_string_field("ROMM_SAVE_SYNC_DEVICE_ID", &json_config, |c| {
+            c.save_sync.device_id.clone()
+        });
 
     let file_save_platform_dirs = json_config
         .as_ref()
@@ -1072,7 +1069,40 @@ pub fn reset_all_settings() -> Result<(), ConfigError> {
     Ok(())
 }
 
-/// Serializes env var mutation in unit tests (also used by `romm-cli` command tests).
+/// Alias for [`reset_all_settings`] (design spec naming).
+pub fn reset_user_config() -> Result<(), ConfigError> {
+    reset_all_settings()
+}
+
+const REDACTED: &str = "<redacted>";
+
+/// Returns a copy of `config` with auth secrets replaced for display.
+pub fn redact_config(config: &Config) -> Config {
+    let mut out = config.clone();
+    if let Some(auth) = out.auth.as_mut() {
+        match auth {
+            AuthConfig::Basic { password, .. } => *password = REDACTED.to_string(),
+            AuthConfig::Bearer { token } => *token = REDACTED.to_string(),
+            AuthConfig::ApiKey { key, .. } => *key = REDACTED.to_string(),
+        }
+    }
+    out
+}
+
+/// Serializes env var names for platform-specific keys (not in [`ConfigKey::env_var`]).
+pub fn env_var_for_platform_key(key: &str) -> Option<String> {
+    if let Ok(parsed) = ConfigKey::parse(key) {
+        return parsed.env_var().map(str::to_string);
+    }
+    if let Some(id) = key.strip_prefix("save_sync.platform_dirs.") {
+        return Some(format!("ROMM_SAVE_SYNC_PLATFORM_DIR_{id}"));
+    }
+    if let Some(id) = key.strip_prefix("roms_layout.platform_dirs.") {
+        return Some(format!("ROMM_ROMS_PLATFORM_DIR_{id}"));
+    }
+    None
+}
+
 #[doc(hidden)]
 pub fn test_env_lock() -> &'static std::sync::Mutex<()> {
     use std::sync::{Mutex, OnceLock};

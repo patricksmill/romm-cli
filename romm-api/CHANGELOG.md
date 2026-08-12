@@ -7,6 +7,13 @@ Entries before the workspace split (1.0.0) are filtered from the unified monolit
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Features
+
+- **config:** config key registry, `load_config_with_sources`, env overrides for save sync / extras / platform dirs, `redact_config`, `reset_user_config` alias
+- **core:** save and collection helpers for CLI/TUI parity
+
 ## [1.3.0](https://github.com/patricksmill/romm-cli/compare/romm-api-v1.2.0...romm-api-v1.3.0) (2026-07-20)
 
 

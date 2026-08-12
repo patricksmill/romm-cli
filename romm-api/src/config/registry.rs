@@ -174,18 +174,21 @@ pub fn set_config_key(config: &mut Config, key: &str, value: &str) -> Result<(),
             config.save_sync.platform_dirs.insert(id, value.to_string());
         }
         ConfigKey::RomsPlatformDir(id) => {
-            config.roms_layout.platform_dirs.insert(id, value.to_string());
+            config
+                .roms_layout
+                .platform_dirs
+                .insert(id, value.to_string());
         }
         ConfigKey::TuiLayoutLibraryLeftPanelPercent => {
-            config.tui_layout.library_left_panel_percent = value.parse().map_err(|_| {
-                ConfigError::Other(format!("invalid u16 for {key}: {value}"))
-            })?;
+            config.tui_layout.library_left_panel_percent = value
+                .parse()
+                .map_err(|_| ConfigError::Other(format!("invalid u16 for {key}: {value}")))?;
             config.tui_layout = config.tui_layout.clone().normalized();
         }
         ConfigKey::TuiLayoutGameDetailCoverPanelWidth => {
-            config.tui_layout.game_detail_cover_panel_width = value.parse().map_err(|_| {
-                ConfigError::Other(format!("invalid u16 for {key}: {value}"))
-            })?;
+            config.tui_layout.game_detail_cover_panel_width = value
+                .parse()
+                .map_err(|_| ConfigError::Other(format!("invalid u16 for {key}: {value}")))?;
             config.tui_layout = config.tui_layout.clone().normalized();
         }
     }
@@ -196,7 +199,7 @@ pub fn set_config_key(config: &mut Config, key: &str, value: &str) -> Result<(),
 mod tests {
     use super::*;
     use crate::config::{
-        ExtrasDefaults, RomsLayoutConfig, SaveSyncConfig, TuiLayoutConfig, default_theme_id,
+        default_theme_id, ExtrasDefaults, RomsLayoutConfig, SaveSyncConfig, TuiLayoutConfig,
     };
 
     #[test]

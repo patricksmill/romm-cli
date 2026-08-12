@@ -141,6 +141,15 @@ Prefer `--token-file` over `--token` to keep secrets out of shell history. The C
 | `ROMM_VERBOSE` | Verbose HTTP logging (`1`/`true`) |
 | `ROMM_CHECK_UPDATES` | Set to `false`/`0`/`no`/`off` to disable update checks |
 | `ROMM_THEME` | TUI color theme ID (see [TUI documentation](tui.md)) |
+| `ROMM_SAVE_SYNC_SAVE_DIR` | Override `save_sync.save_dir` in merged config |
+| `ROMM_SAVE_SYNC_DEVICE_ID` | Override `save_sync.device_id` |
+| `ROMM_SAVE_SYNC_PLATFORM_DIR_<id>` | Per-platform save path override |
+| `ROMM_ROMS_PLATFORM_DIR_<id>` | Per-platform ROM download path override |
+| `ROMM_EXTRAS_INCLUDE_RELATED_ROMS` | Override `extras_defaults.include_related_roms` (`true`/`false`) |
+| `ROMM_EXTRAS_INCLUDE_COVER` | Override `extras_defaults.include_cover` |
+| `ROMM_EXTRAS_INCLUDE_MANUAL` | Override `extras_defaults.include_manual` |
+| `ROMM_ROMS_LAYOUT_JSON` | JSON merge for `roms_layout` (optional bulk override) |
+| `ROMM_SAVE_SYNC_PLATFORM_DIRS_JSON` | JSON merge for `save_sync.platform_dirs` |
 | `ROMM_GITHUB_API_BASE` | Override GitHub API base for self-update |
 | `ROMM_GITHUB_RELEASES_API` | Override GitHub releases list URL (component tag filtering) |
 | `ROMM_GITHUB_LATEST_RELEASE_API` | Legacy override; redirects to releases list when it points at `/releases/latest` |
