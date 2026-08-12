@@ -129,7 +129,7 @@ pub fn env_var_for_key(key: &str) -> Option<&'static str> {
     ConfigKey::parse(key).ok().and_then(|k| k.env_var())
 }
 
-fn parse_bool(label: &str, raw: &str) -> Result<bool, ConfigError> {
+pub(crate) fn parse_bool(label: &str, raw: &str) -> Result<bool, ConfigError> {
     let t = raw.trim().to_ascii_lowercase();
     match t.as_str() {
         "true" | "1" | "yes" | "y" => Ok(true),
