@@ -1,6 +1,7 @@
 use super::{
     background::types::{
-        CollectionPrefetchDone, RomLoadDone, RomLoadEvent, SearchLoadDone, SearchLoadEvent,
+        CollectionPrefetchDone, LibraryMetadataRefreshDone, RomLoadDone, RomLoadEvent,
+        SearchLoadDone, SearchLoadEvent,
     },
     event::{map_key_to_actions, Action, AppEvent, BackgroundAction},
     rom_load::{primary_rom_load_result_is_current, primary_rom_load_result_matches_selection},
@@ -16,6 +17,7 @@ use romm_api::client::RommClient;
 use romm_api::config::LIBRARY_LEFT_PANEL_PERCENT_DEFAULT;
 use romm_api::config::{default_theme_id, Config, ExtrasDefaults, TuiLayoutConfig};
 use romm_api::core::cache::RomCacheKey;
+use romm_api::core::{library_scan::ScanCacheInvalidate, startup_library_snapshot};
 use romm_api::feature_compat::{
     supported_achievements_compatibility, supported_metadata_edit_compatibility,
     supported_save_sync_compatibility,
@@ -454,6 +456,73 @@ async fn game_detail_esc_resumes_partial_library_rom_load() {
     assert_eq!(key, &Some(RomCacheKey::Platform(1)));
     assert_eq!(expected, &100);
     assert_eq!(context, &"restore_partial_library");
+    assert!(req.as_ref().is_some_and(|r| r.platform_id == Some(1)));
+}
+
+#[tokio::test]
+async fn scan_completed_off_library_reloads_complete_roms_when_returning_to_library() {
+    let mut app = app_with_library(vec![platform(1, "NES", 1)]);
+    let mut previous = LibraryBrowseScreen::new(
+        vec![platform(1, "NES", 1)],
+        vec![],
+        LIBRARY_LEFT_PANEL_PERCENT_DEFAULT,
+    );
+    previous.set_roms(RomList {
+        total: 1,
+        limit: 50,
+        offset: 0,
+        items: vec![rom_fixture()],
+    });
+
+    let detail = GameDetailScreen::new(
+        rom_fixture(),
+        Vec::new(),
+        GameDetailPrevious::Library(Box::new(previous)),
+        app.downloads.shared(),
+        COVER_PANEL_WIDTH_DEFAULT,
+    );
+    app.screen = AppScreen::GameDetail(Box::new(detail));
+    app.library_scan_pending_invalidate = Some(ScanCacheInvalidate::Platform(1));
+
+    app.on_library_scan_completed_success();
+    app.handle_key_event(&KeyEvent::new(KeyCode::Esc, KeyModifiers::empty()))
+        .await
+        .expect("esc handled");
+
+    assert!(
+        app.force_rom_reload_after_metadata,
+        "scan completion off Library must mark the restored complete ROM list stale"
+    );
+    assert!(
+        app.library_metadata_refresh_gen > 0,
+        "returning to Library after an off-screen scan must refresh metadata"
+    );
+
+    let gen = app.library_metadata_refresh_gen;
+    app.apply_library_metadata_refresh(LibraryMetadataRefreshDone {
+        gen,
+        platforms: vec![platform(1, "NES", 1)],
+        collections: vec![],
+        collection_digest: startup_library_snapshot::build_collection_digest_from_collections(&[]),
+        warnings: vec![],
+    });
+
+    match &app.screen {
+        AppScreen::LibraryBrowse(lib) => {
+            assert!(
+                lib.roms.is_none(),
+                "metadata refresh after scan must clear the stale complete ROM list"
+            );
+            assert!(lib.rom_loading, "cleared ROM pane should show reload state");
+        }
+        _ => panic!("expected restored library screen"),
+    }
+    let Some((key, req, expected, context, _started)) = &app.deferred_load_roms else {
+        panic!("post-scan metadata refresh should queue a fresh ROM load");
+    };
+    assert_eq!(key, &Some(RomCacheKey::Platform(1)));
+    assert_eq!(expected, &1);
+    assert_eq!(context, &"post_scan_reload");
     assert!(req.as_ref().is_some_and(|r| r.platform_id == Some(1)));
 }
 

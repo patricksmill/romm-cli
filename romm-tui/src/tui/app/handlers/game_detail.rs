@@ -368,6 +368,11 @@ impl App {
                         GameDetailPrevious::Library(l) => AppScreen::LibraryBrowse(l),
                         GameDetailPrevious::Search(s) => AppScreen::Search(s),
                     };
+                    if self.force_rom_reload_after_metadata
+                        && matches!(self.screen, AppScreen::LibraryBrowse(_))
+                    {
+                        self.spawn_library_metadata_refresh();
+                    }
                     self.resume_library_rom_load_if_needed("restore_partial_library");
                 }
             }
