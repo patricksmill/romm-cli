@@ -109,6 +109,8 @@ pub struct App {
     rom_load_rx: tokio::sync::mpsc::UnboundedReceiver<RomLoadDone>,
     rom_load_tx: tokio::sync::mpsc::UnboundedSender<RomLoadDone>,
     rom_load_task: Option<tokio::task::JoinHandle<()>>,
+    /// Latest generation for global search loads; completions with a lower gen are ignored.
+    search_load_gen: u64,
     search_load_rx: tokio::sync::mpsc::UnboundedReceiver<SearchLoadDone>,
     search_load_tx: tokio::sync::mpsc::UnboundedSender<SearchLoadDone>,
     search_load_task: Option<tokio::task::JoinHandle<()>>,
@@ -286,6 +288,7 @@ impl App {
             rom_load_rx,
             rom_load_tx,
             rom_load_task: None,
+            search_load_gen: 0,
             search_load_rx,
             search_load_tx,
             search_load_task: None,

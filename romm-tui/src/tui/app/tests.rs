@@ -686,9 +686,11 @@ fn search_batch_updates_results_without_stopping_loading() {
     let mut search = SearchScreen::new();
     search.loading = true;
     app.screen = AppScreen::Search(search);
+    app.search_load_gen = 1;
 
     app.search_load_tx
         .send(SearchLoadDone {
+            gen: 1,
             query: "zelda".to_string(),
             event: SearchLoadEvent::Batch(empty_rom_list_with_total(120)),
         })
@@ -733,9 +735,11 @@ fn search_complete_event_stops_loading() {
     let mut search = SearchScreen::new();
     search.loading = true;
     app.screen = AppScreen::Search(search);
+    app.search_load_gen = 1;
 
     app.search_load_tx
         .send(SearchLoadDone {
+            gen: 1,
             query: "zelda".to_string(),
             event: SearchLoadEvent::Complete,
         })
@@ -746,6 +750,47 @@ fn search_complete_event_stops_loading() {
     match &app.screen {
         AppScreen::Search(search) => {
             assert!(!search.loading, "loading should stop after completion");
+        }
+        _ => panic!("expected search screen"),
+    }
+}
+
+#[test]
+fn stale_search_load_events_are_ignored() {
+    let mut app = app_with_library(vec![platform(1, "NES", 1)]);
+    let mut search = SearchScreen::new();
+    search.query = "zelda".to_string();
+    search.cursor_pos = search.query.len();
+    search.loading = true;
+    search.set_results_for_query("zelda".to_string(), empty_rom_list_with_total(0));
+    app.screen = AppScreen::Search(search);
+    app.search_load_gen = 2;
+
+    app.search_load_tx
+        .send(SearchLoadDone {
+            gen: 1,
+            query: "mario".to_string(),
+            event: SearchLoadEvent::Batch(empty_rom_list_with_total(120)),
+        })
+        .expect("send stale batch");
+    app.search_load_tx
+        .send(SearchLoadDone {
+            gen: 1,
+            query: "mario".to_string(),
+            event: SearchLoadEvent::Complete,
+        })
+        .expect("send stale complete");
+
+    app.poll_background_tasks();
+
+    match &app.screen {
+        AppScreen::Search(search) => {
+            assert!(
+                search.loading,
+                "stale completion must not stop current search"
+            );
+            assert_eq!(search.last_searched_query.as_deref(), Some("zelda"));
+            assert_eq!(search.results.as_ref().map(|r| r.total), Some(0));
         }
         _ => panic!("expected search screen"),
     }
