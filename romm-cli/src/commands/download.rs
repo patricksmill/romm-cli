@@ -2,7 +2,7 @@ use crate::cli_presentation::{format_command_error, CliPresentation};
 use clap::{Args, Subcommand, ValueEnum};
 use dialoguer::Confirm;
 use indicatif::ProgressBar;
-use romm_api::error::{DownloadError, RommError};
+use romm_api::error::{from_anyhow, DownloadError, RommError};
 use serde::Serialize;
 use std::io::{self, IsTerminal};
 use std::path::PathBuf;
@@ -23,6 +23,7 @@ use romm_api::core::interrupt::{
     cancelled_download_error, is_cancelled_download, is_cancelled_error, InterruptContext,
 };
 use romm_api::core::resolve::resolve_platform_id;
+use romm_api::core::roms::fetch_roms_paginated;
 use romm_api::core::utils;
 use romm_api::endpoints::roms::{GetRom, GetRoms};
 /// Maximum number of concurrent download connections.
@@ -272,11 +273,20 @@ pub async fn handle(
             smart_collection_id: None,
             virtual_collection_id: None,
             limit: Some(9999),
-            offset: None,
+            offset: Some(0),
             ..Default::default()
         };
 
-        let results = client.call(&ep).await?;
+        let results = fetch_roms_paginated(client, &ep)
+            .await
+            .map_err(from_anyhow)?;
+        if (results.items.len() as u64) < results.total {
+            return Err(RommError::Other(format!(
+                "Batch download query matched {} ROM(s), but only {} were loaded; narrow the filters and retry",
+                results.total,
+                results.items.len()
+            )));
+        }
 
         if results.items.is_empty() {
             return emit_download_summary(presentation, DownloadJsonSummary::default());
