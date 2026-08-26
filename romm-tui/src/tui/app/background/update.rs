@@ -133,6 +133,9 @@ impl App {
 
     fn apply_search_load_complete(&mut self, done: super::types::SearchLoadDone) {
         use super::types::SearchLoadEvent;
+        if done.gen != self.search_load_gen {
+            return;
+        }
         if let AppScreen::Search(ref mut search) = self.screen {
             match done.event {
                 SearchLoadEvent::Batch(roms) => {

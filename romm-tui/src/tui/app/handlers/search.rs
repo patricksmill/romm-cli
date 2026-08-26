@@ -30,8 +30,16 @@ impl App {
         if !matches!(self.screen, AppScreen::Search(_)) {
             return;
         }
+        self.invalidate_search_load();
         let stored = self.screen_before_search.take();
         self.restore_screen_or_library(stored);
+    }
+
+    fn invalidate_search_load(&mut self) {
+        self.search_load_gen = self.search_load_gen.saturating_add(1);
+        if let Some(task) = self.search_load_task.take() {
+            task.abort();
+        }
     }
 
     pub(in crate::tui::app) async fn handle_search(&mut self, key: &KeyEvent) -> Result<bool> {
@@ -74,9 +82,8 @@ impl App {
                         ..Default::default()
                     };
                     search.loading = true;
-                    if let Some(task) = self.search_load_task.take() {
-                        task.abort();
-                    }
+                    self.invalidate_search_load();
+                    let gen = self.search_load_gen;
                     let client = self.client.clone();
                     let tx = self.search_load_tx.clone();
                     self.search_load_task = Some(tokio::spawn(async move {
@@ -92,6 +99,7 @@ impl App {
                                         }
                                         all.items.append(&mut batch.items);
                                         let _ = tx.send(SearchLoadDone {
+                                            gen,
                                             query: query.clone(),
                                             event: SearchLoadEvent::Batch(all.clone()),
                                         });
@@ -103,6 +111,7 @@ impl App {
                                         let loaded = batch.items.len() as u64;
                                         let total = batch.total;
                                         let _ = tx.send(SearchLoadDone {
+                                            gen,
                                             query: query.clone(),
                                             event: SearchLoadEvent::Batch(batch.clone()),
                                         });
@@ -115,6 +124,7 @@ impl App {
                                 }
                                 Err(e) => {
                                     let _ = tx.send(SearchLoadDone {
+                                        gen,
                                         query: query.clone(),
                                         event: SearchLoadEvent::Failed(RommError::from(e)),
                                     });
@@ -124,6 +134,7 @@ impl App {
                         }
 
                         let _ = tx.send(SearchLoadDone {
+                            gen,
                             query,
                             event: SearchLoadEvent::Complete,
                         });

@@ -58,6 +58,7 @@ pub(crate) enum SearchLoadEvent {
 
 #[derive(Debug)]
 pub(crate) struct SearchLoadDone {
+    pub(crate) gen: u64,
     pub(crate) query: String,
     pub(crate) event: SearchLoadEvent,
 }
