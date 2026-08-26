@@ -1,4 +1,8 @@
-use reqwest::Url;
+use reqwest::{
+    header::{HeaderMap, HeaderValue, LOCATION, RANGE},
+    redirect::Policy,
+    Client as HttpClient, Response, Url,
+};
 use std::path::Path;
 use std::time::Instant;
 use tokio::io::AsyncWriteExt as _;
@@ -8,7 +12,7 @@ use crate::core::interrupt::CancelledByUser;
 use crate::error::{ApiError, DownloadError};
 
 use super::response::{api_error_from_response, read_error_response_text};
-use super::RommClient;
+use super::{http_user_agent, RommClient};
 
 impl RommClient {
     /// Downloads a ROM (or multiple ROMs as a zip) to the specified path.
@@ -82,23 +86,10 @@ impl RommClient {
     {
         let url = self.resolve_download_url(url)?;
         let filename = filename_hint(save_path);
-        let mut headers = if self.should_send_auth_to_download_url(&url) {
-            self.build_headers()?
-        } else {
-            reqwest::header::HeaderMap::new()
-        };
-
         let existing_len = tokio::fs::metadata(save_path)
             .await
             .map(|m| m.len())
             .unwrap_or(0);
-
-        if existing_len > 0 {
-            let range = format!("bytes={existing_len}-");
-            if let Ok(v) = reqwest::header::HeaderValue::from_str(&range) {
-                headers.insert(reqwest::header::RANGE, v);
-            }
-        }
 
         if let Some(parent) = save_path.parent() {
             tokio::fs::create_dir_all(parent)
@@ -111,11 +102,11 @@ impl RommClient {
 
         let t0 = Instant::now();
         let mut resp = self
-            .http
-            .get(&url)
-            .headers(headers)
-            .query(query)
-            .send()
+            .send_download_request_with_redirects(
+                &url,
+                query,
+                (existing_len > 0).then_some(existing_len),
+            )
             .await?;
 
         let status = resp.status();
@@ -174,8 +165,81 @@ impl RommClient {
             received += chunk.len() as u64;
             on_progress(received, total);
         }
+        file.flush().await.map_err(|e| DownloadError::IoContext {
+            context: format!("flush download file {save_path:?}"),
+            source: e,
+        })?;
 
         Ok(())
+    }
+
+    async fn send_download_request_with_redirects(
+        &self,
+        url: &str,
+        query: &[(String, String)],
+        range_start: Option<u64>,
+    ) -> Result<Response, DownloadError> {
+        const MAX_REDIRECTS: usize = 10;
+
+        let http = download_http_client()?;
+        let mut current = Url::parse(url).map_err(|e| {
+            DownloadError::Api(ApiError::UnexpectedResponse(format!(
+                "invalid download URL {url:?}: {e}"
+            )))
+        })?;
+        let mut first_request = true;
+
+        for redirect_count in 0..=MAX_REDIRECTS {
+            let headers = self.download_headers_for_url(current.as_str(), range_start)?;
+            let mut request = http.get(current.clone()).headers(headers);
+            if first_request {
+                request = request.query(query);
+            }
+            let resp = request.send().await?;
+            if !resp.status().is_redirection() {
+                return Ok(resp);
+            }
+
+            let Some(location) = resp.headers().get(LOCATION).and_then(|v| v.to_str().ok()) else {
+                return Ok(resp);
+            };
+            if redirect_count == MAX_REDIRECTS {
+                return Err(DownloadError::Api(ApiError::UnexpectedResponse(
+                    "too many download redirects".into(),
+                )));
+            }
+            current = resp.url().join(location).map_err(|e| {
+                DownloadError::Api(ApiError::UnexpectedResponse(format!(
+                    "invalid download redirect Location: {e}"
+                )))
+            })?;
+            first_request = false;
+        }
+
+        Err(DownloadError::Api(ApiError::UnexpectedResponse(
+            "too many download redirects".into(),
+        )))
+    }
+
+    fn download_headers_for_url(
+        &self,
+        url: &str,
+        range_start: Option<u64>,
+    ) -> Result<HeaderMap, DownloadError> {
+        let mut headers = if self.should_send_auth_to_download_url(url) {
+            self.build_headers()?
+        } else {
+            HeaderMap::new()
+        };
+
+        if let Some(start) = range_start {
+            let range = format!("bytes={start}-");
+            if let Ok(v) = HeaderValue::from_str(&range) {
+                headers.insert(RANGE, v);
+            }
+        }
+
+        Ok(headers)
     }
 
     fn resolve_download_url(&self, url: &str) -> Result<String, DownloadError> {
@@ -216,6 +280,13 @@ impl RommClient {
     }
 }
 
+fn download_http_client() -> Result<HttpClient, DownloadError> {
+    Ok(HttpClient::builder()
+        .user_agent(http_user_agent())
+        .redirect(Policy::none())
+        .build()?)
+}
+
 fn filename_hint(save_path: &Path) -> String {
     save_path
         .file_name()
@@ -227,18 +298,27 @@ fn filename_hint(save_path: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use crate::config::{AuthConfig, Config, ExtrasDefaults};
+    use wiremock::matchers::{header, method, path};
+    use wiremock::{Match, Mock, MockServer, Request, ResponseTemplate};
 
     use super::*;
 
     fn client_for(base_url: &str) -> RommClient {
+        client_for_auth(
+            base_url,
+            AuthConfig::Bearer {
+                token: "secret".to_string(),
+            },
+        )
+    }
+
+    fn client_for_auth(base_url: &str, auth: AuthConfig) -> RommClient {
         RommClient::new(
             &Config {
                 base_url: base_url.to_string(),
                 download_dir: ".".to_string(),
                 use_https: true,
-                auth: Some(AuthConfig::Bearer {
-                    token: "secret".to_string(),
-                }),
+                auth: Some(auth),
                 extras_defaults: ExtrasDefaults::default(),
                 save_sync: Default::default(),
                 roms_layout: Default::default(),
@@ -248,6 +328,14 @@ mod tests {
             false,
         )
         .expect("client")
+    }
+
+    struct MissingHeader(&'static str);
+
+    impl Match for MissingHeader {
+        fn matches(&self, request: &Request) -> bool {
+            !request.headers.contains_key(self.0)
+        }
     }
 
     #[test]
@@ -260,5 +348,58 @@ mod tests {
     fn download_auth_blocked_for_off_origin_absolute_url() {
         let client = client_for("https://romm.example/api");
         assert!(!client.should_send_auth_to_download_url("https://cdn.example/files/a.zip"));
+    }
+
+    #[tokio::test]
+    async fn download_redirect_to_off_origin_strips_api_key_header() {
+        let origin = MockServer::start().await;
+        let redirected = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/files/game.zip"))
+            .and(header("x-api-key", "secret"))
+            .respond_with(
+                ResponseTemplate::new(302)
+                    .insert_header("Location", format!("{}/game.zip", redirected.uri())),
+            )
+            .expect(1)
+            .mount(&origin)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/game.zip"))
+            .and(MissingHeader("x-api-key"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("rom"))
+            .expect(1)
+            .mount(&redirected)
+            .await;
+
+        let client = client_for_auth(
+            &origin.uri(),
+            AuthConfig::ApiKey {
+                header: "X-API-Key".to_string(),
+                key: "secret".to_string(),
+            },
+        );
+        let save_path = std::env::temp_dir().join(format!(
+            "romm-download-redirect-test-{}-{}.zip",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let mut last_progress = 0;
+        let mut progress = |received, _| {
+            last_progress = received;
+        };
+
+        client
+            .download_url_with_cancel("/files/game.zip", &save_path, |_, _| false, &mut progress)
+            .await
+            .expect("download should follow redirect without leaking API key");
+
+        assert_eq!(last_progress, 3);
+        assert_eq!(std::fs::read(&save_path).unwrap(), b"rom");
+        let _ = std::fs::remove_file(save_path);
     }
 }
