@@ -34,7 +34,7 @@ fn safe_path_segment(input: &str) -> String {
     }
 }
 
-fn unique_save_path(dir: &Path, file_name: &str) -> PathBuf {
+fn reserve_unique_save_path(dir: &Path, file_name: &str) -> PathBuf {
     let safe_name = safe_path_segment(file_name);
     let base = Path::new(&safe_name)
         .file_stem()
@@ -43,7 +43,17 @@ fn unique_save_path(dir: &Path, file_name: &str) -> PathBuf {
     let ext = Path::new(&safe_name).extension().and_then(|s| s.to_str());
     let mut candidate = dir.join(&safe_name);
     let mut n = 1u32;
-    while candidate.exists() {
+    loop {
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&candidate)
+        {
+            Ok(_) => return candidate,
+            Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(_) => return candidate,
+        }
+
         let name = match ext {
             Some(ext) if !ext.is_empty() => format!("{base}-{n}.{ext}"),
             _ => format!("{base}-{n}"),
@@ -51,7 +61,6 @@ fn unique_save_path(dir: &Path, file_name: &str) -> PathBuf {
         candidate = dir.join(name);
         n += 1;
     }
-    candidate
 }
 
 impl App {
@@ -280,7 +289,7 @@ impl App {
                         } else {
                             save.file_name.clone()
                         };
-                        let target = unique_save_path(&target_dir, &filename);
+                        let target = reserve_unique_save_path(&target_dir, &filename);
                         tokio::fs::write(&target, bytes)
                             .await
                             .map_err(|e| RommError::Api(ApiError::Io(e)))?;
@@ -378,5 +387,37 @@ impl App {
             self.maybe_start_save_screenshot_load();
         }
         Ok(false)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_save_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "romm-tui-{name}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn reserve_unique_save_path_reserves_collision_candidates() {
+        let dir = temp_save_dir("save-path-reservation");
+
+        let first = reserve_unique_save_path(&dir, "same.sav");
+        let second = reserve_unique_save_path(&dir, "same.sav");
+
+        assert_ne!(first, second);
+        assert!(first.exists());
+        assert!(second.exists());
+
+        let _ = std::fs::remove_dir_all(dir);
     }
 }
