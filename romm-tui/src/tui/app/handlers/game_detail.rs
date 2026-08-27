@@ -34,7 +34,7 @@ fn safe_path_segment(input: &str) -> String {
     }
 }
 
-fn reserve_unique_save_path(dir: &Path, file_name: &str) -> PathBuf {
+fn reserve_unique_save_path(dir: &Path, file_name: &str) -> std::io::Result<PathBuf> {
     let safe_name = safe_path_segment(file_name);
     let base = Path::new(&safe_name)
         .file_stem()
@@ -49,9 +49,9 @@ fn reserve_unique_save_path(dir: &Path, file_name: &str) -> PathBuf {
             .create_new(true)
             .open(&candidate)
         {
-            Ok(_) => return candidate,
+            Ok(_) => return Ok(candidate),
             Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {}
-            Err(_) => return candidate,
+            Err(err) => return Err(err),
         }
 
         let name = match ext {
@@ -289,7 +289,8 @@ impl App {
                         } else {
                             save.file_name.clone()
                         };
-                        let target = reserve_unique_save_path(&target_dir, &filename);
+                        let target = reserve_unique_save_path(&target_dir, &filename)
+                            .map_err(|e| RommError::Api(ApiError::Io(e)))?;
                         tokio::fs::write(&target, bytes)
                             .await
                             .map_err(|e| RommError::Api(ApiError::Io(e)))?;
@@ -411,13 +412,22 @@ mod tests {
     fn reserve_unique_save_path_reserves_collision_candidates() {
         let dir = temp_save_dir("save-path-reservation");
 
-        let first = reserve_unique_save_path(&dir, "same.sav");
-        let second = reserve_unique_save_path(&dir, "same.sav");
+        let first = reserve_unique_save_path(&dir, "same.sav").unwrap();
+        let second = reserve_unique_save_path(&dir, "same.sav").unwrap();
 
         assert_ne!(first, second);
         assert!(first.exists());
         assert!(second.exists());
 
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn reserve_unique_save_path_propagates_unexpected_errors() {
+        let dir = temp_save_dir("save-path-error").join("missing");
+
+        let err = reserve_unique_save_path(&dir, "same.sav").unwrap_err();
+
+        assert_eq!(err.kind(), std::io::ErrorKind::NotFound);
     }
 }
