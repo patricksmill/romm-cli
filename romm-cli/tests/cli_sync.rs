@@ -174,7 +174,8 @@ async fn sync_run_uploads_and_completes() {
                 .query_param("device_id", "dev-1")
                 .query_param("session_id", "11")
                 .query_param("slot", "slot1")
-                .query_param("emulator", "retroarch");
+                .query_param("emulator", "retroarch")
+                .body_contains("filename=\"remote.sav\"");
             then.status(200)
                 .header("content-type", "application/json")
                 .body(r#"{"id": 1}"#);
