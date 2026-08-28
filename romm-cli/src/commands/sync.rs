@@ -397,7 +397,12 @@ async fn handle_run(args: SyncRunArgs, client: &RommClient, format: OutputFormat
                     overwrite: false,
                 };
                 match client
-                    .upload_save_file_with_options(local.client.rom_id, &local.path, &options)
+                    .upload_save_file_named_with_options(
+                        local.client.rom_id,
+                        &local.path,
+                        Some(local.client.file_name.as_str()),
+                        &options,
+                    )
                     .await
                 {
                     Ok(_) => {
