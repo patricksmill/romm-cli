@@ -3,6 +3,7 @@
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 
+use romm_api::core::roms::{rom_list_fetch_complete, ROM_PAGE_CEILING};
 use romm_api::endpoints::roms::GetRoms;
 use romm_api::types::RomList;
 
@@ -11,6 +12,10 @@ use romm_api::error::RommError;
 use super::super::background::types::{SearchLoadDone, SearchLoadEvent};
 use super::super::{App, AppScreen};
 use crate::tui::screens::{GameDetailPrevious, GameDetailScreen, SearchScreen};
+
+fn cap_search_results(roms: &mut RomList) {
+    roms.items.truncate(ROM_PAGE_CEILING as usize);
+}
 
 impl App {
     pub(in crate::tui::app) fn toggle_search_screen(&mut self) {
@@ -91,24 +96,26 @@ impl App {
                                             break;
                                         }
                                         all.items.append(&mut batch.items);
+                                        cap_search_results(all);
                                         let _ = tx.send(SearchLoadDone {
                                             query: query.clone(),
                                             event: SearchLoadEvent::Batch(all.clone()),
                                         });
-                                        if all.items.len() as u64 >= all.total {
+                                        if rom_list_fetch_complete(all) {
                                             break;
                                         }
                                         req.offset = Some(all.items.len() as u32);
                                     } else {
+                                        cap_search_results(&mut batch);
                                         let loaded = batch.items.len() as u64;
-                                        let total = batch.total;
                                         let _ = tx.send(SearchLoadDone {
                                             query: query.clone(),
                                             event: SearchLoadEvent::Batch(batch.clone()),
                                         });
                                         req.offset = Some(loaded as u32);
                                         aggregated = Some(batch);
-                                        if loaded >= total {
+                                        if aggregated.as_ref().is_some_and(rom_list_fetch_complete)
+                                        {
                                             break;
                                         }
                                     }
