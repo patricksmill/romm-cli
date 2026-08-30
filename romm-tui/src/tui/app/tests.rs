@@ -23,7 +23,9 @@ use romm_api::feature_compat::{
 use romm_api::types::{Platform, RomList};
 use romm_api::update::UpdateStatus;
 use serde_json::json;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 fn platform(id: u64, name: &str, rom_count: u64) -> Platform {
     serde_json::from_value(json!({
@@ -136,6 +138,34 @@ fn rom_fixture() -> romm_api::types::Rom {
     .expect("valid rom fixture")
 }
 
+fn rom_fixture_json(id: u64) -> serde_json::Value {
+    json!({
+        "id": id,
+        "platform_id": 1,
+        "platform_slug": null,
+        "platform_fs_slug": null,
+        "platform_custom_name": null,
+        "platform_display_name": null,
+        "fs_name": format!("sample-{id}.zip"),
+        "fs_name_no_tags": format!("sample-{id}"),
+        "fs_name_no_ext": format!("sample-{id}"),
+        "fs_extension": "zip",
+        "fs_path": format!("/sample-{id}.zip"),
+        "fs_size_bytes": 100,
+        "name": format!("Sample {id}"),
+        "slug": null,
+        "summary": null,
+        "path_cover_small": null,
+        "path_cover_large": null,
+        "url_cover": null,
+        "has_manual": false,
+        "path_manual": null,
+        "url_manual": null,
+        "is_unidentified": false,
+        "is_identified": true
+    })
+}
+
 fn empty_rom_list_with_total(total: u64) -> RomList {
     RomList {
         items: vec![],
@@ -143,6 +173,59 @@ fn empty_rom_list_with_total(total: u64) -> RomList {
         limit: 50,
         offset: 0,
     }
+}
+
+async fn spawn_search_server() -> (String, Arc<Mutex<Vec<String>>>) {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind search server");
+    let base_url = format!("http://{}", listener.local_addr().expect("local addr"));
+    let requests = Arc::new(Mutex::new(Vec::new()));
+    let recorded = requests.clone();
+    tokio::spawn(async move {
+        loop {
+            let Ok((mut stream, _)) = listener.accept().await else {
+                break;
+            };
+            let recorded = recorded.clone();
+            tokio::spawn(async move {
+                let mut buf = vec![0u8; 4096];
+                let Ok(n) = stream.read(&mut buf).await else {
+                    return;
+                };
+                let req = String::from_utf8_lossy(&buf[..n]);
+                let first_line = req.lines().next().unwrap_or_default().to_string();
+                recorded
+                    .lock()
+                    .expect("record request")
+                    .push(first_line.clone());
+
+                let offset = if first_line.contains("offset=20000") {
+                    20000
+                } else {
+                    0
+                };
+                let item_count = if offset == 0 { 20_000 } else { 50 };
+                let items = (0..item_count)
+                    .map(|i| rom_fixture_json(offset + i))
+                    .collect::<Vec<_>>();
+                let body = json!({
+                    "items": items,
+                    "total": 20_050,
+                    "limit": 50,
+                    "offset": offset
+                })
+                .to_string();
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+                    body.len(),
+                    body
+                );
+                let _ = stream.write_all(response.as_bytes()).await;
+            });
+        }
+    });
+    (base_url, requests)
 }
 
 #[tokio::test]
@@ -749,6 +832,66 @@ fn search_complete_event_stops_loading() {
         }
         _ => panic!("expected search screen"),
     }
+}
+
+#[tokio::test]
+async fn global_search_stops_fetching_at_rom_page_ceiling() {
+    let (base_url, requests) = spawn_search_server().await;
+    let config = Config {
+        base_url,
+        download_dir: "/tmp".into(),
+        use_https: false,
+        auth: None,
+        extras_defaults: ExtrasDefaults::default(),
+        save_sync: Default::default(),
+        roms_layout: Default::default(),
+        theme: default_theme_id(),
+        tui_layout: TuiLayoutConfig::default(),
+    };
+    let client = RommClient::new(&config, false).expect("client");
+    let mut app = App::new(
+        client,
+        config,
+        supported_save_sync_compatibility(),
+        supported_metadata_edit_compatibility(),
+        supported_achievements_compatibility(),
+        None,
+        None,
+        None,
+    );
+    let mut search = SearchScreen::new();
+    search.query = "sample".into();
+    search.cursor_pos = search.query.len();
+    app.screen = AppScreen::Search(search);
+
+    app.handle_search(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()))
+        .await
+        .expect("start search");
+
+    for _ in 0..100 {
+        app.poll_background_tasks();
+        if matches!(&app.screen, AppScreen::Search(search) if !search.loading) {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+
+    match &app.screen {
+        AppScreen::Search(search) => {
+            assert!(!search.loading, "search should complete after capped batch");
+            assert_eq!(
+                search.results.as_ref().map(|r| r.items.len()),
+                Some(romm_api::core::roms::ROM_PAGE_CEILING as usize)
+            );
+        }
+        _ => panic!("expected search screen"),
+    }
+
+    let requests = requests.lock().expect("requests").clone();
+    assert!(
+        !requests.iter().any(|line| line.contains("offset=20000")),
+        "search worker fetched beyond the page ceiling: {requests:?}"
+    );
 }
 
 #[tokio::test]
