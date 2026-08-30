@@ -16,7 +16,7 @@ pub use openapi::{api_root_url, openapi_spec_urls, resolve_openapi_root};
 
 use base64::{engine::general_purpose, Engine as _};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
-use reqwest::Client as HttpClient;
+use reqwest::{Client as HttpClient, Url};
 
 use crate::config::{AuthConfig, Config};
 use crate::error::ApiError;
@@ -55,12 +55,38 @@ pub(crate) fn http_user_agent() -> String {
     }
 }
 
+fn same_origin(a: &Url, b: &Url) -> bool {
+    a.scheme() == b.scheme()
+        && a.host_str() == b.host_str()
+        && a.port_or_known_default() == b.port_or_known_default()
+}
+
+fn authenticated_redirect_policy() -> reqwest::redirect::Policy {
+    reqwest::redirect::Policy::custom(|attempt| {
+        if attempt.previous().len() >= 10 {
+            return attempt.error("too many redirects");
+        }
+
+        let stays_on_origin = attempt
+            .previous()
+            .last()
+            .is_some_and(|previous| same_origin(previous, attempt.url()));
+        if stays_on_origin {
+            attempt.follow()
+        } else {
+            attempt.stop()
+        }
+    })
+}
+
 impl RommClient {
     /// Construct a new client from the high-level [`Config`].
     pub fn new(config: &Config, verbose: bool) -> Result<Self, ApiError> {
-        let http = HttpClient::builder()
-            .user_agent(http_user_agent())
-            .build()?;
+        let mut builder = HttpClient::builder().user_agent(http_user_agent());
+        if config.auth.is_some() {
+            builder = builder.redirect(authenticated_redirect_policy());
+        }
+        let http = builder.build()?;
         Ok(Self {
             http,
             base_url: config.base_url.clone(),

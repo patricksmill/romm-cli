@@ -173,3 +173,66 @@ impl RommClient {
         Ok(resp.bytes().await?.to_vec())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::config::{AuthConfig, Config, ExtrasDefaults};
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    use super::*;
+
+    fn api_key_client_for(base_url: &str) -> RommClient {
+        RommClient::new(
+            &Config {
+                base_url: base_url.to_string(),
+                download_dir: ".".to_string(),
+                use_https: false,
+                auth: Some(AuthConfig::ApiKey {
+                    header: "X-Api-Key".to_string(),
+                    key: "secret".to_string(),
+                }),
+                extras_defaults: ExtrasDefaults::default(),
+                save_sync: Default::default(),
+                roms_layout: Default::default(),
+                theme: crate::config::default_theme_id(),
+                tui_layout: crate::config::TuiLayoutConfig::default(),
+            },
+            false,
+        )
+        .expect("client")
+    }
+
+    #[tokio::test]
+    async fn authenticated_api_requests_do_not_follow_off_origin_redirects() {
+        let origin = MockServer::start().await;
+        let target = MockServer::start().await;
+        let redirect_url = format!("{}/capture", target.uri());
+
+        Mock::given(method("GET"))
+            .and(path("/api/platforms"))
+            .respond_with(ResponseTemplate::new(302).insert_header("location", redirect_url))
+            .mount(&origin)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/capture"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(r#"{"ok":true}"#))
+            .mount(&target)
+            .await;
+
+        let client = api_key_client_for(&origin.uri());
+        client
+            .request_json("GET", "/api/platforms", &[], None)
+            .await
+            .expect_err("off-origin redirect should not be followed");
+
+        let received = target
+            .received_requests()
+            .await
+            .expect("received requests should be tracked");
+        assert!(
+            received.is_empty(),
+            "off-origin target received redirected authenticated request"
+        );
+    }
+}
