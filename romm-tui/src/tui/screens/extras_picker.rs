@@ -6,7 +6,8 @@ use romm_api::config::RomsLayoutConfig;
 use romm_api::core::download::resolve_download_directory;
 use romm_api::core::extras::{
     build_cover_target, build_manual_target, build_update_dlc_file_targets_for_rom,
-    extras_root_dir, related_rom_download_target, DownloadTarget,
+    extras_root_dir, make_download_target_destinations_unique, related_rom_download_target,
+    DownloadTarget,
 };
 use romm_api::types::{Rom, RomFile};
 
@@ -74,6 +75,7 @@ pub fn build_selected_targets_from_items(
         }
     }
 
+    make_download_target_destinations_unique(&mut targets);
     Ok(targets)
 }
 

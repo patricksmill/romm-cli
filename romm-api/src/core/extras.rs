@@ -2,6 +2,7 @@
 //!
 //! Shared by the CLI `download extras` subcommand and the TUI extras picker.
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use crate::client::RommClient;
@@ -80,6 +81,7 @@ pub async fn build_extras_targets(
         targets.push(manual);
     }
 
+    make_download_target_destinations_unique(&mut targets);
     Ok(targets)
 }
 
@@ -111,12 +113,14 @@ pub fn build_base_rom_file_targets(
         return Ok(Vec::new());
     }
     let platform_dir = resolve_console_roms_dir(layout, base_dir, rom)?;
-    Ok(base_files
+    let mut targets: Vec<DownloadTarget> = base_files
         .into_iter()
         .map(|file| {
             internal_rom_file_target(rom, file, &platform_dir, InternalRomFileGroup::BaseGame)
         })
-        .collect())
+        .collect();
+    make_download_target_destinations_unique(&mut targets);
+    Ok(targets)
 }
 
 pub fn build_update_dlc_file_targets_for_rom(
@@ -187,6 +191,7 @@ pub fn build_update_dlc_targets_from_related_rows(
             .iter()
             .map(|candidate| related_rom_download_target(rom, candidate, extras_root)),
     );
+    make_download_target_destinations_unique(&mut targets);
     Ok(targets)
 }
 
@@ -216,7 +221,45 @@ fn build_internal_extra_targets(
             InternalRomFileGroup::Dlc,
         ));
     }
+    make_download_target_destinations_unique(&mut out);
     Ok(out)
+}
+
+pub fn make_download_target_destinations_unique(targets: &mut [DownloadTarget]) {
+    let mut seen = HashSet::new();
+    for target in targets {
+        if seen.insert(target.destination.clone()) {
+            continue;
+        }
+
+        let original = target.destination.clone();
+        for n in 2.. {
+            let candidate = suffixed_path(&original, n);
+            if seen.insert(candidate.clone()) {
+                target.destination = candidate;
+                break;
+            }
+        }
+    }
+}
+
+fn suffixed_path(path: &Path, n: u32) -> PathBuf {
+    let file_name = path
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("download.bin");
+    let stem = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or(file_name);
+    let name = match path.extension().and_then(|s| s.to_str()) {
+        Some(ext) if !ext.is_empty() => format!("{stem}__{n}.{ext}"),
+        _ => format!("{file_name}__{n}"),
+    };
+    match path.parent() {
+        Some(parent) => parent.join(name),
+        None => PathBuf::from(name),
+    }
 }
 
 /// One related ROM archive under `extras_root` (same layout as CLI extras).
@@ -441,6 +484,42 @@ mod tests {
         let root = PathBuf::from("/out/extras");
         assert!(build_cover_target(&rom, &root).is_none());
         assert!(build_manual_target(&rom, &root).is_none());
+    }
+
+    #[test]
+    fn internal_file_targets_disambiguate_duplicate_sanitized_names() {
+        let mut rom = rom_fixture(1, "Game", "pack.zip");
+        rom.files = vec![
+            RomFile {
+                id: 10,
+                rom_id: 1,
+                file_name: "patch?.nsp".into(),
+                file_path: "/patch-q.nsp".into(),
+                file_size_bytes: 10,
+                category: Some(RomFileCategory::Update),
+            },
+            RomFile {
+                id: 11,
+                rom_id: 1,
+                file_name: "patch:.nsp".into(),
+                file_path: "/patch-c.nsp".into(),
+                file_size_bytes: 11,
+                category: Some(RomFileCategory::Update),
+            },
+        ];
+
+        let targets =
+            build_update_dlc_file_targets_for_rom(&rom, &default_layout(), Path::new("/tmp/out"))
+                .unwrap();
+
+        assert_eq!(targets.len(), 2);
+        assert_ne!(targets[0].destination, targets[1].destination);
+        assert!(targets[0]
+            .destination
+            .ends_with("Nintendo Switch/updates/Game/patch_.nsp"));
+        assert!(targets[1]
+            .destination
+            .ends_with("Nintendo Switch/updates/Game/patch___2.nsp"));
     }
 
     fn rom_fixture(id: u64, name: &str, fs_name: &str) -> Rom {
