@@ -1,6 +1,7 @@
 use super::{
     background::types::{
-        CollectionPrefetchDone, RomLoadDone, RomLoadEvent, SearchLoadDone, SearchLoadEvent,
+        AchievementLoadDone, CollectionPrefetchDone, MetadataApplyDone, RomLoadDone, RomLoadEvent,
+        SearchLoadDone, SearchLoadEvent,
     },
     event::{map_key_to_actions, Action, AppEvent, BackgroundAction},
     rom_load::{primary_rom_load_result_is_current, primary_rom_load_result_matches_selection},
@@ -10,7 +11,9 @@ use crate::tui::screens::connected_splash::StartupSplash;
 use crate::tui::screens::game_detail::COVER_PANEL_WIDTH_DEFAULT;
 use crate::tui::screens::library_browse::{LibraryBrowseScreen, LibrarySearchMode};
 use crate::tui::screens::settings::{SettingsScreen, SettingsTab};
-use crate::tui::screens::{GameDetailPrevious, GameDetailScreen, SearchScreen};
+use crate::tui::screens::{
+    GameDetailPrevious, GameDetailScreen, MetadataMatchScreen, SearchScreen,
+};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use romm_api::client::RommClient;
 use romm_api::config::LIBRARY_LEFT_PANEL_PERCENT_DEFAULT;
@@ -455,6 +458,162 @@ async fn game_detail_esc_resumes_partial_library_rom_load() {
     assert_eq!(expected, &100);
     assert_eq!(context, &"restore_partial_library");
     assert!(req.as_ref().is_some_and(|r| r.platform_id == Some(1)));
+}
+
+#[tokio::test]
+async fn metadata_apply_refreshes_achievement_state() {
+    let mut app = app_with_library(vec![platform(1, "NES", 1)]);
+    let previous = LibraryBrowseScreen::new(
+        vec![platform(1, "NES", 1)],
+        vec![],
+        LIBRARY_LEFT_PANEL_PERCENT_DEFAULT,
+    );
+    let mut detail = GameDetailScreen::new(
+        rom_fixture(),
+        Vec::new(),
+        GameDetailPrevious::Library(Box::new(previous)),
+        app.downloads.shared(),
+        COVER_PANEL_WIDTH_DEFAULT,
+    );
+    detail.apply_achievements_empty("Not matched to RetroAchievements".into());
+    app.screen = AppScreen::GameDetail(Box::new(detail));
+
+    let mut refreshed = rom_fixture();
+    refreshed.ra_id = Some(1234);
+    app.apply_background(BackgroundAction::MetadataApply(MetadataApplyDone {
+        rom_id: refreshed.id,
+        platform_id: refreshed.platform_id,
+        result: Ok(Box::new(refreshed)),
+    }));
+
+    match &app.screen {
+        AppScreen::GameDetail(detail) => {
+            assert_eq!(
+                format!("{:?}", detail.achievements_state),
+                "Loading",
+                "metadata updates can change RA linkage, so achievements must be refreshed"
+            );
+        }
+        _ => panic!("expected game detail"),
+    }
+}
+
+#[tokio::test]
+async fn stale_metadata_apply_does_not_refresh_current_achievements() {
+    let mut app = app_with_library(vec![platform(1, "NES", 1)]);
+    let previous = LibraryBrowseScreen::new(
+        vec![platform(1, "NES", 1)],
+        vec![],
+        LIBRARY_LEFT_PANEL_PERCENT_DEFAULT,
+    );
+    let mut current_rom = rom_fixture();
+    current_rom.id = 20;
+    let mut detail = GameDetailScreen::new(
+        current_rom,
+        Vec::new(),
+        GameDetailPrevious::Library(Box::new(previous)),
+        app.downloads.shared(),
+        COVER_PANEL_WIDTH_DEFAULT,
+    );
+    detail.apply_achievements_empty("Current achievement state".into());
+    app.screen = AppScreen::GameDetail(Box::new(detail));
+
+    let mut stale_rom = rom_fixture();
+    stale_rom.id = 10;
+    app.apply_background(BackgroundAction::MetadataApply(MetadataApplyDone {
+        rom_id: stale_rom.id,
+        platform_id: stale_rom.platform_id,
+        result: Ok(Box::new(stale_rom)),
+    }));
+
+    match &app.screen {
+        AppScreen::GameDetail(detail) => {
+            assert_eq!(
+                format!("{:?}", detail.achievements_state),
+                "Empty(\"Current achievement state\")",
+                "a metadata completion for another ROM must not reload the visible game's achievements"
+            );
+        }
+        _ => panic!("expected game detail"),
+    }
+}
+
+#[tokio::test]
+async fn stale_metadata_apply_does_not_close_current_metadata_picker() {
+    let mut app = app_with_library(vec![platform(1, "NES", 1)]);
+    let previous = LibraryBrowseScreen::new(
+        vec![platform(1, "NES", 1)],
+        vec![],
+        LIBRARY_LEFT_PANEL_PERCENT_DEFAULT,
+    );
+    let mut current_rom = rom_fixture();
+    current_rom.id = 20;
+    let detail = GameDetailScreen::new(
+        current_rom,
+        Vec::new(),
+        GameDetailPrevious::Library(Box::new(previous)),
+        app.downloads.shared(),
+        COVER_PANEL_WIDTH_DEFAULT,
+    );
+    app.screen =
+        AppScreen::MetadataMatch(Box::new(MetadataMatchScreen::new_for_rom(Box::new(detail))));
+
+    let mut stale_rom = rom_fixture();
+    stale_rom.id = 10;
+    app.apply_background(BackgroundAction::MetadataApply(MetadataApplyDone {
+        rom_id: stale_rom.id,
+        platform_id: stale_rom.platform_id,
+        result: Ok(Box::new(stale_rom)),
+    }));
+
+    match &app.screen {
+        AppScreen::MetadataMatch(picker) => {
+            assert_eq!(
+                picker.previous.rom.id, 20,
+                "a stale metadata completion must not close or replace the active picker"
+            );
+        }
+        _ => panic!("expected metadata match screen"),
+    }
+}
+
+#[test]
+fn stale_achievement_load_result_is_ignored() {
+    let mut app = app_with_library(vec![platform(1, "NES", 1)]);
+    let previous = LibraryBrowseScreen::new(
+        vec![platform(1, "NES", 1)],
+        vec![],
+        LIBRARY_LEFT_PANEL_PERCENT_DEFAULT,
+    );
+    let mut detail = GameDetailScreen::new(
+        rom_fixture(),
+        Vec::new(),
+        GameDetailPrevious::Library(Box::new(previous)),
+        app.downloads.shared(),
+        COVER_PANEL_WIDTH_DEFAULT,
+    );
+    detail.set_achievements_loading();
+    app.screen = AppScreen::GameDetail(Box::new(detail));
+    app.achievement_load_gen = 2;
+
+    app.apply_background(BackgroundAction::AchievementLoad(AchievementLoadDone {
+        rom_id: 10,
+        gen: 1,
+        result: Ok(romm_api::core::achievements::AchievementLoadResult::Empty(
+            "Old result".into(),
+        )),
+    }));
+
+    match &app.screen {
+        AppScreen::GameDetail(detail) => {
+            assert_eq!(
+                format!("{:?}", detail.achievements_state),
+                "Loading",
+                "an older achievement worker must not overwrite a newer refresh"
+            );
+        }
+        _ => panic!("expected game detail"),
+    }
 }
 
 #[tokio::test]

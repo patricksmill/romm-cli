@@ -441,6 +441,8 @@ impl super::super::App {
         } else {
             return;
         }
+        self.achievement_load_gen = self.achievement_load_gen.saturating_add(1);
+        let gen = self.achievement_load_gen;
         let client = self.client.clone();
         let tx = self.achievement_load_tx.clone();
         tokio::spawn(async move {
@@ -455,7 +457,11 @@ impl super::super::App {
                 ))
             }
             .await;
-            let _ = tx.send(AchievementLoadDone { rom_id, result });
+            let _ = tx.send(AchievementLoadDone {
+                gen,
+                rom_id,
+                result,
+            });
         });
     }
 
