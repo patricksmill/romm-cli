@@ -142,8 +142,12 @@ pub struct App {
     save_upload_tx: tokio::sync::mpsc::UnboundedSender<SaveUploadDone>,
     save_download_rx: tokio::sync::mpsc::UnboundedReceiver<SaveDownloadDone>,
     save_download_tx: tokio::sync::mpsc::UnboundedSender<SaveDownloadDone>,
+    /// Incremented for each metadata picker/search session; stale search completions are ignored.
+    metadata_search_gen: u64,
     metadata_search_rx: tokio::sync::mpsc::UnboundedReceiver<MetadataSearchDone>,
     metadata_search_tx: tokio::sync::mpsc::UnboundedSender<MetadataSearchDone>,
+    /// ROM ids with a metadata match/unmatch PUT currently in flight.
+    metadata_apply_inflight_roms: HashSet<u64>,
     metadata_apply_rx: tokio::sync::mpsc::UnboundedReceiver<MetadataApplyDone>,
     metadata_apply_tx: tokio::sync::mpsc::UnboundedSender<MetadataApplyDone>,
     device_list_rx: tokio::sync::mpsc::UnboundedReceiver<DeviceListDone>,
@@ -310,8 +314,10 @@ impl App {
             save_upload_tx,
             save_download_rx,
             save_download_tx,
+            metadata_search_gen: 0,
             metadata_search_rx,
             metadata_search_tx,
+            metadata_apply_inflight_roms: HashSet::new(),
             metadata_apply_rx,
             metadata_apply_tx,
             device_list_rx,

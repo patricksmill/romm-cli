@@ -59,8 +59,17 @@ impl App {
         use std::time::{Duration, Instant};
         let supported = self.metadata_edit_supported();
         let blocked = self.metadata_edit_blocked_message();
+        let in_flight = match &self.screen {
+            AppScreen::GameDetail(detail) => {
+                self.metadata_apply_inflight_roms.contains(&detail.rom.id)
+            }
+            _ => false,
+        };
         if let AppScreen::GameDetail(detail) = &mut self.screen {
-            if !supported {
+            if in_flight {
+                detail.message = Some(Self::metadata_apply_in_progress_message());
+                detail.message_clear_at = Some(Instant::now() + Duration::from_secs(5));
+            } else if !supported {
                 detail.message = Some(blocked);
                 detail.message_clear_at = Some(Instant::now() + Duration::from_secs(5));
             } else {
@@ -89,6 +98,12 @@ impl App {
                 }
                 let rom_id = detail.rom.id;
                 let platform_id = detail.rom.platform_id;
+                if self.metadata_apply_inflight_roms.contains(&rom_id) {
+                    detail.message = Some(Self::metadata_apply_in_progress_message());
+                    detail.message_clear_at = Some(Instant::now() + Duration::from_secs(5));
+                    detail.metadata_unmatch_confirm = false;
+                    return Ok(false);
+                }
                 detail.metadata_unmatch_confirm = false;
                 detail.message = Some("Removing metadata match…".into());
                 detail.message_clear_at = None;

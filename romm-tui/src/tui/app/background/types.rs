@@ -70,6 +70,7 @@ pub(crate) struct CoverLoadDone {
 
 #[derive(Debug)]
 pub(crate) struct MetadataSearchDone {
+    pub(crate) gen: u64,
     pub(crate) rom_id: u64,
     pub(crate) result: Result<Vec<SearchRom>, RommError>,
 }

@@ -11,6 +11,10 @@ use super::super::{App, AppScreen};
 use crate::tui::screens::metadata_match::{MetadataMatchPhase, MetadataMatchScreen};
 
 impl App {
+    pub(in crate::tui::app) fn metadata_apply_in_progress_message() -> String {
+        "Metadata update already in progress.".into()
+    }
+
     pub(in crate::tui::app) fn metadata_edit_supported(&self) -> bool {
         self.metadata_edit_compat.supported
     }
@@ -20,6 +24,17 @@ impl App {
     }
 
     pub(in crate::tui::app) fn open_metadata_match_screen(&mut self) {
+        let rom_id = match &self.screen {
+            AppScreen::GameDetail(detail) => Some(detail.rom.id),
+            _ => None,
+        };
+        if rom_id.is_some_and(|id| self.metadata_apply_inflight_roms.contains(&id)) {
+            if let AppScreen::GameDetail(detail) = &mut self.screen {
+                detail.message = Some(Self::metadata_apply_in_progress_message());
+                detail.message_clear_at = Some(Instant::now() + std::time::Duration::from_secs(5));
+            }
+            return;
+        }
         if !self.metadata_edit_supported() {
             let msg = self.metadata_edit_blocked_message();
             if let AppScreen::GameDetail(detail) = &mut self.screen {
@@ -33,6 +48,7 @@ impl App {
         let AppScreen::GameDetail(detail) = prev else {
             return;
         };
+        self.metadata_search_gen = self.metadata_search_gen.wrapping_add(1);
         self.screen = AppScreen::MetadataMatch(Box::new(MetadataMatchScreen::new_for_rom(detail)));
     }
 
@@ -170,7 +186,13 @@ impl App {
         &mut self,
         done: super::super::background::types::MetadataSearchDone,
     ) {
+        if done.gen != self.metadata_search_gen {
+            return;
+        }
         if let AppScreen::MetadataMatch(picker) = &mut self.screen {
+            if !matches!(picker.phase, MetadataMatchPhase::Loading) {
+                return;
+            }
             if picker.previous.rom.id != done.rom_id {
                 return;
             }
@@ -185,6 +207,7 @@ impl App {
         &mut self,
         done: super::super::background::types::MetadataApplyDone,
     ) {
+        self.metadata_apply_inflight_roms.remove(&done.rom_id);
         match done.result {
             Ok(rom) => self.finish_metadata_apply_success(*rom),
             Err(e) => {

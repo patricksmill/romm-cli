@@ -1,6 +1,7 @@
 use super::{
     background::types::{
-        CollectionPrefetchDone, RomLoadDone, RomLoadEvent, SearchLoadDone, SearchLoadEvent,
+        CollectionPrefetchDone, MetadataSearchDone, RomLoadDone, RomLoadEvent, SearchLoadDone,
+        SearchLoadEvent,
     },
     event::{map_key_to_actions, Action, AppEvent, BackgroundAction},
     rom_load::{primary_rom_load_result_is_current, primary_rom_load_result_matches_selection},
@@ -20,7 +21,7 @@ use romm_api::feature_compat::{
     supported_achievements_compatibility, supported_metadata_edit_compatibility,
     supported_save_sync_compatibility,
 };
-use romm_api::types::{Platform, RomList};
+use romm_api::types::{Platform, RomList, SearchRom};
 use romm_api::update::UpdateStatus;
 use serde_json::json;
 use std::time::Instant;
@@ -134,6 +135,28 @@ fn rom_fixture() -> romm_api::types::Rom {
         "is_identified": true
     }))
     .expect("valid rom fixture")
+}
+
+fn metadata_row(name: &str) -> SearchRom {
+    serde_json::from_value(json!({
+        "name": name,
+        "platform_id": 1,
+        "igdb_id": 5
+    }))
+    .expect("valid metadata row")
+}
+
+fn app_with_game_detail() -> App {
+    let mut app = app_with_library(vec![platform(1, "NES", 1)]);
+    let detail = GameDetailScreen::new(
+        rom_fixture(),
+        Vec::new(),
+        GameDetailPrevious::Search(SearchScreen::new()),
+        app.downloads.shared(),
+        COVER_PANEL_WIDTH_DEFAULT,
+    );
+    app.screen = AppScreen::GameDetail(Box::new(detail));
+    app
 }
 
 fn empty_rom_list_with_total(total: u64) -> RomList {
@@ -780,6 +803,64 @@ async fn pressing_2_switches_to_extras_tab() {
             );
         }
         _ => panic!("expected game detail"),
+    }
+}
+
+#[tokio::test]
+async fn stale_metadata_search_result_from_previous_picker_is_ignored() {
+    let mut app = app_with_game_detail();
+
+    app.open_metadata_match_screen();
+    let stale_gen = app.metadata_search_gen;
+
+    app.handle_key_event(&KeyEvent::new(KeyCode::Esc, KeyModifiers::empty()))
+        .await
+        .expect("close first metadata picker");
+    assert!(matches!(app.screen, AppScreen::GameDetail(_)));
+
+    app.open_metadata_match_screen();
+
+    app.apply_background(BackgroundAction::MetadataSearch(MetadataSearchDone {
+        gen: stale_gen,
+        rom_id: 10,
+        result: Ok(vec![metadata_row("Wrong Game")]),
+    }));
+
+    match &app.screen {
+        AppScreen::MetadataMatch(picker) => {
+            assert!(
+                matches!(
+                    picker.phase,
+                    crate::tui::screens::metadata_match::MetadataMatchPhase::QueryInput
+                ),
+                "stale results must not move the reopened picker out of query input"
+            );
+            assert!(picker.rows.is_empty(), "stale rows must not be shown");
+        }
+        _ => panic!("expected metadata picker"),
+    }
+}
+
+#[tokio::test]
+async fn metadata_match_cannot_start_while_apply_is_in_flight_for_same_rom() {
+    let mut app = app_with_game_detail();
+    app.metadata_apply_inflight_roms.insert(10);
+
+    app.handle_key_event(&KeyEvent::new(KeyCode::Char('m'), KeyModifiers::empty()))
+        .await
+        .expect("handled metadata key");
+
+    match &app.screen {
+        AppScreen::GameDetail(detail) => {
+            assert!(
+                detail
+                    .message
+                    .as_deref()
+                    .is_some_and(|msg| msg.contains("already in progress")),
+                "user should be told the existing metadata update is still running"
+            );
+        }
+        _ => panic!("metadata picker must not open while an update is in flight"),
     }
 }
 
