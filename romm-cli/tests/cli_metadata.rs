@@ -88,9 +88,7 @@ async fn metadata_match_rejects_id_only_search_row_without_put() {
                 .query_param("search_by", "name");
             then.status(200)
                 .header("content-type", "application/json")
-                .body(
-                    r#"[{"name":"Zelda","platform_id":1,"id":999,"igdb_id":null}]"#,
-                );
+                .body(r#"[{"name":"Zelda","platform_id":1,"id":999,"igdb_id":null}]"#);
         })
         .await;
     let update = server
