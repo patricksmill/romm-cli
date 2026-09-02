@@ -76,6 +76,50 @@ async fn metadata_match_sends_multipart_put() {
 }
 
 #[tokio::test]
+async fn metadata_match_rejects_id_only_search_row_without_put() {
+    let server = MockServer::start_async().await;
+
+    let _search = server
+        .mock_async(|when, then| {
+            when.method(GET)
+                .path("/api/search/roms")
+                .query_param("rom_id", "5")
+                .query_param("search_term", "zelda")
+                .query_param("search_by", "name");
+            then.status(200)
+                .header("content-type", "application/json")
+                .body(
+                    r#"[{"name":"Zelda","platform_id":1,"id":999,"igdb_id":null}]"#,
+                );
+        })
+        .await;
+    let update = server
+        .mock_async(|when, then| {
+            when.method(PUT).path("/api/roms/5");
+            then.status(200)
+                .header("content-type", "application/json")
+                .body(
+                    r#"{"id":5,"platform_id":2,"name":"Zelda","is_identified":true,"is_unidentified":false}"#,
+                );
+        })
+        .await;
+
+    let mut cmd = Command::cargo_bin("romm-cli").unwrap();
+    cmd.env("API_BASE_URL", server.base_url())
+        .env("API_USE_HTTPS", "false")
+        .env("API_USERNAME", "u")
+        .env("API_PASSWORD", "p")
+        .args([
+            "roms", "metadata", "match", "5", "--query", "zelda", "--pick",
+        ]);
+
+    cmd.assert().failure().stderr(predicates::str::contains(
+        "Selected result has no provider IDs to apply",
+    ));
+    assert_eq!(update.hits_async().await, 0);
+}
+
+#[tokio::test]
 async fn metadata_unmatch_sends_query_flag() {
     let server = MockServer::start_async().await;
 
