@@ -397,7 +397,7 @@ async fn game_detail_download_skips_when_rom_already_exists_in_console_folder() 
     let roms_dir = std::env::temp_dir().join(format!("romm-roms-dir-{ts}"));
     let console_dir = roms_dir.join("platform-1");
     std::fs::create_dir_all(&console_dir).unwrap();
-    std::fs::write(console_dir.join("alpha.zip"), b"existing").unwrap();
+    std::fs::write(console_dir.join("alpha.zip"), b"x").unwrap();
 
     let config = Config {
         base_url: "http://127.0.0.1:9".into(),

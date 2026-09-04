@@ -13,7 +13,8 @@ use super::super::job::{DownloadJob, DownloadStatus};
 use super::super::paths::{resolve_console_roms_dir, resolve_download_directory};
 use super::super::transfer::{
     download_target_with_fallback, finalize_download, prepare_download_target_destination,
-    sanitized_final_filename, FinalizeResult,
+    prepare_primary_rom_destination, remove_stale_primary_temp_path, sanitized_final_filename,
+    FinalizeResult,
 };
 use super::DownloadManager;
 
@@ -23,6 +24,7 @@ struct RomDownloadTask {
     job_id: usize,
     rom_id: u64,
     fs_name: String,
+    expected_size_bytes: u64,
     final_name: String,
     save_dir: PathBuf,
     console_dir: PathBuf,
@@ -68,6 +70,7 @@ impl DownloadManager {
             job_id,
             rom_id,
             fs_name,
+            expected_size_bytes: rom_for_targets.fs_size_bytes,
             final_name,
             save_dir,
             console_dir,
@@ -116,6 +119,7 @@ async fn run_rom_download_task(task: RomDownloadTask) {
         task.job_id,
         task.rom_id,
         &task.fs_name,
+        task.expected_size_bytes,
         &temp_root,
         &final_path,
     )
@@ -172,12 +176,20 @@ async fn download_primary_rom(
     job_id: usize,
     rom_id: u64,
     fs_name: &str,
+    expected_size_bytes: u64,
     temp_root: &std::path::Path,
     final_path: &std::path::Path,
 ) {
-    if final_path.exists() {
-        finish_job(jobs, job_id, DownloadStatus::SkippedAlreadyExists);
-        return;
+    match prepare_primary_rom_destination(final_path, expected_size_bytes).await {
+        Ok(true) => {
+            finish_job(jobs, job_id, DownloadStatus::SkippedAlreadyExists);
+            return;
+        }
+        Ok(false) => {}
+        Err(err) => {
+            set_job_status(jobs, job_id, DownloadStatus::Error(err.to_string()));
+            return;
+        }
     }
 
     let temp_name = format!(
@@ -187,6 +199,11 @@ async fn download_primary_rom(
         job_id
     );
     let temp_path = temp_root.join(temp_name);
+    if let Err(err) = remove_stale_primary_temp_path(&temp_path).await {
+        set_job_status(jobs, job_id, DownloadStatus::Error(err.to_string()));
+        return;
+    }
+
     let progress_jobs = jobs.clone();
     let on_progress = move |received: u64, total: u64| {
         let p = if total > 0 {

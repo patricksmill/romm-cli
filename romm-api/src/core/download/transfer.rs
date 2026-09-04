@@ -7,6 +7,43 @@ use crate::core::extras::DownloadTarget;
 use crate::core::utils;
 use crate::error::DownloadError;
 
+pub(crate) async fn prepare_primary_rom_destination(
+    final_path: &Path,
+    expected_size_bytes: u64,
+) -> Result<bool, DownloadError> {
+    let Ok(metadata) = tokio::fs::metadata(final_path).await else {
+        return Ok(false);
+    };
+    let current_size = metadata.len();
+    if current_size == expected_size_bytes {
+        return Ok(true);
+    }
+
+    tokio::fs::remove_file(final_path)
+        .await
+        .map_err(|e| DownloadError::IoContext {
+            context: format!(
+                "remove stale primary ROM archive {} ({} != {} bytes)",
+                final_path.display(),
+                current_size,
+                expected_size_bytes
+            ),
+            source: e,
+        })?;
+    Ok(false)
+}
+
+pub(crate) async fn remove_stale_primary_temp_path(temp_path: &Path) -> Result<(), DownloadError> {
+    match tokio::fs::remove_file(temp_path).await {
+        Ok(()) => Ok(()),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(err) => Err(DownloadError::IoContext {
+            context: format!("remove stale primary ROM temp {}", temp_path.display()),
+            source: err,
+        }),
+    }
+}
+
 pub async fn prepare_download_target_destination(
     target: &DownloadTarget,
 ) -> Result<bool, DownloadError> {
