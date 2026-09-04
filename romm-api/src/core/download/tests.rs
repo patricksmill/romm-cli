@@ -1,23 +1,49 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+use crate::client::RommClient;
 use crate::config::{default_theme_id, Config, RomsLayoutConfig, SaveSyncConfig};
 use crate::core::download::extras_job::finalize_extras_job_status;
 use crate::core::download::paths::resolve_download_directory_from_inputs;
 use crate::core::download::transfer::{
-    candidate_download_urls, final_download_path_for_rom, finalize_download, FinalizeResult,
+    candidate_download_urls, final_download_path_for_rom, finalize_download,
+    prepare_primary_rom_destination, remove_stale_primary_temp_path, FinalizeResult,
 };
 use crate::core::download::{
     extract_zip_archive, prepare_download_target_destination, resolve_console_roms_dir,
-    resolve_console_save_dir, resolve_game_save_dir, unique_zip_path, ExtrasItemResult, ExtrasJob,
-    ExtrasJobStatus,
+    resolve_console_save_dir, resolve_game_save_dir, unique_zip_path, DownloadManager,
+    DownloadStatus, ExtrasItemResult, ExtrasJob, ExtrasJobStatus,
 };
 use crate::core::extras::{build_base_rom_file_targets, DownloadAssetKind, DownloadTarget};
 use crate::types::Rom;
 use std::io::Write;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use wiremock::matchers::{method, path};
+use wiremock::{Mock, MockServer, ResponseTemplate};
 use zip::write::SimpleFileOptions;
 use zip::ZipWriter;
+
+struct RomsDirEnvGuard {
+    _guard: std::sync::MutexGuard<'static, ()>,
+}
+
+impl RomsDirEnvGuard {
+    fn set(path: &Path) -> Self {
+        let guard = crate::config::test_env_lock()
+            .lock()
+            .unwrap_or_else(|err| err.into_inner());
+        std::env::set_var("ROMM_ROMS_DIR", path);
+        std::env::remove_var("ROMM_DOWNLOAD_DIR");
+        Self { _guard: guard }
+    }
+}
+
+impl Drop for RomsDirEnvGuard {
+    fn drop(&mut self) {
+        std::env::remove_var("ROMM_ROMS_DIR");
+        std::env::remove_var("ROMM_DOWNLOAD_DIR");
+    }
+}
 
 fn rom_fixture_with_platform(platform_fs_slug: Option<&str>, fs_name: &str) -> Rom {
     Rom {
@@ -462,6 +488,116 @@ async fn base_target_prepare_removes_oversized_file() {
     let skip = prepare_download_target_destination(&target).await.unwrap();
     assert!(!skip);
     assert!(!target.destination.exists());
+    let _ = tokio::fs::remove_dir_all(base).await;
+}
+
+#[tokio::test]
+async fn primary_prepare_removes_non_empty_file_when_expected_size_is_zero() {
+    let ts = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let base = std::env::temp_dir().join(format!("romm-primary-zero-{ts}"));
+    tokio::fs::create_dir_all(&base).await.unwrap();
+    let final_path = base.join("empty.zip");
+    tokio::fs::write(&final_path, b"old").await.unwrap();
+
+    let skip = prepare_primary_rom_destination(&final_path, 0)
+        .await
+        .unwrap();
+
+    assert!(!skip);
+    assert!(!final_path.exists());
+    let _ = tokio::fs::remove_dir_all(base).await;
+}
+
+#[tokio::test]
+async fn primary_temp_prepare_removes_stale_part_file() {
+    let ts = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let base = std::env::temp_dir().join(format!("romm-primary-temp-{ts}"));
+    tokio::fs::create_dir_all(&base).await.unwrap();
+    let temp_path = base.join("rom-42-game.zip-0.part");
+    tokio::fs::write(&temp_path, b"old-part").await.unwrap();
+
+    remove_stale_primary_temp_path(&temp_path).await.unwrap();
+
+    assert!(!temp_path.exists());
+    let _ = tokio::fs::remove_dir_all(base).await;
+}
+
+#[tokio::test]
+async fn primary_rom_download_replaces_mismatched_existing_archive() {
+    let server = MockServer::start().await;
+    let fresh_body = b"fresh-rom";
+    Mock::given(method("GET"))
+        .and(path("/api/roms/download"))
+        .respond_with(ResponseTemplate::new(200).set_body_bytes(fresh_body.to_vec()))
+        .mount(&server)
+        .await;
+
+    let ts = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let base = std::env::temp_dir().join(format!("romm-primary-mismatch-{ts}"));
+    let _env = RomsDirEnvGuard::set(&base);
+    let mut rom = rom_fixture_with_platform(Some("gba"), "game.zip");
+    rom.fs_size_bytes = fresh_body.len() as u64;
+    let final_path = final_download_path_for_rom(&base, &rom);
+    tokio::fs::create_dir_all(final_path.parent().unwrap())
+        .await
+        .unwrap();
+    tokio::fs::write(&final_path, b"old").await.unwrap();
+
+    let config = Config {
+        base_url: server.uri(),
+        download_dir: base.to_string_lossy().into_owned(),
+        use_https: false,
+        auth: None,
+        extras_defaults: Default::default(),
+        save_sync: SaveSyncConfig::default(),
+        roms_layout: RomsLayoutConfig::default(),
+        theme: default_theme_id(),
+        tui_layout: Default::default(),
+    };
+    let client = RommClient::new(&config, false).unwrap();
+    let manager = DownloadManager::new();
+    manager
+        .start_download(
+            &rom,
+            client,
+            &config.roms_layout,
+            Some(&config.download_dir),
+        )
+        .unwrap();
+
+    let jobs = manager.shared();
+    let mut status = None;
+    for _ in 0..100 {
+        status = jobs.lock().unwrap().first().map(|job| job.status.clone());
+        if matches!(
+            status,
+            Some(
+                DownloadStatus::Done
+                    | DownloadStatus::SkippedAlreadyExists
+                    | DownloadStatus::Cancelled
+                    | DownloadStatus::FinalizeFailed(_)
+                    | DownloadStatus::Error(_)
+            )
+        ) {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+
+    assert!(
+        matches!(status, Some(DownloadStatus::Done)),
+        "expected stale primary archive to be replaced, got {status:?}"
+    );
+    assert_eq!(tokio::fs::read(&final_path).await.unwrap(), fresh_body);
     let _ = tokio::fs::remove_dir_all(base).await;
 }
 
