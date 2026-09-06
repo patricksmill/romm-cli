@@ -18,7 +18,7 @@ use base64::{engine::general_purpose, Engine as _};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use reqwest::Client as HttpClient;
 
-use crate::config::{AuthConfig, Config};
+use crate::config::{normalize_romm_origin, AuthConfig, Config};
 use crate::error::ApiError;
 
 /// Optional query fields for save uploads used in sync flows.
@@ -61,9 +61,15 @@ impl RommClient {
         let http = HttpClient::builder()
             .user_agent(http_user_agent())
             .build()?;
+        let mut base_url = normalize_romm_origin(&config.base_url);
+        if config.use_https {
+            if let Some(rest) = base_url.strip_prefix("http://") {
+                base_url = format!("https://{rest}");
+            }
+        }
         Ok(Self {
             http,
-            base_url: config.base_url.clone(),
+            base_url,
             auth: config.auth.clone(),
             verbose,
         })
@@ -183,5 +189,26 @@ mod tests {
         assert_eq!(urls[0], "https://example.test/openapi.json");
         assert_eq!(urls[1], "https://example.test/api/openapi.json");
         assert!(urls.iter().all(|u| u.starts_with("https://")), "{urls:?}");
+    }
+
+    #[test]
+    fn client_new_enforces_https_flag_for_direct_configs() {
+        let client = super::RommClient::new(
+            &crate::config::Config {
+                base_url: "http://example.test/api".into(),
+                download_dir: ".".into(),
+                use_https: true,
+                auth: None,
+                extras_defaults: crate::config::ExtrasDefaults::default(),
+                save_sync: Default::default(),
+                roms_layout: Default::default(),
+                theme: crate::config::default_theme_id(),
+                tui_layout: Default::default(),
+            },
+            false,
+        )
+        .expect("client");
+
+        assert_eq!(client.base_url, "https://example.test");
     }
 }
