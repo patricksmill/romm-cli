@@ -24,7 +24,7 @@ use romm_api::types::RomList;
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use romm_api::client::RommClient;
-use romm_api::config::Config;
+use romm_api::config::{auth_for_persist_merge, Config};
 use romm_api::core::cache::{RomCache, RomCacheKey};
 use romm_api::core::download::DownloadManager;
 use romm_api::core::library_scan::ScanCacheInvalidate;
@@ -333,7 +333,9 @@ impl App {
     }
 
     pub(in crate::tui::app) fn persist_tui_layout(&self) {
-        if let Err(e) = romm_api::config::persist_user_config(&self.config) {
+        let mut config = self.config.clone();
+        config.auth = auth_for_persist_merge(config.auth);
+        if let Err(e) = romm_api::config::persist_user_config(&config) {
             tracing::warn!("failed to persist TUI panel layout: {e:#}");
         }
     }
