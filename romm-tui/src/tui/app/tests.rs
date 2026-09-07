@@ -18,8 +18,10 @@ use crate::tui::screens::{
 };
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use romm_api::client::RommClient;
-use romm_api::config::LIBRARY_LEFT_PANEL_PERCENT_DEFAULT;
-use romm_api::config::{default_theme_id, Config, ExtrasDefaults, TuiLayoutConfig};
+use romm_api::config::{
+    default_theme_id, AuthConfig, Config, ExtrasDefaults, TuiLayoutConfig,
+    KEYRING_SECRET_PLACEHOLDER, LIBRARY_LEFT_PANEL_PERCENT_DEFAULT,
+};
 use romm_api::core::cache::RomCacheKey;
 use romm_api::core::{library_scan::ScanCacheInvalidate, startup_library_snapshot};
 use romm_api::feature_compat::{
@@ -29,8 +31,9 @@ use romm_api::feature_compat::{
 use romm_api::types::{Platform, RomList};
 use romm_api::update::UpdateStatus;
 use serde_json::json;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use wiremock::matchers::{method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -302,6 +305,82 @@ impl Drop for EnvOverride {
         } else {
             std::env::remove_var(self.key);
         }
+    }
+}
+
+struct TestConfigDir {
+    _guard: std::sync::MutexGuard<'static, ()>,
+    dir: PathBuf,
+    previous: Option<String>,
+}
+
+impl TestConfigDir {
+    fn new() -> Self {
+        let guard = romm_api::config::test_env_lock()
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let previous = std::env::var("ROMM_TEST_CONFIG_DIR").ok();
+        let dir = std::env::temp_dir().join(format!(
+            "romm-tui-app-config-test-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("system clock after epoch")
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).expect("create test config dir");
+        std::env::set_var("ROMM_TEST_CONFIG_DIR", &dir);
+        Self {
+            _guard: guard,
+            dir,
+            previous,
+        }
+    }
+
+    fn config_path(&self) -> PathBuf {
+        self.dir.join("config.json")
+    }
+}
+
+impl Drop for TestConfigDir {
+    fn drop(&mut self) {
+        match &self.previous {
+            Some(value) => std::env::set_var("ROMM_TEST_CONFIG_DIR", value),
+            None => std::env::remove_var("ROMM_TEST_CONFIG_DIR"),
+        }
+        let _ = std::fs::remove_dir_all(&self.dir);
+    }
+}
+
+#[test]
+fn layout_persistence_preserves_disk_keyring_auth_when_effective_auth_missing() {
+    let env = TestConfigDir::new();
+    std::fs::write(
+        env.config_path(),
+        r#"{
+            "base_url": "http://example.test",
+            "download_dir": "/tmp",
+            "use_https": false,
+            "auth": { "ApiKey": { "header": "X-Api-Key", "key": "<stored-in-keyring>" } }
+        }"#,
+    )
+    .expect("write disk config");
+
+    let mut app = app_on_library();
+    app.config.auth = None;
+    app.config.tui_layout.library_left_panel_percent = 35;
+
+    app.persist_tui_layout();
+
+    let saved: Config =
+        serde_json::from_str(&std::fs::read_to_string(env.config_path()).expect("read config"))
+            .expect("parse config");
+    match saved.auth {
+        Some(AuthConfig::ApiKey { header, key }) => {
+            assert_eq!(header, "X-Api-Key");
+            assert_eq!(key, KEYRING_SECRET_PLACEHOLDER);
+        }
+        other => panic!("expected API key sentinel auth preserved, got {other:?}"),
     }
 }
 
