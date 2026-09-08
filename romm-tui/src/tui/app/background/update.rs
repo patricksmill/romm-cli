@@ -8,6 +8,19 @@ use super::super::{App, AppScreen};
 use super::types::{RomLoadDone, RomLoadEvent};
 
 impl App {
+    fn detail_for_background_rom_mut(
+        &mut self,
+        rom_id: u64,
+    ) -> Option<&mut crate::tui::screens::game_detail::GameDetailScreen> {
+        match &mut self.screen {
+            AppScreen::GameDetail(detail) if detail.rom.id == rom_id => Some(detail.as_mut()),
+            AppScreen::MetadataMatch(picker) if picker.previous.rom.id == rom_id => {
+                Some(picker.previous.as_mut())
+            }
+            _ => None,
+        }
+    }
+
     /// Apply background-only actions synchronously (tests and legacy poll path).
     pub(in crate::tui::app) fn apply_background(&mut self, action: BackgroundAction) {
         match action {
@@ -150,10 +163,7 @@ impl App {
     }
 
     fn apply_cover_load_complete(&mut self, done: super::types::CoverLoadDone) {
-        if let AppScreen::GameDetail(detail) = &mut self.screen {
-            if detail.rom.id != done.rom_id {
-                return;
-            }
+        if let Some(detail) = self.detail_for_background_rom_mut(done.rom_id) {
             match done.result {
                 Ok(image) => detail.apply_cover_image(image),
                 Err(err) => detail.apply_cover_error(format!(
@@ -165,10 +175,7 @@ impl App {
     }
 
     fn apply_save_screenshot_load_complete(&mut self, done: super::types::SaveScreenshotLoadDone) {
-        if let AppScreen::GameDetail(detail) = &mut self.screen {
-            if detail.rom.id != done.rom_id {
-                return;
-            }
+        if let Some(detail) = self.detail_for_background_rom_mut(done.rom_id) {
             match done.result {
                 Ok(image) => detail.apply_save_screenshot_image(image),
                 Err(err) => detail.apply_save_screenshot_error(format!(
@@ -180,12 +187,10 @@ impl App {
     }
 
     fn apply_save_list_complete(&mut self, done: super::types::SaveListDone) {
-        if let AppScreen::GameDetail(detail) = &mut self.screen {
-            if detail.rom.id == done.rom_id {
-                match done.result {
-                    Ok(rows) => detail.apply_saves(rows),
-                    Err(e) => detail.apply_saves_error(user_message(&e)),
-                }
+        if let Some(detail) = self.detail_for_background_rom_mut(done.rom_id) {
+            match done.result {
+                Ok(rows) => detail.apply_saves(rows),
+                Err(e) => detail.apply_saves_error(user_message(&e)),
             }
         }
         self.maybe_start_save_screenshot_load();
@@ -193,10 +198,7 @@ impl App {
 
     fn apply_achievement_load_complete(&mut self, done: super::types::AchievementLoadDone) {
         use romm_api::core::achievements::AchievementLoadResult;
-        if let AppScreen::GameDetail(detail) = &mut self.screen {
-            if detail.rom.id != done.rom_id {
-                return;
-            }
+        if let Some(detail) = self.detail_for_background_rom_mut(done.rom_id) {
             match done.result {
                 Ok(AchievementLoadResult::Loaded { rows, summary }) => {
                     detail.apply_achievements_loaded(rows, summary);
@@ -209,40 +211,43 @@ impl App {
 
     fn apply_save_upload_complete(&mut self, done: super::types::SaveUploadDone) {
         use std::time::{Duration, Instant};
-        if let AppScreen::GameDetail(detail) = &mut self.screen {
-            if detail.rom.id == done.rom_id {
-                match done.result {
-                    Ok(()) => {
-                        detail.message = Some("Save uploaded. Refreshing saves...".into());
-                        detail.message_clear_at = Some(Instant::now() + Duration::from_secs(3));
-                        self.spawn_save_list_worker(done.rom_id);
-                    }
-                    Err(e) => {
-                        detail.message = Some(format!("Save upload failed: {}", user_message(&e)));
-                        detail.message_clear_at = Some(Instant::now() + Duration::from_secs(5));
-                    }
+        let mut refresh_saves = false;
+        if let Some(detail) = self.detail_for_background_rom_mut(done.rom_id) {
+            match done.result {
+                Ok(()) => {
+                    detail.message = Some("Save uploaded. Refreshing saves...".into());
+                    detail.message_clear_at = Some(Instant::now() + Duration::from_secs(3));
+                    refresh_saves = true;
+                }
+                Err(e) => {
+                    detail.message = Some(format!("Save upload failed: {}", user_message(&e)));
+                    detail.message_clear_at = Some(Instant::now() + Duration::from_secs(5));
                 }
             }
+        }
+        if refresh_saves {
+            self.spawn_save_list_worker(done.rom_id);
         }
     }
 
     fn apply_save_download_complete(&mut self, done: super::types::SaveDownloadDone) {
         use std::time::{Duration, Instant};
-        if let AppScreen::GameDetail(detail) = &mut self.screen {
-            if detail.rom.id == done.rom_id {
-                match done.result {
-                    Ok(path) => {
-                        detail.message = Some(format!("Save downloaded: {}", path.display()));
-                        detail.message_clear_at = Some(Instant::now() + Duration::from_secs(5));
-                        self.spawn_save_list_worker(done.rom_id);
-                    }
-                    Err(e) => {
-                        detail.message =
-                            Some(format!("Save download failed: {}", user_message(&e)));
-                        detail.message_clear_at = Some(Instant::now() + Duration::from_secs(5));
-                    }
+        let mut refresh_saves = false;
+        if let Some(detail) = self.detail_for_background_rom_mut(done.rom_id) {
+            match done.result {
+                Ok(path) => {
+                    detail.message = Some(format!("Save downloaded: {}", path.display()));
+                    detail.message_clear_at = Some(Instant::now() + Duration::from_secs(5));
+                    refresh_saves = true;
+                }
+                Err(e) => {
+                    detail.message = Some(format!("Save download failed: {}", user_message(&e)));
+                    detail.message_clear_at = Some(Instant::now() + Duration::from_secs(5));
                 }
             }
+        }
+        if refresh_saves {
+            self.spawn_save_list_worker(done.rom_id);
         }
     }
 
