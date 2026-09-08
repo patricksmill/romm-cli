@@ -1,16 +1,21 @@
 use super::{
     background::types::{
-        CollectionPrefetchDone, RomLoadDone, RomLoadEvent, SearchLoadDone, SearchLoadEvent,
+        AchievementLoadDone, CollectionPrefetchDone, RomLoadDone, RomLoadEvent, SaveListDone,
+        SearchLoadDone, SearchLoadEvent,
     },
     event::{map_key_to_actions, Action, AppEvent, BackgroundAction},
     rom_load::{primary_rom_load_result_is_current, primary_rom_load_result_matches_selection},
     App, AppScreen,
 };
 use crate::tui::screens::connected_splash::StartupSplash;
-use crate::tui::screens::game_detail::COVER_PANEL_WIDTH_DEFAULT;
+use crate::tui::screens::game_detail::{
+    AchievementListState, SaveListState, COVER_PANEL_WIDTH_DEFAULT,
+};
 use crate::tui::screens::library_browse::{LibraryBrowseScreen, LibrarySearchMode};
 use crate::tui::screens::settings::{SettingsScreen, SettingsTab};
-use crate::tui::screens::{GameDetailPrevious, GameDetailScreen, SearchScreen};
+use crate::tui::screens::{
+    GameDetailPrevious, GameDetailScreen, MetadataMatchScreen, SearchScreen,
+};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use romm_api::client::RommClient;
 use romm_api::config::LIBRARY_LEFT_PANEL_PERCENT_DEFAULT;
@@ -780,6 +785,52 @@ async fn pressing_2_switches_to_extras_tab() {
             );
         }
         _ => panic!("expected game detail"),
+    }
+}
+
+#[test]
+fn metadata_match_keeps_game_detail_background_results() {
+    let mut app = app_with_library(vec![platform(1, "NES", 1)]);
+    let previous = LibraryBrowseScreen::new(
+        vec![platform(1, "NES", 1)],
+        vec![],
+        LIBRARY_LEFT_PANEL_PERCENT_DEFAULT,
+    );
+    let mut detail = GameDetailScreen::new(
+        rom_fixture(),
+        Vec::new(),
+        GameDetailPrevious::Library(Box::new(previous)),
+        app.downloads.shared(),
+        COVER_PANEL_WIDTH_DEFAULT,
+    );
+    detail.saves_state = SaveListState::Loading;
+    detail.achievements_state = AchievementListState::Loading;
+    app.screen =
+        AppScreen::MetadataMatch(Box::new(MetadataMatchScreen::new_for_rom(Box::new(detail))));
+
+    app.apply_background(BackgroundAction::SaveList(SaveListDone {
+        rom_id: 10,
+        result: Ok(Vec::new()),
+    }));
+    app.apply_background(BackgroundAction::AchievementLoad(AchievementLoadDone {
+        rom_id: 10,
+        result: Ok(romm_api::core::achievements::AchievementLoadResult::Empty(
+            "No achievements".into(),
+        )),
+    }));
+
+    match &app.screen {
+        AppScreen::MetadataMatch(picker) => {
+            assert!(matches!(
+                picker.previous.saves_state,
+                SaveListState::Loaded(ref saves) if saves.is_empty()
+            ));
+            assert!(matches!(
+                picker.previous.achievements_state,
+                AchievementListState::Empty(ref message) if message == "No achievements"
+            ));
+        }
+        _ => panic!("expected metadata match"),
     }
 }
 
