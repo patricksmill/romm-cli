@@ -413,6 +413,19 @@ mod tests {
     }
 
     #[test]
+    fn extras_root_dir_never_uses_parent_component_from_game_name() {
+        let rom = rom_fixture(7, "..", "game.zip");
+        let dir = extras_root_dir(&default_layout(), Path::new("/tmp/out"), &rom).unwrap();
+        assert_eq!(
+            dir,
+            PathBuf::from("/tmp/out")
+                .join("Nintendo Switch")
+                .join("_")
+                .join("extras")
+        );
+    }
+
+    #[test]
     fn filename_from_url_uses_remote_leaf_or_fallback() {
         assert_eq!(
             filename_from_url("https://example.com/files/guide.pdf?download=1", "manual"),
