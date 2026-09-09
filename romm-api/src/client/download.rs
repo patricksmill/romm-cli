@@ -1,5 +1,5 @@
 use reqwest::{
-    header::{HeaderMap, HeaderValue, LOCATION, RANGE},
+    header::{HeaderMap, LOCATION},
     redirect::Policy,
     Client as HttpClient, Response, Url,
 };
@@ -55,7 +55,7 @@ impl RommClient {
         .await
     }
 
-    /// Downloads an arbitrary URL to `save_path`, supporting auth headers and resume.
+    /// Downloads an arbitrary URL to `save_path`, overwriting any existing stale file.
     pub async fn download_url_with_cancel<F, C>(
         &self,
         url: &str,
@@ -71,7 +71,7 @@ impl RommClient {
             .await
     }
 
-    /// Downloads an arbitrary URL and query to `save_path`, supporting auth headers and resume.
+    /// Downloads an arbitrary URL and query to `save_path`, overwriting any existing stale file.
     pub async fn download_url_with_query_with_cancel<F, C>(
         &self,
         url: &str,
@@ -85,12 +85,6 @@ impl RommClient {
         C: FnMut(u64, u64) -> bool + Send,
     {
         let url = self.resolve_download_url(url)?;
-        let filename = filename_hint(save_path);
-        let existing_len = tokio::fs::metadata(save_path)
-            .await
-            .map(|m| m.len())
-            .unwrap_or(0);
-
         if let Some(parent) = save_path.parent() {
             tokio::fs::create_dir_all(parent)
                 .await
@@ -102,11 +96,7 @@ impl RommClient {
 
         let t0 = Instant::now();
         let mut resp = self
-            .send_download_request_with_redirects(
-                &url,
-                query,
-                (existing_len > 0).then_some(existing_len),
-            )
+            .send_download_request_with_redirects(&url, query)
             .await?;
 
         let status = resp.status();
@@ -123,30 +113,21 @@ impl RommClient {
             let body = read_error_response_text(resp).await;
             return Err(DownloadError::Api(api_error_from_response(status, &body)));
         }
+        if status == reqwest::StatusCode::PARTIAL_CONTENT {
+            return Err(DownloadError::Api(ApiError::UnexpectedResponse(
+                "download server returned partial content for a fresh request".into(),
+            )));
+        }
 
-        let (mut received, total, mut file) = if status == reqwest::StatusCode::PARTIAL_CONTENT {
-            let remaining = resp.content_length().unwrap_or(0);
-            let total = existing_len + remaining;
-            let file = tokio::fs::OpenOptions::new()
-                .append(true)
-                .open(save_path)
+        let mut received = 0u64;
+        let total = resp.content_length().unwrap_or(0);
+        let mut file =
+            tokio::fs::File::create(save_path)
                 .await
                 .map_err(|e| DownloadError::IoContext {
-                    context: format!("open file for append {save_path:?}"),
+                    context: format!("create file {save_path:?}"),
                     source: e,
                 })?;
-            (existing_len, total, file)
-        } else {
-            let total = resp.content_length().unwrap_or(0);
-            let file =
-                tokio::fs::File::create(save_path)
-                    .await
-                    .map_err(|e| DownloadError::IoContext {
-                        context: format!("create file {save_path:?}"),
-                        source: e,
-                    })?;
-            (0u64, total, file)
-        };
 
         if is_cancelled(received, total) {
             return Err(DownloadError::Cancelled(CancelledByUser));
@@ -177,7 +158,6 @@ impl RommClient {
         &self,
         url: &str,
         query: &[(String, String)],
-        range_start: Option<u64>,
     ) -> Result<Response, DownloadError> {
         const MAX_REDIRECTS: usize = 10;
 
@@ -190,7 +170,7 @@ impl RommClient {
         let mut first_request = true;
 
         for redirect_count in 0..=MAX_REDIRECTS {
-            let headers = self.download_headers_for_url(current.as_str(), range_start)?;
+            let headers = self.download_headers_for_url(current.as_str())?;
             let mut request = http.get(current.clone()).headers(headers);
             if first_request {
                 request = request.query(query);
@@ -221,23 +201,12 @@ impl RommClient {
         )))
     }
 
-    fn download_headers_for_url(
-        &self,
-        url: &str,
-        range_start: Option<u64>,
-    ) -> Result<HeaderMap, DownloadError> {
-        let mut headers = if self.should_send_auth_to_download_url(url) {
+    fn download_headers_for_url(&self, url: &str) -> Result<HeaderMap, DownloadError> {
+        let headers = if self.should_send_auth_to_download_url(url) {
             self.build_headers()?
         } else {
             HeaderMap::new()
         };
-
-        if let Some(start) = range_start {
-            let range = format!("bytes={start}-");
-            if let Ok(v) = HeaderValue::from_str(&range) {
-                headers.insert(RANGE, v);
-            }
-        }
 
         Ok(headers)
     }
@@ -299,7 +268,11 @@ fn filename_hint(save_path: &Path) -> String {
 mod tests {
     use crate::config::{AuthConfig, Config, ExtrasDefaults};
     use wiremock::matchers::{header, method, path};
+<<<<<<< HEAD
     use wiremock::{Match, Mock, MockServer, Request, ResponseTemplate};
+=======
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+>>>>>>> 2bf248c (fix(api): disable unvalidated download resume)
 
     use super::*;
 
@@ -351,6 +324,7 @@ mod tests {
     }
 
     #[tokio::test]
+<<<<<<< HEAD
     async fn download_redirect_to_off_origin_strips_api_key_header() {
         let origin = MockServer::start().await;
         let redirected = MockServer::start().await;
@@ -382,12 +356,41 @@ mod tests {
         );
         let save_path = std::env::temp_dir().join(format!(
             "romm-download-redirect-test-{}-{}.zip",
+=======
+    async fn download_overwrites_existing_file_instead_of_unvalidated_range_resume() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/file.bin"))
+            .and(header("range", "bytes=6-"))
+            .respond_with(
+                ResponseTemplate::new(206)
+                    .insert_header("content-length", "10")
+                    .set_body_bytes(b"fresh-tail".to_vec()),
+            )
+            .with_priority(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/file.bin"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("content-length", "10")
+                    .set_body_bytes(b"fresh-full".to_vec()),
+            )
+            .with_priority(10)
+            .mount(&server)
+            .await;
+
+        let path = std::env::temp_dir().join(format!(
+            "romm-download-range-test-{}-{}.bin",
+>>>>>>> 2bf248c (fix(api): disable unvalidated download resume)
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
                 .as_nanos()
         ));
+<<<<<<< HEAD
         let mut last_progress = 0;
         let mut progress = |received, _| {
             last_progress = received;
@@ -401,5 +404,50 @@ mod tests {
         assert_eq!(last_progress, 3);
         assert_eq!(std::fs::read(&save_path).unwrap(), b"rom");
         let _ = std::fs::remove_file(save_path);
+=======
+        tokio::fs::write(&path, b"stale-").await.unwrap();
+
+        let client = client_for(&server.uri());
+        let mut progress = |_, _| {};
+        client
+            .download_url_with_cancel("/file.bin", &path, |_, _| false, &mut progress)
+            .await
+            .unwrap();
+
+        assert_eq!(tokio::fs::read(&path).await.unwrap(), b"fresh-full");
+        let _ = tokio::fs::remove_file(path).await;
+    }
+
+    #[tokio::test]
+    async fn download_rejects_unsolicited_partial_content() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/file.bin"))
+            .respond_with(ResponseTemplate::new(206).set_body_bytes(b"tail".to_vec()))
+            .mount(&server)
+            .await;
+
+        let path = std::env::temp_dir().join(format!(
+            "romm-download-unsolicited-206-test-{}-{}.bin",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+
+        let client = client_for(&server.uri());
+        let mut progress = |_, _| {};
+        let err = client
+            .download_url_with_cancel("/file.bin", &path, |_, _| false, &mut progress)
+            .await
+            .expect_err("unsolicited 206 must be rejected");
+
+        assert!(err.to_string().contains("partial content"));
+        assert!(
+            !path.exists(),
+            "partial response must not create a destination file"
+        );
+>>>>>>> 2bf248c (fix(api): disable unvalidated download resume)
     }
 }
