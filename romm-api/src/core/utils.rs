@@ -131,7 +131,8 @@ pub fn format_size_with_breakdown(total: u64, files: &[RomFile]) -> String {
 
 /// Make a filename safe for the local filesystem.
 pub fn sanitize_filename(name: &str) -> String {
-    name.chars()
+    let sanitized: String = name
+        .chars()
         .map(|c| {
             if c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_' || c == ' ' {
                 c
@@ -139,7 +140,11 @@ pub fn sanitize_filename(name: &str) -> String {
                 '_'
             }
         })
-        .collect()
+        .collect();
+    match sanitized.trim() {
+        "." | ".." => "_".to_string(),
+        _ => sanitized,
+    }
 }
 
 /// Truncate a string to `max` chars, appending "…" if trimmed.

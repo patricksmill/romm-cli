@@ -189,6 +189,14 @@ fn resolve_console_roms_dir_uses_platform_slug_subfolder_by_default() {
 }
 
 #[test]
+fn resolve_console_roms_dir_never_uses_parent_component_from_platform_slug() {
+    let rom = rom_fixture_with_platform(Some(".."), "game.zip");
+    let layout = RomsLayoutConfig::default();
+    let dir = resolve_console_roms_dir(&layout, Path::new("/roms"), &rom).unwrap();
+    assert_eq!(dir, PathBuf::from("/roms/_"));
+}
+
+#[test]
 fn resolve_console_roms_dir_uses_custom_mapped_path() {
     let rom = rom_fixture_with_platform(Some("switch"), "game.zip");
     let mut layout = RomsLayoutConfig::default();
@@ -229,6 +237,14 @@ fn resolve_console_save_dir_uses_platform_slug_subfolder_by_default() {
     )
     .unwrap();
     assert_eq!(dir, PathBuf::from("/saves/switch"));
+}
+
+#[test]
+fn resolve_console_save_dir_never_uses_parent_component_from_platform_slug() {
+    let save_sync = SaveSyncConfig::default();
+    let dir =
+        resolve_console_save_dir(&save_sync, Path::new("/saves"), 7, Some(".."), None).unwrap();
+    assert_eq!(dir, PathBuf::from("/saves/_"));
 }
 
 #[test]
