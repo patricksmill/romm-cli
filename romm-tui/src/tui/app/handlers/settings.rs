@@ -47,6 +47,16 @@ impl App {
     fn persist_settings_screen(&mut self) -> bool {
         use romm_api::config::persist_user_config;
 
+        if self.config_reset_pending_restart {
+            if let AppScreen::Settings(s) = &mut self.screen {
+                s.message = Some((
+                    "Settings were reset. Restart romm-cli before saving again.".to_string(),
+                    MessageTone::Warning,
+                ));
+            }
+            return false;
+        }
+
         let settings = match &self.screen {
             AppScreen::Settings(s) => s,
             _ => return false,
@@ -271,11 +281,21 @@ impl App {
             match key.code {
                 KeyCode::Enter => match settings.confirm.take().unwrap() {
                     crate::tui::screens::settings::SettingsConfirm::Reset => {
-                        let _ = romm_api::config::reset_all_settings();
-                        settings.message = Some((
-                            "Settings deleted. Please restart romm-cli.".to_string(),
-                            MessageTone::Warning,
-                        ));
+                        match romm_api::config::reset_all_settings() {
+                            Ok(()) => {
+                                self.config_reset_pending_restart = true;
+                                settings.message = Some((
+                                    "Settings deleted. Please restart romm-cli.".to_string(),
+                                    MessageTone::Warning,
+                                ));
+                            }
+                            Err(e) => {
+                                settings.message = Some((
+                                    format!("Failed to reset settings: {e}"),
+                                    MessageTone::Error,
+                                ));
+                            }
+                        }
                     }
                     crate::tui::screens::settings::SettingsConfirm::ClearCache => {
                         match romm_api::core::cache::RomCache::clear_file() {
