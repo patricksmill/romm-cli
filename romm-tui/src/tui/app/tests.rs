@@ -32,7 +32,7 @@ use romm_api::types::{Platform, RomList};
 use romm_api::update::UpdateStatus;
 use serde_json::json;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use wiremock::matchers::{method, path, query_param};
@@ -1748,6 +1748,34 @@ fn app_on_library() -> App {
     )
 }
 
+struct IsolatedConfigDir {
+    _guard: MutexGuard<'static, ()>,
+    dir: PathBuf,
+}
+
+impl IsolatedConfigDir {
+    fn new(prefix: &str) -> Self {
+        let guard = romm_api::config::test_env_lock()
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("romm-tui-{prefix}-test-{ts}"));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::env::set_var("ROMM_TEST_CONFIG_DIR", &dir);
+        Self { _guard: guard, dir }
+    }
+}
+
+impl Drop for IsolatedConfigDir {
+    fn drop(&mut self) {
+        std::env::remove_var("ROMM_TEST_CONFIG_DIR");
+        let _ = std::fs::remove_dir_all(&self.dir);
+    }
+}
+
 #[tokio::test]
 async fn settings_theme_preview_reverts_when_leaving_without_save() {
     std::env::remove_var("NO_COLOR");
@@ -1776,6 +1804,44 @@ async fn settings_theme_preview_reverts_when_leaving_without_save() {
 
     assert!(matches!(app.screen, AppScreen::LibraryBrowse(_)));
     assert_eq!(app.theme_id(), saved_theme);
+}
+
+#[tokio::test]
+async fn settings_reset_prevents_later_config_persistence() {
+    let _env = IsolatedConfigDir::new("settings-reset");
+    let mut app = app_on_library();
+
+    romm_api::config::persist_user_config(&app.config).expect("seed config");
+    let config_path = romm_api::config::user_config_json_path().expect("config path");
+    assert!(config_path.exists(), "test setup should create config.json");
+
+    app.screen = AppScreen::Settings(Box::new(SettingsScreen::new(
+        &app.config,
+        None,
+        supported_save_sync_compatibility(),
+    )));
+    if let AppScreen::Settings(settings) = &mut app.screen {
+        settings.confirm = Some(SettingsConfirm::Reset);
+    }
+
+    app.handle_key_event(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()))
+        .await
+        .expect("confirm reset");
+    assert!(!config_path.exists(), "reset should remove config.json");
+
+    app.handle_key_event(&KeyEvent::new(KeyCode::Char('S'), KeyModifiers::empty()))
+        .await
+        .expect("save after reset");
+    assert!(
+        !config_path.exists(),
+        "settings save must not recreate config.json after reset"
+    );
+
+    app.persist_tui_layout();
+    assert!(
+        !config_path.exists(),
+        "layout persistence must not recreate config.json after reset"
+    );
 }
 
 #[tokio::test]
