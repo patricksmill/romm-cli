@@ -10,6 +10,7 @@ use super::types::{
     ConsolePathKind, SettingsConfirm, SettingsPickerKind, SettingsRow, SettingsScreen, SettingsTab,
     APPEARANCE_ROWS, AUTH_MAINT_ROWS, CONNECTION_ROWS, EXTRAS_ROWS, SAVES_ROWS,
 };
+use crate::tui::text_cursor;
 use crate::tui::theme::{next_theme_id, prev_theme_id, theme_display_name, MessageTone};
 
 impl SettingsScreen {
@@ -377,27 +378,25 @@ impl SettingsScreen {
 
     pub fn add_char(&mut self, c: char) {
         if self.editing {
-            self.edit_buffer.insert(self.edit_cursor, c);
-            self.edit_cursor += 1;
+            text_cursor::insert_char(&mut self.edit_buffer, &mut self.edit_cursor, c);
         }
     }
 
     pub fn delete_char(&mut self) {
-        if self.editing && self.edit_cursor > 0 {
-            self.edit_buffer.remove(self.edit_cursor - 1);
-            self.edit_cursor -= 1;
+        if self.editing {
+            text_cursor::delete_previous_char(&mut self.edit_buffer, &mut self.edit_cursor);
         }
     }
 
     pub fn move_cursor_left(&mut self) {
-        if self.editing && self.edit_cursor > 0 {
-            self.edit_cursor -= 1;
+        if self.editing {
+            text_cursor::move_left(&self.edit_buffer, &mut self.edit_cursor);
         }
     }
 
     pub fn move_cursor_right(&mut self) {
-        if self.editing && self.edit_cursor < self.edit_buffer.len() {
-            self.edit_cursor += 1;
+        if self.editing {
+            text_cursor::move_right(&self.edit_buffer, &mut self.edit_cursor);
         }
     }
 }

@@ -4,6 +4,7 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
 
 use crate::tui::path_picker::PathPickerEvent;
+use crate::tui::text_cursor;
 use romm_api::config::normalize_romm_origin;
 use romm_api::core::download::validate_configured_download_directory;
 
@@ -11,16 +12,11 @@ use super::types::{AuthKind, SetupWizard, Step};
 
 impl SetupWizard {
     fn add_char_url(&mut self, c: char) {
-        let pos = self.url_cursor.min(self.url.len());
-        self.url.insert(pos, c);
-        self.url_cursor = pos + 1;
+        text_cursor::insert_char(&mut self.url, &mut self.url_cursor, c);
     }
 
     fn del_char_url(&mut self) {
-        if self.url_cursor > 0 && self.url_cursor <= self.url.len() {
-            self.url.remove(self.url_cursor - 1);
-            self.url_cursor -= 1;
-        }
+        text_cursor::delete_previous_char(&mut self.url, &mut self.url_cursor);
     }
 
     fn advance_from_auth_menu(&mut self) {
@@ -92,12 +88,8 @@ impl SetupWizard {
                 }
                 KeyCode::Char(c) => self.add_char_url(c),
                 KeyCode::Backspace => self.del_char_url(),
-                KeyCode::Left if self.url_cursor > 0 => {
-                    self.url_cursor -= 1;
-                }
-                KeyCode::Right if self.url_cursor < self.url.len() => {
-                    self.url_cursor += 1;
-                }
+                KeyCode::Left => text_cursor::move_left(&self.url, &mut self.url_cursor),
+                KeyCode::Right => text_cursor::move_right(&self.url, &mut self.url_cursor),
                 _ => {}
             },
             Step::Https => match key.code {
@@ -146,22 +138,13 @@ impl SetupWizard {
                     let _ = self.advance_step();
                 }
                 KeyCode::Char(c) => {
-                    let pos = self.user_cursor.min(self.username.len());
-                    self.username.insert(pos, c);
-                    self.user_cursor = pos + 1;
+                    text_cursor::insert_char(&mut self.username, &mut self.user_cursor, c);
                 }
-                KeyCode::Backspace
-                    if self.user_cursor > 0 && self.user_cursor <= self.username.len() =>
-                {
-                    self.username.remove(self.user_cursor - 1);
-                    self.user_cursor -= 1;
+                KeyCode::Backspace => {
+                    text_cursor::delete_previous_char(&mut self.username, &mut self.user_cursor);
                 }
-                KeyCode::Left if self.user_cursor > 0 => {
-                    self.user_cursor -= 1;
-                }
-                KeyCode::Right if self.user_cursor < self.username.len() => {
-                    self.user_cursor += 1;
-                }
+                KeyCode::Left => text_cursor::move_left(&self.username, &mut self.user_cursor),
+                KeyCode::Right => text_cursor::move_right(&self.username, &mut self.user_cursor),
                 _ => {}
             },
             Step::BasicPass => match key.code {
@@ -184,21 +167,19 @@ impl SetupWizard {
                 }
                 KeyCode::Char(c) => {
                     self.reuse_keyring_bearer = false;
-                    let pos = self.bearer_cursor.min(self.bearer_token.len());
-                    self.bearer_token.insert(pos, c);
-                    self.bearer_cursor = pos + 1;
+                    text_cursor::insert_char(&mut self.bearer_token, &mut self.bearer_cursor, c);
                 }
-                KeyCode::Backspace
-                    if self.bearer_cursor > 0 && self.bearer_cursor <= self.bearer_token.len() =>
-                {
-                    self.bearer_token.remove(self.bearer_cursor - 1);
-                    self.bearer_cursor -= 1;
+                KeyCode::Backspace => {
+                    text_cursor::delete_previous_char(
+                        &mut self.bearer_token,
+                        &mut self.bearer_cursor,
+                    );
                 }
-                KeyCode::Left if self.bearer_cursor > 0 => {
-                    self.bearer_cursor -= 1;
+                KeyCode::Left => {
+                    text_cursor::move_left(&self.bearer_token, &mut self.bearer_cursor);
                 }
-                KeyCode::Right if self.bearer_cursor < self.bearer_token.len() => {
-                    self.bearer_cursor += 1;
+                KeyCode::Right => {
+                    text_cursor::move_right(&self.bearer_token, &mut self.bearer_cursor);
                 }
                 _ => {}
             },
@@ -207,22 +188,19 @@ impl SetupWizard {
                     let _ = self.advance_step();
                 }
                 KeyCode::Char(c) => {
-                    let pos = self.pairing_cursor.min(self.pairing_code.len());
-                    self.pairing_code.insert(pos, c);
-                    self.pairing_cursor = pos + 1;
+                    text_cursor::insert_char(&mut self.pairing_code, &mut self.pairing_cursor, c);
                 }
-                KeyCode::Backspace
-                    if self.pairing_cursor > 0
-                        && self.pairing_cursor <= self.pairing_code.len() =>
-                {
-                    self.pairing_code.remove(self.pairing_cursor - 1);
-                    self.pairing_cursor -= 1;
+                KeyCode::Backspace => {
+                    text_cursor::delete_previous_char(
+                        &mut self.pairing_code,
+                        &mut self.pairing_cursor,
+                    );
                 }
-                KeyCode::Left if self.pairing_cursor > 0 => {
-                    self.pairing_cursor -= 1;
+                KeyCode::Left => {
+                    text_cursor::move_left(&self.pairing_code, &mut self.pairing_cursor);
                 }
-                KeyCode::Right if self.pairing_cursor < self.pairing_code.len() => {
-                    self.pairing_cursor += 1;
+                KeyCode::Right => {
+                    text_cursor::move_right(&self.pairing_code, &mut self.pairing_cursor);
                 }
                 _ => {}
             },
@@ -232,21 +210,17 @@ impl SetupWizard {
                     let _ = self.advance_step();
                 }
                 KeyCode::Char(c) => {
-                    let pos = self.header_cursor.min(self.api_header.len());
-                    self.api_header.insert(pos, c);
-                    self.header_cursor = pos + 1;
+                    text_cursor::insert_char(&mut self.api_header, &mut self.header_cursor, c);
                 }
-                KeyCode::Backspace
-                    if self.header_cursor > 0 && self.header_cursor <= self.api_header.len() =>
-                {
-                    self.api_header.remove(self.header_cursor - 1);
-                    self.header_cursor -= 1;
+                KeyCode::Backspace => {
+                    text_cursor::delete_previous_char(
+                        &mut self.api_header,
+                        &mut self.header_cursor,
+                    );
                 }
-                KeyCode::Left if self.header_cursor > 0 => {
-                    self.header_cursor -= 1;
-                }
-                KeyCode::Right if self.header_cursor < self.api_header.len() => {
-                    self.header_cursor += 1;
+                KeyCode::Left => text_cursor::move_left(&self.api_header, &mut self.header_cursor),
+                KeyCode::Right => {
+                    text_cursor::move_right(&self.api_header, &mut self.header_cursor);
                 }
                 _ => {}
             },
@@ -257,22 +231,13 @@ impl SetupWizard {
                 }
                 KeyCode::Char(c) => {
                     self.reuse_keyring_api_key = false;
-                    let pos = self.api_key_cursor.min(self.api_key.len());
-                    self.api_key.insert(pos, c);
-                    self.api_key_cursor = pos + 1;
+                    text_cursor::insert_char(&mut self.api_key, &mut self.api_key_cursor, c);
                 }
-                KeyCode::Backspace
-                    if self.api_key_cursor > 0 && self.api_key_cursor <= self.api_key.len() =>
-                {
-                    self.api_key.remove(self.api_key_cursor - 1);
-                    self.api_key_cursor -= 1;
+                KeyCode::Backspace => {
+                    text_cursor::delete_previous_char(&mut self.api_key, &mut self.api_key_cursor);
                 }
-                KeyCode::Left if self.api_key_cursor > 0 => {
-                    self.api_key_cursor -= 1;
-                }
-                KeyCode::Right if self.api_key_cursor < self.api_key.len() => {
-                    self.api_key_cursor += 1;
-                }
+                KeyCode::Left => text_cursor::move_left(&self.api_key, &mut self.api_key_cursor),
+                KeyCode::Right => text_cursor::move_right(&self.api_key, &mut self.api_key_cursor),
                 _ => {}
             },
             Step::Summary => {
@@ -296,14 +261,10 @@ impl SetupWizard {
 
         match self.step {
             Step::Url => {
-                let pos = self.url_cursor.min(self.url.len());
-                self.url.insert_str(pos, &clean_text);
-                self.url_cursor += clean_text.len();
+                text_cursor::insert_str(&mut self.url, &mut self.url_cursor, &clean_text);
             }
             Step::BasicUser => {
-                let pos = self.user_cursor.min(self.username.len());
-                self.username.insert_str(pos, &clean_text);
-                self.user_cursor += clean_text.len();
+                text_cursor::insert_str(&mut self.username, &mut self.user_cursor, &clean_text);
             }
             Step::BasicPass => {
                 self.reuse_keyring_password = false;
@@ -311,25 +272,25 @@ impl SetupWizard {
             }
             Step::Bearer => {
                 self.reuse_keyring_bearer = false;
-                let pos = self.bearer_cursor.min(self.bearer_token.len());
-                self.bearer_token.insert_str(pos, &clean_text);
-                self.bearer_cursor += clean_text.len();
+                text_cursor::insert_str(
+                    &mut self.bearer_token,
+                    &mut self.bearer_cursor,
+                    &clean_text,
+                );
             }
             Step::PairingCode => {
-                let pos = self.pairing_cursor.min(self.pairing_code.len());
-                self.pairing_code.insert_str(pos, &clean_text);
-                self.pairing_cursor += clean_text.len();
+                text_cursor::insert_str(
+                    &mut self.pairing_code,
+                    &mut self.pairing_cursor,
+                    &clean_text,
+                );
             }
             Step::ApiHeader => {
-                let pos = self.header_cursor.min(self.api_header.len());
-                self.api_header.insert_str(pos, &clean_text);
-                self.header_cursor += clean_text.len();
+                text_cursor::insert_str(&mut self.api_header, &mut self.header_cursor, &clean_text);
             }
             Step::ApiKey => {
                 self.reuse_keyring_api_key = false;
-                let pos = self.api_key_cursor.min(self.api_key.len());
-                self.api_key.insert_str(pos, &clean_text);
-                self.api_key_cursor += clean_text.len();
+                text_cursor::insert_str(&mut self.api_key, &mut self.api_key_cursor, &clean_text);
             }
             _ => {}
         }
