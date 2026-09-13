@@ -17,6 +17,7 @@ pub mod openapi_sync;
 pub mod path_picker;
 pub mod runtime;
 pub mod screens;
+pub(crate) mod text_cursor;
 pub mod text_search;
 pub mod theme;
 pub mod utils;

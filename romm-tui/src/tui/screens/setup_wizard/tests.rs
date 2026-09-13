@@ -1,4 +1,6 @@
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::backend::TestBackend;
+use ratatui::layout::Rect;
 use ratatui::Terminal;
 use std::path::PathBuf;
 use wiremock::matchers::{method, path};
@@ -18,6 +20,10 @@ fn unique_test_download_dir() -> PathBuf {
         .unwrap_or_default()
         .as_nanos();
     std::env::temp_dir().join(format!("romm-dl-test-{}-{suffix}", std::process::id()))
+}
+
+fn key(code: KeyCode) -> KeyEvent {
+    KeyEvent::new(code, KeyModifiers::empty())
 }
 
 fn wizard_with_pairing(mock_uri: &str, code: &str, download_dir: &str) -> SetupWizard {
@@ -47,6 +53,41 @@ fn wizard_with_pairing(mock_uri: &str, code: &str, download_dir: &str) -> SetupW
         skip_custom_console_paths: false,
         error: None,
     }
+}
+
+#[test]
+fn url_input_keeps_cursor_on_utf8_boundaries() {
+    let mut wizard = SetupWizard::new();
+    wizard.url.clear();
+    wizard.url_cursor = 0;
+
+    wizard.handle_key(&key(KeyCode::Char('é'))).unwrap();
+    wizard.handle_key(&key(KeyCode::Char('x'))).unwrap();
+    assert_eq!(wizard.url, "éx");
+
+    wizard.handle_key(&key(KeyCode::Backspace)).unwrap();
+    assert_eq!(wizard.url, "é");
+    assert_eq!(wizard.url_cursor, wizard.url.len());
+
+    wizard.url = "aé".to_string();
+    wizard.url_cursor = wizard.url.len();
+    wizard.handle_key(&key(KeyCode::Left)).unwrap();
+    wizard.handle_key(&key(KeyCode::Char('x'))).unwrap();
+    assert_eq!(wizard.url, "axé");
+}
+
+#[test]
+fn url_cursor_position_counts_utf8_chars_not_bytes() {
+    let area = Rect::new(0, 0, 80, 24);
+    let mut wizard = SetupWizard::new();
+    wizard.url.clear();
+    wizard.url_cursor = 0;
+    let base_x = wizard.cursor_pos(area).expect("url cursor").0;
+
+    wizard.url = "éx".to_string();
+    wizard.url_cursor = wizard.url.len();
+
+    assert_eq!(wizard.cursor_pos(area).expect("url cursor").0, base_x + 2);
 }
 
 #[tokio::test]
@@ -114,6 +155,40 @@ fn hidden_password_field_does_not_render_inline_cursor_glyph() {
     assert!(
         !has_cursor_glyph,
         "password field should rely on terminal cursor, not inline glyph"
+    );
+}
+
+#[test]
+fn hidden_password_mask_and_cursor_count_utf8_chars_not_bytes() {
+    let area = Rect::new(0, 0, 80, 24);
+    let mut wizard = SetupWizard::new();
+    wizard.step = Step::BasicPass;
+    wizard.password = "é".to_string();
+
+    let backend = TestBackend::new(80, 24);
+    let mut terminal = Terminal::new(backend).expect("create test terminal");
+    let theme = resolve_theme_or_default(&default_theme_id());
+    let styles = RommStyles::new(theme.as_ref());
+    terminal
+        .draw(|frame| {
+            wizard.render(frame, area, &styles);
+        })
+        .expect("render setup wizard");
+    let bullet_count = terminal
+        .backend()
+        .buffer()
+        .content()
+        .iter()
+        .filter(|cell| cell.symbol() == "•")
+        .count();
+    assert_eq!(bullet_count, 1);
+
+    wizard.password.clear();
+    let base_x = wizard.cursor_pos(area).expect("password cursor").0;
+    wizard.password = "é".to_string();
+    assert_eq!(
+        wizard.cursor_pos(area).expect("password cursor").0,
+        base_x + 1
     );
 }
 
