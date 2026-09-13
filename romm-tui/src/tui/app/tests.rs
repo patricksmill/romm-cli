@@ -1,6 +1,7 @@
 use super::{
     background::types::{
-        CollectionPrefetchDone, RomLoadDone, RomLoadEvent, SearchLoadDone, SearchLoadEvent,
+        CollectionPrefetchDone, LibraryMetadataRefreshDone, RomLoadDone, RomLoadEvent,
+        SearchLoadDone, SearchLoadEvent,
     },
     event::{map_key_to_actions, Action, AppEvent, BackgroundAction},
     rom_load::{primary_rom_load_result_is_current, primary_rom_load_result_matches_selection},
@@ -142,6 +143,48 @@ fn empty_rom_list_with_total(total: u64) -> RomList {
         total,
         limit: 50,
         offset: 0,
+    }
+}
+
+#[test]
+fn successful_empty_metadata_refresh_clears_stale_platforms() {
+    let snapshot_path = std::env::temp_dir().join(format!(
+        "romm-empty-refresh-snapshot-{}-{}.json",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos()
+    ));
+    std::env::set_var("ROMM_LIBRARY_METADATA_SNAPSHOT_PATH", &snapshot_path);
+
+    let mut app = app_with_library(vec![platform(1, "Stale", 1)]);
+    if let AppScreen::LibraryBrowse(ref mut lib) = app.screen {
+        lib.set_roms(empty_rom_list_with_total(1));
+    }
+    app.library_metadata_refresh_gen = 7;
+
+    app.apply_background(BackgroundAction::LibraryMetadataRefresh(
+        LibraryMetadataRefreshDone {
+            gen: 7,
+            platforms: Vec::new(),
+            collections: Vec::new(),
+            collection_digest: Vec::new(),
+            warnings: Vec::new(),
+        },
+    ));
+
+    std::env::remove_var("ROMM_LIBRARY_METADATA_SNAPSHOT_PATH");
+    let _ = std::fs::remove_file(snapshot_path);
+
+    match &app.screen {
+        AppScreen::LibraryBrowse(lib) => {
+            assert!(lib.platforms.is_empty());
+            assert!(lib.collections.is_empty());
+            assert!(lib.roms.is_none());
+            assert!(lib.cache_key().is_none());
+        }
+        _ => panic!("expected library browse"),
     }
 }
 
