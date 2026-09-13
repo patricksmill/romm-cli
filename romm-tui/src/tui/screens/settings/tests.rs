@@ -196,6 +196,28 @@ fn fresh_settings_match_saved_config() {
 }
 
 #[test]
+fn base_url_edit_keeps_cursor_on_utf8_boundaries() {
+    let mut s = screen();
+    s.enter_edit();
+    s.edit_buffer.clear();
+    s.edit_cursor = 0;
+
+    s.add_char('é');
+    s.add_char('x');
+    assert_eq!(s.edit_buffer, "éx");
+
+    s.delete_char();
+    assert_eq!(s.edit_buffer, "é");
+    assert_eq!(s.edit_cursor, s.edit_buffer.len());
+
+    s.edit_buffer = "aé".to_string();
+    s.edit_cursor = s.edit_buffer.len();
+    s.move_cursor_left();
+    s.add_char('x');
+    assert_eq!(s.edit_buffer, "axé");
+}
+
+#[test]
 fn theme_change_detected_as_unsaved() {
     let cfg = test_config();
     let mut s = SettingsScreen::new(&cfg, Some("1.0.0"), supported_save_sync_compatibility());

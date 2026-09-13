@@ -5,11 +5,21 @@ use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{List, ListItem, ListState, Paragraph};
 
 use crate::tui::footer_hint::PATH_PICKER_HINTS;
+use crate::tui::text_cursor;
 use crate::tui::theme::RommStyles;
 use romm_api::config::normalize_romm_origin;
 
 use super::layout::{wizard_footer_entries, wizard_footer_text, wizard_layout};
 use super::types::{AuthKind, SetupWizard, Step};
+
+fn cursor_line(text: &str, cursor: usize) -> String {
+    let (before, after) = text_cursor::split_at_cursor(text, cursor);
+    format!("{before}▏{after}")
+}
+
+fn secret_mask(text: &str) -> String {
+    "•".repeat(text.chars().count())
+}
 
 impl SetupWizard {
     pub fn render(
@@ -68,12 +78,7 @@ impl SetupWizard {
 
         match self.step {
             Step::Url => {
-                let line = format!(
-                    "{}▏",
-                    self.url.chars().take(self.url_cursor).collect::<String>()
-                );
-                let rest: String = self.url.chars().skip(self.url_cursor).collect();
-                let text = format!("{line}{rest}");
+                let text = cursor_line(&self.url, self.url_cursor);
                 let block = styles.panel_block(title);
                 let p = Paragraph::new(text).style(styles.text()).block(block);
                 f.render_widget(p, main[1]);
@@ -117,21 +122,11 @@ impl SetupWizard {
             }
             Step::BasicUser | Step::BasicPass => {
                 let user_line = if self.step == Step::BasicUser {
-                    format!(
-                        "{}▏{}",
-                        self.username
-                            .chars()
-                            .take(self.user_cursor)
-                            .collect::<String>(),
-                        self.username
-                            .chars()
-                            .skip(self.user_cursor)
-                            .collect::<String>()
-                    )
+                    cursor_line(&self.username, self.user_cursor)
                 } else {
                     self.username.clone()
                 };
-                let pass_display: String = "•".repeat(self.password.len());
+                let pass_display = secret_mask(&self.password);
                 let kr_hint = if self.step == Step::BasicPass
                     && self.password.is_empty()
                     && self.reuse_keyring_password
@@ -148,17 +143,7 @@ impl SetupWizard {
                 f.render_widget(p, main[1]);
             }
             Step::Bearer => {
-                let line = format!(
-                    "{}▏{}",
-                    self.bearer_token
-                        .chars()
-                        .take(self.bearer_cursor)
-                        .collect::<String>(),
-                    self.bearer_token
-                        .chars()
-                        .skip(self.bearer_cursor)
-                        .collect::<String>()
-                );
+                let line = cursor_line(&self.bearer_token, self.bearer_cursor);
                 let mut bearer_text = Text::from(vec![
                     Line::from("API Token"),
                     Line::from(""),
@@ -178,17 +163,7 @@ impl SetupWizard {
                 f.render_widget(p, main[1]);
             }
             Step::PairingCode => {
-                let line = format!(
-                    "{}▏{}",
-                    self.pairing_code
-                        .chars()
-                        .take(self.pairing_cursor)
-                        .collect::<String>(),
-                    self.pairing_code
-                        .chars()
-                        .skip(self.pairing_cursor)
-                        .collect::<String>()
-                );
+                let line = cursor_line(&self.pairing_code, self.pairing_cursor);
                 let body = format!("Enter the 8-character code provided.\n\n{line}");
                 let block = styles.panel_block(title);
                 let p = Paragraph::new(body).style(styles.text()).block(block);
@@ -196,21 +171,11 @@ impl SetupWizard {
             }
             Step::ApiHeader | Step::ApiKey => {
                 let header_line = if self.step == Step::ApiHeader {
-                    format!(
-                        "{}▏{}",
-                        self.api_header
-                            .chars()
-                            .take(self.header_cursor)
-                            .collect::<String>(),
-                        self.api_header
-                            .chars()
-                            .skip(self.header_cursor)
-                            .collect::<String>()
-                    )
+                    cursor_line(&self.api_header, self.header_cursor)
                 } else {
                     self.api_header.clone()
                 };
-                let key_line = "•".repeat(self.api_key.len());
+                let key_line = secret_mask(&self.api_key);
                 let kr_hint = if self.step == Step::ApiKey
                     && self.api_key.is_empty()
                     && self.reuse_keyring_api_key
@@ -286,34 +251,43 @@ impl SetupWizard {
         let inner = main[1];
         match self.step {
             Step::Url => {
-                let x = inner.x + 1 + self.url_cursor.min(self.url.len()) as u16;
+                let x = inner.x + 1 + text_cursor::char_column(&self.url, self.url_cursor) as u16;
                 Some((x, inner.y + 1))
             }
             Step::Download => self
                 .download_picker
                 .cursor_position(inner, "Step 3/6 — ROMs directory"),
             Step::Bearer => {
-                let x = inner.x + 1 + self.bearer_cursor.min(self.bearer_token.len()) as u16;
+                let x = inner.x
+                    + 1
+                    + text_cursor::char_column(&self.bearer_token, self.bearer_cursor) as u16;
                 Some((x, inner.y + 1))
             }
             Step::PairingCode => {
-                let x = inner.x + 1 + self.pairing_cursor.min(self.pairing_code.len()) as u16;
+                let x = inner.x
+                    + 1
+                    + text_cursor::char_column(&self.pairing_code, self.pairing_cursor) as u16;
                 Some((x, inner.y + 3))
             }
             Step::BasicUser => {
-                let x = inner.x + 1 + self.user_cursor.min(self.username.len()) as u16;
+                let x =
+                    inner.x + 1 + text_cursor::char_column(&self.username, self.user_cursor) as u16;
                 Some((x, inner.y + 2))
             }
             Step::BasicPass => {
-                let x = inner.x + 1 + "•".repeat(self.password.len()).len() as u16;
+                let x = inner.x + 1 + self.password.chars().count() as u16;
                 Some((x, inner.y + 6))
             }
             Step::ApiHeader => {
-                let x = inner.x + 1 + self.header_cursor.min(self.api_header.len()) as u16;
+                let x = inner.x
+                    + 1
+                    + text_cursor::char_column(&self.api_header, self.header_cursor) as u16;
                 Some((x, inner.y + 2))
             }
             Step::ApiKey => {
-                let x = inner.x + 1 + self.api_key_cursor.min(self.api_key.len()) as u16;
+                let x = inner.x
+                    + 1
+                    + text_cursor::char_column(&self.api_key, self.api_key_cursor) as u16;
                 Some((x, inner.y + 6))
             }
             Step::Https | Step::CustomConsolePaths | Step::AuthMenu | Step::Summary => None,

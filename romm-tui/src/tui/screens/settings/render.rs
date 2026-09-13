@@ -5,6 +5,7 @@ use ratatui::widgets::{List, ListItem, ListState, Paragraph, Tabs};
 use ratatui::Frame;
 
 use crate::tui::footer_hint::{render_footer_panel, FooterHintEntry, PATH_PICKER_HINTS};
+use crate::tui::text_cursor;
 use crate::tui::theme::RommStyles;
 
 use super::types::{
@@ -394,7 +395,8 @@ impl SettingsScreen {
         let list_area = chunks[2];
         let y = list_area.y + 1 + self.selected_row_index() as u16;
         let label_len = 14; // "Base URL:     ".len()
-        let x = list_area.x + 1 /* border */ + 3 /* highlight symbol */ + label_len + self.edit_cursor as u16;
+        let edit_col = text_cursor::char_column(&self.edit_buffer, self.edit_cursor) as u16;
+        let x = list_area.x + 1 /* border */ + 3 /* highlight symbol */ + label_len + edit_col;
 
         Some((x, y))
     }
