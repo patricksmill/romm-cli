@@ -539,6 +539,35 @@ fn extract_zip_archive_writes_files_to_destination() {
 }
 
 #[test]
+fn extract_zip_archive_rejects_existing_files_without_overwriting() {
+    let ts = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let base = std::env::temp_dir().join(format!("romm-extract-existing-{ts}"));
+    let zip_path = base.join("sample.zip");
+    let out_dir = base.join("out");
+    std::fs::create_dir_all(&out_dir).unwrap();
+    std::fs::write(out_dir.join("game.rom"), b"original").unwrap();
+
+    let zip_file = std::fs::File::create(&zip_path).unwrap();
+    let mut writer = ZipWriter::new(zip_file);
+    writer
+        .start_file("game.rom", SimpleFileOptions::default())
+        .unwrap();
+    writer.write_all(b"replacement").unwrap();
+    writer.finish().unwrap();
+
+    assert!(extract_zip_archive(&zip_path, &out_dir).is_err());
+    assert_eq!(
+        std::fs::read(out_dir.join("game.rom")).unwrap(),
+        b"original"
+    );
+
+    let _ = std::fs::remove_dir_all(&base);
+}
+
+#[test]
 fn extract_zip_archive_rejects_path_traversal_entries() {
     let ts = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
