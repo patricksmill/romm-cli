@@ -8,7 +8,7 @@ use crate::config::{resolved_save_dir, Config, SaveSyncConfig};
 use crate::core::utils;
 use crate::error::DownloadError;
 use crate::types::Rom;
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use zip::ZipArchive;
 
 /// Directory for ROM storage (`ROMM_ROMS_DIR`, `ROMM_DOWNLOAD_DIR`, or configured path).
@@ -290,10 +290,14 @@ pub fn extract_zip_archive(zip_path: &Path, destination_dir: &Path) -> Result<()
                 source: e,
             })?;
         }
-        let mut out = File::create(&target).map_err(|e| DownloadError::IoContext {
-            context: format!("Could not create extracted file {}", target.display()),
-            source: e,
-        })?;
+        let mut out = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&target)
+            .map_err(|e| DownloadError::IoContext {
+                context: format!("Could not create extracted file {}", target.display()),
+                source: e,
+            })?;
         io::copy(&mut entry, &mut out).map_err(|e| DownloadError::IoContext {
             context: format!("Could not write extracted file {}", target.display()),
             source: e,
