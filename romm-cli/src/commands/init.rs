@@ -12,8 +12,8 @@ use std::io::Read;
 
 use romm_api::client::RommClient;
 use romm_api::config::{
-    default_theme_id, normalize_romm_origin, persist_user_config, user_config_json_path,
-    AuthConfig, Config, ExtrasDefaults, RomsLayoutConfig,
+    clear_auth_keyring_secrets, default_theme_id, normalize_romm_origin, persist_user_config,
+    user_config_json_path, AuthConfig, Config, ExtrasDefaults, RomsLayoutConfig,
 };
 use romm_api::endpoints::platforms::ListPlatforms;
 
@@ -333,6 +333,9 @@ pub async fn handle(cmd: InitCommand, verbose: bool) -> Result<()> {
         tui_layout: Default::default(),
     };
     persist_user_config(&config)?;
+    if config.auth.is_none() {
+        clear_auth_keyring_secrets();
+    }
 
     println!("Wrote {}", path.display());
     println!("Secrets are stored in the OS keyring when available (see file comments if plaintext fallback was used).");
