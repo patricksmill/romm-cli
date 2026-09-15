@@ -15,9 +15,9 @@ use crate::cli_presentation::CliPresentation;
 use crate::commands::OutputFormat;
 use romm_api::client::RommClient;
 use romm_api::config::{
-    disk_has_unresolved_keyring_sentinel, is_keyring_placeholder, load_config, persist_user_config,
-    read_user_config_json_from_disk, user_config_json_path, AuthConfig, Config,
-    KEYRING_SECRET_PLACEHOLDER,
+    clear_auth_keyring_secrets, disk_has_unresolved_keyring_sentinel, is_keyring_placeholder,
+    load_config, persist_user_config, read_user_config_json_from_disk, user_config_json_path,
+    AuthConfig, Config, KEYRING_SECRET_PLACEHOLDER,
 };
 use romm_api::endpoints::client_tokens::ExchangeClientToken;
 
@@ -124,6 +124,9 @@ async fn persist_auth_from_login(auth: Option<AuthConfig>, client: &RommClient) 
 
     disk.auth = auth;
     persist_user_config(&disk)?;
+    if disk.auth.is_none() {
+        clear_auth_keyring_secrets();
+    }
 
     if config_path.exists() {
         println!("Auth updated: {mode} (wrote {})", config_path.display());

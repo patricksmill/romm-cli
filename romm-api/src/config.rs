@@ -331,6 +331,56 @@ pub fn normalize_romm_origin(url: &str) -> String {
 // ---------------------------------------------------------------------------
 
 const KEYRING_SERVICE: &str = "romm-cli";
+const AUTH_KEYRING_KEYS: [&str; 3] = ["API_PASSWORD", "API_TOKEN", "API_KEY"];
+
+#[cfg(test)]
+static TEST_KEYRING: std::sync::OnceLock<std::sync::Mutex<Option<HashMap<String, String>>>> =
+    std::sync::OnceLock::new();
+
+#[cfg(test)]
+fn test_keyring_entries() -> &'static std::sync::Mutex<Option<HashMap<String, String>>> {
+    TEST_KEYRING.get_or_init(|| std::sync::Mutex::new(None))
+}
+
+#[cfg(test)]
+fn test_keyring_set(entries: &[(&str, &str)]) {
+    let mut map = HashMap::new();
+    for (key, value) in entries {
+        map.insert((*key).to_string(), (*value).to_string());
+    }
+    *test_keyring_entries()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner()) = Some(map);
+}
+
+#[cfg(test)]
+fn test_keyring_disable() {
+    *test_keyring_entries()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner()) = None;
+}
+
+#[cfg(test)]
+fn test_keyring_get(key: &str) -> Option<Option<String>> {
+    test_keyring_entries()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .as_ref()
+        .map(|entries| entries.get(key).cloned())
+}
+
+#[cfg(test)]
+fn test_keyring_delete(key: &str) -> bool {
+    let mut entries = test_keyring_entries()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    if let Some(entries) = entries.as_mut() {
+        entries.remove(key);
+        true
+    } else {
+        false
+    }
+}
 
 /// Store a secret in the OS keyring under the `romm-cli` service name.
 ///
@@ -366,6 +416,11 @@ fn keyring_get_password_result(key: &str, result: KeyringResult<String>) -> Opti
 ///
 /// Unexpected errors are logged at the `warn` level.
 pub fn keyring_get(key: &str) -> Option<String> {
+    #[cfg(test)]
+    if let Some(value) = test_keyring_get(key) {
+        return value;
+    }
+
     let entry = match Entry::new(KEYRING_SERVICE, key) {
         Ok(e) => e,
         Err(e) => {
@@ -374,6 +429,33 @@ pub fn keyring_get(key: &str) -> Option<String> {
         }
     };
     keyring_get_password_result(key, entry.get_password())
+}
+
+fn keyring_delete(key: &str) {
+    #[cfg(test)]
+    if test_keyring_delete(key) {
+        return;
+    }
+
+    let entry = match Entry::new(KEYRING_SERVICE, key) {
+        Ok(e) => e,
+        Err(e) => {
+            tracing::warn!("keyring Entry::new for key {key}: {e}");
+            return;
+        }
+    };
+    if let Err(e) = entry.delete_credential() {
+        if !matches!(e, KeyringError::NoEntry) {
+            tracing::warn!("keyring delete_credential for key {key}: {e}");
+        }
+    }
+}
+
+/// Remove all authentication secrets managed by `romm-cli` from the OS keyring.
+pub fn clear_auth_keyring_secrets() {
+    for key in AUTH_KEYRING_KEYS {
+        keyring_delete(key);
+    }
 }
 
 /// After a successful `set_password`, confirm read-back matches `expected`.
@@ -622,8 +704,6 @@ pub fn load_config() -> Result<Config, ConfigError> {
                 password = Some(k);
             }
         }
-    } else {
-        password = keyring_get("API_PASSWORD");
     }
 
     if let Some(t) = &token {
@@ -632,8 +712,6 @@ pub fn load_config() -> Result<Config, ConfigError> {
                 token = Some(k);
             }
         }
-    } else {
-        token = keyring_get("API_TOKEN");
     }
 
     if let Some(k) = &api_key {
@@ -642,8 +720,6 @@ pub fn load_config() -> Result<Config, ConfigError> {
                 api_key = Some(kr);
             }
         }
-    } else {
-        api_key = keyring_get("API_KEY");
     }
 
     if let Some(ref p) = password {
@@ -831,11 +907,7 @@ pub fn reset_all_settings() -> Result<(), ConfigError> {
             let _ = std::fs::remove_file(&path);
         }
     }
-    for key in ["API_PASSWORD", "API_TOKEN", "API_KEY"] {
-        if let Ok(entry) = Entry::new(KEYRING_SERVICE, key) {
-            let _ = entry.delete_credential();
-        }
-    }
+    clear_auth_keyring_secrets();
     Ok(())
 }
 
@@ -921,6 +993,7 @@ mod tests {
     impl Drop for TestEnv {
         fn drop(&mut self) {
             clear_auth_env();
+            test_keyring_disable();
             std::env::remove_var("ROMM_TEST_CONFIG_DIR");
             let _ = std::fs::remove_dir_all(&self.config_dir);
         }
@@ -1095,6 +1168,62 @@ mod tests {
         assert_eq!(cfg.base_url, "http://from-json-file.test");
         assert_eq!(cfg.download_dir, "/tmp/downloads");
         assert!(!cfg.use_https);
+    }
+
+    #[test]
+    fn auth_null_in_user_json_does_not_load_orphaned_keyring_token() {
+        let env = TestEnv::new();
+        test_keyring_set(&[("API_TOKEN", "stale-token")]);
+        let config_json = r#"{
+            "base_url": "http://from-json-file.test",
+            "download_dir": "/tmp/downloads",
+            "use_https": false,
+            "auth": null
+        }"#;
+        std::fs::write(env.config_dir.join("config.json"), config_json).unwrap();
+
+        let cfg = load_config().expect("load from user config.json");
+
+        assert!(
+            cfg.auth.is_none(),
+            "explicit no-auth config must not resurrect orphaned keyring secrets"
+        );
+    }
+
+    #[test]
+    fn bearer_keyring_sentinel_resolves_stored_token() {
+        let env = TestEnv::new();
+        test_keyring_set(&[("API_TOKEN", "stored-token")]);
+        let config_json = r#"{
+            "base_url": "http://from-json-file.test",
+            "download_dir": "/tmp/downloads",
+            "use_https": false,
+            "auth": { "Bearer": { "token": "<stored-in-keyring>" } }
+        }"#;
+        std::fs::write(env.config_dir.join("config.json"), config_json).unwrap();
+
+        let cfg = load_config().expect("load from user config.json");
+
+        match cfg.auth {
+            Some(AuthConfig::Bearer { token }) => assert_eq!(token, "stored-token"),
+            _ => panic!("expected bearer token from keyring sentinel"),
+        }
+    }
+
+    #[test]
+    fn clear_auth_keyring_secrets_removes_all_stored_auth_secrets() {
+        let _env = TestEnv::new();
+        test_keyring_set(&[
+            ("API_PASSWORD", "old-password"),
+            ("API_TOKEN", "old-token"),
+            ("API_KEY", "old-key"),
+        ]);
+
+        clear_auth_keyring_secrets();
+
+        assert!(keyring_get("API_PASSWORD").is_none());
+        assert!(keyring_get("API_TOKEN").is_none());
+        assert!(keyring_get("API_KEY").is_none());
     }
 
     #[test]
