@@ -85,6 +85,7 @@ impl RommClient {
         C: FnMut(u64, u64) -> bool + Send,
     {
         let url = self.resolve_download_url(url)?;
+        let filename = filename_hint(save_path);
         if let Some(parent) = save_path.parent() {
             tokio::fs::create_dir_all(parent)
                 .await
@@ -268,11 +269,7 @@ fn filename_hint(save_path: &Path) -> String {
 mod tests {
     use crate::config::{AuthConfig, Config, ExtrasDefaults};
     use wiremock::matchers::{header, method, path};
-<<<<<<< HEAD
     use wiremock::{Match, Mock, MockServer, Request, ResponseTemplate};
-=======
-    use wiremock::{Mock, MockServer, ResponseTemplate};
->>>>>>> 2bf248c (fix(api): disable unvalidated download resume)
 
     use super::*;
 
@@ -324,7 +321,6 @@ mod tests {
     }
 
     #[tokio::test]
-<<<<<<< HEAD
     async fn download_redirect_to_off_origin_strips_api_key_header() {
         let origin = MockServer::start().await;
         let redirected = MockServer::start().await;
@@ -356,7 +352,28 @@ mod tests {
         );
         let save_path = std::env::temp_dir().join(format!(
             "romm-download-redirect-test-{}-{}.zip",
-=======
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let mut last_progress = 0;
+        let mut progress = |received, _| {
+            last_progress = received;
+        };
+
+        client
+            .download_url_with_cancel("/files/game.zip", &save_path, |_, _| false, &mut progress)
+            .await
+            .expect("download should follow redirect without leaking API key");
+
+        assert_eq!(last_progress, 3);
+        assert_eq!(std::fs::read(&save_path).unwrap(), b"rom");
+        let _ = std::fs::remove_file(save_path);
+    }
+
+    #[tokio::test]
     async fn download_overwrites_existing_file_instead_of_unvalidated_range_resume() {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
@@ -383,28 +400,12 @@ mod tests {
 
         let path = std::env::temp_dir().join(format!(
             "romm-download-range-test-{}-{}.bin",
->>>>>>> 2bf248c (fix(api): disable unvalidated download resume)
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
                 .as_nanos()
         ));
-<<<<<<< HEAD
-        let mut last_progress = 0;
-        let mut progress = |received, _| {
-            last_progress = received;
-        };
-
-        client
-            .download_url_with_cancel("/files/game.zip", &save_path, |_, _| false, &mut progress)
-            .await
-            .expect("download should follow redirect without leaking API key");
-
-        assert_eq!(last_progress, 3);
-        assert_eq!(std::fs::read(&save_path).unwrap(), b"rom");
-        let _ = std::fs::remove_file(save_path);
-=======
         tokio::fs::write(&path, b"stale-").await.unwrap();
 
         let client = client_for(&server.uri());
@@ -448,6 +449,5 @@ mod tests {
             !path.exists(),
             "partial response must not create a destination file"
         );
->>>>>>> 2bf248c (fix(api): disable unvalidated download resume)
     }
 }
