@@ -7,6 +7,20 @@ Entries before the workspace split (1.0.0) are filtered from the unified monolit
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0](https://github.com/patricksmill/romm-cli/compare/romm-cli-v1.2.1...romm-cli-v1.3.0) (2026-09-16)
+
+
+### Features
+
+* **api,cli:** add config D registry, saves and collections commands ([d51af73](https://github.com/patricksmill/romm-cli/commit/d51af739faee615c25566752fb85bab8b96e134e))
+
+
+### Bug Fixes
+
+* **api,cli:** atomic save downloads, overwrite guard, and platform env mapping ([b955207](https://github.com/patricksmill/romm-cli/commit/b955207b1590ee609ab6387be888e624a7af3c9e))
+* **auth:** prevent keyring secrets from surviving logout ([8950934](https://github.com/patricksmill/romm-cli/commit/895093455c5be00332c3d4807161c1ab827793a1))
+* **cli:** paginate batch downloads ([30e55d7](https://github.com/patricksmill/romm-cli/commit/30e55d7d998b533ee85a78cd8b3af7030cc41f0a))
+
 ## [Unreleased]
 
 ### Features
