@@ -1,10 +1,8 @@
 //! HTTP download, URL fallback, and finalize helpers.
 
-use std::path::Path;
 
 use crate::client::RommClient;
 use crate::core::extras::DownloadTarget;
-use crate::core::utils;
 use crate::error::DownloadError;
 
 pub async fn prepare_download_target_destination(
@@ -126,76 +124,11 @@ fn dedupe_preserve_order(urls: Vec<String>) -> Vec<String> {
     out
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum FinalizeResult {
-    Done,
-    SkippedAlreadyExists,
-}
 
-pub(crate) async fn finalize_download(
-    temp_path: &Path,
-    final_path: &Path,
-) -> Result<FinalizeResult, DownloadError> {
-    if final_path.exists() {
-        let _ = tokio::fs::remove_file(temp_path).await;
-        return Ok(FinalizeResult::SkippedAlreadyExists);
-    }
+#[cfg(test)]
+use crate::core::utils;
 
-    match tokio::fs::rename(temp_path, final_path).await {
-        Ok(()) => Ok(FinalizeResult::Done),
-        Err(rename_err) if is_cross_device_rename_error(&rename_err) => {
-            tokio::fs::copy(temp_path, final_path)
-                .await
-                .map_err(|e| DownloadError::IoContext {
-                    context: format!(
-                        "Could not copy temp ROM {} to final destination {}",
-                        temp_path.display(),
-                        final_path.display()
-                    ),
-                    source: e,
-                })?;
-            let file =
-                tokio::fs::File::open(final_path)
-                    .await
-                    .map_err(|e| DownloadError::IoContext {
-                        context: format!(
-                            "Could not open finalized ROM for sync: {}",
-                            final_path.display()
-                        ),
-                        source: e,
-                    })?;
-            file.sync_all()
-                .await
-                .map_err(|e| DownloadError::IoContext {
-                    context: format!(
-                        "Could not sync finalized ROM to disk: {}",
-                        final_path.display()
-                    ),
-                    source: e,
-                })?;
-            tokio::fs::remove_file(temp_path)
-                .await
-                .map_err(|e| DownloadError::IoContext {
-                    context: format!(
-                        "Could not remove temp ROM after copy: {}",
-                        temp_path.display()
-                    ),
-                    source: e,
-                })?;
-            Ok(FinalizeResult::Done)
-        }
-        Err(rename_err) => Err(DownloadError::RenameFailed {
-            path: temp_path.display().to_string(),
-            final_path: final_path.display().to_string(),
-            source: rename_err,
-        }),
-    }
-}
-
-fn is_cross_device_rename_error(err: &std::io::Error) -> bool {
-    matches!(err.raw_os_error(), Some(18) | Some(17))
-}
-
+#[cfg(test)]
 pub(crate) fn sanitized_final_filename(fs_name: &str, rom_id: u64) -> String {
     let sanitized = utils::sanitize_filename(fs_name);
     if sanitized.trim().is_empty() {
@@ -207,7 +140,7 @@ pub(crate) fn sanitized_final_filename(fs_name: &str, rom_id: u64) -> String {
 
 #[cfg(test)]
 pub(crate) fn final_download_path_for_rom(
-    roms_dir: &Path,
+    roms_dir: &std::path::Path,
     rom: &crate::types::Rom,
 ) -> std::path::PathBuf {
     let platform_slug = rom
