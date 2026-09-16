@@ -46,3 +46,13 @@ fn config_env_map_prints_device_id_var() {
         .success()
         .stdout(predicates::str::contains("ROMM_SAVE_SYNC_DEVICE_ID"));
 }
+
+#[test]
+fn config_env_map_prints_platform_dir_var() {
+    Command::cargo_bin("romm-cli")
+        .unwrap()
+        .args(["config", "env-map", "save_sync.platform_dirs.42"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("ROMM_SAVE_SYNC_PLATFORM_DIR_42"));
+}

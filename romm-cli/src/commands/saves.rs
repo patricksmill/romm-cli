@@ -55,6 +55,9 @@ pub enum SavesAction {
         device_id: Option<String>,
         #[arg(long)]
         session_id: Option<u64>,
+        /// Overwrite destination file if it already exists.
+        #[arg(long)]
+        overwrite: bool,
     },
     /// Upload a save file for a ROM.
     Upload {
@@ -123,6 +126,7 @@ pub async fn handle(
             output,
             device_id,
             session_id,
+            overwrite,
         } => {
             let dest = match output {
                 Some(p) => p,
@@ -132,6 +136,12 @@ pub async fn handle(
                     base.join(format!("save-{id}.sav"))
                 }
             };
+            if dest.exists() && !overwrite {
+                return Err(anyhow!(
+                    "destination {} already exists (use --overwrite to replace)",
+                    dest.display()
+                ));
+            }
             let path =
                 download_save_to_path(client, id, &dest, device_id.as_deref(), session_id).await?;
             match format {

@@ -59,6 +59,58 @@ async fn saves_download_writes_file() {
 }
 
 #[tokio::test]
+async fn saves_download_requires_overwrite_if_dest_exists() {
+    let server = MockServer::start_async().await;
+    let _content = server
+        .mock_async(|when, then| {
+            when.method(GET).path("/api/saves/9/content");
+            then.status(200).body(b"new-bytes");
+        })
+        .await;
+
+    let out = std::env::temp_dir().join(format!(
+        "romm-save-exist-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::write(&out, b"old-bytes").unwrap();
+
+    // Without --overwrite: should fail
+    let mut cmd_fail = Command::cargo_bin("romm-cli").unwrap();
+    cmd_fail
+        .env("API_BASE_URL", server.base_url())
+        .env("API_USE_HTTPS", "false")
+        .env("API_TOKEN", "test-token")
+        .args(["saves", "download", "9", "--output", out.to_str().unwrap()]);
+    cmd_fail
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("already exists (use --overwrite to replace)"));
+    assert_eq!(std::fs::read(&out).unwrap(), b"old-bytes");
+
+    // With --overwrite: should succeed and overwrite
+    let mut cmd_ok = Command::cargo_bin("romm-cli").unwrap();
+    cmd_ok
+        .env("API_BASE_URL", server.base_url())
+        .env("API_USE_HTTPS", "false")
+        .env("API_TOKEN", "test-token")
+        .args([
+            "saves",
+            "download",
+            "9",
+            "--output",
+            out.to_str().unwrap(),
+            "--overwrite",
+        ]);
+    cmd_ok.assert().success();
+    assert_eq!(std::fs::read(&out).unwrap(), b"new-bytes");
+
+    let _ = std::fs::remove_file(out);
+}
+
+#[tokio::test]
 async fn saves_upload_posts_multipart() {
     let server = MockServer::start_async().await;
     let upload = server

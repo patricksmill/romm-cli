@@ -103,7 +103,7 @@ Mirrors TUI game-detail Saves tab (`u` upload, `D` download, list on tab open).
 |------------|-----|
 | `saves list [--rom-id] [--device-id] [--slot]` | `GET /api/saves` |
 | `saves get <id>` | `GET /api/saves/{id}` |
-| `saves download <id> [--output]` | `GET /api/saves/{id}/content` |
+| `saves download <id> [--output] [--overwrite]` | `GET /api/saves/{id}/content` |
 | `saves upload --rom-id <id> <file> [--emulator] [--slot] [--device-id] [--overwrite]` | `POST /api/saves` |
 
 Default download path: resolved save dir from config (`resolved_save_dir` + platform slug when `--rom-id` known).

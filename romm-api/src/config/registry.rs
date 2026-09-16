@@ -122,11 +122,25 @@ impl ConfigKey {
             }
         }
     }
+
+    /// Returns the environment variable name, including dynamic per-platform keys.
+    pub fn env_var_name(&self) -> Option<String> {
+        match self {
+            Self::SaveSyncPlatformDir(id) => Some(format!("ROMM_SAVE_SYNC_PLATFORM_DIR_{id}")),
+            Self::RomsPlatformDir(id) => Some(format!("ROMM_ROMS_PLATFORM_DIR_{id}")),
+            other => other.env_var().map(str::to_string),
+        }
+    }
 }
 
 /// Returns the primary environment variable for a dotted config key, if any.
 pub fn env_var_for_key(key: &str) -> Option<&'static str> {
     ConfigKey::parse(key).ok().and_then(|k| k.env_var())
+}
+
+/// Returns the primary or platform-specific environment variable for a dotted config key.
+pub fn env_var_string_for_key(key: &str) -> Option<String> {
+    ConfigKey::parse(key).ok().and_then(|k| k.env_var_name())
 }
 
 pub(crate) fn parse_bool(label: &str, raw: &str) -> Result<bool, ConfigError> {
@@ -219,6 +233,26 @@ mod tests {
         let mut cfg = minimal_config();
         set_config_key(&mut cfg, "extras_defaults.include_cover", "false").unwrap();
         assert!(!cfg.extras_defaults.include_cover);
+    }
+
+    #[test]
+    fn env_var_names_include_platform_keys() {
+        assert_eq!(
+            env_var_string_for_key("save_sync.device_id"),
+            Some("ROMM_SAVE_SYNC_DEVICE_ID".into())
+        );
+        assert_eq!(
+            env_var_string_for_key("save_sync.platform_dirs.42"),
+            Some("ROMM_SAVE_SYNC_PLATFORM_DIR_42".into())
+        );
+        assert_eq!(
+            env_var_string_for_key("roms_layout.platform_dirs.7"),
+            Some("ROMM_ROMS_PLATFORM_DIR_7".into())
+        );
+        assert_eq!(
+            env_var_string_for_key("tui_layout.library_left_panel_percent"),
+            None
+        );
     }
 
     fn minimal_config() -> Config {

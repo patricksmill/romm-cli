@@ -145,7 +145,7 @@ Per-game save management (matches TUI game-detail Saves tab):
 ```bash
 romm-cli saves list --rom-id 42 --json
 romm-cli saves get 9
-romm-cli saves download 9 --output ./game.sav
+romm-cli saves download 9 --output ./game.sav [--overwrite]
 romm-cli saves upload --rom-id 42 ./save.srm --emulator retroarch
 ```
 

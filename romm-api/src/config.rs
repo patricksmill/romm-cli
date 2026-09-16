@@ -1089,10 +1089,10 @@ pub fn redact_config(config: &Config) -> Config {
     out
 }
 
-/// Serializes env var names for platform-specific keys (not in [`ConfigKey::env_var`]).
+/// Serializes env var names for config keys, including platform-specific keys.
 pub fn env_var_for_platform_key(key: &str) -> Option<String> {
     if let Ok(parsed) = ConfigKey::parse(key) {
-        return parsed.env_var().map(str::to_string);
+        return parsed.env_var_name();
     }
     if let Some(id) = key.strip_prefix("save_sync.platform_dirs.") {
         return Some(format!("ROMM_SAVE_SYNC_PLATFORM_DIR_{id}"));

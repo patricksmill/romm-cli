@@ -55,7 +55,7 @@ pub async fn get_save(
         .await
 }
 
-/// Download save bytes to `dest` (creates parent directories when needed).
+/// Download save bytes to `dest` atomically (creates parent directories when needed).
 pub async fn download_save_to_path(
     client: &RommClient,
     save_id: u64,
@@ -63,15 +63,47 @@ pub async fn download_save_to_path(
     device_id: Option<&str>,
     session_id: Option<u64>,
 ) -> Result<PathBuf, ApiError> {
-    if let Some(parent) = dest.parent() {
-        if !parent.as_os_str().is_empty() {
-            tokio::fs::create_dir_all(parent).await?;
-        }
+    let parent = dest.parent().unwrap_or_else(|| Path::new("."));
+    if !parent.as_os_str().is_empty() {
+        tokio::fs::create_dir_all(parent).await?;
     }
     let bytes = client
         .download_save_content(save_id, device_id, session_id)
         .await?;
-    tokio::fs::write(dest, &bytes).await?;
+
+    let file_name = dest
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("save.tmp");
+    let temp_name = format!(
+        ".{file_name}.{}-{}.tmp",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0)
+    );
+    let temp_path = parent.join(temp_name);
+
+    if let Err(e) = tokio::fs::write(&temp_path, &bytes).await {
+        let _ = tokio::fs::remove_file(&temp_path).await;
+        return Err(e.into());
+    }
+
+    if let Err(e) = tokio::fs::rename(&temp_path, dest).await {
+        // Fallback for cross-device renames (EXDEV / raw OS error 17 or 18)
+        if matches!(e.raw_os_error(), Some(18) | Some(17)) {
+            if let Err(copy_err) = tokio::fs::copy(&temp_path, dest).await {
+                let _ = tokio::fs::remove_file(&temp_path).await;
+                return Err(copy_err.into());
+            }
+            let _ = tokio::fs::remove_file(&temp_path).await;
+        } else {
+            let _ = tokio::fs::remove_file(&temp_path).await;
+            return Err(e.into());
+        }
+    }
+
     Ok(dest.to_path_buf())
 }
 
