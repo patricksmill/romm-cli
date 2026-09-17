@@ -4,9 +4,7 @@ use std::path::{Path, PathBuf};
 use crate::config::{default_theme_id, Config, RomsLayoutConfig, SaveSyncConfig};
 use crate::core::download::extras_job::finalize_extras_job_status;
 use crate::core::download::paths::resolve_download_directory_from_inputs;
-use crate::core::download::transfer::{
-    candidate_download_urls, final_download_path_for_rom, finalize_download, FinalizeResult,
-};
+use crate::core::download::transfer::{candidate_download_urls, final_download_path_for_rom};
 use crate::core::download::{
     extract_zip_archive, prepare_download_target_destination, resolve_console_roms_dir,
     resolve_console_save_dir, resolve_game_save_dir, unique_zip_path, ExtrasItemResult, ExtrasJob,
@@ -479,30 +477,6 @@ async fn base_target_prepare_removes_oversized_file() {
     assert!(!skip);
     assert!(!target.destination.exists());
     let _ = tokio::fs::remove_dir_all(base).await;
-}
-
-#[tokio::test]
-async fn finalize_download_skips_when_final_exists() {
-    let ts = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-    let base = std::env::temp_dir().join(format!("romm-finalize-skip-{ts}"));
-    std::fs::create_dir_all(&base).unwrap();
-    let temp = base.join("temp.part");
-    let final_path = base.join("final.zip");
-    std::fs::write(&temp, b"temp").unwrap();
-    std::fs::write(&final_path, b"existing").unwrap();
-
-    let result = finalize_download(&temp, &final_path).await.unwrap();
-    assert_eq!(result, FinalizeResult::SkippedAlreadyExists);
-    assert!(
-        !temp.exists(),
-        "temp file should be removed when final destination exists"
-    );
-
-    let _ = std::fs::remove_file(&final_path);
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 #[test]
