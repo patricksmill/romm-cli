@@ -87,7 +87,9 @@ async fn saves_download_requires_overwrite_if_dest_exists() {
     cmd_fail
         .assert()
         .failure()
-        .stderr(predicates::str::contains("already exists (use --overwrite to replace)"));
+        .stderr(predicates::str::contains(
+            "already exists (use --overwrite to replace)",
+        ));
     assert_eq!(std::fs::read(&out).unwrap(), b"old-bytes");
 
     // With --overwrite: should succeed and overwrite
