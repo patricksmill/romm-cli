@@ -225,7 +225,7 @@ pub fn related_rom_download_target(
     candidate: &Rom,
     extras_root: &Path,
 ) -> DownloadTarget {
-    let name = sanitize_extra_file_name(&candidate.fs_name);
+    let name = sanitize_related_rom_archive_name(&candidate.fs_name, candidate.id);
     DownloadTarget {
         kind: DownloadAssetKind::RomArchive,
         title: candidate.fs_name.clone(),
@@ -375,6 +375,24 @@ fn sanitize_extra_file_name(name: &str) -> String {
     }
 }
 
+fn sanitize_related_rom_archive_name(name: &str, rom_id: u64) -> String {
+    let sanitized = utils::sanitize_filename(name);
+    let sanitized = if sanitized.trim().is_empty() {
+        format!("rom-{rom_id}")
+    } else {
+        sanitized
+    };
+    if sanitized.to_ascii_lowercase().ends_with(".zip") {
+        return sanitized;
+    }
+    let stem = Path::new(&sanitized)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or(&sanitized);
+    format!("{stem}.zip")
+}
+
 fn filename_from_url(url: &str, fallback: &str) -> String {
     let fallback = sanitize_extra_file_name(fallback);
     reqwest::Url::parse(url)
@@ -454,6 +472,26 @@ mod tests {
         let root = PathBuf::from("/out/extras");
         assert!(build_cover_target(&rom, &root).is_none());
         assert!(build_manual_target(&rom, &root).is_none());
+    }
+
+    #[test]
+    fn related_rom_archive_target_uses_zip_filename() {
+        let parent = rom_fixture(1, "Game", "Game.zip");
+        let related = rom_fixture(2, "Game Update", "Game Update.nsp");
+        let root = PathBuf::from("/out/extras");
+
+        let target = related_rom_download_target(&parent, &related, &root);
+
+        assert_eq!(target.kind, DownloadAssetKind::RomArchive);
+        assert_eq!(target.source_url, "/api/roms/download");
+        assert_eq!(
+            target.source_query,
+            vec![
+                ("rom_ids".to_string(), "2".to_string()),
+                ("filename".to_string(), "Game Update.zip".to_string()),
+            ]
+        );
+        assert!(target.destination.ends_with("roms/Game Update.zip"));
     }
 
     fn rom_fixture(id: u64, name: &str, fs_name: &str) -> Rom {

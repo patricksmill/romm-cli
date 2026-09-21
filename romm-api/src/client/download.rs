@@ -287,7 +287,7 @@ mod tests {
             &Config {
                 base_url: base_url.to_string(),
                 download_dir: ".".to_string(),
-                use_https: true,
+                use_https: base_url.trim().starts_with("https://"),
                 auth: Some(auth),
                 extras_defaults: ExtrasDefaults::default(),
                 save_sync: Default::default(),

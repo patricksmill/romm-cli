@@ -1,6 +1,5 @@
 //! HTTP download, URL fallback, and finalize helpers.
 
-
 use crate::client::RommClient;
 use crate::core::extras::DownloadTarget;
 use crate::error::DownloadError;
@@ -123,7 +122,6 @@ fn dedupe_preserve_order(urls: Vec<String>) -> Vec<String> {
     }
     out
 }
-
 
 #[cfg(test)]
 use crate::core::utils;

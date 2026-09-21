@@ -389,15 +389,13 @@ async fn game_detail_download_is_blocked_when_config_download_path_is_invalid() 
 }
 
 #[tokio::test]
-async fn game_detail_download_skips_when_rom_already_exists_in_console_folder() {
+async fn game_detail_download_reports_error_when_rom_metadata_fetch_fails() {
     let ts = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_nanos();
     let roms_dir = std::env::temp_dir().join(format!("romm-roms-dir-{ts}"));
-    let console_dir = roms_dir.join("platform-1");
-    std::fs::create_dir_all(&console_dir).unwrap();
-    std::fs::write(console_dir.join("alpha.zip"), b"existing").unwrap();
+    std::fs::create_dir_all(&roms_dir).unwrap();
 
     let config = Config {
         base_url: "http://127.0.0.1:9".into(),
@@ -445,28 +443,29 @@ async fn game_detail_download_skips_when_rom_already_exists_in_console_folder() 
         .await
         .unwrap());
 
-    let mut saw_skip = false;
+    let mut saw_error = false;
     for _ in 0..50 {
         if let AppScreen::GameDetail(detail) = &app.screen {
             if let Ok(list) = detail.downloads.lock() {
-                saw_skip = list.iter().any(|j| {
+                saw_error = list.iter().any(|j| {
                     j.rom_id == 1
                         && matches!(
-                            j.status,
-                            romm_api::core::download::DownloadStatus::SkippedAlreadyExists
+                            &j.status,
+                            romm_api::core::download::DownloadStatus::Error(message)
+                                if message.contains("Failed to fetch ROM detail")
                         )
                 });
             }
         }
-        if saw_skip {
+        if saw_error {
             break;
         }
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
 
     assert!(
-        saw_skip,
-        "expected existing ROM to produce SkippedAlreadyExists status"
+        saw_error,
+        "expected missing ROM file metadata to report a detail fetch error"
     );
     let _ = std::fs::remove_dir_all(&roms_dir);
 }

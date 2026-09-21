@@ -9,9 +9,7 @@ use crate::types::Rom;
 
 use super::super::job::{DownloadJob, DownloadStatus};
 use super::super::paths::{resolve_console_roms_dir, resolve_download_directory};
-use super::super::transfer::{
-    download_target_with_fallback, prepare_download_target_destination,
-};
+use super::super::transfer::{download_target_with_fallback, prepare_download_target_destination};
 use super::DownloadManager;
 
 struct RomDownloadTask {
@@ -67,11 +65,7 @@ impl DownloadManager {
     }
 }
 
-async fn run_rom_download_task(
-    task: RomDownloadTask,
-    layout: RomsLayoutConfig,
-    save_dir: PathBuf,
-) {
+async fn run_rom_download_task(task: RomDownloadTask, layout: RomsLayoutConfig, save_dir: PathBuf) {
     if let Err(err) = tokio::fs::create_dir_all(&task.console_dir).await {
         set_job_status(
             &task.jobs,
