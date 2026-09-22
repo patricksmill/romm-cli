@@ -321,6 +321,118 @@ async fn sync_run_downloads_file() {
     assert!(downloaded.exists(), "expected downloaded file");
 }
 
+#[cfg(unix)]
+#[tokio::test]
+async fn sync_run_download_replaces_existing_symlink_without_touching_target() {
+    let server = MockServer::start_async().await;
+    let work = temp_dir("run-download-symlink");
+    let download_dir = work.join("downloads");
+    std::fs::create_dir_all(&download_dir).expect("mkdir");
+    let linked_target = work.join("outside.sav");
+    std::fs::write(&linked_target, b"keep-me").expect("write linked target");
+    std::os::unix::fs::symlink(&linked_target, download_dir.join("from-server.sav"))
+        .expect("create symlink");
+    let manifest = write_manifest(&work, "");
+
+    let _negotiate = server
+        .mock_async(|when, then| {
+            when.method(POST).path("/api/sync/negotiate");
+            then.status(200)
+                .header("content-type", "application/json")
+                .body(
+                    r#"{
+                        "session_id": 15,
+                        "operations": [{
+                            "action":"download",
+                            "rom_id":8,
+                            "save_id":55,
+                            "file_name":"from-server.sav",
+                            "slot":null,
+                            "emulator":null,
+                            "reason":"server newer",
+                            "server_updated_at":"2026-01-01T00:00:00Z",
+                            "server_content_hash":"abc"
+                        }],
+                        "total_upload": 0,
+                        "total_download": 1,
+                        "total_conflict": 0,
+                        "total_no_op": 0
+                    }"#,
+                );
+        })
+        .await;
+
+    let _download = server
+        .mock_async(|when, then| {
+            when.method(GET)
+                .path("/api/saves/55/content")
+                .query_param("device_id", "dev-5")
+                .query_param("session_id", "15");
+            then.status(200).body("downloaded-bytes");
+        })
+        .await;
+
+    let complete = server
+        .mock_async(|when, then| {
+            when.method(POST).path("/api/sync/sessions/15/complete");
+            then.status(200)
+                .header("content-type", "application/json")
+                .body(
+                    r#"{
+                        "session": {
+                            "id": 15,
+                            "device_id": "dev-5",
+                            "user_id": 1,
+                            "status": "COMPLETED",
+                            "initiated_at": "2026-01-01T00:00:00Z",
+                            "completed_at": "2026-01-01T00:00:01Z",
+                            "operations_planned": 1,
+                            "operations_completed": 1,
+                            "operations_failed": 0,
+                            "error_message": null,
+                            "created_at": "2026-01-01T00:00:00Z",
+                            "updated_at": "2026-01-01T00:00:01Z"
+                        },
+                        "play_session_ingest": null
+                    }"#,
+                );
+        })
+        .await;
+
+    let mut cmd = Command::cargo_bin("romm-cli").expect("binary");
+    cmd.env("API_BASE_URL", server.base_url())
+        .env("API_USE_HTTPS", "false")
+        .args([
+            "sync",
+            "run",
+            "--device-id",
+            "dev-5",
+            "--manifest",
+            manifest.to_str().expect("manifest str"),
+            "--download-dir",
+            download_dir.to_str().expect("download dir str"),
+        ]);
+
+    cmd.assert().success();
+    complete.assert();
+    let downloaded = download_dir.join("from-server.sav");
+    assert_eq!(
+        std::fs::read(&linked_target).expect("read linked target"),
+        b"keep-me"
+    );
+    assert!(
+        !std::fs::symlink_metadata(&downloaded)
+            .expect("download metadata")
+            .file_type()
+            .is_symlink(),
+        "download should replace the symlink with a regular file"
+    );
+    assert_eq!(
+        std::fs::read(&downloaded).expect("read downloaded file"),
+        b"downloaded-bytes"
+    );
+}
+
 #[tokio::test]
 async fn sync_run_conflict_fails_by_default() {
     let server = MockServer::start_async().await;

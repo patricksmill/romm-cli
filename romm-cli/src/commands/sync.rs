@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
@@ -15,6 +15,7 @@ use zip::ZipArchive;
 use crate::cli_presentation::CliPresentation;
 use crate::commands::OutputFormat;
 use romm_api::client::{RommClient, SaveUploadOptions};
+use romm_api::core::saves::download_save_to_path;
 use romm_api::endpoints::device::{
     DeviceSchema, GetDevice, ListDevices, RegisterDevice, SyncMode as EndpointSyncMode,
 };
@@ -427,28 +428,17 @@ async fn handle_run(args: SyncRunArgs, client: &RommClient, format: OutputFormat
                     );
                     continue;
                 };
-                match client
-                    .download_save_content(
-                        save_id,
-                        Some(args.device_id.as_str()),
-                        Some(negotiate.session_id),
-                    )
-                    .await
+                let target = download_base.join(safe_download_file_name(&op.file_name, save_id));
+                match download_save_to_path(
+                    client,
+                    save_id,
+                    &target,
+                    Some(args.device_id.as_str()),
+                    Some(negotiate.session_id),
+                )
+                .await
                 {
-                    Ok(bytes) => {
-                        let target =
-                            download_base.join(safe_download_file_name(&op.file_name, save_id));
-                        if let Some(parent) = target.parent() {
-                            std::fs::create_dir_all(parent).with_context(|| {
-                                format!("failed to create parent folder {}", parent.display())
-                            })?;
-                        }
-                        let mut f = File::create(&target).with_context(|| {
-                            format!("failed to create download file {}", target.display())
-                        })?;
-                        f.write_all(&bytes).with_context(|| {
-                            format!("failed to write download file {}", target.display())
-                        })?;
+                    Ok(_) => {
                         counts.downloaded += 1;
                         counts.completed += 1;
                     }
