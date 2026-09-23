@@ -56,3 +56,23 @@ fn config_env_map_prints_platform_dir_var() {
         .success()
         .stdout(predicates::str::contains("ROMM_SAVE_SYNC_PLATFORM_DIR_42"));
 }
+
+#[test]
+fn config_show_treats_api_use_https_one_as_true() {
+    let config_dir = test_config_dir("config-https-one");
+
+    let mut cmd = Command::cargo_bin("romm-cli").unwrap();
+    cmd.env("ROMM_TEST_CONFIG_DIR", config_dir.as_os_str())
+        .env("API_BASE_URL", "http://env.test")
+        .env("API_USE_HTTPS", "1")
+        .args(["config", "show", "--json"]);
+
+    cmd.assert()
+        .success()
+        .stdout(predicates::str::contains(
+            r#""base_url": "https://env.test""#,
+        ))
+        .stdout(predicates::str::contains(r#""use_https": true"#));
+
+    let _ = fs::remove_dir_all(config_dir);
+}
