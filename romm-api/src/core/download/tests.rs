@@ -1,10 +1,13 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use crate::config::{default_theme_id, Config, RomsLayoutConfig, SaveSyncConfig};
+use crate::client::RommClient;
+use crate::config::{default_theme_id, Config, ExtrasDefaults, RomsLayoutConfig, SaveSyncConfig};
 use crate::core::download::extras_job::finalize_extras_job_status;
 use crate::core::download::paths::resolve_download_directory_from_inputs;
-use crate::core::download::transfer::{candidate_download_urls, final_download_path_for_rom};
+use crate::core::download::transfer::{
+    candidate_download_urls, download_target_with_fallback, final_download_path_for_rom,
+};
 use crate::core::download::{
     extract_zip_archive, prepare_download_target_destination, resolve_console_roms_dir,
     resolve_console_save_dir, resolve_game_save_dir, unique_zip_path, ExtrasItemResult, ExtrasJob,
@@ -14,6 +17,8 @@ use crate::core::extras::{build_base_rom_file_targets, DownloadAssetKind, Downlo
 use crate::types::Rom;
 use std::io::Write;
 use std::time::{SystemTime, UNIX_EPOCH};
+use wiremock::matchers::{method, path};
+use wiremock::{Mock, MockServer, ResponseTemplate};
 use zip::write::SimpleFileOptions;
 use zip::ZipWriter;
 
@@ -365,6 +370,56 @@ fn legacy_roms_files_candidate_falls_forward_to_romsfiles() {
             "/api/roms/11/files/content/update%2Ensp".to_string(),
             "/api/romsfiles/11/content/update%2Ensp".to_string()
         ]
+    );
+}
+
+#[tokio::test]
+async fn download_target_rejects_short_rom_file_response() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/roms/1/files/content/base.nsp"))
+        .respond_with(ResponseTemplate::new(200).set_body_bytes(b"bad".to_vec()))
+        .mount(&server)
+        .await;
+
+    let ts = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let path = std::env::temp_dir().join(format!("romm-short-target-{ts}.nsp"));
+    let target = DownloadTarget {
+        kind: DownloadAssetKind::RomFile,
+        title: "Base".into(),
+        source_url: "/api/roms/1/files/content/base.nsp".into(),
+        source_query: Vec::new(),
+        destination: path.clone(),
+        expected_size_bytes: Some(4),
+    };
+    let config = Config {
+        base_url: server.uri(),
+        download_dir: ".".into(),
+        use_https: false,
+        auth: None,
+        extras_defaults: ExtrasDefaults::default(),
+        save_sync: SaveSyncConfig::default(),
+        roms_layout: RomsLayoutConfig::default(),
+        theme: default_theme_id(),
+        tui_layout: Default::default(),
+    };
+    let client = RommClient::new(&config, false).unwrap();
+    let mut progress = |_, _| {};
+
+    let err = download_target_with_fallback(&client, &target, |_, _| false, &mut progress)
+        .await
+        .expect_err("short per-file response must fail");
+
+    assert!(
+        err.to_string().contains("expected 4 bytes"),
+        "unexpected error: {err:#}"
+    );
+    assert!(
+        !path.exists(),
+        "short response must not leave a corrupt destination"
     );
 }
 
