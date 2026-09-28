@@ -226,6 +226,16 @@ impl RomCache {
             .map(|(_, list)| list)
     }
 
+    /// Return a complete cached list for `key`, ignoring whether `expected_count` still matches.
+    ///
+    /// Used for stale-while-revalidate UI: paint immediately, then refresh when counts diverge.
+    pub fn get_complete(&self, key: &RomCacheKey) -> Option<&RomList> {
+        self.entries
+            .get(key)
+            .filter(|(_, list)| crate::core::roms::rom_list_cache_complete(list))
+            .map(|(_, list)| list)
+    }
+
     /// Insert (or replace) an entry, then persist to disk.
     /// `expected_count` is the platform/collection `rom_count` at this moment.
     pub fn insert(&mut self, key: RomCacheKey, data: RomList, expected_count: u64) {
@@ -415,6 +425,27 @@ mod tests {
 
         assert!(cache.get_valid(&key, 7).is_some());
         assert!(cache.get_valid(&key, 8).is_none());
+        assert!(
+            cache.get_complete(&key).is_some(),
+            "complete stale entry must still be readable when counts diverge"
+        );
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn get_complete_rejects_incomplete_paginated_list() {
+        let path = temp_cache_path();
+        let mut cache = RomCache::load_from(path.clone());
+        let key = RomCacheKey::Platform(42);
+        let mut list = sample_rom_list();
+        list.total = 100;
+        cache.insert(key.clone(), list, 100);
+
+        assert!(
+            cache.get_complete(&key).is_none(),
+            "partial page must not count as a complete cache hit"
+        );
 
         let _ = std::fs::remove_file(path);
     }
