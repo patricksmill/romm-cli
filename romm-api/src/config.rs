@@ -595,23 +595,23 @@ fn merge_string_field(
     }
 }
 
-fn merge_use_https(json: &Option<Config>) -> ConfigField<bool> {
-    if let Ok(s) = std::env::var("API_USE_HTTPS") {
-        return ConfigField {
-            value: s.to_lowercase() == "true",
+fn merge_use_https(json: &Option<Config>) -> Result<ConfigField<bool>, ConfigError> {
+    if let Some(s) = env_nonempty("API_USE_HTTPS") {
+        return Ok(ConfigField {
+            value: registry::parse_bool("API_USE_HTTPS", &s)?,
             source: ConfigSource::Env("API_USE_HTTPS".into()),
-        };
+        });
     }
     if let Some(c) = json {
-        return ConfigField {
+        return Ok(ConfigField {
             value: c.use_https,
             source: ConfigSource::File,
-        };
+        });
     }
-    ConfigField {
+    Ok(ConfigField {
         value: true,
         source: ConfigSource::Default,
-    }
+    })
 }
 
 fn merge_bool_field(
@@ -803,7 +803,7 @@ pub fn load_config_with_sources() -> Result<(Config, ConfigSources), ConfigError
         },
     );
 
-    let use_https = merge_use_https(&json_config);
+    let use_https = merge_use_https(&json_config)?;
 
     let mut base_url = base_url_normalized;
     if use_https.value && base_url.starts_with("http://") {
