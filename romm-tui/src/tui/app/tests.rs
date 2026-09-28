@@ -421,6 +421,108 @@ async fn list_move_to_zero_rom_selection_does_not_queue_deferred_load() {
     );
 }
 
+#[tokio::test]
+async fn list_move_with_complete_cache_keeps_roms_visible() {
+    let mut app = app_with_library(vec![
+        platform(9101, "NES", 1),
+        platform(9102, "SNES", 1),
+    ]);
+    let list = RomList {
+        items: vec![rom_fixture()],
+        total: 1,
+        limit: 50,
+        offset: 0,
+    };
+    app.rom_cache
+        .insert(RomCacheKey::Platform(9102), list.clone(), 1);
+
+    assert!(!app
+        .handle_key_event(&KeyEvent::new(KeyCode::Down, KeyModifiers::empty()))
+        .await
+        .expect("key handled"));
+
+    match &app.screen {
+        AppScreen::LibraryBrowse(lib) => {
+            assert!(
+                lib.roms.is_some(),
+                "cached console must paint immediately without blanking the pane"
+            );
+            assert_eq!(lib.roms.as_ref().map(|r| r.items.len()), Some(1));
+            assert!(!lib.rom_loading, "valid cache hit must not stay in loading");
+        }
+        _ => panic!("expected library browse"),
+    }
+    assert!(
+        app.deferred_load_roms.is_none(),
+        "valid cache hit must not queue a network fetch"
+    );
+}
+
+#[tokio::test]
+async fn list_move_with_stale_cache_paints_and_queues_refresh() {
+    let mut app = app_with_library(vec![
+        platform(9201, "NES", 1),
+        platform(9202, "SNES", 2),
+    ]);
+    let list = RomList {
+        items: vec![rom_fixture()],
+        total: 1,
+        limit: 50,
+        offset: 0,
+    };
+    // Stored for count 1, but platform now reports 2 → stale-complete.
+    app.rom_cache
+        .insert(RomCacheKey::Platform(9202), list, 1);
+
+    assert!(!app
+        .handle_key_event(&KeyEvent::new(KeyCode::Down, KeyModifiers::empty()))
+        .await
+        .expect("key handled"));
+
+    match &app.screen {
+        AppScreen::LibraryBrowse(lib) => {
+            assert!(
+                lib.roms.is_some(),
+                "stale cache must still paint the Games pane"
+            );
+            assert!(
+                lib.rom_loading,
+                "stale paint should keep [Loading...] until refresh completes"
+            );
+        }
+        _ => panic!("expected library browse"),
+    }
+    let Some((key, _, expected, context, _)) = &app.deferred_load_roms else {
+        panic!("stale cache should queue a background refresh");
+    };
+    assert_eq!(key, &Some(RomCacheKey::Platform(9202)));
+    assert_eq!(expected, &2);
+    assert_eq!(context, &"list_move_down");
+}
+
+#[test]
+fn open_library_browse_prefers_first_complete_cache_hit() {
+    let mut app = app_with_library(vec![]);
+    let list = RomList {
+        items: vec![rom_fixture()],
+        total: 1,
+        limit: 50,
+        offset: 0,
+    };
+    // Use high IDs so a shared on-disk cache from other tests cannot select first.
+    app.rom_cache
+        .insert(RomCacheKey::Platform(9002), list, 1);
+
+    let mut lib = LibraryBrowseScreen::new(
+        vec![platform(9001, "Empty", 0), platform(9002, "Cached", 1)],
+        vec![],
+        LIBRARY_LEFT_PANEL_PERCENT_DEFAULT,
+    );
+    lib.prefer_first_complete_cache_hit(&app.rom_cache);
+    assert_eq!(lib.list_index, 1);
+    assert_eq!(lib.cache_key(), Some(RomCacheKey::Platform(9002)));
+}
+
 #[test]
 fn ctrl_c_is_treated_as_force_quit() {
     let ctrl_c = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL);

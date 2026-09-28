@@ -42,14 +42,16 @@ impl App {
         } else if lib.list_len() == 0 {
             lib.set_metadata_footer(Some("Loading library metadata…".into()));
         }
-        if lib.list_len() > 0 {
-            let key = lib.cache_key();
-            let expected = lib.expected_rom_count();
-            let req = Self::selected_rom_request_for_library(&lib);
-            lib.set_rom_loading(expected > 0);
-            self.queue_primary_rom_load(key, req, expected, "startup_first_selection");
-        }
+        lib.prefer_first_complete_cache_hit(&self.rom_cache);
         self.screen = AppScreen::LibraryBrowse(Box::new(lib));
+        if let AppScreen::LibraryBrowse(ref lib) = self.screen {
+            if lib.list_len() > 0 {
+                let key = lib.cache_key();
+                let expected = lib.expected_rom_count();
+                let req = Self::selected_rom_request_for_library(lib);
+                self.apply_selection_rom_load(key, req, expected, "startup_first_selection");
+            }
+        }
         self.spawn_library_metadata_refresh();
         tracing::debug!(
             "library-open latency_ms={} snapshot_hit={}",

@@ -193,6 +193,22 @@ impl App {
                 }
                 return;
             }
+            // Stale-complete: paint immediately so the pane is never blank during debounce/fetch.
+            if let Some(stale) = self.rom_cache.get_complete(k) {
+                if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
+                    if super::rom_load::primary_rom_load_result_matches_selection(lib, &key) {
+                        if lib.roms.is_none() {
+                            lib.set_roms(stale.clone());
+                        }
+                        lib.set_rom_loading(expected > 0);
+                        tracing::debug!(
+                            "rom-list-render context={} latency_ms={} (stale_complete)",
+                            context,
+                            started.elapsed().as_millis()
+                        );
+                    }
+                }
+            }
         }
 
         let mut aggregated: Option<romm_api::types::RomList> = None;

@@ -64,7 +64,6 @@ impl App {
             u64,
             &'static str,
         )> = None;
-        let mut cancel_rom_load = false;
         let mut prefetch_collections = false;
 
         let lib = match &mut self.screen {
@@ -102,21 +101,12 @@ impl App {
             }
             let new_key = lib.cache_key();
             if old_key != new_key && lib.list_len() > 0 {
-                lib.clear_roms();
                 let expected = lib.expected_rom_count();
-                if expected > 0 {
-                    let req = Self::selected_rom_request_for_library(lib);
-                    lib.set_rom_loading(true);
-                    pending_rom_load = Some((new_key, req, expected, "search_filter"));
-                } else {
-                    lib.set_rom_loading(false);
-                    cancel_rom_load = true;
-                }
+                let req = Self::selected_rom_request_for_library(lib);
+                pending_rom_load = Some((new_key, req, expected, "search_filter"));
             }
-            if cancel_rom_load {
-                self.cancel_primary_rom_load();
-            } else if let Some((key, req, expected, context)) = pending_rom_load {
-                self.queue_primary_rom_load(key, req, expected, context);
+            if let Some((key, req, expected, context)) = pending_rom_load {
+                self.apply_selection_rom_load(key, req, expected, context);
             }
             return Ok(false);
         }
@@ -138,17 +128,10 @@ impl App {
                 if lib.view_mode == LibraryViewMode::List {
                     lib.list_previous();
                     if lib.list_len() > 0 {
-                        lib.clear_roms();
                         let key = lib.cache_key();
                         let expected = lib.expected_rom_count();
-                        if expected > 0 {
-                            let req = Self::selected_rom_request_for_library(lib);
-                            lib.set_rom_loading(true);
-                            pending_rom_load = Some((key, req, expected, "list_move_up"));
-                        } else {
-                            lib.set_rom_loading(false);
-                            cancel_rom_load = true;
-                        }
+                        let req = Self::selected_rom_request_for_library(lib);
+                        pending_rom_load = Some((key, req, expected, "list_move_up"));
                         if lib.subsection
                             == crate::tui::screens::library_browse::LibrarySubsection::ByCollection
                         {
@@ -164,17 +147,10 @@ impl App {
                 if lib.view_mode == LibraryViewMode::List {
                     lib.list_next();
                     if lib.list_len() > 0 {
-                        lib.clear_roms();
                         let key = lib.cache_key();
                         let expected = lib.expected_rom_count();
-                        if expected > 0 {
-                            let req = Self::selected_rom_request_for_library(lib);
-                            lib.set_rom_loading(true);
-                            pending_rom_load = Some((key, req, expected, "list_move_down"));
-                        } else {
-                            lib.set_rom_loading(false);
-                            cancel_rom_load = true;
-                        }
+                        let req = Self::selected_rom_request_for_library(lib);
+                        pending_rom_load = Some((key, req, expected, "list_move_down"));
                         if lib.subsection
                             == crate::tui::screens::library_browse::LibrarySubsection::ByCollection
                         {
@@ -220,14 +196,8 @@ impl App {
                 if lib.view_mode == LibraryViewMode::List && lib.list_len() > 0 {
                     let key = lib.cache_key();
                     let expected = lib.expected_rom_count();
-                    if expected > 0 {
-                        let req = Self::selected_rom_request_for_library(lib);
-                        lib.set_rom_loading(true);
-                        pending_rom_load = Some((key, req, expected, "switch_subsection"));
-                    } else {
-                        lib.set_rom_loading(false);
-                        cancel_rom_load = true;
-                    }
+                    let req = Self::selected_rom_request_for_library(lib);
+                    pending_rom_load = Some((key, req, expected, "switch_subsection"));
                 }
                 if lib.subsection
                     == crate::tui::screens::library_browse::LibrarySubsection::ByCollection
@@ -252,10 +222,8 @@ impl App {
             KeyCode::Char('q') => return Ok(true),
             _ => {}
         }
-        if cancel_rom_load {
-            self.cancel_primary_rom_load();
-        } else if let Some((key, req, expected, context)) = pending_rom_load {
-            self.queue_primary_rom_load(key, req, expected, context);
+        if let Some((key, req, expected, context)) = pending_rom_load {
+            self.apply_selection_rom_load(key, req, expected, context);
         }
         if prefetch_collections {
             self.queue_collection_prefetches_from_screen(1, "library_selection");

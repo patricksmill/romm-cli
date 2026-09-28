@@ -211,6 +211,20 @@ impl LibraryBrowseScreen {
         }
     }
 
+    /// Prefer the first visible list row that has a complete ROM cache entry.
+    /// Leaves selection at index 0 when none match.
+    pub fn prefer_first_complete_cache_hit(&mut self, cache: &romm_api::core::cache::RomCache) {
+        let visible = self.visible_list_source_indices();
+        for (list_idx, &source_idx) in visible.iter().enumerate() {
+            if let Some(key) = self.cache_key_for_position(self.subsection, source_idx) {
+                if cache.get_complete(&key).is_some() {
+                    self.list_index = list_idx;
+                    return;
+                }
+            }
+        }
+    }
+
     pub fn get_roms_request_platform(&self) -> Option<GetRoms> {
         self.selected_list_source_index()
             .and_then(|i| self.get_roms_request_for_position(LibrarySubsection::ByConsole, i))

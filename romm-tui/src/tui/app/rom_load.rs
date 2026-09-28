@@ -62,6 +62,79 @@ impl super::App {
         self.deferred_load_roms = Some((key, req, expected, context, Instant::now()));
     }
 
+    /// Paint from disk cache when possible, then queue a network refresh only when needed.
+    ///
+    /// - Valid cache hit (`expected_count` matches): paint and skip fetch.
+    /// - Complete but stale: paint immediately, keep `[Loading...]`, queue fetch.
+    /// - Miss: clear only when needed, queue fetch when `expected > 0`.
+    pub(in crate::tui::app) fn apply_selection_rom_load(
+        &mut self,
+        key: Option<RomCacheKey>,
+        req: Option<GetRoms>,
+        expected: u64,
+        context: &'static str,
+    ) {
+        enum PaintKind {
+            Valid,
+            Stale,
+            Miss,
+        }
+
+        // Zero-count selection: never paint stale rows or fetch.
+        let paint = if expected == 0 {
+            PaintKind::Miss
+        } else {
+            match key.as_ref() {
+                Some(k) if self.rom_cache.get_valid(k, expected).is_some() => PaintKind::Valid,
+                Some(k) if self.rom_cache.get_complete(k).is_some() => PaintKind::Stale,
+                _ => PaintKind::Miss,
+            }
+        };
+
+        match paint {
+            PaintKind::Valid => {
+                let list = key
+                    .as_ref()
+                    .and_then(|k| self.rom_cache.get_valid(k, expected).cloned());
+                if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
+                    if let Some(list) = list {
+                        lib.set_roms(list);
+                        lib.set_rom_loading(false);
+                    }
+                }
+                self.cancel_primary_rom_load();
+            }
+            PaintKind::Stale => {
+                let list = key
+                    .as_ref()
+                    .and_then(|k| self.rom_cache.get_complete(k).cloned());
+                if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
+                    if let Some(list) = list {
+                        lib.set_roms(list);
+                        // set_roms clears loading; keep title indicator while refresh runs.
+                        lib.set_rom_loading(true);
+                    }
+                }
+                self.queue_primary_rom_load(key, req, expected, context);
+            }
+            PaintKind::Miss => {
+                if expected > 0 {
+                    if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
+                        lib.clear_roms();
+                        lib.set_rom_loading(true);
+                    }
+                    self.queue_primary_rom_load(key, req, expected, context);
+                } else {
+                    if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
+                        lib.clear_roms();
+                        lib.set_rom_loading(false);
+                    }
+                    self.cancel_primary_rom_load();
+                }
+            }
+        }
+    }
+
     pub(in crate::tui::app) fn cancel_primary_rom_load(&mut self) {
         self.invalidate_primary_rom_load();
         self.deferred_load_roms = None;
