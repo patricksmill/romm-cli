@@ -254,6 +254,13 @@ fn expected_archive_name(component: ReleaseComponent, target: &str) -> String {
     format!("{}-{}.{}", component.archive_prefix(), target, ext)
 }
 
+fn select_archive_name<'a>(
+    asset_names: impl IntoIterator<Item = &'a str>,
+    expected_name: &str,
+) -> Option<&'a str> {
+    asset_names.into_iter().find(|name| *name == expected_name)
+}
+
 fn tag_matches_component(tag: &str, component: ReleaseComponent) -> bool {
     tag.starts_with(component.tag_prefix())
 }
@@ -375,20 +382,18 @@ fn resolve_release(
     };
 
     let expected_name = expected_archive_name(ctx.component, target);
-    let archive_prefix = format!("{}-", ctx.component.archive_prefix());
+    let archive_name = select_archive_name(
+        release.assets.iter().map(|asset| asset.name.as_str()),
+        &expected_name,
+    )
+    .ok_or_else(|| {
+        anyhow!("no release asset found for target `{target}` (expected `{expected_name}`)")
+    })?;
     let archive = release
         .assets
         .iter()
-        .find(|asset| asset.name == expected_name)
-        .or_else(|| {
-            release
-                .assets
-                .iter()
-                .find(|asset| asset.name.starts_with(&archive_prefix))
-        })
-        .ok_or_else(|| {
-            anyhow!("no release asset found for target `{target}` (expected `{expected_name}`)")
-        })?;
+        .find(|asset| asset.name == archive_name)
+        .expect("selected archive name came from release assets");
 
     let checksums_download_url = release
         .assets
@@ -810,6 +815,25 @@ mod tests {
         assert_eq!(
             expected_archive_name(ReleaseComponent::RommTui, target),
             format!("romm-tui-{target}.{ext}")
+        );
+    }
+
+    #[test]
+    fn archive_selection_rejects_other_platform_archives() {
+        let names = [
+            "checksums.txt",
+            "romm-cli-linux-aarch64.tar.gz",
+            "romm-cli-macos-x86_64.tar.gz",
+            "romm-cli-windows-x86_64.zip",
+        ];
+
+        assert_eq!(
+            select_archive_name(names.iter().copied(), "romm-cli-linux-x86_64.tar.gz",),
+            None
+        );
+        assert_eq!(
+            select_archive_name(names.iter().copied(), "romm-cli-linux-aarch64.tar.gz",),
+            Some("romm-cli-linux-aarch64.tar.gz")
         );
     }
 }
