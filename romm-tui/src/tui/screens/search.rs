@@ -44,28 +44,26 @@ impl SearchScreen {
     }
 
     pub fn add_char(&mut self, c: char) {
-        let pos = self.cursor_pos.min(self.query.len());
+        let pos = clamp_to_char_boundary(&self.query, self.cursor_pos);
         self.query.insert(pos, c);
-        self.cursor_pos = pos + 1;
+        self.cursor_pos = pos + c.len_utf8();
     }
 
     pub fn delete_char(&mut self) {
-        if self.cursor_pos > 0 && self.cursor_pos <= self.query.len() {
-            self.query.remove(self.cursor_pos - 1);
-            self.cursor_pos -= 1;
+        let pos = clamp_to_char_boundary(&self.query, self.cursor_pos);
+        if pos > 0 {
+            let prev = previous_char_boundary(&self.query, pos);
+            self.query.remove(prev);
+            self.cursor_pos = prev;
         }
     }
 
     pub fn cursor_left(&mut self) {
-        if self.cursor_pos > 0 {
-            self.cursor_pos -= 1;
-        }
+        self.cursor_pos = previous_char_boundary(&self.query, self.cursor_pos);
     }
 
     pub fn cursor_right(&mut self) {
-        if self.cursor_pos < self.query.len() {
-            self.cursor_pos += 1;
-        }
+        self.cursor_pos = next_char_boundary(&self.query, self.cursor_pos);
     }
 
     pub fn set_results(&mut self, results: RomList) {
@@ -245,11 +243,41 @@ impl SearchScreen {
             ])
             .direction(ratatui::layout::Direction::Vertical)
             .split(area);
-        let offset = 9 + self.cursor_pos.min(self.query.len()) as u16;
+        let pos = clamp_to_char_boundary(&self.query, self.cursor_pos);
+        let offset = 9 + self.query[..pos].chars().count() as u16;
         let x = chunks[0].x + offset.min(chunks[0].width.saturating_sub(1));
         let y = chunks[0].y + 1;
         Some((x, y))
     }
+}
+
+fn clamp_to_char_boundary(s: &str, pos: usize) -> usize {
+    let mut pos = pos.min(s.len());
+    while pos > 0 && !s.is_char_boundary(pos) {
+        pos -= 1;
+    }
+    pos
+}
+
+fn previous_char_boundary(s: &str, pos: usize) -> usize {
+    let pos = clamp_to_char_boundary(s, pos);
+    if pos == 0 {
+        return 0;
+    }
+    s[..pos]
+        .char_indices()
+        .last()
+        .map(|(idx, _)| idx)
+        .unwrap_or(0)
+}
+
+fn next_char_boundary(s: &str, pos: usize) -> usize {
+    let pos = clamp_to_char_boundary(s, pos);
+    if pos >= s.len() {
+        return s.len();
+    }
+    let next = pos + s[pos..].chars().next().map(char::len_utf8).unwrap_or(0);
+    next.min(s.len())
 }
 
 #[cfg(test)]
@@ -285,6 +313,20 @@ mod tests {
         s.delete_char();
         assert_eq!(s.query, "mari");
         assert!(!s.results_match_current_query());
+    }
+
+    #[test]
+    fn query_input_cursor_moves_across_utf8_characters() {
+        let mut s = SearchScreen::new();
+        s.query = "Pokémon".to_string();
+        s.cursor_pos = s.query.len();
+
+        for _ in 0..4 {
+            s.cursor_left();
+        }
+        s.add_char('X');
+
+        assert_eq!(s.query, "PokXémon");
     }
 
     #[test]
