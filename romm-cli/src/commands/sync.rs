@@ -222,8 +222,9 @@ fn reserve_download_target(
 ) -> PathBuf {
     let preferred = safe_download_file_name(file_name, save_id);
     let preferred_path = download_base.join(&preferred);
-    if !reserved.contains(&preferred_path) && !preferred_path.exists() {
-        reserved.insert(preferred_path.clone());
+    // First claim in this sync run keeps the preferred name and may replace an
+    // existing file/symlink at that path (atomic download handles the replace).
+    if reserved.insert(preferred_path.clone()) {
         return preferred_path;
     }
 
