@@ -1,6 +1,5 @@
 //! HTTP download, URL fallback, and finalize helpers.
 
-
 use crate::client::RommClient;
 use crate::core::extras::DownloadTarget;
 use crate::error::DownloadError;
@@ -62,7 +61,7 @@ where
             )
             .await
         {
-            Ok(()) => return Ok(()),
+            Ok(()) => return verify_download_target_size(target).await,
             Err(err) => {
                 if !err.is_not_found() {
                     return Err(err);
@@ -72,6 +71,31 @@ where
         }
     }
     Err(last_err.unwrap_or(DownloadError::FailedWithoutDetails))
+}
+
+async fn verify_download_target_size(target: &DownloadTarget) -> Result<(), DownloadError> {
+    let Some(expected_size) = target.expected_size_bytes else {
+        return Ok(());
+    };
+    let actual_size = tokio::fs::metadata(&target.destination)
+        .await
+        .map_err(|e| DownloadError::IoContext {
+            context: format!(
+                "verify downloaded file size {}",
+                target.destination.display()
+            ),
+            source: e,
+        })?
+        .len();
+    if actual_size == expected_size {
+        return Ok(());
+    }
+
+    let _ = tokio::fs::remove_file(&target.destination).await;
+    Err(DownloadError::Unexpected(format!(
+        "downloaded file {} is {actual_size} bytes, expected {expected_size} bytes",
+        target.destination.display()
+    )))
 }
 
 pub(crate) fn candidate_download_urls(target: &DownloadTarget) -> Vec<String> {
@@ -123,7 +147,6 @@ fn dedupe_preserve_order(urls: Vec<String>) -> Vec<String> {
     }
     out
 }
-
 
 #[cfg(test)]
 use crate::core::path_segment::{JoinSegment, PathSegment};
