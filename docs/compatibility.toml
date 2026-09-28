@@ -35,8 +35,8 @@ min_romm_api = "1.3.0"
 notes = "ROM caching; partial ROM load resume; OpenAPI empty-body fallback; unicode metadata cursor"
 
 [[combination]]
-romm_cli = "1.3.0"
-romm_tui = "1.4.1"
-min_romm_api = "1.4.0"
+romm_cli = "1.3.1"
+romm_tui = "1.4.2"
+min_romm_api = "1.4.1"
 notes = "Config D registry; atomic save sync; batch path reservation; auth logout cleanup"
 

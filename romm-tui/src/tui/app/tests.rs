@@ -423,10 +423,7 @@ async fn list_move_to_zero_rom_selection_does_not_queue_deferred_load() {
 
 #[tokio::test]
 async fn list_move_with_complete_cache_keeps_roms_visible() {
-    let mut app = app_with_library(vec![
-        platform(9101, "NES", 1),
-        platform(9102, "SNES", 1),
-    ]);
+    let mut app = app_with_library(vec![platform(9101, "NES", 1), platform(9102, "SNES", 1)]);
     let list = RomList {
         items: vec![rom_fixture()],
         total: 1,
@@ -460,10 +457,7 @@ async fn list_move_with_complete_cache_keeps_roms_visible() {
 
 #[tokio::test]
 async fn list_move_with_stale_cache_paints_and_queues_refresh() {
-    let mut app = app_with_library(vec![
-        platform(9201, "NES", 1),
-        platform(9202, "SNES", 2),
-    ]);
+    let mut app = app_with_library(vec![platform(9201, "NES", 1), platform(9202, "SNES", 2)]);
     let list = RomList {
         items: vec![rom_fixture()],
         total: 1,
@@ -471,8 +465,7 @@ async fn list_move_with_stale_cache_paints_and_queues_refresh() {
         offset: 0,
     };
     // Stored for count 1, but platform now reports 2 → stale-complete.
-    app.rom_cache
-        .insert(RomCacheKey::Platform(9202), list, 1);
+    app.rom_cache.insert(RomCacheKey::Platform(9202), list, 1);
 
     assert!(!app
         .handle_key_event(&KeyEvent::new(KeyCode::Down, KeyModifiers::empty()))
@@ -510,8 +503,7 @@ fn open_library_browse_prefers_first_complete_cache_hit() {
         offset: 0,
     };
     // Use high IDs so a shared on-disk cache from other tests cannot select first.
-    app.rom_cache
-        .insert(RomCacheKey::Platform(9002), list, 1);
+    app.rom_cache.insert(RomCacheKey::Platform(9002), list, 1);
 
     let mut lib = LibraryBrowseScreen::new(
         vec![platform(9001, "Empty", 0), platform(9002, "Cached", 1)],

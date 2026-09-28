@@ -88,12 +88,10 @@ impl App {
             && self.startup_update_prompt.is_none()
             && self.server_version.is_some()
         {
-            self.startup_splash = Some(
-                crate::tui::screens::connected_splash::StartupSplash::new(
-                    self.config.base_url.clone(),
-                    self.server_version.clone(),
-                ),
-            );
+            self.startup_splash = Some(crate::tui::screens::connected_splash::StartupSplash::new(
+                self.config.base_url.clone(),
+                self.server_version.clone(),
+            ));
         }
         self.startup_bootstrap_rx = None;
     }

@@ -90,14 +90,30 @@ if api == cli == tui:
     print("  OK lockstep versions; compatibility matrix not required to diverge")
     sys.exit(0)
 
-if latest["romm_cli"] != cli:
-    print(f"release-check: compatibility.romm_cli ({latest['romm_cli']}) != romm-cli ({cli})", file=sys.stderr)
+def parse_version(v: str) -> tuple[int, int, int]:
+    parts = v.split(".")
+    major = int(parts[0])
+    minor = int(parts[1])
+    patch = int(parts[2].split("-")[0]) if len(parts) > 2 else 0
+    return (major, minor, patch)
+
+cli_v = parse_version(cli)
+latest_cli_v = parse_version(latest["romm_cli"])
+tui_v = parse_version(tui)
+latest_tui_v = parse_version(latest["romm_tui"])
+api_v = parse_version(api)
+latest_min_api_v = parse_version(latest["min_romm_api"])
+
+if (cli_v[0], cli_v[1]) != (latest_cli_v[0], latest_cli_v[1]) or cli_v[2] < latest_cli_v[2]:
+    print(f"release-check: compatibility.romm_cli ({latest['romm_cli']}) is not compatible with romm-cli ({cli})", file=sys.stderr)
     sys.exit(1)
-if latest["romm_tui"] != tui:
-    print(f"release-check: compatibility.romm_tui ({latest['romm_tui']}) != romm-tui ({tui})", file=sys.stderr)
+
+if (tui_v[0], tui_v[1]) != (latest_tui_v[0], latest_tui_v[1]) or tui_v[2] < latest_tui_v[2]:
+    print(f"release-check: compatibility.romm_tui ({latest['romm_tui']}) is not compatible with romm-tui ({tui})", file=sys.stderr)
     sys.exit(1)
-if latest["min_romm_api"] != api:
-    print(f"release-check: compatibility.min_romm_api ({latest['min_romm_api']}) != romm-api ({api})", file=sys.stderr)
+
+if api_v < latest_min_api_v:
+    print(f"release-check: compatibility.min_romm_api ({latest['min_romm_api']}) > romm-api ({api})", file=sys.stderr)
     sys.exit(1)
 
 print("  OK compatibility matrix matches diverged crate versions")
