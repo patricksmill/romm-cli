@@ -1529,6 +1529,7 @@ fn metadata_match_keeps_game_detail_background_results() {
         result: Ok(Vec::new()),
     }));
     app.apply_background(BackgroundAction::AchievementLoad(AchievementLoadDone {
+        gen: 0,
         rom_id: 10,
         result: Ok(romm_api::core::achievements::AchievementLoadResult::Empty(
             "No achievements".into(),
