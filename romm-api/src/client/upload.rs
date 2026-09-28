@@ -207,6 +207,18 @@ impl RommClient {
         file_path: &Path,
         options: &SaveUploadOptions<'_>,
     ) -> Result<Value, ApiError> {
+        self.upload_save_file_named_with_options(rom_id, file_path, None, options)
+            .await
+    }
+
+    /// Uploads a game save file with an explicit remote filename.
+    pub async fn upload_save_file_named_with_options(
+        &self,
+        rom_id: u64,
+        file_path: &Path,
+        file_name: Option<&str>,
+        options: &SaveUploadOptions<'_>,
+    ) -> Result<Value, ApiError> {
         let url = format!("{}/api/saves", self.base_url.trim_end_matches('/'));
         let bytes = tokio::fs::read(file_path).await.map_err(|e| {
             ApiError::Io(std::io::Error::new(
@@ -214,9 +226,9 @@ impl RommClient {
                 format!("read {}: {e}", file_path.display()),
             ))
         })?;
-        let fname = file_path
-            .file_name()
-            .and_then(|n| n.to_str())
+        let fname = file_name
+            .filter(|name| !name.trim().is_empty())
+            .or_else(|| file_path.file_name().and_then(|n| n.to_str()))
             .ok_or_else(|| {
                 ApiError::UnexpectedResponse("upload path must have a unicode filename".into())
             })?;
