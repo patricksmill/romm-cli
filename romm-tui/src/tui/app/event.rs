@@ -9,7 +9,7 @@ use super::background::types::{
     AchievementLoadDone, CollectionPrefetchDone, CoverLoadDone, DeviceListDone,
     LibraryMetadataRefreshDone, LibraryUploadComplete, MetadataApplyDone, MetadataSearchDone,
     PlatformListDone, RomLoadDone, SaveDownloadDone, SaveListDone, SaveScreenshotLoadDone,
-    SaveUploadDone, SearchLoadDone, SyncPushPullDone,
+    SaveUploadDone, SearchLoadDone, StartupBootstrapDone, SyncPushPullDone,
 };
 use crate::tui::keyboard_help::{map_keyboard_help_key, KeyboardHelpInput};
 
@@ -48,6 +48,7 @@ pub(crate) enum BackgroundAction {
     LibraryUploadProgress { uploaded: u64, total: u64 },
     LibraryUploadDone(Result<LibraryUploadComplete, RommError>),
     LibraryScanDone(Result<(), RommError>),
+    StartupBootstrap(StartupBootstrapDone),
     DrivePrefetch,
     PollFooterClear,
 }

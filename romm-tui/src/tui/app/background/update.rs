@@ -52,6 +52,7 @@ impl App {
                 self.apply_library_upload_complete(result)
             }
             BackgroundAction::LibraryScanDone(result) => self.apply_library_scan_complete(result),
+            BackgroundAction::StartupBootstrap(done) => self.apply_startup_bootstrap(done),
             BackgroundAction::DrivePrefetch => self.drive_collection_prefetch_scheduler(),
             BackgroundAction::PollFooterClear => {
                 if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
@@ -59,6 +60,42 @@ impl App {
                 }
             }
         }
+    }
+
+    fn apply_startup_bootstrap(&mut self, done: super::types::StartupBootstrapDone) {
+        use romm_api::feature_compat::{
+            achievements_compatibility, metadata_edit_compatibility, save_sync_compatibility,
+        };
+
+        if let Some(registry) = done.registry {
+            self.save_sync_compat = save_sync_compatibility(&registry);
+            self.metadata_edit_compat = metadata_edit_compatibility(&registry);
+            self.achievements_compat = achievements_compatibility(&registry);
+        }
+        if done.server_version.is_some() {
+            self.server_version = done.server_version;
+        }
+        if let Some(status) = done.update_status {
+            // Prefer update prompt over a connected splash if both would show.
+            self.startup_splash = None;
+            if self.startup_update_prompt.is_none() {
+                self.startup_update_prompt = Some(super::types::StartupUpdatePrompt {
+                    status,
+                    updating: false,
+                });
+            }
+        } else if self.startup_splash.is_none()
+            && self.startup_update_prompt.is_none()
+            && self.server_version.is_some()
+        {
+            self.startup_splash = Some(
+                crate::tui::screens::connected_splash::StartupSplash::new(
+                    self.config.base_url.clone(),
+                    self.server_version.clone(),
+                ),
+            );
+        }
+        self.startup_bootstrap_rx = None;
     }
 
     fn apply_rom_load_complete(&mut self, done: RomLoadDone) {

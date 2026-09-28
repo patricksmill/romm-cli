@@ -160,6 +160,9 @@ pub struct App {
     platform_list_tx: tokio::sync::mpsc::UnboundedSender<PlatformListDone>,
     sync_push_pull_rx: tokio::sync::mpsc::UnboundedReceiver<SyncPushPullDone>,
     sync_push_pull_tx: tokio::sync::mpsc::UnboundedSender<SyncPushPullDone>,
+    /// Post-paint OpenAPI / heartbeat / update-check completion.
+    startup_bootstrap_rx:
+        Option<tokio::sync::mpsc::UnboundedReceiver<background::types::StartupBootstrapDone>>,
     theme: Box<dyn Theme>,
 }
 
@@ -333,6 +336,7 @@ impl App {
             platform_list_tx,
             sync_push_pull_rx,
             sync_push_pull_tx,
+            startup_bootstrap_rx: None,
             theme,
         }
     }

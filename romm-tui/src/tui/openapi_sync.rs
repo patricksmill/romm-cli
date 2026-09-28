@@ -1,5 +1,6 @@
-//! Load the RomM OpenAPI spec at TUI startup: prefer the live server, fall back to cache,
-//! then a bundled copy shipped in the binary. Used for save-sync compatibility and server version.
+//! Load the RomM OpenAPI spec at TUI startup: local sources first for instant paint,
+//! then refresh from the live server in the background. Used for feature compatibility
+//! and server version.
 
 use anyhow::{anyhow, Result};
 use serde_json::Value;
@@ -22,22 +23,55 @@ fn openapi_from_cwd() -> Option<String> {
     }
 }
 
+fn first_usable_local_openapi_body(cache_path: &Path) -> String {
+    if let Some(cwd) = openapi_from_cwd() {
+        if EndpointRegistry::from_openapi_json(&cwd).is_ok() {
+            return cwd;
+        }
+    }
+    if let Ok(cached) = std::fs::read_to_string(cache_path) {
+        if EndpointRegistry::from_openapi_json(&cached).is_ok() {
+            return cached;
+        }
+    }
+    EMBEDDED_OPENAPI_JSON.to_string()
+}
+
 pub fn parse_openapi_info_version(json: &str) -> Option<String> {
     let v: Value = serde_json::from_str(json).ok()?;
     v.get("info")?.get("version")?.as_str().map(String::from)
 }
 
-/// Resolve OpenAPI JSON: try the server first (updates disk cache when the spec changes), then
-/// `./openapi.json`, then the user cache file, then the embedded bundle.
+/// Sync-only OpenAPI load for first paint: `./openapi.json` → user cache → embedded bundle.
+/// Does not touch the network or heartbeat.
+pub fn load_openapi_registry_local(cache_path: &Path) -> Result<EndpointRegistry> {
+    let body = first_usable_local_openapi_body(cache_path);
+    EndpointRegistry::from_openapi_json(&body).map_err(|e| anyhow!("invalid OpenAPI document: {e}"))
+}
+
+fn write_openapi_cache(cache_path: &Path, body: &str, remote_ver: Option<&str>) -> Result<()> {
+    if let Some(parent) = cache_path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| anyhow!("create OpenAPI cache dir: {e}"))?;
+    }
+    std::fs::write(cache_path, body)
+        .map_err(|e| anyhow!("write OpenAPI cache {}: {e}", cache_path.display()))?;
+    tracing::info!(
+        "OpenAPI cache {} (version {:?})",
+        cache_path.display(),
+        remote_ver
+    );
+    Ok(())
+}
+
+/// Fetch OpenAPI from the server (updating the disk cache) and read heartbeat version.
 ///
-/// Also calls `GET /api/heartbeat` for the RomM server version shown in Settings.
-pub async fn sync_openapi_registry(
+/// On fetch failure, returns `registry: None` and still attempts heartbeat so Settings can
+/// show a version. Callers keep their local registry when `registry` is `None`.
+pub async fn refresh_openapi_from_server(
     client: &RommClient,
     cache_path: &Path,
-) -> Result<(EndpointRegistry, Option<String>)> {
-    let fetch_result = client.fetch_openapi_json().await;
-
-    let openapi_body = match fetch_result {
+) -> (Option<EndpointRegistry>, Option<String>) {
+    let registry = match client.fetch_openapi_json().await {
         Ok(body) => {
             let remote_ver = parse_openapi_info_version(&body);
             let local_ver = std::fs::read_to_string(cache_path)
@@ -49,60 +83,46 @@ pub async fn sync_openapi_registry(
                 !cache_path.is_file() || local_ver.as_deref() != remote_ver.as_deref();
 
             if needs_write {
-                if let Some(parent) = cache_path.parent() {
-                    std::fs::create_dir_all(parent)
-                        .map_err(|e| anyhow!("create OpenAPI cache dir: {e}"))?;
+                if let Err(e) = write_openapi_cache(cache_path, &body, remote_ver.as_deref()) {
+                    tracing::warn!("failed to write OpenAPI cache: {e:#}");
                 }
-                std::fs::write(cache_path, &body)
-                    .map_err(|e| anyhow!("write OpenAPI cache {}: {e}", cache_path.display()))?;
-                tracing::info!(
-                    "OpenAPI cache {} (version {:?})",
-                    cache_path.display(),
-                    remote_ver
-                );
             }
-            body
+
+            match EndpointRegistry::from_openapi_json(&body) {
+                Ok(reg) => Some(reg),
+                Err(e) => {
+                    tracing::warn!("invalid OpenAPI from server: {e}");
+                    None
+                }
+            }
         }
         Err(e) => {
-            // Skip unusable cwd/cache (e.g. empty file left by older builds) before bundled.
-            let mut body = None;
-            if let Some(cwd) = openapi_from_cwd() {
-                if EndpointRegistry::from_openapi_json(&cwd).is_ok() {
-                    tracing::warn!(
-                        "Using ./openapi.json (could not fetch from server: {})",
-                        e.redacted_for_log()
-                    );
-                    body = Some(cwd);
-                }
-            }
-            if body.is_none() {
-                if let Ok(cached) = std::fs::read_to_string(cache_path) {
-                    if EndpointRegistry::from_openapi_json(&cached).is_ok() {
-                        tracing::warn!(
-                            "Using cached OpenAPI at {} (server unreachable: {})",
-                            cache_path.display(),
-                            e.redacted_for_log()
-                        );
-                        body = Some(cached);
-                    }
-                }
-            }
-            body.unwrap_or_else(|| {
-                tracing::warn!(
-                    "Using bundled OpenAPI spec (server unreachable: {}). \
-                     OpenAPI paths match the build-time snapshot; connect to refresh from your server.",
-                    e.redacted_for_log()
-                );
-                EMBEDDED_OPENAPI_JSON.to_string()
-            })
+            tracing::warn!(
+                "OpenAPI refresh failed (keeping local registry): {}",
+                e.redacted_for_log()
+            );
+            None
         }
     };
 
-    let registry = EndpointRegistry::from_openapi_json(&openapi_body)
-        .map_err(|e| anyhow!("invalid OpenAPI document: {e}"))?;
-
     let server_version = client.rom_server_version_from_heartbeat().await;
+    (registry, server_version)
+}
 
+/// Resolve OpenAPI JSON: try the server first (updates disk cache when the spec changes), then
+/// local sources. Also calls `GET /api/heartbeat` for the RomM server version.
+///
+/// Prefer [`load_openapi_registry_local`] + [`refresh_openapi_from_server`] for TUI startup so
+/// first paint is not blocked on the network.
+pub async fn sync_openapi_registry(
+    client: &RommClient,
+    cache_path: &Path,
+) -> Result<(EndpointRegistry, Option<String>)> {
+    let (remote, server_version) = refresh_openapi_from_server(client, cache_path).await;
+    if let Some(registry) = remote {
+        return Ok((registry, server_version));
+    }
+    let registry = load_openapi_registry_local(cache_path)?;
     Ok((registry, server_version))
 }
 
@@ -120,6 +140,29 @@ mod tests {
     fn embedded_openapi_json_parses() {
         super::EndpointRegistry::from_openapi_json(EMBEDDED_OPENAPI_JSON)
             .expect("bundled openapi.json");
+    }
+
+    #[test]
+    fn load_local_uses_embedded_when_cache_unusable() {
+        let cache_dir = std::env::temp_dir().join(format!(
+            "romm-openapi-local-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&cache_dir).unwrap();
+        let cache_path = cache_dir.join("openapi.json");
+        std::fs::write(&cache_path, "").unwrap();
+
+        let registry = load_openapi_registry_local(&cache_path).expect("local load");
+        assert!(
+            !registry.endpoints.is_empty(),
+            "bundled registry should have endpoints"
+        );
+
+        let _ = std::fs::remove_dir_all(&cache_dir);
     }
 
     #[tokio::test]

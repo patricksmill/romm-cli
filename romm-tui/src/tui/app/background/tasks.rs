@@ -18,9 +18,43 @@ use super::super::AppScreen;
 use super::types::{
     AchievementLoadDone, CoverLoadDone, LibraryMetadataRefreshDone, LibraryUploadComplete,
     MetadataApplyDone, MetadataSearchDone, SaveListDone, SaveScreenshotLoadDone,
+    StartupBootstrapDone,
 };
 
 impl super::super::App {
+    /// Background OpenAPI refresh, heartbeat, and optional self-update check (post first paint).
+    pub(crate) fn spawn_startup_bootstrap(
+        &mut self,
+        cache_path: std::path::PathBuf,
+        check_updates: bool,
+    ) {
+        let client = self.client.clone();
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        self.startup_bootstrap_rx = Some(rx);
+        tokio::spawn(async move {
+            let (registry, server_version) =
+                crate::tui::openapi_sync::refresh_openapi_from_server(&client, &cache_path).await;
+            let update_status = if check_updates {
+                match tokio::time::timeout(
+                    Duration::from_secs(2),
+                    crate::update::check_for_update(),
+                )
+                .await
+                {
+                    Ok(Ok(status)) if status.should_update => Some(status),
+                    _ => None,
+                }
+            } else {
+                None
+            };
+            let _ = tx.send(StartupBootstrapDone {
+                registry,
+                server_version,
+                update_status,
+            });
+        });
+    }
+
     pub(in crate::tui::app) fn spawn_library_metadata_refresh(&mut self) {
         self.library_metadata_refresh_gen = self.library_metadata_refresh_gen.saturating_add(1);
         let gen = self.library_metadata_refresh_gen;
@@ -42,6 +76,7 @@ impl super::super::App {
     /// Drain background channels into [`AppEvent`]s. Safe to call each frame.
     pub(crate) fn drain_background_events(&mut self) -> Vec<AppEvent> {
         let mut events = Vec::new();
+        events.extend(self.drain_startup_bootstrap());
         events.extend(self.drain_library_metadata_refresh());
         events.extend(self.drain_rom_load_results());
         events.extend(self.drain_collection_prefetch_results());
@@ -57,6 +92,31 @@ impl super::super::App {
         self.drive_collection_prefetch_scheduler();
         events.push(AppEvent::Background(BackgroundAction::DrivePrefetch));
         events.push(AppEvent::Background(BackgroundAction::PollFooterClear));
+        events
+    }
+
+    fn drain_startup_bootstrap(&mut self) -> Vec<AppEvent> {
+        let mut events = Vec::new();
+        let mut disconnected = false;
+        if let Some(rx) = &mut self.startup_bootstrap_rx {
+            loop {
+                match rx.try_recv() {
+                    Ok(msg) => {
+                        events.push(AppEvent::Background(BackgroundAction::StartupBootstrap(
+                            msg,
+                        )));
+                    }
+                    Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
+                    Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
+                        disconnected = true;
+                        break;
+                    }
+                }
+            }
+        }
+        if disconnected {
+            self.startup_bootstrap_rx = None;
+        }
         events
     }
 
@@ -677,21 +737,17 @@ impl super::super::App {
 
             let force_reload = std::mem::take(&mut self.force_rom_reload_after_metadata);
             let selection_reload = if selection_changed && lib.list_len() > 0 {
-                lib.clear_roms();
                 let key = lib.cache_key();
                 let expected = lib.expected_rom_count();
                 let req = Self::selected_rom_request_for_library(lib);
-                lib.set_rom_loading(expected > 0);
                 Some((key, req, expected, "refresh_selection"))
             } else {
                 None
             };
             let post_scan_reload = if force_reload && lib.list_len() > 0 && !selection_changed {
-                lib.clear_roms();
                 let key = lib.cache_key();
                 let expected = lib.expected_rom_count();
                 let req = Self::selected_rom_request_for_library(lib);
-                lib.set_rom_loading(expected > 0);
                 Some((key, req, expected, "post_scan_reload"))
             } else {
                 None
@@ -703,12 +759,12 @@ impl super::super::App {
             if let Some(ref k) = key {
                 self.rom_partials.remove(k);
             }
-            self.queue_primary_rom_load(key, req, expected, context);
+            self.apply_selection_rom_load(key, req, expected, context);
         } else if let Some((key, req, expected, context)) = post_scan_reload {
             if let Some(ref k) = key {
                 self.rom_partials.remove(k);
             }
-            self.queue_primary_rom_load(key, req, expected, context);
+            self.apply_selection_rom_load(key, req, expected, context);
         }
 
         self.queue_collection_prefetches_from_screen(1, "refresh_warmup");

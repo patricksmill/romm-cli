@@ -23,7 +23,6 @@ pub mod theme;
 pub mod utils;
 
 use anyhow::Result;
-use std::time::Duration;
 
 use romm_api::client::RommClient;
 use romm_api::config::{openapi_cache_path, should_check_updates, Config};
@@ -32,7 +31,7 @@ use romm_api::feature_compat::{
 };
 
 use self::app::App;
-use self::openapi_sync::sync_openapi_registry;
+use self::openapi_sync::load_openapi_registry_local;
 use self::screens::connected_splash::StartupSplash;
 use self::screens::setup_wizard::SetupWizard;
 
@@ -90,7 +89,8 @@ async fn run_started(
 ) -> Result<()> {
     install_panic_hook();
     let cache_path = openapi_cache_path()?;
-    let (registry, server_version) = sync_openapi_registry(&client, &cache_path).await?;
+    // Local OpenAPI only — do not await the network before first paint.
+    let registry = load_openapi_registry_local(&cache_path)?;
 
     let startup_update = if mock_update {
         Some(crate::update::UpdateStatus {
@@ -101,16 +101,12 @@ async fn run_started(
             release_url: "https://github.com/patricksmill/romm-cli".into(),
             changelog_url: crate::update::changelog_url().to_string(),
         })
-    } else if should_check_updates() {
-        match tokio::time::timeout(Duration::from_secs(2), crate::update::check_for_update()).await
-        {
-            Ok(Ok(status)) if status.should_update => Some(status),
-            _ => None,
-        }
     } else {
         None
     };
 
+    // Heartbeat version arrives via background bootstrap; wizard still gets an immediate splash.
+    let server_version = None;
     let splash = startup_splash_for_launch(
         from_setup_wizard,
         &config,
@@ -130,6 +126,7 @@ async fn run_started(
         splash,
         startup_update,
     );
+    app.spawn_startup_bootstrap(cache_path, should_check_updates() && !mock_update);
     app.run().await
 }
 
@@ -179,5 +176,11 @@ mod tests {
         let config = test_config();
         let version = Some("4.0.0".into());
         assert!(startup_splash_for_launch(false, &config, &version, false).is_some());
+    }
+
+    #[test]
+    fn startup_splash_for_launch_shows_wizard_splash_without_version() {
+        let config = test_config();
+        assert!(startup_splash_for_launch(true, &config, &None, false).is_some());
     }
 }

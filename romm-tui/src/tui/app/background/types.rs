@@ -135,6 +135,14 @@ pub(crate) struct StartupUpdatePrompt {
     pub(crate) updating: bool,
 }
 
+/// Post-paint OpenAPI / heartbeat / optional update-check result.
+#[derive(Debug)]
+pub(crate) struct StartupBootstrapDone {
+    pub(crate) registry: Option<romm_api::openapi::EndpointRegistry>,
+    pub(crate) server_version: Option<String>,
+    pub(crate) update_status: Option<UpdateStatus>,
+}
+
 /// Deferred primary ROM load: cache key, API request, expected count, context label, start time.
 pub(crate) type DeferredLoadRoms = (
     Option<RomCacheKey>,
