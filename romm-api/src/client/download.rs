@@ -3,8 +3,9 @@ use reqwest::{
     redirect::Policy,
     Client as HttpClient, Response, Url,
 };
-use std::path::Path;
-use std::time::Instant;
+use std::ffi::OsString;
+use std::path::{Path, PathBuf};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tokio::io::AsyncWriteExt as _;
 
 use crate::config::normalize_romm_origin;
@@ -77,7 +78,7 @@ impl RommClient {
         url: &str,
         query: &[(String, String)],
         save_path: &Path,
-        mut is_cancelled: C,
+        is_cancelled: C,
         on_progress: &mut F,
     ) -> Result<(), DownloadError>
     where
@@ -96,7 +97,7 @@ impl RommClient {
         }
 
         let t0 = Instant::now();
-        let mut resp = self
+        let resp = self
             .send_download_request_with_redirects(&url, query)
             .await?;
 
@@ -120,37 +121,18 @@ impl RommClient {
             )));
         }
 
-        let mut received = 0u64;
-        let total = resp.content_length().unwrap_or(0);
-        let mut file =
-            tokio::fs::File::create(save_path)
-                .await
-                .map_err(|e| DownloadError::IoContext {
-                    context: format!("create file {save_path:?}"),
-                    source: e,
-                })?;
-
-        if is_cancelled(received, total) {
-            return Err(DownloadError::Cancelled(CancelledByUser));
+        let (temp_path, mut file) = create_download_temp_file(save_path).await?;
+        if let Err(err) =
+            stream_download_response(resp, &mut file, save_path, is_cancelled, on_progress).await
+        {
+            let _ = tokio::fs::remove_file(&temp_path).await;
+            return Err(err);
         }
-
-        while let Some(chunk) = resp.chunk().await? {
-            if is_cancelled(received, total) {
-                return Err(DownloadError::Cancelled(CancelledByUser));
-            }
-            file.write_all(&chunk)
-                .await
-                .map_err(|e| DownloadError::IoContext {
-                    context: format!("write chunk {save_path:?}"),
-                    source: e,
-                })?;
-            received += chunk.len() as u64;
-            on_progress(received, total);
+        drop(file);
+        if let Err(err) = replace_download_destination(&temp_path, save_path).await {
+            let _ = tokio::fs::remove_file(&temp_path).await;
+            return Err(err);
         }
-        file.flush().await.map_err(|e| DownloadError::IoContext {
-            context: format!("flush download file {save_path:?}"),
-            source: e,
-        })?;
 
         Ok(())
     }
@@ -250,6 +232,121 @@ impl RommClient {
     }
 }
 
+async fn stream_download_response<F, C>(
+    mut resp: Response,
+    file: &mut tokio::fs::File,
+    save_path: &Path,
+    mut is_cancelled: C,
+    on_progress: &mut F,
+) -> Result<(), DownloadError>
+where
+    F: FnMut(u64, u64) + Send,
+    C: FnMut(u64, u64) -> bool + Send,
+{
+    let mut received = 0u64;
+    let total = resp.content_length().unwrap_or(0);
+
+    if is_cancelled(received, total) {
+        return Err(DownloadError::Cancelled(CancelledByUser));
+    }
+
+    while let Some(chunk) = resp.chunk().await? {
+        if is_cancelled(received, total) {
+            return Err(DownloadError::Cancelled(CancelledByUser));
+        }
+        file.write_all(&chunk)
+            .await
+            .map_err(|e| DownloadError::IoContext {
+                context: format!("write chunk {save_path:?}"),
+                source: e,
+            })?;
+        received += chunk.len() as u64;
+        on_progress(received, total);
+    }
+    file.flush().await.map_err(|e| DownloadError::IoContext {
+        context: format!("flush download file {save_path:?}"),
+        source: e,
+    })?;
+    Ok(())
+}
+
+async fn create_download_temp_file(
+    save_path: &Path,
+) -> Result<(PathBuf, tokio::fs::File), DownloadError> {
+    let temp_path = sidecar_download_path(save_path, "part");
+    let file = tokio::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temp_path)
+        .await
+        .map_err(|e| DownloadError::IoContext {
+            context: format!("create temp download file {temp_path:?}"),
+            source: e,
+        })?;
+    Ok((temp_path, file))
+}
+
+async fn replace_download_destination(
+    temp_path: &Path,
+    save_path: &Path,
+) -> Result<(), DownloadError> {
+    match tokio::fs::rename(temp_path, save_path).await {
+        Ok(()) => Ok(()),
+        Err(first_err) => {
+            if tokio::fs::metadata(save_path).await.is_err() {
+                return Err(rename_failed(temp_path, save_path, first_err));
+            }
+
+            let backup_path = sidecar_download_path(save_path, "backup");
+            tokio::fs::rename(save_path, &backup_path)
+                .await
+                .map_err(|e| DownloadError::IoContext {
+                    context: format!("move existing download aside {save_path:?}"),
+                    source: e,
+                })?;
+
+            match tokio::fs::rename(temp_path, save_path).await {
+                Ok(()) => {
+                    let _ = tokio::fs::remove_file(&backup_path).await;
+                    Ok(())
+                }
+                Err(err) => {
+                    let _ = tokio::fs::rename(&backup_path, save_path).await;
+                    Err(rename_failed(temp_path, save_path, err))
+                }
+            }
+        }
+    }
+}
+
+fn rename_failed(temp_path: &Path, save_path: &Path, source: std::io::Error) -> DownloadError {
+    DownloadError::RenameFailed {
+        path: temp_path.display().to_string(),
+        final_path: save_path.display().to_string(),
+        source,
+    }
+}
+
+fn sidecar_download_path(save_path: &Path, suffix: &str) -> PathBuf {
+    let parent = save_path.parent().unwrap_or_else(|| Path::new("."));
+    let mut file_name = OsString::from(".");
+    if let Some(name) = save_path.file_name() {
+        file_name.push(name);
+    } else {
+        file_name.push("download");
+    }
+    file_name.push(format!(
+        ".{}.{}.{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos(),
+        suffix
+    ));
+    parent.join(file_name)
+}
+
 fn download_http_client() -> Result<HttpClient, DownloadError> {
     Ok(HttpClient::builder()
         .user_agent(http_user_agent())
@@ -287,7 +384,7 @@ mod tests {
             &Config {
                 base_url: base_url.to_string(),
                 download_dir: ".".to_string(),
-                use_https: true,
+                use_https: false,
                 auth: Some(auth),
                 extras_defaults: ExtrasDefaults::default(),
                 save_sync: Default::default(),
@@ -449,5 +546,50 @@ mod tests {
             !path.exists(),
             "partial response must not create a destination file"
         );
+    }
+
+    #[tokio::test]
+    async fn mid_stream_cancel_preserves_existing_destination_file() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0; 1024];
+            let _ = std::io::Read::read(&mut stream, &mut request);
+            std::io::Write::write_all(
+                &mut stream,
+                b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n7\r\npartial\r\n",
+            )
+            .unwrap();
+            std::io::Write::flush(&mut stream).unwrap();
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            let _ = std::io::Write::write_all(&mut stream, b"5\r\nlater\r\n0\r\n\r\n");
+        });
+
+        let path = std::env::temp_dir().join(format!(
+            "romm-download-preserve-existing-test-{}-{}.bin",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        tokio::fs::write(&path, b"existing-good").await.unwrap();
+
+        let client = client_for(&format!("http://{addr}"));
+        let mut progress = |_, _| {};
+        client
+            .download_url_with_cancel(
+                "/file.bin",
+                &path,
+                |received, _| received > 0,
+                &mut progress,
+            )
+            .await
+            .expect_err("mid-stream cancellation should fail");
+
+        assert_eq!(tokio::fs::read(&path).await.unwrap(), b"existing-good");
+        let _ = tokio::fs::remove_file(path).await;
+        server.join().unwrap();
     }
 }
