@@ -777,8 +777,8 @@ async fn game_detail_esc_resumes_partial_library_rom_load() {
     assert!(req.as_ref().is_some_and(|r| r.platform_id == Some(1)));
 }
 
-#[test]
-fn metadata_apply_success_marks_previous_library_stale_and_clears_live_cache() {
+#[tokio::test]
+async fn metadata_apply_success_marks_previous_library_stale_and_clears_live_cache() {
     let mut app = app_with_library(vec![platform(1, "NES", 1)]);
     let stale_list = RomList {
         total: 1,
