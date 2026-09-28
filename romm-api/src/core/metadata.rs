@@ -1,15 +1,15 @@
 //! ROM metadata search, match, and cache helpers (CLI + TUI).
 
 use crate::client::RommClient;
-use crate::core::cache::{RomCache, RomCacheKey};
+use crate::core::cache::RomCache;
 use crate::endpoints::roms::{GetSearchCover, GetSearchRoms, RomUpdateFields};
 use crate::error::ApiError;
 use crate::types::metadata::{SearchCover, SearchRom};
 
-/// Drop cached ROM list rows for one platform after metadata edit.
+/// Drop cached ROM list rows that may contain stale data after a metadata edit.
 pub fn invalidate_platform_rom_cache(platform_id: u64) {
     let mut c = RomCache::load();
-    c.remove(&RomCacheKey::Platform(platform_id));
+    c.remove_metadata_dependent_entries(platform_id);
 }
 
 /// Multipart fields for applying a search row (mirrors RomM web manual match).
