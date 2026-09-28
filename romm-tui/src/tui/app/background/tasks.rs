@@ -157,8 +157,8 @@ impl super::super::App {
             .take()
             .unwrap_or(ScanCacheInvalidate::AllPlatforms);
         self.apply_library_scan_cache_invalidate(&inv);
+        self.force_rom_reload_after_metadata = true;
         if matches!(self.screen, AppScreen::LibraryBrowse(_)) {
-            self.force_rom_reload_after_metadata = true;
             self.spawn_library_metadata_refresh();
         }
     }
