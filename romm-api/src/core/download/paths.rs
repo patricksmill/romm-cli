@@ -136,7 +136,10 @@ fn save_platform_slug(
     platform_slug: Option<&str>,
 ) -> PathSegment {
     let fallback = format!("platform-{platform_id}");
-    PathSegment::sanitize(platform_fs_slug.or(platform_slug).unwrap_or(&fallback), &fallback)
+    PathSegment::sanitize(
+        platform_fs_slug.or(platform_slug).unwrap_or(&fallback),
+        &fallback,
+    )
 }
 
 fn auto_console_save_dir(

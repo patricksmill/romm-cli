@@ -116,9 +116,17 @@ mod tests {
         std::env::remove_var("CLICOLOR_FORCE");
     }
 
+    fn env_lock() -> std::sync::MutexGuard<'static, ()> {
+        let guard = romm_api::config::test_env_lock()
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        clear_color_env();
+        guard
+    }
+
     #[test]
     fn json_format_suppresses_progress() {
-        clear_color_env();
+        let _guard = env_lock();
         let p = CliPresentation::from_cli(true, false, false);
         assert!(!p.shows_progress());
         assert!(p.is_json());
@@ -126,31 +134,30 @@ mod tests {
 
     #[test]
     fn no_color_disables_ansi() {
-        clear_color_env();
+        let _guard = env_lock();
         std::env::set_var("NO_COLOR", "1");
         let p = CliPresentation::from_cli(false, false, false);
         assert!(!p.supports_ansi_color());
-        std::env::remove_var("NO_COLOR");
+        clear_color_env();
     }
 
     #[test]
     fn clicolor_zero_disables_ansi() {
-        clear_color_env();
+        let _guard = env_lock();
         std::env::set_var("CLICOLOR", "0");
         let p = CliPresentation::from_cli(false, false, false);
         assert!(!p.supports_ansi_color());
-        std::env::remove_var("CLICOLOR");
+        clear_color_env();
     }
 
     #[test]
     fn clicolor_force_overrides_clicolor_zero() {
-        clear_color_env();
+        let _guard = env_lock();
         std::env::set_var("CLICOLOR", "0");
         std::env::set_var("CLICOLOR_FORCE", "1");
         let p = CliPresentation::from_cli(false, false, false);
         // May still be false when stdout is not a TTY in test harness.
         let _ = p.supports_ansi_color();
-        std::env::remove_var("CLICOLOR");
-        std::env::remove_var("CLICOLOR_FORCE");
+        clear_color_env();
     }
 }

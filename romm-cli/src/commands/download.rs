@@ -23,9 +23,9 @@ use romm_api::core::extras::{
 use romm_api::core::interrupt::{
     cancelled_download_error, is_cancelled_download, is_cancelled_error, InterruptContext,
 };
+use romm_api::core::path_segment::{JoinSegment, PathSegment};
 use romm_api::core::resolve::resolve_platform_id;
 use romm_api::core::roms::fetch_roms_paginated;
-use romm_api::core::path_segment::{JoinSegment, PathSegment};
 use romm_api::endpoints::roms::{GetRom, GetRoms};
 /// Maximum number of concurrent download connections.
 const DEFAULT_CONCURRENCY: usize = 4;

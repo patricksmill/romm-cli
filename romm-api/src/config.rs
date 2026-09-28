@@ -1309,6 +1309,7 @@ mod tests {
         for key in [
             "API_BASE_URL",
             "ROMM_ROMS_DIR",
+            "ROMM_DOWNLOAD_DIR",
             "API_USERNAME",
             "API_PASSWORD",
             "API_TOKEN",
@@ -1319,6 +1320,8 @@ mod tests {
             "API_USE_HTTPS",
             "ROMM_THEME",
             "ROMM_TEST_CONFIG_DIR",
+            "ROMM_OPENAPI_PATH",
+            "ROMM_CHECK_UPDATES",
         ] {
             std::env::remove_var(key);
         }

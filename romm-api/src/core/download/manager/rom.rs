@@ -9,9 +9,7 @@ use crate::types::Rom;
 
 use super::super::job::{DownloadJob, DownloadStatus};
 use super::super::paths::{resolve_console_roms_dir, resolve_download_directory};
-use super::super::transfer::{
-    download_target_with_fallback, prepare_download_target_destination,
-};
+use super::super::transfer::{download_target_with_fallback, prepare_download_target_destination};
 use super::DownloadManager;
 
 struct RomDownloadTask {
@@ -67,11 +65,7 @@ impl DownloadManager {
     }
 }
 
-async fn run_rom_download_task(
-    task: RomDownloadTask,
-    layout: RomsLayoutConfig,
-    save_dir: PathBuf,
-) {
+async fn run_rom_download_task(task: RomDownloadTask, layout: RomsLayoutConfig, save_dir: PathBuf) {
     if let Err(err) = tokio::fs::create_dir_all(&task.console_dir).await {
         set_job_status(
             &task.jobs,
@@ -170,6 +164,7 @@ async fn download_base_targets(
     base_targets: &[DownloadTarget],
 ) {
     let total_targets = base_targets.len() as f64;
+    let mut all_skipped = !base_targets.is_empty();
     for (idx, target) in base_targets.iter().enumerate() {
         let progress_jobs = jobs.clone();
         let mut progress = move |received: u64, total: u64| {
@@ -190,7 +185,9 @@ async fn download_base_targets(
                 );
                 continue;
             }
-            Ok(false) => {}
+            Ok(false) => {
+                all_skipped = false;
+            }
             Err(err) => {
                 set_job_status(jobs, job_id, DownloadStatus::Error(err.to_string()));
                 return;
@@ -204,7 +201,12 @@ async fn download_base_targets(
             return;
         }
     }
-    finish_job(jobs, job_id, DownloadStatus::Done);
+    let final_status = if all_skipped {
+        DownloadStatus::SkippedAlreadyExists
+    } else {
+        DownloadStatus::Done
+    };
+    finish_job(jobs, job_id, final_status);
 }
 
 fn update_download_job<F>(jobs: &Arc<Mutex<Vec<DownloadJob>>>, job_id: usize, update: F)

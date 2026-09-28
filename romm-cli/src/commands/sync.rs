@@ -860,23 +860,29 @@ mod tests {
         let dir = temp_path("download-targets");
         fs::create_dir_all(&dir).expect("mkdir");
         fs::write(dir.join("shared.sav"), b"keep").expect("write existing");
+        fs::write(dir.join("shared-save-57.sav"), b"existing candidate").expect("write candidate");
         let mut reserved = HashSet::new();
 
+        // First claim in a sync run retains the preferred path (atomic save download may replace it)
         let first = reserve_download_target(&dir, "shared.sav", 55, &mut reserved);
         assert_eq!(
             first.file_name().and_then(|n| n.to_str()),
-            Some("shared-save-55.sav")
+            Some("shared.sav")
         );
         fs::write(&first, b"first").expect("write reserved");
 
+        // Second claim in the same run avoids the already-reserved preferred path
         let second = reserve_download_target(&dir, "shared.sav", 56, &mut reserved);
         assert_eq!(
             second.file_name().and_then(|n| n.to_str()),
             Some("shared-save-56.sav")
         );
+
+        // Third claim avoids both the reserved preferred path and pre-existing candidate file on disk
+        let third = reserve_download_target(&dir, "shared.sav", 57, &mut reserved);
         assert_eq!(
-            fs::read(dir.join("shared.sav")).expect("read existing"),
-            b"keep"
+            third.file_name().and_then(|n| n.to_str()),
+            Some("shared-save-57-1.sav")
         );
 
         let _ = fs::remove_dir_all(dir);

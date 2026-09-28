@@ -693,7 +693,7 @@ fn forced_metadata_rom_reload_drops_matching_partial_before_requeue() {
     app.apply_background(BackgroundAction::LibraryMetadataRefresh(
         LibraryMetadataRefreshDone {
             gen: app.library_metadata_refresh_gen,
-            platforms: Vec::new(),
+            platforms: vec![platform(1, "NES", 100)],
             collections: Vec::new(),
             collection_digest: Vec::new(),
             warnings: Vec::new(),
@@ -701,7 +701,7 @@ fn forced_metadata_rom_reload_drops_matching_partial_before_requeue() {
     ));
 
     assert!(
-        app.rom_partials.get(&RomCacheKey::Platform(1)).is_none(),
+        !app.rom_partials.contains_key(&RomCacheKey::Platform(1)),
         "forced metadata reload must start from a fresh ROM list"
     );
 }

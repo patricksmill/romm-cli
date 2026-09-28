@@ -93,7 +93,10 @@ mod tests {
         let joined = parent.join_segment(seg);
         assert_eq!(joined.parent(), Some(parent), "{seg:?} escaped parent");
         assert!(matches!(
-            Path::new(seg.as_str()).components().collect::<Vec<_>>().as_slice(),
+            Path::new(seg.as_str())
+                .components()
+                .collect::<Vec<_>>()
+                .as_slice(),
             [Component::Normal(_)]
         ));
     }
@@ -119,7 +122,10 @@ mod tests {
 
     #[test]
     fn preserves_ordinary_names() {
-        assert_eq!(PathSegment::sanitize("Mario Kart", "x").as_str(), "Mario Kart");
+        assert_eq!(
+            PathSegment::sanitize("Mario Kart", "x").as_str(),
+            "Mario Kart"
+        );
         assert_eq!(
             PathSegment::sanitize("Zelda (USA).xci", "x").as_str(),
             "Zelda _USA_.xci"

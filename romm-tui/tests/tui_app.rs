@@ -422,7 +422,16 @@ async fn game_detail_download_skips_when_rom_already_exists_in_console_folder() 
         None,
     );
 
-    let items = vec![sample_rom(1, "alpha")];
+    let mut rom = sample_rom(1, "alpha");
+    rom.files = vec![romm_api::types::RomFile {
+        id: 1,
+        rom_id: 1,
+        file_name: "alpha.zip".into(),
+        file_path: "/1.zip".into(),
+        file_size_bytes: 8,
+        category: None,
+    }];
+    let items = vec![rom];
     let rom_list = RomList {
         total: items.len() as u64,
         limit: items.len() as u64,
