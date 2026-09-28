@@ -7,6 +7,14 @@ Entries before the workspace split (1.0.0) are filtered from the unified monolit
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0](https://github.com/patricksmill/romm-cli/compare/romm-tui-v1.4.2...romm-tui-v1.5.0) (2026-09-28)
+
+
+### Features
+
+* **tui:** load OpenAPI locally and refresh after first paint ([d085a68](https://github.com/patricksmill/romm-cli/commit/d085a688e4d55bd4862e8ee1bc753ff95c7f25c9))
+* **tui:** paint cached ROM lists before network refresh ([749d3c4](https://github.com/patricksmill/romm-cli/commit/749d3c4078c0a26945c5af765be0c92ac5ef38bc))
+
 ## [1.4.2](https://github.com/patricksmill/romm-cli/compare/romm-tui-v1.4.1...romm-tui-v1.4.2) (2026-09-28)
 
 
