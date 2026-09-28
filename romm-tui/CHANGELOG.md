@@ -7,6 +7,31 @@ Entries before the workspace split (1.0.0) are filtered from the unified monolit
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.1](https://github.com/patricksmill/romm-cli/compare/romm-tui-v1.4.0...romm-tui-v1.4.1) (2026-09-28)
+
+
+### Bug Fixes
+
+* **cli:** avoid save sync download clobbers ([#75](https://github.com/patricksmill/romm-cli/issues/75)) ([1176e03](https://github.com/patricksmill/romm-cli/commit/1176e035317b31846826b682a286ec2b8f013e9f))
+* **cli:** reserve batch download paths ([#76](https://github.com/patricksmill/romm-cli/issues/76)) ([d95717f](https://github.com/patricksmill/romm-cli/commit/d95717f53d2878387693dcd69f0a39825869b3c7))
+* **download:** avoid duplicate extras target paths ([#83](https://github.com/patricksmill/romm-cli/issues/83)) ([b471c44](https://github.com/patricksmill/romm-cli/commit/b471c443d60319c8139f40ee899757767fbe3afc))
+* **tui:** avoid caching truncated ROM lists ([#67](https://github.com/patricksmill/romm-cli/issues/67)) ([17b1f7c](https://github.com/patricksmill/romm-cli/commit/17b1f7c038202465a365e584596cf4b4f985d97a))
+* **tui:** cap global search pagination ([aea2d2c](https://github.com/patricksmill/romm-cli/commit/aea2d2c8560941cbc647f02f8ac9c572cfdaab42))
+* **tui:** guard metadata background races ([#62](https://github.com/patricksmill/romm-cli/issues/62)) ([651f7f5](https://github.com/patricksmill/romm-cli/commit/651f7f587d0b3f35091a8b4321fb82ce49acfc61))
+* **tui:** handle unicode search cursor edits ([#69](https://github.com/patricksmill/romm-cli/issues/69)) ([f9b118b](https://github.com/patricksmill/romm-cli/commit/f9b118bb57a5668a58879541ed99d09a4486d76d))
+* **tui:** handle unicode text cursors ([#92](https://github.com/patricksmill/romm-cli/issues/92)) ([7b86354](https://github.com/patricksmill/romm-cli/commit/7b8635471fc387ce90d409cdac7814bee1848957))
+* **tui:** ignore stale search results ([12f19b2](https://github.com/patricksmill/romm-cli/commit/12f19b2963ae07cb2314e90361a1e978526d63e4))
+* **tui:** invalidate ROM lists after metadata apply ([#66](https://github.com/patricksmill/romm-cli/issues/66)) ([6485600](https://github.com/patricksmill/romm-cli/commit/6485600784251565cb911fd0273e5abe300061b8))
+* **tui:** keep detail updates during metadata match ([#88](https://github.com/patricksmill/romm-cli/issues/88)) ([ada20ff](https://github.com/patricksmill/romm-cli/commit/ada20ff24c433adae13a2b7d371708585c2368e5))
+* **tui:** preserve auth during layout saves ([#87](https://github.com/patricksmill/romm-cli/issues/87)) ([989afaf](https://github.com/patricksmill/romm-cli/commit/989afaf6a3d818d219fbacfb77683b203d240804))
+* **tui:** preserve ROM selection during pagination ([#68](https://github.com/patricksmill/romm-cli/issues/68)) ([a293e17](https://github.com/patricksmill/romm-cli/commit/a293e17a6fc9be2da8aef782ee58e6f1e00b5487))
+* **tui:** prevent config reset from being undone ([#91](https://github.com/patricksmill/romm-cli/issues/91)) ([ef8be33](https://github.com/patricksmill/romm-cli/commit/ef8be3335fdf732aa0ad20bd679779612c3791e9))
+* **tui:** refresh achievements after metadata apply ([#63](https://github.com/patricksmill/romm-cli/issues/63)) ([7619e65](https://github.com/patricksmill/romm-cli/commit/7619e657c70ee939a3f10507d7c9509d33643c07))
+* **tui:** reload library after offscreen scans ([#78](https://github.com/patricksmill/romm-cli/issues/78)) ([dfceb86](https://github.com/patricksmill/romm-cli/commit/dfceb863d777277d553d2c813c94051f9ea91fb3))
+* **tui:** reserve save download paths atomically ([#80](https://github.com/patricksmill/romm-cli/issues/80)) ([5ac12e3](https://github.com/patricksmill/romm-cli/commit/5ac12e3d12705c056a103f7e223aec36cbc8a554))
+* **tui:** run metadata-apply cache invalidation test on tokio ([#101](https://github.com/patricksmill/romm-cli/issues/101)) ([8c7eff8](https://github.com/patricksmill/romm-cli/commit/8c7eff85a8602f289e272b145c093089ddaa2629))
+* **tui:** safely open cover URLs ([#90](https://github.com/patricksmill/romm-cli/issues/90)) ([a3bc286](https://github.com/patricksmill/romm-cli/commit/a3bc2864dbd542664073acb0e4ab508569aa6cbe))
+
 ## [1.4.0](https://github.com/patricksmill/romm-cli/compare/romm-tui-v1.3.0...romm-tui-v1.4.0) (2026-07-20)
 
 

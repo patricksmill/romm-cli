@@ -7,6 +7,26 @@ Entries before the workspace split (1.0.0) are filtered from the unified monolit
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0](https://github.com/patricksmill/romm-cli/compare/romm-cli-v1.2.1...romm-cli-v1.3.0) (2026-09-28)
+
+
+### Features
+
+* **api,cli:** add config D registry, saves and collections commands ([d51af73](https://github.com/patricksmill/romm-cli/commit/d51af739faee615c25566752fb85bab8b96e134e))
+
+
+### Bug Fixes
+
+* **api,cli:** atomic save downloads, overwrite guard, and platform env mapping ([b955207](https://github.com/patricksmill/romm-cli/commit/b955207b1590ee609ab6387be888e624a7af3c9e))
+* **api:** parse API_USE_HTTPS boolean values ([#98](https://github.com/patricksmill/romm-cli/issues/98)) ([d3fe6d5](https://github.com/patricksmill/romm-cli/commit/d3fe6d5a801c599ac2085e4ac92e90375f098bd8))
+* **auth:** prevent keyring secrets from surviving logout ([8950934](https://github.com/patricksmill/romm-cli/commit/895093455c5be00332c3d4807161c1ab827793a1))
+* **cli:** avoid save sync download clobbers ([#75](https://github.com/patricksmill/romm-cli/issues/75)) ([1176e03](https://github.com/patricksmill/romm-cli/commit/1176e035317b31846826b682a286ec2b8f013e9f))
+* **cli:** paginate batch downloads ([30e55d7](https://github.com/patricksmill/romm-cli/commit/30e55d7d998b533ee85a78cd8b3af7030cc41f0a))
+* **cli:** preserve sync upload filenames ([#81](https://github.com/patricksmill/romm-cli/issues/81)) ([9447d9e](https://github.com/patricksmill/romm-cli/commit/9447d9eb6696512f527f146f1e0489b540584d2b))
+* **cli:** reserve batch download paths ([#76](https://github.com/patricksmill/romm-cli/issues/76)) ([d95717f](https://github.com/patricksmill/romm-cli/commit/d95717f53d2878387693dcd69f0a39825869b3c7))
+* **cli:** write sync save downloads atomically ([#97](https://github.com/patricksmill/romm-cli/issues/97)) ([749f812](https://github.com/patricksmill/romm-cli/commit/749f81284458ce31ec89c587dee00ef28140d5e8))
+* **metadata:** reject providerless search matches ([#84](https://github.com/patricksmill/romm-cli/issues/84)) ([b3f0402](https://github.com/patricksmill/romm-cli/commit/b3f04029961ec1aedf8a6123dcf8ec623cb72ece))
+
 ## [Unreleased]
 
 ### Features
