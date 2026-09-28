@@ -71,6 +71,7 @@ pub struct App {
     pub screen: AppScreen,
     client: RommClient,
     config: Config,
+    config_reset_pending_restart: bool,
     /// RomM server version from `GET /api/heartbeat` (`SYSTEM.VERSION`), if available.
     server_version: Option<String>,
     save_sync_compat: SaveSyncCompatibility,
@@ -258,6 +259,7 @@ impl App {
             ))),
             client,
             config,
+            config_reset_pending_restart: false,
             server_version,
             save_sync_compat,
             metadata_edit_compat,
@@ -338,6 +340,9 @@ impl App {
     }
 
     pub(in crate::tui::app) fn persist_tui_layout(&self) {
+        if self.config_reset_pending_restart {
+            return;
+        }
         let mut config = self.config.clone();
         config.auth = auth_for_persist_merge(config.auth);
         if let Err(e) = romm_api::config::persist_user_config(&config) {
