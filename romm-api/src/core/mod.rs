@@ -10,6 +10,7 @@ pub mod extras;
 pub mod interrupt;
 pub mod library_scan;
 pub mod metadata;
+pub mod path_segment;
 pub mod resolve;
 pub mod roms;
 pub mod saves;

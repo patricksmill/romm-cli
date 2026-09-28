@@ -126,16 +126,11 @@ fn dedupe_preserve_order(urls: Vec<String>) -> Vec<String> {
 
 
 #[cfg(test)]
-use crate::core::utils;
+use crate::core::path_segment::{JoinSegment, PathSegment};
 
 #[cfg(test)]
-pub(crate) fn sanitized_final_filename(fs_name: &str, rom_id: u64) -> String {
-    let sanitized = utils::sanitize_filename(fs_name);
-    if sanitized.trim().is_empty() {
-        format!("rom-{rom_id}.zip")
-    } else {
-        sanitized
-    }
+pub(crate) fn sanitized_final_filename(fs_name: &str, rom_id: u64) -> PathSegment {
+    PathSegment::sanitize(fs_name, &format!("rom-{rom_id}.zip"))
 }
 
 #[cfg(test)]
@@ -148,6 +143,7 @@ pub(crate) fn final_download_path_for_rom(
         .clone()
         .or_else(|| rom.platform_slug.clone())
         .unwrap_or_else(|| format!("platform-{}", rom.platform_id));
-    let console_dir = roms_dir.join(utils::sanitize_filename(&platform_slug));
-    console_dir.join(sanitized_final_filename(&rom.fs_name, rom.id))
+    let fallback = format!("platform-{}", rom.platform_id);
+    let console_dir = roms_dir.join_segment(&PathSegment::sanitize(&platform_slug, &fallback));
+    console_dir.join_segment(&sanitized_final_filename(&rom.fs_name, rom.id))
 }

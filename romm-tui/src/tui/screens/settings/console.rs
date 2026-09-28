@@ -1,5 +1,5 @@
 use crate::tui::path_picker::{PathPicker, PathPickerMode};
-use romm_api::core::utils;
+use romm_api::core::path_segment::PathSegment;
 use romm_api::types::Platform;
 
 use romm_api::endpoints::device::DeviceSchema;
@@ -23,7 +23,8 @@ impl SettingsScreen {
             ConsolePathKind::Roms => self.download_dir.trim_end_matches(['/', '\\']),
             ConsolePathKind::Saves => self.save_dir.trim_end_matches(['/', '\\']),
         };
-        format!("{}/{}", base, utils::sanitize_filename(slug))
+        let fallback = format!("platform-{}", platform.id);
+        format!("{}/{}", base, PathSegment::sanitize(slug, &fallback))
     }
 
     pub(crate) fn console_dir_preview(&self, kind: ConsolePathKind, platform: &Platform) -> String {

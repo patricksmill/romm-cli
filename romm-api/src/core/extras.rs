@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use crate::client::RommClient;
 use crate::config::RomsLayoutConfig;
 use crate::core::download::resolve_console_roms_dir;
+use crate::core::path_segment::{JoinSegment, PathSegment};
 use crate::core::utils;
 use crate::endpoints::roms::GetRom;
 use crate::endpoints::roms::GetRoms;
@@ -139,10 +140,19 @@ async fn build_related_rom_targets(
     extras_root: &Path,
 ) -> Result<Vec<DownloadTarget>, DownloadError> {
     let related_rows = related_rom_rows(client, rom).await?;
-    Ok(related_rows
-        .iter()
-        .map(|candidate| related_rom_download_target(rom, candidate, extras_root))
-        .collect())
+    let dest_dir = extras_root.join(DownloadAssetKind::RomFile.folder_name());
+    let mut targets = Vec::new();
+    for candidate in &related_rows {
+        // related_rows come from GetRoms (list endpoint) which omits `files`.
+        // Fetch the full detail so we can use the direct per-file content endpoint.
+        let detailed = client.call(&GetRom { id: candidate.id }).await?;
+        let file_targets = build_base_rom_file_targets(&detailed, &Default::default(), &dest_dir)?;
+        if file_targets.is_empty() {
+            return Err(DownloadError::NoFileRecords(candidate.id));
+        }
+        targets.extend(file_targets);
+    }
+    Ok(targets)
 }
 
 async fn related_rom_rows(client: &RommClient, rom: &Rom) -> Result<Vec<Rom>, DownloadError> {
@@ -204,7 +214,7 @@ fn build_internal_extra_targets(
         out.push(internal_rom_file_target(
             rom,
             f,
-            &platform_dir.join("updates").join(&game_dir),
+            &platform_dir.join("updates").join_segment(&game_dir),
             InternalRomFileGroup::Update,
         ));
     }
@@ -212,7 +222,7 @@ fn build_internal_extra_targets(
         out.push(internal_rom_file_target(
             rom,
             f,
-            &platform_dir.join("dlc").join(&game_dir),
+            &platform_dir.join("dlc").join_segment(&game_dir),
             InternalRomFileGroup::Dlc,
         ));
     }
@@ -232,11 +242,11 @@ pub fn related_rom_download_target(
         source_url: "/api/roms/download".to_string(),
         source_query: vec![
             ("rom_ids".into(), candidate.id.to_string()),
-            ("filename".into(), name.clone()),
+            ("filename".into(), name.as_str().to_string()),
         ],
         destination: extras_root
             .join(DownloadAssetKind::RomArchive.folder_name())
-            .join(name),
+            .join_segment(&name),
         expected_size_bytes: None,
     }
 }
@@ -260,7 +270,7 @@ fn internal_rom_file_target(
         title,
         source_url,
         source_query: Vec::new(),
-        destination: destination_dir.join(output_name),
+        destination: destination_dir.join_segment(&output_name),
         expected_size_bytes: Some(file.file_size_bytes),
     }
 }
@@ -279,7 +289,7 @@ pub fn build_cover_target(rom: &Rom, extras_root: &Path) -> Option<DownloadTarge
         source_query: Vec::new(),
         destination: extras_root
             .join(DownloadAssetKind::Cover.folder_name())
-            .join(filename),
+            .join_segment(&filename),
         expected_size_bytes: None,
     })
 }
@@ -298,7 +308,7 @@ pub fn build_manual_target(rom: &Rom, extras_root: &Path) -> Option<DownloadTarg
         source_query: Vec::new(),
         destination: extras_root
             .join(DownloadAssetKind::Manual.folder_name())
-            .join(filename),
+            .join_segment(&filename),
         expected_size_bytes: None,
     })
 }
@@ -310,7 +320,7 @@ pub fn extras_root_dir(
 ) -> Result<PathBuf, DownloadError> {
     let platform_dir = resolve_console_roms_dir(layout, base_dir, rom)?;
     let game_slug = sanitized_extra_game_name(&rom.name, rom.id);
-    Ok(platform_dir.join(game_slug).join("extras"))
+    Ok(platform_dir.join_segment(&game_slug).join("extras"))
 }
 
 fn internal_file_subset(rom: &Rom, group: InternalRomFileGroup) -> Vec<RomFile> {
@@ -357,36 +367,21 @@ fn filename_has_token(name: &str, tokens: &[&str]) -> bool {
         .any(|part| tokens.contains(&part))
 }
 
-fn sanitized_extra_game_name(name: &str, rom_id: u64) -> String {
-    let sanitized = utils::sanitize_filename(name);
-    if sanitized.trim().is_empty() {
-        format!("rom-{rom_id}")
-    } else {
-        sanitized
-    }
+fn sanitized_extra_game_name(name: &str, rom_id: u64) -> PathSegment {
+    PathSegment::sanitize(name, &format!("rom-{rom_id}"))
 }
 
-fn sanitize_extra_file_name(name: &str) -> String {
-    let sanitized = utils::sanitize_filename(name);
-    if sanitized.trim().is_empty() {
-        "download.bin".to_string()
-    } else {
-        sanitized
-    }
+fn sanitize_extra_file_name(name: &str) -> PathSegment {
+    PathSegment::sanitize(name, "download.bin")
 }
 
-fn filename_from_url(url: &str, fallback: &str) -> String {
-    let fallback = sanitize_extra_file_name(fallback);
-    reqwest::Url::parse(url)
-        .ok()
-        .and_then(|parsed| {
-            parsed
-                .path_segments()
-                .and_then(|mut segments| segments.next_back().map(str::to_string))
-        })
-        .map(|name| sanitize_extra_file_name(&name))
-        .filter(|name| !name.trim().is_empty())
-        .unwrap_or(fallback)
+fn filename_from_url(url: &str, fallback: &str) -> PathSegment {
+    let leaf = reqwest::Url::parse(url).ok().and_then(|parsed| {
+        parsed
+            .path_segments()
+            .and_then(|mut segments| segments.next_back().map(str::to_string))
+    });
+    PathSegment::sanitize(leaf.as_deref().unwrap_or(""), fallback)
 }
 
 #[cfg(test)]

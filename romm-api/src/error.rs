@@ -251,6 +251,9 @@ pub enum DownloadError {
     #[error("no extras targets selected")]
     NoExtrasTargets,
 
+    #[error("no file records for ROM {0}")]
+    NoFileRecords(u64),
+
     #[error("extras job list lock poisoned: {0}")]
     ExtrasJobListPoisoned(String),
 

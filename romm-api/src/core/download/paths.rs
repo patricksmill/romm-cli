@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use crate::config::RomsLayoutConfig;
 use crate::config::{resolved_save_dir, Config, SaveSyncConfig};
-use crate::core::utils;
+use crate::core::path_segment::{JoinSegment, PathSegment};
 use crate::error::DownloadError;
 use crate::types::Rom;
 use std::fs::{File, OpenOptions};
@@ -106,7 +106,10 @@ pub fn platform_download_slug(rom: &Rom) -> String {
 }
 
 fn auto_console_roms_dir(base_download_dir: &Path, rom: &Rom) -> PathBuf {
-    base_download_dir.join(utils::sanitize_filename(&platform_download_slug(rom)))
+    base_download_dir.join_segment(&PathSegment::sanitize(
+        &platform_download_slug(rom),
+        &format!("platform-{}", rom.platform_id),
+    ))
 }
 
 /// Resolve the directory where ROM files for `rom` should be stored.
@@ -131,12 +134,9 @@ fn save_platform_slug(
     platform_id: u64,
     platform_fs_slug: Option<&str>,
     platform_slug: Option<&str>,
-) -> String {
-    utils::sanitize_filename(
-        platform_fs_slug
-            .or(platform_slug)
-            .unwrap_or(&format!("platform-{platform_id}")),
-    )
+) -> PathSegment {
+    let fallback = format!("platform-{platform_id}");
+    PathSegment::sanitize(platform_fs_slug.or(platform_slug).unwrap_or(&fallback), &fallback)
 }
 
 fn auto_console_save_dir(
@@ -145,7 +145,7 @@ fn auto_console_save_dir(
     platform_fs_slug: Option<&str>,
     platform_slug: Option<&str>,
 ) -> PathBuf {
-    base_save_dir.join(save_platform_slug(
+    base_save_dir.join_segment(&save_platform_slug(
         platform_id,
         platform_fs_slug,
         platform_slug,
@@ -177,25 +177,6 @@ pub fn resolve_console_save_dir(
     }
 }
 
-fn safe_game_path_segment(input: &str) -> String {
-    let cleaned: String = input
-        .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || matches!(c, ' ' | '-' | '_' | '.') {
-                c
-            } else {
-                '_'
-            }
-        })
-        .collect();
-    let trimmed = cleaned.trim().trim_matches('.').trim();
-    if trimmed.is_empty() {
-        "game".to_string()
-    } else {
-        trimmed.to_string()
-    }
-}
-
 /// Resolve the directory where a specific game's saves should be downloaded.
 pub fn resolve_game_save_dir(config: &Config, rom: &Rom) -> Result<PathBuf, DownloadError> {
     let base = resolved_save_dir(config);
@@ -206,7 +187,7 @@ pub fn resolve_game_save_dir(config: &Config, rom: &Rom) -> Result<PathBuf, Down
         rom.platform_fs_slug.as_deref(),
         rom.platform_slug.as_deref(),
     )?;
-    Ok(console_dir.join(safe_game_path_segment(&rom.name)))
+    Ok(console_dir.join_segment(&PathSegment::sanitize(&rom.name, "game")))
 }
 
 /// Pick `stem.zip`, then `stem__2.zip`, `stem__3.zip`, … until the path does not exist.

@@ -24,7 +24,7 @@ use romm_api::core::interrupt::{
 };
 use romm_api::core::resolve::resolve_platform_id;
 use romm_api::core::roms::fetch_roms_paginated;
-use romm_api::core::utils;
+use romm_api::core::path_segment::{JoinSegment, PathSegment};
 use romm_api::endpoints::roms::{GetRom, GetRoms};
 /// Maximum number of concurrent download connections.
 const DEFAULT_CONCURRENCY: usize = 4;
@@ -334,7 +334,7 @@ pub async fn handle(
                 .clone()
                 .or_else(|| rom.platform_slug.clone())
                 .unwrap_or_else(|| format!("platform-{}", rom.platform_id));
-            let base = utils::sanitize_filename(&rom.fs_name);
+            let base = PathSegment::sanitize(&rom.fs_name, &format!("rom-{rom_id}")).into_string();
             let stem = base
                 .rsplit_once('.')
                 .map(|(s, _)| s.to_string())
@@ -615,12 +615,12 @@ fn extraction_target_dir(
     rom_stem: &str,
     layout: ExtractLayout,
 ) -> PathBuf {
-    let platform = utils::sanitize_filename(platform_slug);
-    let rom = utils::sanitize_filename(rom_stem);
+    let platform = PathSegment::sanitize(platform_slug, "platform");
+    let rom = PathSegment::sanitize(rom_stem, "rom");
     match layout {
-        ExtractLayout::Platform => output_dir.join(platform),
+        ExtractLayout::Platform => output_dir.join_segment(&platform),
         ExtractLayout::Flat => output_dir.to_path_buf(),
-        ExtractLayout::Rom => output_dir.join(platform).join(rom),
+        ExtractLayout::Rom => output_dir.join_segment(&platform).join_segment(&rom),
     }
 }
 

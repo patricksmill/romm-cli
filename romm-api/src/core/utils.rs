@@ -130,21 +130,11 @@ pub fn format_size_with_breakdown(total: u64, files: &[RomFile]) -> String {
 }
 
 /// Make a filename safe for the local filesystem.
+///
+/// Prefer [`PathSegment::sanitize`](crate::core::path_segment::PathSegment::sanitize)
+/// when the result is joined onto a directory.
 pub fn sanitize_filename(name: &str) -> String {
-    let sanitized: String = name
-        .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_' || c == ' ' {
-                c
-            } else {
-                '_'
-            }
-        })
-        .collect();
-    match sanitized.trim() {
-        "." | ".." => "_".to_string(),
-        _ => sanitized,
-    }
+    crate::core::path_segment::PathSegment::sanitize(name, "_").into_string()
 }
 
 /// Truncate a string to `max` chars, appending "…" if trimmed.
