@@ -7,6 +7,42 @@ Entries before the workspace split (1.0.0) are filtered from the unified monolit
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0](https://github.com/patricksmill/romm-cli/compare/romm-api-v1.3.0...romm-api-v1.4.0) (2026-09-28)
+
+
+### Features
+
+* **api,cli:** add config D registry, saves and collections commands ([d51af73](https://github.com/patricksmill/romm-cli/commit/d51af739faee615c25566752fb85bab8b96e134e))
+* **api:** add config key registry with dotted-path set ([097d999](https://github.com/patricksmill/romm-cli/commit/097d999099e0b27f3c227b3c4589f237744e82c9))
+* **api:** add source-aware config load and env field coverage ([8529063](https://github.com/patricksmill/romm-cli/commit/8529063d230bfe298e6a9965fb63be4014bbcdc8))
+
+
+### Bug Fixes
+
+* **api,cli:** atomic save downloads, overwrite guard, and platform env mapping ([b955207](https://github.com/patricksmill/romm-cli/commit/b955207b1590ee609ab6387be888e624a7af3c9e))
+* **api:** block authenticated cross-origin redirects ([2384e99](https://github.com/patricksmill/romm-cli/commit/2384e999392845d8a0fb580a408173539739f23a))
+* **api:** clean up download conflict markers and restore filename logging ([6591375](https://github.com/patricksmill/romm-cli/commit/6591375cce292b77c9b8ddebbbc353263359c525))
+* **api:** disable unvalidated download resume ([0fa1551](https://github.com/patricksmill/romm-cli/commit/0fa155174a689be7ff6cd4cb928fedeb735c8f04))
+* **api:** discard stale partial download targets ([#74](https://github.com/patricksmill/romm-cli/issues/74)) ([e83f3c2](https://github.com/patricksmill/romm-cli/commit/e83f3c22394de84aefff2afb75a507739db98a62))
+* **api:** enforce HTTPS in client constructor ([b1d3971](https://github.com/patricksmill/romm-cli/commit/b1d3971827767601489ad9bc1da529ea556f739a))
+* **api:** fetch ROM detail before falling back to ZIP download endpoint ([868603e](https://github.com/patricksmill/romm-cli/commit/868603e0f9674d839cd1ee6d288f03232414786b))
+* **api:** guard OpenAPI auth fallback origin ([#71](https://github.com/patricksmill/romm-cli/issues/71)) ([cce55f6](https://github.com/patricksmill/romm-cli/commit/cce55f62ced280dc487e0efa2ad74b9b9f975ff3))
+* **api:** parse API_USE_HTTPS boolean values ([#98](https://github.com/patricksmill/romm-cli/issues/98)) ([d3fe6d5](https://github.com/patricksmill/romm-cli/commit/d3fe6d5a801c599ac2085e4ac92e90375f098bd8))
+* **api:** preserve downloads on failed streams ([#100](https://github.com/patricksmill/romm-cli/issues/100)) ([f56bbdd](https://github.com/patricksmill/romm-cli/commit/f56bbddf346dd96cf162d0491f46f1749f20a6a6))
+* **api:** prevent OpenAPI HTTPS auth downgrade ([#64](https://github.com/patricksmill/romm-cli/issues/64)) ([5bd4edf](https://github.com/patricksmill/romm-cli/commit/5bd4edf90f9ccfc2406e544a0463968e3d57df23))
+* **api:** prevent sanitized path traversal ([8ace0a1](https://github.com/patricksmill/romm-cli/commit/8ace0a15f782639ca77d9cc77d05cbed9b1f33d9))
+* **api:** prevent zip extraction overwrites ([077e646](https://github.com/patricksmill/romm-cli/commit/077e646830651e7497060f0125e0e2052aa8de47))
+* **api:** redact OpenAPI fallback errors ([#70](https://github.com/patricksmill/romm-cli/issues/70)) ([2393761](https://github.com/patricksmill/romm-cli/commit/2393761476c17c76350c406fb5713bd9bdf38646))
+* **api:** reject short ROM file downloads ([#99](https://github.com/patricksmill/romm-cli/issues/99)) ([a4b7067](https://github.com/patricksmill/romm-cli/commit/a4b7067c2bfed703b0722d1422aa3620f53c1e6d))
+* **api:** require exact self-update archive ([#72](https://github.com/patricksmill/romm-cli/issues/72)) ([da4dca5](https://github.com/patricksmill/romm-cli/commit/da4dca5eb5cf8d90eb871f5793cbd125c70643cb))
+* **api:** strip auth from download redirects ([7a6fae3](https://github.com/patricksmill/romm-cli/commit/7a6fae35937e1787fc4dcb71deeea267b3e7528d))
+* **auth:** prevent keyring secrets from surviving logout ([8950934](https://github.com/patricksmill/romm-cli/commit/895093455c5be00332c3d4807161c1ab827793a1))
+* **cli:** preserve sync upload filenames ([#81](https://github.com/patricksmill/romm-cli/issues/81)) ([9447d9e](https://github.com/patricksmill/romm-cli/commit/9447d9eb6696512f527f146f1e0489b540584d2b))
+* **download:** avoid duplicate extras target paths ([#83](https://github.com/patricksmill/romm-cli/issues/83)) ([b471c44](https://github.com/patricksmill/romm-cli/commit/b471c443d60319c8139f40ee899757767fbe3afc))
+* **metadata:** reject providerless search matches ([#84](https://github.com/patricksmill/romm-cli/issues/84)) ([b3f0402](https://github.com/patricksmill/romm-cli/commit/b3f04029961ec1aedf8a6123dcf8ec623cb72ece))
+* **tui:** avoid caching truncated ROM lists ([#67](https://github.com/patricksmill/romm-cli/issues/67)) ([17b1f7c](https://github.com/patricksmill/romm-cli/commit/17b1f7c038202465a365e584596cf4b4f985d97a))
+* **tui:** invalidate ROM lists after metadata apply ([#66](https://github.com/patricksmill/romm-cli/issues/66)) ([6485600](https://github.com/patricksmill/romm-cli/commit/6485600784251565cb911fd0273e5abe300061b8))
+
 ## [Unreleased]
 
 ### Features
