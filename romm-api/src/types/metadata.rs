@@ -61,7 +61,7 @@ impl SearchRom {
     /// Fields to apply when the user picks this search row (non-null IDs only).
     pub fn primary_match_fields(&self) -> RomMatchFields {
         RomMatchFields {
-            igdb_id: self.igdb_id.or(self.id),
+            igdb_id: self.igdb_id,
             moby_id: self.moby_id,
             ss_id: self.ss_id,
             launchbox_id: self.launchbox_id,
@@ -174,12 +174,12 @@ mod tests {
     }
 
     #[test]
-    fn primary_match_fields_falls_back_to_id() {
+    fn primary_match_fields_does_not_guess_igdb_from_generic_id() {
         let row: SearchRom = serde_json::from_str(
             r#"{"name": "Zelda", "platform_id": 1, "id": 999, "igdb_id": null}"#,
         )
         .unwrap();
-        assert_eq!(row.primary_match_fields().igdb_id, Some(999));
+        assert!(row.primary_match_fields().is_empty());
     }
 
     #[test]

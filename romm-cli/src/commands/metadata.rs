@@ -252,7 +252,11 @@ async fn resolve_match_fields(
         bail!("No metadata matches found.");
     }
     let idx = pick_search_index(&rows)?;
-    Ok(search_row_apply_fields(&rows[idx]))
+    let fields = search_row_apply_fields(&rows[idx]);
+    if fields.match_fields.is_empty() {
+        bail!("Selected result has no provider IDs to apply");
+    }
+    Ok(fields)
 }
 
 fn pick_search_index(rows: &[SearchRom]) -> Result<usize> {
