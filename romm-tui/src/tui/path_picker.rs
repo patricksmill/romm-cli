@@ -9,6 +9,7 @@ use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph};
 use ratatui::Frame;
 
 use crate::tui::footer_hint::{footer_hint_line, FooterHintEntry};
+use crate::tui::text_cursor;
 use crate::tui::theme::RommStyles;
 
 /// Whether the user must pick a directory or a regular file.
@@ -406,8 +407,7 @@ impl PathPicker {
             PathPickerFocus::PathBar => "▶ ",
             PathPickerFocus::List => "  ",
         };
-        let before: String = self.path_text.chars().take(self.path_cursor).collect();
-        let after: String = self.path_text.chars().skip(self.path_cursor).collect();
+        let (before, after) = text_cursor::split_at_cursor(&self.path_text, self.path_cursor);
         let path_style = if self.focus == PathPickerFocus::PathBar {
             styles.selection()
         } else {
@@ -485,9 +485,8 @@ impl PathPicker {
             ])
             .split(inner);
         let path_prefix_chars = 2u16; // "▶ "
-        let byte_before = self.path_cursor.min(self.path_text.len());
-        let path_before: String = self.path_text.chars().take(byte_before).collect();
-        let x = chunks[0].x + path_prefix_chars + path_before.chars().count() as u16;
+        let path_before = text_cursor::char_column(&self.path_text, self.path_cursor) as u16;
+        let x = chunks[0].x + path_prefix_chars + path_before;
         let y = chunks[0].y;
         Some((x.min(chunks[0].x + chunks[0].width.saturating_sub(1)), y))
     }

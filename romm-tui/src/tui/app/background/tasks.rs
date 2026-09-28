@@ -632,7 +632,7 @@ impl super::super::App {
                 &lib.collections,
             );
             let digest_changed = old_digest != msg.collection_digest;
-            let update_platforms = !msg.platforms.is_empty();
+            let update_platforms = !msg.platforms.is_empty() || msg.warnings.is_empty();
             let selection_changed = lib.replace_metadata_preserving_selection(
                 msg.platforms,
                 msg.collections,
