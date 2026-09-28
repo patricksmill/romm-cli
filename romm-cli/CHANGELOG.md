@@ -7,6 +7,13 @@ Entries before the workspace split (1.0.0) are filtered from the unified monolit
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1](https://github.com/patricksmill/romm-cli/compare/romm-cli-v1.3.0...romm-cli-v1.3.1) (2026-09-28)
+
+
+### Bug Fixes
+
+* **ci:** fix clippy, fmt, release-check matrix, and test races ([a7d66b7](https://github.com/patricksmill/romm-cli/commit/a7d66b7f5d7ac08f50307bf2d629d6f6f196deb1))
+
 ## [1.3.0](https://github.com/patricksmill/romm-cli/compare/romm-cli-v1.2.1...romm-cli-v1.3.0) (2026-09-28)
 
 
