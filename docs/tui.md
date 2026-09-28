@@ -54,7 +54,11 @@ Built-in theme IDs include `terminal`, `catppuccin`, `dracula`, `nord`, `tokyo-n
 
 ## Library startup
 
-Choosing **Library** from the main menu loads a compact on-disk snapshot of platforms and merged collections (if present) so the list renders without waiting for the network. A background task refetches endpoints, updates the UI, and writes a fresh snapshot. Full ROM lists load on demand and use the ROM list cache.
+Choosing **Library** from the main menu loads a compact on-disk snapshot of platforms and merged collections (if present) so the list renders without waiting for the network. A background task refetches endpoints, updates the UI, and writes a fresh snapshot.
+
+Full ROM lists use the on-disk ROM cache with **stale-while-revalidate**: if a complete cached list exists for the selected console or collection, the Games pane paints it immediately (even when `rom_count` has changed). A background fetch refreshes the list when counts diverge; the pane is not cleared to empty while cache data exists.
+
+OpenAPI compatibility and heartbeat version are loaded from local cache/embedded first so the TUI can paint before contacting the server; a background refresh updates feature gates and server version after first paint.
 
 Override snapshot path with `ROMM_LIBRARY_METADATA_SNAPSHOT_PATH` (default: next to `ROMM_CACHE_PATH`). See [api.md](api.md#environment-variables).
 
