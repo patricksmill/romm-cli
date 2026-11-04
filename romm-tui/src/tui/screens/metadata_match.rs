@@ -199,6 +199,11 @@ impl MetadataMatchScreen {
         match &self.phase {
             MetadataMatchPhase::QueryInput => {
                 let input_line = format!("Search: {}", self.search_query);
+                let input_line = crate::tui::text_cursor::cursor_line(
+                    &input_line,
+                    "Search: ".len() + self.cursor_pos,
+                    usize::from(block.inner(chunks[0]).width),
+                );
                 let p = Paragraph::new(input_line).style(styles.text()).block(block);
                 f.render_widget(p, chunks[0]);
             }

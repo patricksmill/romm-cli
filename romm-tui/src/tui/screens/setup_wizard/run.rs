@@ -22,9 +22,6 @@ impl SetupWizard {
             session.terminal_mut().draw(|f| {
                 let area = f.area();
                 self.render(f, area, &styles);
-                if let Some((x, y)) = self.cursor_pos(area) {
-                    f.set_cursor_position((x, y));
-                }
             })?;
 
             if event::poll(std::time::Duration::from_millis(100))? {

@@ -86,6 +86,12 @@ const CONSOLE_PICKER_HINTS: &[FooterHintEntry] = &[
     },
 ];
 
+/// Label prefix for the Base URL row, including its value spacing.
+const BASE_URL_LABEL: &str = "Base URL:     ";
+
+/// Highlight marker rendered in the gutter of the settings list.
+const LIST_HIGHLIGHT_SYMBOL: &str = ">> ";
+
 impl SettingsScreen {
     pub fn render(&mut self, f: &mut Frame, area: Rect, styles: &RommStyles) {
         if let Some((platform_id, ref mut picker)) = self.console_path_picker {
@@ -219,20 +225,26 @@ impl SettingsScreen {
         f.render_widget(tabs, chunks[1]);
 
         // -- Editable List --
+        let list_block = styles.panel_block(format!(" {} ", self.selected_tab.title()));
+        // The list's actual content width, excluding the border and highlight gutter.
+        let row_width = list_block
+            .inner(chunks[2])
+            .width
+            .saturating_sub(LIST_HIGHLIGHT_SYMBOL.len() as u16);
         let items = self
             .visible_rows()
             .iter()
             .copied()
-            .map(|row| self.render_row_item(row, styles))
+            .map(|row| self.render_row_item(row, styles, row_width))
             .collect::<Vec<_>>();
 
         let mut state = ListState::default();
         state.select(Some(self.selected_row_index()));
 
         let list = List::new(items)
-            .block(styles.panel_block(format!(" {} ", self.selected_tab.title())))
+            .block(list_block)
             .highlight_style(styles.selection())
-            .highlight_symbol(">> ");
+            .highlight_symbol(LIST_HIGHLIGHT_SYMBOL);
 
         f.render_stateful_widget(list, chunks[2], &mut state);
 
@@ -278,7 +290,21 @@ impl SettingsScreen {
         render_footer_panel(f, chunks[4], styles, help, None);
     }
 
-    fn render_row_item(&self, row: SettingsRow, styles: &RommStyles) -> ListItem<'static> {
+    fn render_row_item(
+        &self,
+        row: SettingsRow,
+        styles: &RommStyles,
+        row_width: u16,
+    ) -> ListItem<'static> {
+        if self.editing
+            && row == SettingsRow::BaseUrl
+            && self.selected_row() == SettingsRow::BaseUrl
+        {
+            let value_width = usize::from(row_width).saturating_sub(BASE_URL_LABEL.len());
+            let value = text_cursor::cursor_line(&self.edit_buffer, self.edit_cursor, value_width);
+            return ListItem::new(format!("{BASE_URL_LABEL}{value}")).style(styles.text());
+        }
+
         let label = self.row_label(row);
         match row {
             SettingsRow::SyncDevice | SettingsRow::SyncNow if !self.save_sync_supported() => {
@@ -291,7 +317,7 @@ impl SettingsScreen {
     pub(crate) fn row_label(&self, row: SettingsRow) -> String {
         let label = match row {
             SettingsRow::BaseUrl => format!(
-                "Base URL:     {}",
+                "{BASE_URL_LABEL}{}",
                 if self.editing && self.selected_row() == SettingsRow::BaseUrl {
                     &self.edit_buffer
                 } else {
@@ -358,47 +384,6 @@ impl SettingsScreen {
         } else {
             label
         }
-    }
-
-    pub fn cursor_position(&self, area: Rect) -> Option<(u16, u16)> {
-        if let Some((kind, ref picker)) = self.path_picker {
-            let chunks = Layout::default()
-                .constraints([
-                    Constraint::Length(4),
-                    Constraint::Min(12),
-                    Constraint::Length(3),
-                ])
-                .direction(ratatui::layout::Direction::Vertical)
-                .split(area);
-            let title = match kind {
-                SettingsPickerKind::RomsDir => "Choose ROMs directory",
-                SettingsPickerKind::SaveDir => "Choose save directory",
-            };
-            return picker.cursor_position(chunks[1], title);
-        }
-
-        if !self.editing || self.selected_row() != SettingsRow::BaseUrl {
-            return None;
-        }
-
-        let chunks = Layout::default()
-            .constraints([
-                Constraint::Length(4),
-                Constraint::Length(3),
-                Constraint::Min(10),
-                Constraint::Length(3),
-                Constraint::Length(3),
-            ])
-            .direction(ratatui::layout::Direction::Vertical)
-            .split(area);
-
-        let list_area = chunks[2];
-        let y = list_area.y + 1 + self.selected_row_index() as u16;
-        let label_len = 14; // "Base URL:     ".len()
-        let edit_col = text_cursor::char_column(&self.edit_buffer, self.edit_cursor) as u16;
-        let x = list_area.x + 1 /* border */ + 3 /* highlight symbol */ + label_len + edit_col;
-
-        Some((x, y))
     }
 
     fn render_device_picker(&mut self, f: &mut Frame, area: Rect, styles: &RommStyles) {

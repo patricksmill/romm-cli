@@ -29,6 +29,8 @@ On startup, the TUI checks for newer releases (disable with `ROMM_CHECK_UPDATES=
 - **Settings** — auth, paths, appearance, save-sync options
 - **Save downloads** — per-console save paths (see [api.md — custom save paths](api.md#custom-console-save-paths))
 
+Active text-entry fields show an inline `▏` caret by default, including metadata search, game search, library filters, settings, path pickers, and setup/authentication forms. Long values scroll to keep the insertion point visible; password and API-key fields remain masked.
+
 ### Screenshots
 
 #### Game details view

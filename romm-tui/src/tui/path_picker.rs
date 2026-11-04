@@ -5,12 +5,15 @@ use std::path::{Path, PathBuf};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::Modifier;
-use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph};
+use ratatui::widgets::{List, ListItem, ListState, Paragraph};
 use ratatui::Frame;
 
 use crate::tui::footer_hint::{footer_hint_line, FooterHintEntry};
 use crate::tui::text_cursor;
 use crate::tui::theme::RommStyles;
+
+/// Display width of the path-bar focus prefix ("▶ ") in terminal cells.
+const PATH_PREFIX_WIDTH: usize = 2;
 
 /// Whether the user must pick a directory or a regular file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -407,13 +410,19 @@ impl PathPicker {
             PathPickerFocus::PathBar => "▶ ",
             PathPickerFocus::List => "  ",
         };
-        let (before, after) = text_cursor::split_at_cursor(&self.path_text, self.path_cursor);
         let path_style = if self.focus == PathPickerFocus::PathBar {
             styles.selection()
         } else {
             styles.text()
         };
-        let path_line = format!("{path_prefix}{before}▏{after}");
+        let path_text_width = usize::from(chunks[0].width).saturating_sub(PATH_PREFIX_WIDTH);
+        let path_line = match self.focus {
+            PathPickerFocus::PathBar => format!(
+                "{path_prefix}{}",
+                text_cursor::cursor_line(&self.path_text, self.path_cursor, path_text_width)
+            ),
+            PathPickerFocus::List => format!("{path_prefix}{}", self.path_text),
+        };
         let path_row = Rect {
             x: chunks[0].x,
             y: chunks[0].y,
@@ -466,29 +475,6 @@ impl PathPicker {
             Paragraph::new(footer_hint_line(footer_entries, chunks[2].width, styles)),
             chunks[2],
         );
-    }
-
-    /// Terminal cursor inside path bar (relative to `area` passed to `render`).
-    pub fn cursor_position(&self, area: Rect, title: &str) -> Option<(u16, u16)> {
-        if self.focus != PathPickerFocus::PathBar {
-            return None;
-        }
-        let block = Block::default().title(title).borders(Borders::ALL);
-        let inner = block.inner(area);
-        let path_h = if self.io_error.is_some() { 2u16 } else { 1u16 };
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(path_h),
-                Constraint::Min(3),
-                Constraint::Length(2),
-            ])
-            .split(inner);
-        let path_prefix_chars = 2u16; // "▶ "
-        let path_before = text_cursor::char_column(&self.path_text, self.path_cursor) as u16;
-        let x = chunks[0].x + path_prefix_chars + path_before;
-        let y = chunks[0].y;
-        Some((x.min(chunks[0].x + chunks[0].width.saturating_sub(1)), y))
     }
 }
 

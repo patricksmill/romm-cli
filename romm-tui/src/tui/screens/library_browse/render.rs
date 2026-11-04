@@ -1,5 +1,5 @@
 use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::widgets::{Block, Borders, Cell, List, ListItem, ListState, Paragraph, Row, Table};
+use ratatui::widgets::{Cell, List, ListItem, ListState, Paragraph, Row, Table};
 use ratatui::Frame;
 
 use crate::tui::footer_hint::{render_footer_panel, FooterHintEntry};
@@ -148,7 +148,13 @@ impl LibraryBrowseScreen {
                     LibrarySearchMode::Filter => "Filter (list)",
                     LibrarySearchMode::Jump => "Jump (list)",
                 };
-                let p = Paragraph::new(format!("Search: {}", self.list_search.query))
+                let input = format!("Search: {}", self.list_search.query);
+                let input = crate::tui::text_cursor::cursor_line(
+                    &input,
+                    input.len(),
+                    usize::from(left_chunks[0].width.saturating_sub(2)),
+                );
+                let p = Paragraph::new(input)
                     .style(styles.text())
                     .block(styles.panel_block(title));
                 f.render_widget(p, left_chunks[0]);
@@ -179,7 +185,13 @@ impl LibraryBrowseScreen {
                 LibrarySearchMode::Filter => "Filter (games)",
                 LibrarySearchMode::Jump => "Jump (games)",
             };
-            let p = Paragraph::new(format!("Search: {}", self.rom_search.query))
+            let input = format!("Search: {}", self.rom_search.query);
+            let input = crate::tui::text_cursor::cursor_line(
+                &input,
+                input.len(),
+                usize::from(right_chunks[0].width.saturating_sub(2)),
+            );
+            let p = Paragraph::new(input)
                 .style(styles.text())
                 .block(styles.panel_block(title));
             f.render_widget(p, right_chunks[0]);
@@ -242,21 +254,6 @@ impl LibraryBrowseScreen {
         f.render_widget(Paragraph::new(header).style(styles.text()), rows[0]);
         up.picker
             .render(f, rows[1], "Choose ROM file", UPLOAD_PICKER_HINTS, styles);
-    }
-
-    /// Cursor for the upload path field (when [`Self::upload_prompt`] is open).
-    pub fn upload_prompt_cursor(&self, area: Rect) -> Option<(u16, u16)> {
-        let up = self.upload_prompt.as_ref()?;
-        let popup = Self::upload_popup_rect(area);
-        let inner = Block::default()
-            .title("Upload ROM (Ctrl+u)")
-            .borders(Borders::ALL)
-            .inner(popup);
-        let rows = Layout::default()
-            .direction(ratatui::layout::Direction::Vertical)
-            .constraints([Constraint::Length(2), Constraint::Min(8)])
-            .split(inner);
-        up.picker.cursor_position(rows[1], "Choose ROM file")
     }
 
     fn render_list(&self, f: &mut Frame, area: Rect, styles: &RommStyles) {
