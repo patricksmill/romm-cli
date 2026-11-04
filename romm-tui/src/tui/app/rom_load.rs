@@ -157,27 +157,11 @@ impl super::App {
                 lib.set_rom_loading(false);
                 return;
             }
-            (
-                lib.cache_key(),
-                Self::selected_rom_request_for_library(lib),
-                expected,
-            )
+            (lib.cache_key(), lib.get_roms_request(), expected)
         };
         self.queue_primary_rom_load(pending.0, pending.1, pending.2, context);
     }
 
-    pub(in crate::tui::app) fn selected_rom_request_for_library(
-        lib: &crate::tui::screens::library_browse::LibraryBrowseScreen,
-    ) -> Option<GetRoms> {
-        match lib.subsection {
-            crate::tui::screens::library_browse::LibrarySubsection::ByConsole => {
-                lib.get_roms_request_platform()
-            }
-            crate::tui::screens::library_browse::LibrarySubsection::ByCollection => {
-                lib.get_roms_request_collection()
-            }
-        }
-    }
     pub(in crate::tui::app) fn queue_collection_prefetches_from_screen(
         &mut self,
         radius: usize,

@@ -102,11 +102,12 @@ impl App {
             let new_key = lib.cache_key();
             if old_key != new_key && lib.list_len() > 0 {
                 let expected = lib.expected_rom_count();
-                let req = Self::selected_rom_request_for_library(lib);
+                let req = lib.get_roms_request();
                 pending_rom_load = Some((new_key, req, expected, "search_filter"));
             }
             if let Some((key, req, expected, context)) = pending_rom_load {
                 self.apply_selection_rom_load(key, req, expected, context);
+                self.persist_library_selection_if_changed();
             }
             return Ok(false);
         }
@@ -130,7 +131,7 @@ impl App {
                     if lib.list_len() > 0 {
                         let key = lib.cache_key();
                         let expected = lib.expected_rom_count();
-                        let req = Self::selected_rom_request_for_library(lib);
+                        let req = lib.get_roms_request();
                         pending_rom_load = Some((key, req, expected, "list_move_up"));
                         if lib.subsection
                             == crate::tui::screens::library_browse::LibrarySubsection::ByCollection
@@ -149,7 +150,7 @@ impl App {
                     if lib.list_len() > 0 {
                         let key = lib.cache_key();
                         let expected = lib.expected_rom_count();
-                        let req = Self::selected_rom_request_for_library(lib);
+                        let req = lib.get_roms_request();
                         pending_rom_load = Some((key, req, expected, "list_move_down"));
                         if lib.subsection
                             == crate::tui::screens::library_browse::LibrarySubsection::ByCollection
@@ -196,7 +197,7 @@ impl App {
                 if lib.view_mode == LibraryViewMode::List && lib.list_len() > 0 {
                     let key = lib.cache_key();
                     let expected = lib.expected_rom_count();
-                    let req = Self::selected_rom_request_for_library(lib);
+                    let req = lib.get_roms_request();
                     pending_rom_load = Some((key, req, expected, "switch_subsection"));
                 }
                 if lib.subsection
@@ -224,6 +225,7 @@ impl App {
         }
         if let Some((key, req, expected, context)) = pending_rom_load {
             self.apply_selection_rom_load(key, req, expected, context);
+            self.persist_library_selection_if_changed();
         }
         if prefetch_collections {
             self.queue_collection_prefetches_from_screen(1, "library_selection");

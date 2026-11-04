@@ -150,6 +150,33 @@ fn default_game_detail_cover_panel_width() -> u16 {
     GAME_DETAIL_COVER_PANEL_WIDTH_DEFAULT
 }
 
+/// Library left-pane grouping persisted across TUI launches.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum LibrarySubsectionKind {
+    /// Consoles / platforms list.
+    Console,
+    /// Collections list (manual, smart, or virtual).
+    Collection,
+}
+
+/// Identity of the selected library list row.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum LibrarySelectionKey {
+    Platform { id: u64 },
+    Collection { id: u64 },
+    SmartCollection { id: u64 },
+    VirtualCollection { id: String },
+}
+
+/// Last library list selection restored on TUI open.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct LibrarySelectionState {
+    pub subsection: LibrarySubsectionKind,
+    pub key: LibrarySelectionKey,
+}
+
 /// TUI panel layout preferences (library split and game detail cover width).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TuiLayoutConfig {
@@ -159,6 +186,9 @@ pub struct TuiLayoutConfig {
     /// Game detail: cover column width in terminal cells.
     #[serde(default = "default_game_detail_cover_panel_width")]
     pub game_detail_cover_panel_width: u16,
+    /// Last console/collection selection (restored on library open when still present).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub library_selection: Option<LibrarySelectionState>,
 }
 
 impl Default for TuiLayoutConfig {
@@ -166,6 +196,7 @@ impl Default for TuiLayoutConfig {
         Self {
             library_left_panel_percent: LIBRARY_LEFT_PANEL_PERCENT_DEFAULT,
             game_detail_cover_panel_width: GAME_DETAIL_COVER_PANEL_WIDTH_DEFAULT,
+            library_selection: None,
         }
     }
 }
@@ -182,6 +213,7 @@ impl TuiLayoutConfig {
                 GAME_DETAIL_COVER_PANEL_WIDTH_MIN,
                 GAME_DETAIL_COVER_PANEL_WIDTH_MAX,
             ),
+            library_selection: self.library_selection,
         }
     }
 }
@@ -1293,6 +1325,7 @@ mod tests {
         let cfg = TuiLayoutConfig {
             library_left_panel_percent: 5,
             game_detail_cover_panel_width: 999,
+            library_selection: None,
         }
         .normalized();
         assert_eq!(
@@ -1302,6 +1335,36 @@ mod tests {
         assert_eq!(
             cfg.game_detail_cover_panel_width,
             GAME_DETAIL_COVER_PANEL_WIDTH_MAX
+        );
+    }
+
+    #[test]
+    fn config_library_selection_round_trips() {
+        let json = r#"{
+            "base_url":"http://x",
+            "download_dir":"/tmp",
+            "use_https":false,
+            "tui_layout":{
+                "library_left_panel_percent":30,
+                "game_detail_cover_panel_width":36,
+                "library_selection":{
+                    "subsection":"console",
+                    "key":{"type":"platform","id":42}
+                }
+            }
+        }"#;
+        let cfg: Config = serde_json::from_str(json).unwrap();
+        let sel = cfg
+            .tui_layout
+            .library_selection
+            .as_ref()
+            .expect("selection");
+        assert_eq!(sel.subsection, LibrarySubsectionKind::Console);
+        assert_eq!(sel.key, LibrarySelectionKey::Platform { id: 42 });
+        let out = serde_json::to_value(&cfg.tui_layout).unwrap();
+        assert_eq!(
+            out["library_selection"]["key"]["type"],
+            serde_json::json!("platform")
         );
     }
 

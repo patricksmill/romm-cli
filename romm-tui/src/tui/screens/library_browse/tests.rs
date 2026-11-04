@@ -223,7 +223,7 @@ fn zero_rom_platform_builds_no_rom_request() {
         LEFT_PANEL_PERCENT_DEFAULT,
     );
     assert!(
-        s.get_roms_request_platform().is_none(),
+        s.get_roms_request().is_none(),
         "zero-rom platform should not produce ROM API request"
     );
 }
@@ -295,6 +295,51 @@ fn adjust_left_panel_percent_clamps_at_bounds() {
 }
 
 #[test]
+fn restore_selection_selects_matching_platform() {
+    use romm_api::config::{LibrarySelectionKey, LibrarySelectionState, LibrarySubsectionKind};
+    let mut s = LibraryBrowseScreen::new(
+        vec![
+            platform(1, "NES", 10),
+            platform(2, "SNES", 20),
+            platform(3, "N64", 30),
+        ],
+        vec![],
+        LEFT_PANEL_PERCENT_DEFAULT,
+    );
+    let saved = Some(LibrarySelectionState {
+        subsection: LibrarySubsectionKind::Console,
+        key: LibrarySelectionKey::Platform { id: 3 },
+    });
+    assert!(s.restore_selection(&saved));
+    assert_eq!(s.list_index, 2);
+    assert_eq!(
+        s.cache_key(),
+        Some(romm_api::core::cache::RomCacheKey::Platform(3))
+    );
+    assert_eq!(
+        s.selection_state(),
+        saved,
+        "selection_state should round-trip the restored identity"
+    );
+}
+
+#[test]
+fn restore_selection_missing_key_returns_false() {
+    use romm_api::config::{LibrarySelectionKey, LibrarySelectionState, LibrarySubsectionKind};
+    let mut s = LibraryBrowseScreen::new(
+        vec![platform(1, "NES", 10)],
+        vec![],
+        LEFT_PANEL_PERCENT_DEFAULT,
+    );
+    let saved = Some(LibrarySelectionState {
+        subsection: LibrarySubsectionKind::Console,
+        key: LibrarySelectionKey::Platform { id: 99 },
+    });
+    assert!(!s.restore_selection(&saved));
+    assert_eq!(s.list_index, 0);
+}
+
+#[test]
 fn rom_row_not_highlighted_while_browsing_consoles() {
     let mut s = LibraryBrowseScreen::new(vec![], vec![], LEFT_PANEL_PERCENT_DEFAULT);
     s.view_mode = LibraryViewMode::List;
@@ -313,4 +358,135 @@ fn rom_row_highlighted_only_in_games_mode() {
     s.rom_selected = 2;
     assert!(!s.rom_row_highlighted(0));
     assert!(s.rom_row_highlighted(2));
+}
+
+#[test]
+fn collection_selection_preserves_kind_when_ids_overlap() {
+    use super::LibrarySubsection;
+    use romm_api::config::{LibrarySelectionKey, LibrarySelectionState, LibrarySubsectionKind};
+    use romm_api::core::cache::RomCacheKey;
+    use romm_api::types::Collection;
+
+    let collections: Vec<Collection> = [
+        json!({"id": 7, "name": "Manual", "rom_count": 3}),
+        json!({"id": 7, "name": "Smart", "rom_count": 4, "is_smart": true}),
+        json!({"id": 7, "name": "Virtual", "rom_count": 5,
+            "is_smart": true, "is_virtual": true, "virtual_id": "recent"}),
+    ]
+    .into_iter()
+    .map(|value| serde_json::from_value(value).unwrap())
+    .collect();
+    let mut screen = LibraryBrowseScreen::new(vec![], collections, LEFT_PANEL_PERCENT_DEFAULT);
+    screen.subsection = LibrarySubsection::ByCollection;
+    for (index, key, saved_key, count, target) in [
+        (
+            0,
+            RomCacheKey::Collection(7),
+            LibrarySelectionKey::Collection { id: 7 },
+            3,
+            "collection_id",
+        ),
+        (
+            1,
+            RomCacheKey::SmartCollection(7),
+            LibrarySelectionKey::SmartCollection { id: 7 },
+            4,
+            "smart_collection_id",
+        ),
+        (
+            2,
+            RomCacheKey::VirtualCollection("recent".into()),
+            LibrarySelectionKey::VirtualCollection {
+                id: "recent".into(),
+            },
+            5,
+            "virtual_collection_id",
+        ),
+    ] {
+        screen.list_index = index;
+        assert_eq!(screen.cache_key(), Some(key));
+        assert_eq!(screen.expected_rom_count(), count);
+        let request = screen.get_roms_request().unwrap();
+        assert_eq!(request.platform_id, None);
+        assert_eq!(
+            request.collection_id,
+            (target == "collection_id").then_some(7)
+        );
+        assert_eq!(
+            request.smart_collection_id,
+            (target == "smart_collection_id").then_some(7)
+        );
+        assert_eq!(
+            request.virtual_collection_id.as_deref(),
+            (target == "virtual_collection_id").then_some("recent")
+        );
+        assert_eq!(request.limit, Some(50));
+        let saved = Some(LibrarySelectionState {
+            subsection: LibrarySubsectionKind::Collection,
+            key: saved_key,
+        });
+        assert_eq!(screen.selection_state(), saved);
+        screen.list_index = (index + 1) % 3;
+        assert!(screen.restore_selection(&saved));
+        assert_eq!(screen.list_index, index);
+    }
+    screen.list_index = 1;
+    let candidates = screen.collection_prefetch_candidates(1);
+    assert_eq!(
+        candidates
+            .iter()
+            .map(|(key, _, count)| (key.clone(), *count))
+            .collect::<Vec<_>>(),
+        vec![
+            (RomCacheKey::Collection(7), 3),
+            (RomCacheKey::VirtualCollection("recent".into()), 5)
+        ]
+    );
+    assert_eq!(candidates[0].1.collection_id, Some(7));
+    assert_eq!(
+        candidates[1].1.virtual_collection_id.as_deref(),
+        Some("recent")
+    );
+}
+
+#[test]
+fn virtual_selection_without_id_keeps_request_absence_distinct_from_empty_id() {
+    use super::LibrarySubsection;
+    use romm_api::config::{LibrarySelectionKey, LibrarySelectionState, LibrarySubsectionKind};
+    use romm_api::core::cache::RomCacheKey;
+
+    let mut screen = LibraryBrowseScreen::new(
+        vec![],
+        vec![serde_json::from_value(json!({
+            "id": 0, "name": "Virtual", "rom_count": 2,
+            "is_virtual": true, "virtual_id": null
+        }))
+        .unwrap()],
+        LEFT_PANEL_PERCENT_DEFAULT,
+    );
+    screen.subsection = LibrarySubsection::ByCollection;
+    assert_eq!(
+        screen.cache_key(),
+        Some(RomCacheKey::VirtualCollection(String::new()))
+    );
+    assert_eq!(
+        screen.get_roms_request().unwrap().virtual_collection_id,
+        None
+    );
+    let saved = Some(LibrarySelectionState {
+        subsection: LibrarySubsectionKind::Collection,
+        key: LibrarySelectionKey::VirtualCollection { id: String::new() },
+    });
+    assert_eq!(screen.selection_state(), saved);
+    assert!(!screen.restore_selection(&saved));
+    screen.subsection = LibrarySubsection::ByCollection;
+    screen.collections[0].virtual_id = Some(String::new());
+    assert_eq!(
+        screen.get_roms_request().unwrap().virtual_collection_id,
+        Some(String::new())
+    );
+    assert!(screen.restore_selection(&saved));
+    screen.collections[0].rom_count = None;
+    assert_eq!(screen.expected_rom_count(), 0);
+    assert!(screen.get_roms_request().is_none());
 }
