@@ -516,6 +516,61 @@ fn open_library_browse_prefers_first_complete_cache_hit() {
 }
 
 #[test]
+fn open_library_browse_restores_saved_selection_over_cache_prefer() {
+    use romm_api::config::{LibrarySelectionKey, LibrarySelectionState, LibrarySubsectionKind};
+    let mut app = app_with_library(vec![]);
+    let list = RomList {
+        items: vec![rom_fixture()],
+        total: 1,
+        limit: 50,
+        offset: 0,
+    };
+    app.rom_cache
+        .insert(RomCacheKey::Platform(9301), list.clone(), 1);
+    app.rom_cache.insert(RomCacheKey::Platform(9302), list, 1);
+    app.config.tui_layout.library_selection = Some(LibrarySelectionState {
+        subsection: LibrarySubsectionKind::Console,
+        key: LibrarySelectionKey::Platform { id: 9302 },
+    });
+
+    if let AppScreen::LibraryBrowse(ref mut lib) = app.screen {
+        **lib = LibraryBrowseScreen::new(
+            vec![platform(9301, "FirstCached", 1), platform(9302, "Saved", 1)],
+            vec![],
+            LIBRARY_LEFT_PANEL_PERCENT_DEFAULT,
+        );
+        let restored = lib.restore_selection(&app.config.tui_layout.library_selection);
+        assert!(restored);
+        if !restored {
+            lib.prefer_first_complete_cache_hit(&app.rom_cache);
+        }
+        assert_eq!(lib.cache_key(), Some(RomCacheKey::Platform(9302)));
+    } else {
+        panic!("expected library");
+    }
+}
+
+#[tokio::test]
+async fn list_move_persists_library_selection_identity() {
+    use romm_api::config::{LibrarySelectionKey, LibrarySubsectionKind};
+    let mut app = app_with_library(vec![platform(9401, "NES", 1), platform(9402, "SNES", 1)]);
+    assert!(app.config.tui_layout.library_selection.is_none());
+
+    assert!(!app
+        .handle_key_event(&KeyEvent::new(KeyCode::Down, KeyModifiers::empty()))
+        .await
+        .expect("key handled"));
+
+    let sel = app
+        .config
+        .tui_layout
+        .library_selection
+        .expect("selection should persist after list move");
+    assert_eq!(sel.subsection, LibrarySubsectionKind::Console);
+    assert_eq!(sel.key, LibrarySelectionKey::Platform { id: 9402 });
+}
+
+#[test]
 fn ctrl_c_is_treated_as_force_quit() {
     let ctrl_c = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL);
     assert!(App::is_force_quit_key(&ctrl_c));

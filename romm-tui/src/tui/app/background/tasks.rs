@@ -739,7 +739,7 @@ impl super::super::App {
             let selection_reload = if selection_changed && lib.list_len() > 0 {
                 let key = lib.cache_key();
                 let expected = lib.expected_rom_count();
-                let req = Self::selected_rom_request_for_library(lib);
+                let req = lib.get_roms_request();
                 Some((key, req, expected, "refresh_selection"))
             } else {
                 None
@@ -747,7 +747,7 @@ impl super::super::App {
             let post_scan_reload = if force_reload && lib.list_len() > 0 && !selection_changed {
                 let key = lib.cache_key();
                 let expected = lib.expected_rom_count();
-                let req = Self::selected_rom_request_for_library(lib);
+                let req = lib.get_roms_request();
                 Some((key, req, expected, "post_scan_reload"))
             } else {
                 None

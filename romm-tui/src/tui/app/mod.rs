@@ -360,6 +360,21 @@ impl App {
         }
     }
 
+    /// Update and persist library selection when the list identity changes.
+    pub(in crate::tui::app) fn persist_library_selection_if_changed(&mut self) {
+        let AppScreen::LibraryBrowse(ref lib) = self.screen else {
+            return;
+        };
+        let Some(next) = lib.selection_state() else {
+            return;
+        };
+        if self.config.tui_layout.library_selection.as_ref() == Some(&next) {
+            return;
+        }
+        self.config.tui_layout.library_selection = Some(next);
+        self.persist_tui_layout();
+    }
+
     #[cfg(test)]
     pub(crate) fn theme_id(&self) -> &str {
         self.theme.id()

@@ -56,6 +56,8 @@ Built-in theme IDs include `terminal`, `catppuccin`, `dracula`, `nord`, `tokyo-n
 
 Choosing **Library** from the main menu loads a compact on-disk snapshot of platforms and merged collections (if present) so the list renders without waiting for the network. A background task refetches endpoints, updates the UI, and writes a fresh snapshot.
 
+The last selected console or collection is restored across launches when that row still exists; otherwise the TUI prefers a row with a complete ROM cache hit, then falls back to the first list entry.
+
 Full ROM lists use the on-disk ROM cache with **stale-while-revalidate**: if a complete cached list exists for the selected console or collection, the Games pane paints it immediately (even when `rom_count` has changed). A background fetch refreshes the list when counts diverge; the pane is not cleared to empty while cache data exists.
 
 OpenAPI compatibility and heartbeat version are loaded from local cache/embedded first so the TUI can paint before contacting the server; a background refresh updates feature gates and server version after first paint.
@@ -67,6 +69,8 @@ Override snapshot path with `ROMM_LIBRARY_METADATA_SNAPSHOT_PATH` (default: next
 ## Internals
 
 This section describes the TUI implementation for contributors. Read alongside `cargo doc -p romm-tui --open` and [architecture.md](architecture.md).
+
+Library selection interpretation lives in the library-browse module: current rows and collection prefetch reuse position-based cache identity and count lookup. ROM request targets and persisted selection derive from that identity; App callers ask the screen for the selected ROM request rather than dispatching on console versus collection.
 
 ### Event loop
 
