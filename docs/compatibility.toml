@@ -40,3 +40,8 @@ romm_tui = "1.4.2"
 min_romm_api = "1.4.1"
 notes = "Config D registry; atomic save sync; batch path reservation; auth logout cleanup"
 
+[[combination]]
+romm_cli = "1.3.2"
+romm_tui = "1.5.0"
+min_romm_api = "1.5.0"
+notes = "Cache-first library startup and shared complete-cache reads; saved library selection"
