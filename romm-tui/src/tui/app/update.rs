@@ -173,11 +173,13 @@ impl App {
         };
 
         if let Some(ref k) = key {
+            let mut painted_valid_cache = false;
             if let Some(cached) = self.rom_cache.get_valid(k, expected) {
                 if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
                     if super::rom_load::primary_rom_load_result_matches_selection(lib, &key) {
                         lib.set_roms(cached.clone());
-                        lib.set_rom_loading(false);
+                        lib.set_rom_loading(expected > 0);
+                        painted_valid_cache = true;
                         tracing::debug!(
                             "rom-list-render context={} latency_ms={} (cache_hit)",
                             context,
@@ -191,21 +193,22 @@ impl App {
                         );
                     }
                 }
-                return;
             }
             // Stale-complete: paint immediately so the pane is never blank during debounce/fetch.
-            if let Some(stale) = self.rom_cache.get_complete(k) {
-                if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
-                    if super::rom_load::primary_rom_load_result_matches_selection(lib, &key) {
-                        if lib.roms.is_none() {
-                            lib.set_roms(stale.clone());
+            if !painted_valid_cache {
+                if let Some(stale) = self.rom_cache.get_complete(k) {
+                    if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
+                        if super::rom_load::primary_rom_load_result_matches_selection(lib, &key) {
+                            if lib.roms.is_none() {
+                                lib.set_roms(stale.clone());
+                            }
+                            lib.set_rom_loading(expected > 0);
+                            tracing::debug!(
+                                "rom-list-render context={} latency_ms={} (stale_complete)",
+                                context,
+                                started.elapsed().as_millis()
+                            );
                         }
-                        lib.set_rom_loading(expected > 0);
-                        tracing::debug!(
-                            "rom-list-render context={} latency_ms={} (stale_complete)",
-                            context,
-                            started.elapsed().as_millis()
-                        );
                     }
                 }
             }

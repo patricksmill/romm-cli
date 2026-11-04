@@ -64,8 +64,7 @@ impl super::App {
 
     /// Paint from disk cache when possible, then queue a network refresh only when needed.
     ///
-    /// - Valid cache hit (`expected_count` matches): paint and skip fetch.
-    /// - Complete but stale: paint immediately, keep `[Loading...]`, queue fetch.
+    /// - Valid or stale complete cache hit: paint immediately, keep `[Loading...]`, queue fetch.
     /// - Miss: clear only when needed, queue fetch when `expected > 0`.
     pub(in crate::tui::app) fn apply_selection_rom_load(
         &mut self,
@@ -99,10 +98,10 @@ impl super::App {
                 if let AppScreen::LibraryBrowse(ref mut lib) = self.screen {
                     if let Some(list) = list {
                         lib.set_roms(list);
-                        lib.set_rom_loading(false);
+                        lib.set_rom_loading(true);
                     }
                 }
-                self.cancel_primary_rom_load();
+                self.queue_primary_rom_load(key, req, expected, context);
             }
             PaintKind::Stale => {
                 let list = key

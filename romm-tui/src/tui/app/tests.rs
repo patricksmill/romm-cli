@@ -422,7 +422,7 @@ async fn list_move_to_zero_rom_selection_does_not_queue_deferred_load() {
 }
 
 #[tokio::test]
-async fn list_move_with_complete_cache_keeps_roms_visible() {
+async fn list_move_with_complete_cache_paints_and_queues_refresh() {
     let mut app = app_with_library(vec![platform(9101, "NES", 1), platform(9102, "SNES", 1)]);
     let list = RomList {
         items: vec![rom_fixture()],
@@ -445,14 +445,19 @@ async fn list_move_with_complete_cache_keeps_roms_visible() {
                 "cached console must paint immediately without blanking the pane"
             );
             assert_eq!(lib.roms.as_ref().map(|r| r.items.len()), Some(1));
-            assert!(!lib.rom_loading, "valid cache hit must not stay in loading");
+            assert!(
+                lib.rom_loading,
+                "valid cache hit should keep [Loading...] until refresh completes"
+            );
         }
         _ => panic!("expected library browse"),
     }
-    assert!(
-        app.deferred_load_roms.is_none(),
-        "valid cache hit must not queue a network fetch"
-    );
+    let Some((key, _, expected, context, _)) = &app.deferred_load_roms else {
+        panic!("valid cache hit should queue a background refresh");
+    };
+    assert_eq!(key, &Some(RomCacheKey::Platform(9102)));
+    assert_eq!(expected, &1);
+    assert_eq!(context, &"list_move_down");
 }
 
 #[tokio::test]
