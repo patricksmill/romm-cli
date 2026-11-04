@@ -64,7 +64,32 @@ pub(crate) fn split_at_cursor(s: &str, cursor: usize) -> (&str, &str) {
     s.split_at(pos)
 }
 
-pub(crate) fn char_column(s: &str, cursor: usize) -> usize {
-    let pos = clamp_to_char_boundary(s, cursor);
-    s[..pos].chars().count()
+/// Render an active single-line field, keeping the insertion marker in view.
+pub(crate) fn cursor_line(text: &str, cursor: usize, width: usize) -> String {
+    use unicode_width::UnicodeWidthChar;
+
+    if width == 0 {
+        return String::new();
+    }
+    let (before, after) = split_at_cursor(text, cursor);
+    let mut used = 1; // Reserve one terminal cell for the caret.
+    let mut start = before.len();
+    for (index, ch) in before.char_indices().rev() {
+        let cells = ch.width().unwrap_or(0);
+        if used + cells > width {
+            break;
+        }
+        used += cells;
+        start = index;
+    }
+    let mut end = 0;
+    for (index, ch) in after.char_indices() {
+        let cells = ch.width().unwrap_or(0);
+        if used + cells > width {
+            break;
+        }
+        used += cells;
+        end = index + ch.len_utf8();
+    }
+    format!("{}▏{}", &before[start..], &after[..end])
 }

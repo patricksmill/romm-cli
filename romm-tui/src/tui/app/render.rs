@@ -18,30 +18,18 @@ impl super::App {
             match &mut self.screen {
                 AppScreen::LibraryBrowse(lib) => {
                     lib.render(f, area, &styles);
-                    if let Some((x, y)) = lib.upload_prompt_cursor(area) {
-                        f.set_cursor_position((x, y));
-                    }
                 }
                 AppScreen::Search(search) => {
                     search.render(f, area, &styles);
-                    if let Some((x, y)) = search.cursor_position(area) {
-                        f.set_cursor_position((x, y));
-                    }
                 }
                 AppScreen::Settings(settings) => {
                     settings.render(f, area, &styles);
-                    if let Some((x, y)) = settings.cursor_position(area) {
-                        f.set_cursor_position((x, y));
-                    }
                 }
                 AppScreen::GameDetail(detail) => detail.render(f, area, &styles),
                 AppScreen::MetadataMatch(picker) => picker.render(f, area, &styles),
                 AppScreen::Download(d) => d.render(f, area, &styles),
                 AppScreen::SetupWizard(wizard) => {
                     wizard.render(f, area, &styles);
-                    if let Some((x, y)) = wizard.cursor_pos(area) {
-                        f.set_cursor_position((x, y));
-                    }
                 }
             }
 

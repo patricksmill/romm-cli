@@ -172,6 +172,11 @@ impl SearchScreen {
             .split(area);
 
         let input_line = format!("Search: {}", self.query);
+        let input_line = crate::tui::text_cursor::cursor_line(
+            &input_line,
+            "Search: ".len() + self.cursor_pos,
+            usize::from(chunks[0].width.saturating_sub(2)),
+        );
         let input = Paragraph::new(input_line)
             .style(styles.text())
             .block(styles.panel_block("Search games"));
@@ -256,22 +261,6 @@ impl SearchScreen {
             ],
             None,
         );
-    }
-
-    pub fn cursor_position(&self, area: Rect) -> Option<(u16, u16)> {
-        let chunks = Layout::default()
-            .constraints([
-                Constraint::Length(3),
-                Constraint::Min(5),
-                Constraint::Length(3),
-            ])
-            .direction(ratatui::layout::Direction::Vertical)
-            .split(area);
-        let pos = clamp_to_char_boundary(&self.query, self.cursor_pos);
-        let offset = 9 + self.query[..pos].chars().count() as u16;
-        let x = chunks[0].x + offset.min(chunks[0].width.saturating_sub(1));
-        let y = chunks[0].y + 1;
-        Some((x, y))
     }
 }
 
