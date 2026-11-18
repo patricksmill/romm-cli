@@ -12,13 +12,18 @@ use romm_api::config::normalize_romm_origin;
 use super::layout::{wizard_footer_entries, wizard_footer_text, wizard_layout};
 use super::types::{AuthKind, SetupWizard, Step};
 
-fn cursor_line(text: &str, cursor: usize) -> String {
-    let (before, after) = text_cursor::split_at_cursor(text, cursor);
-    format!("{before}▏{after}")
-}
-
 fn secret_mask(text: &str) -> String {
     "•".repeat(text.chars().count())
+}
+
+/// Renders the mask for an active secret field with the inline caret at the
+/// cursor, translating the byte cursor in the secret into the corresponding
+/// byte offset in the bullet mask.
+fn masked_cursor_line(text: &str, cursor: usize, width: usize) -> String {
+    let mask = secret_mask(text);
+    let masked_chars = text_cursor::split_at_cursor(text, cursor).0.chars().count();
+    let mask_cursor = masked_chars * '•'.len_utf8();
+    text_cursor::cursor_line(&mask, mask_cursor, width)
 }
 
 impl SetupWizard {
@@ -78,8 +83,9 @@ impl SetupWizard {
 
         match self.step {
             Step::Url => {
-                let text = cursor_line(&self.url, self.url_cursor);
                 let block = styles.panel_block(title);
+                let width = block.inner(main[1]).width as usize;
+                let text = text_cursor::cursor_line(&self.url, self.url_cursor, width);
                 let p = Paragraph::new(text).style(styles.text()).block(block);
                 f.render_widget(p, main[1]);
             }
@@ -121,12 +127,18 @@ impl SetupWizard {
                 f.render_stateful_widget(list, main[1], &mut state);
             }
             Step::BasicUser | Step::BasicPass => {
+                let block = styles.panel_block(title);
+                let width = block.inner(main[1]).width as usize;
                 let user_line = if self.step == Step::BasicUser {
-                    cursor_line(&self.username, self.user_cursor)
+                    text_cursor::cursor_line(&self.username, self.user_cursor, width)
                 } else {
                     self.username.clone()
                 };
-                let pass_display = secret_mask(&self.password);
+                let pass_display = if self.step == Step::BasicPass {
+                    masked_cursor_line(&self.password, self.password.len(), width)
+                } else {
+                    secret_mask(&self.password)
+                };
                 let kr_hint = if self.step == Step::BasicPass
                     && self.password.is_empty()
                     && self.reuse_keyring_password
@@ -135,7 +147,6 @@ impl SetupWizard {
                 } else {
                     ""
                 };
-                let block = styles.panel_block(title);
                 let body = format!(
                     "Username\n{user_line}\n\nPassword (hidden)\n{pass_display}{kr_hint}\n\nTab: switch field"
                 );
@@ -143,7 +154,9 @@ impl SetupWizard {
                 f.render_widget(p, main[1]);
             }
             Step::Bearer => {
-                let line = cursor_line(&self.bearer_token, self.bearer_cursor);
+                let block = styles.panel_block(title);
+                let width = block.inner(main[1]).width as usize;
+                let line = text_cursor::cursor_line(&self.bearer_token, self.bearer_cursor, width);
                 let mut bearer_text = Text::from(vec![
                     Line::from("API Token"),
                     Line::from(""),
@@ -156,26 +169,32 @@ impl SetupWizard {
                         styles.muted(),
                     )));
                 }
-                let block = styles.panel_block(title);
                 let p = Paragraph::new(bearer_text)
                     .style(styles.text())
                     .block(block);
                 f.render_widget(p, main[1]);
             }
             Step::PairingCode => {
-                let line = cursor_line(&self.pairing_code, self.pairing_cursor);
-                let body = format!("Enter the 8-character code provided.\n\n{line}");
                 let block = styles.panel_block(title);
+                let width = block.inner(main[1]).width as usize;
+                let line = text_cursor::cursor_line(&self.pairing_code, self.pairing_cursor, width);
+                let body = format!("Enter the 8-character code provided.\n\n{line}");
                 let p = Paragraph::new(body).style(styles.text()).block(block);
                 f.render_widget(p, main[1]);
             }
             Step::ApiHeader | Step::ApiKey => {
+                let block = styles.panel_block(title);
+                let width = block.inner(main[1]).width as usize;
                 let header_line = if self.step == Step::ApiHeader {
-                    cursor_line(&self.api_header, self.header_cursor)
+                    text_cursor::cursor_line(&self.api_header, self.header_cursor, width)
                 } else {
                     self.api_header.clone()
                 };
-                let key_line = secret_mask(&self.api_key);
+                let key_line = if self.step == Step::ApiKey {
+                    masked_cursor_line(&self.api_key, self.api_key_cursor, width)
+                } else {
+                    secret_mask(&self.api_key)
+                };
                 let kr_hint = if self.step == Step::ApiKey
                     && self.api_key.is_empty()
                     && self.reuse_keyring_api_key
@@ -187,7 +206,6 @@ impl SetupWizard {
                 let body = format!(
                     "Header name\n{header_line}\n\nKey (hidden)\n{key_line}{kr_hint}\n\nTab: switch field"
                 );
-                let block = styles.panel_block(title);
                 let p = Paragraph::new(body).style(styles.text()).block(block);
                 f.render_widget(p, main[1]);
             }
@@ -244,53 +262,5 @@ impl SetupWizard {
         };
         let p = Paragraph::new(footer_text).block(block);
         f.render_widget(p, main[2]);
-    }
-
-    pub fn cursor_pos(&self, area: ratatui::layout::Rect) -> Option<(u16, u16)> {
-        let main = wizard_layout(area, self.step);
-        let inner = main[1];
-        match self.step {
-            Step::Url => {
-                let x = inner.x + 1 + text_cursor::char_column(&self.url, self.url_cursor) as u16;
-                Some((x, inner.y + 1))
-            }
-            Step::Download => self
-                .download_picker
-                .cursor_position(inner, "Step 3/6 — ROMs directory"),
-            Step::Bearer => {
-                let x = inner.x
-                    + 1
-                    + text_cursor::char_column(&self.bearer_token, self.bearer_cursor) as u16;
-                Some((x, inner.y + 1))
-            }
-            Step::PairingCode => {
-                let x = inner.x
-                    + 1
-                    + text_cursor::char_column(&self.pairing_code, self.pairing_cursor) as u16;
-                Some((x, inner.y + 3))
-            }
-            Step::BasicUser => {
-                let x =
-                    inner.x + 1 + text_cursor::char_column(&self.username, self.user_cursor) as u16;
-                Some((x, inner.y + 2))
-            }
-            Step::BasicPass => {
-                let x = inner.x + 1 + self.password.chars().count() as u16;
-                Some((x, inner.y + 6))
-            }
-            Step::ApiHeader => {
-                let x = inner.x
-                    + 1
-                    + text_cursor::char_column(&self.api_header, self.header_cursor) as u16;
-                Some((x, inner.y + 2))
-            }
-            Step::ApiKey => {
-                let x = inner.x
-                    + 1
-                    + text_cursor::char_column(&self.api_key, self.api_key_cursor) as u16;
-                Some((x, inner.y + 6))
-            }
-            Step::Https | Step::CustomConsolePaths | Step::AuthMenu | Step::Summary => None,
-        }
     }
 }

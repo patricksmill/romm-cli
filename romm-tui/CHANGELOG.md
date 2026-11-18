@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Consolidate library selection identity, count, and ROM request interpretation without changing browsing, prefetch, or saved-selection behavior.
 
+### Fixed
+
+- Show a visible typing caret by default across search, filters, settings, path pickers, and setup/authentication forms, including masked secret fields; keep the insertion point visible for long inputs.
 ## [1.5.0](https://github.com/patricksmill/romm-cli/compare/romm-tui-v1.4.2...romm-tui-v1.5.0) (2026-11-04)
 
 
