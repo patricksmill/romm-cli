@@ -84,12 +84,12 @@ After merging:
 - [ ] [Release Please publish job](../.github/workflows/release-please.yml) completed (`publish-crates-io`)
 - [ ] [Release Artifacts](../.github/workflows/release-artifacts.yml) completed for frontend tags
 - [ ] crates.io shows the new version(s)
-- [ ] Smoke test: download archives and run `romm-cli --version` / `romm-tui --version`
+- [ ] Smoke test: download archives, run `romm-cli --version`, and launch `romm-tui` in a terminal to verify startup and exit. The TUI binary does not parse `--version`.
 
 Local preflight:
 
 ```bash
-./tools/release-check.sh
+bash tools/release-check.sh
 ```
 
 `release-check` always dry-runs `romm-api` first. Frontend `cargo publish --dry-run` runs only after that `romm-api` version exists on crates.io; otherwise frontends are validated with `cargo build --release`.

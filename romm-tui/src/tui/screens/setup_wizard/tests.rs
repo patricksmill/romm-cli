@@ -1,6 +1,5 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::backend::TestBackend;
-use ratatui::layout::Rect;
 use ratatui::Terminal;
 use std::path::PathBuf;
 use wiremock::matchers::{method, path};
@@ -24,6 +23,30 @@ fn unique_test_download_dir() -> PathBuf {
 
 fn key(code: KeyCode) -> KeyEvent {
     KeyEvent::new(code, KeyModifiers::empty())
+}
+
+/// Renders the wizard into a `TestBackend` and returns the visible screen text.
+fn render_wizard(wizard: &mut SetupWizard) -> String {
+    let backend = TestBackend::new(80, 24);
+    let mut terminal = Terminal::new(backend).expect("create test terminal");
+    let theme = resolve_theme_or_default(&default_theme_id());
+    let styles = RommStyles::new(theme.as_ref());
+    terminal
+        .draw(|frame| {
+            let area = frame.area();
+            wizard.render(frame, area, &styles);
+        })
+        .expect("render setup wizard");
+    let buffer = terminal.backend().buffer();
+    let width = buffer.area.width as usize;
+    let mut screen = String::new();
+    for (index, cell) in buffer.content().iter().enumerate() {
+        if width > 0 && index > 0 && index % width == 0 {
+            screen.push('\n');
+        }
+        screen.push_str(cell.symbol());
+    }
+    screen
 }
 
 fn wizard_with_pairing(mock_uri: &str, code: &str, download_dir: &str) -> SetupWizard {
@@ -77,17 +100,15 @@ fn url_input_keeps_cursor_on_utf8_boundaries() {
 }
 
 #[test]
-fn url_cursor_position_counts_utf8_chars_not_bytes() {
-    let area = Rect::new(0, 0, 80, 24);
+fn url_renders_inline_caret_at_utf8_cursor() {
     let mut wizard = SetupWizard::new();
-    wizard.url.clear();
-    wizard.url_cursor = 0;
-    let base_x = wizard.cursor_pos(area).expect("url cursor").0;
-
     wizard.url = "éx".to_string();
     wizard.url_cursor = wizard.url.len();
+    assert!(render_wizard(&mut wizard).contains("éx▏"));
 
-    assert_eq!(wizard.cursor_pos(area).expect("url cursor").0, base_x + 2);
+    wizard.url = "aé".to_string();
+    wizard.url_cursor = "a".len();
+    assert!(render_wizard(&mut wizard).contains("a▏é"));
 }
 
 #[tokio::test]
@@ -135,84 +156,50 @@ async fn pairing_config_from_exchange_returns_bearer_token() {
 }
 
 #[test]
-fn hidden_password_field_does_not_render_inline_cursor_glyph() {
+fn hidden_password_renders_mask_with_inline_caret() {
     let mut wizard = SetupWizard::new();
     wizard.step = Step::BasicPass;
     wizard.password = "secret".to_string();
-    let backend = TestBackend::new(80, 24);
-    let mut terminal = Terminal::new(backend).expect("create test terminal");
-    let theme = resolve_theme_or_default(&default_theme_id());
-    let styles = RommStyles::new(theme.as_ref());
-    terminal
-        .draw(|frame| {
-            let area = frame.area();
-            wizard.render(frame, area, &styles);
-        })
-        .expect("render setup wizard");
-    let backend = terminal.backend();
-    let buffer = backend.buffer();
-    let has_cursor_glyph = buffer.content().iter().any(|cell| cell.symbol() == "▏");
+    let screen = render_wizard(&mut wizard);
     assert!(
-        !has_cursor_glyph,
-        "password field should rely on terminal cursor, not inline glyph"
+        screen.contains("••••••▏"),
+        "active password field should mask the secret and show an inline caret at the end"
+    );
+    assert!(
+        !screen.contains("secret"),
+        "password text must never be rendered"
     );
 }
 
 #[test]
-fn hidden_password_mask_and_cursor_count_utf8_chars_not_bytes() {
-    let area = Rect::new(0, 0, 80, 24);
+fn hidden_password_mask_counts_utf8_chars_not_bytes() {
     let mut wizard = SetupWizard::new();
     wizard.step = Step::BasicPass;
     wizard.password = "é".to_string();
-
-    let backend = TestBackend::new(80, 24);
-    let mut terminal = Terminal::new(backend).expect("create test terminal");
-    let theme = resolve_theme_or_default(&default_theme_id());
-    let styles = RommStyles::new(theme.as_ref());
-    terminal
-        .draw(|frame| {
-            wizard.render(frame, area, &styles);
-        })
-        .expect("render setup wizard");
-    let bullet_count = terminal
-        .backend()
-        .buffer()
-        .content()
-        .iter()
-        .filter(|cell| cell.symbol() == "•")
-        .count();
-    assert_eq!(bullet_count, 1);
-
-    wizard.password.clear();
-    let base_x = wizard.cursor_pos(area).expect("password cursor").0;
-    wizard.password = "é".to_string();
-    assert_eq!(
-        wizard.cursor_pos(area).expect("password cursor").0,
-        base_x + 1
-    );
+    let screen = render_wizard(&mut wizard);
+    assert_eq!(screen.matches('•').count(), 1);
+    assert!(screen.contains("•▏"));
 }
 
 #[test]
-fn hidden_api_key_field_does_not_render_inline_cursor_glyph() {
+fn hidden_api_key_renders_mask_with_inline_caret_at_middle_cursor() {
     let mut wizard = SetupWizard::new();
     wizard.step = Step::ApiKey;
-    wizard.api_key = "secret-key".to_string();
+    wizard.api_key = "abcd".to_string();
     wizard.api_key_cursor = wizard.api_key.len();
-    let backend = TestBackend::new(80, 24);
-    let mut terminal = Terminal::new(backend).expect("create test terminal");
-    let theme = resolve_theme_or_default(&default_theme_id());
-    let styles = RommStyles::new(theme.as_ref());
-    terminal
-        .draw(|frame| {
-            let area = frame.area();
-            wizard.render(frame, area, &styles);
-        })
-        .expect("render setup wizard");
-    let backend = terminal.backend();
-    let buffer = backend.buffer();
-    let has_cursor_glyph = buffer.content().iter().any(|cell| cell.symbol() == "▏");
+    wizard.handle_key(&key(KeyCode::Left)).unwrap();
+    wizard.handle_key(&key(KeyCode::Left)).unwrap();
+    wizard.handle_key(&key(KeyCode::Char('X'))).unwrap();
+    assert_eq!(wizard.api_key, "abXcd");
+    assert_eq!(wizard.api_key_cursor, 3);
+
+    let screen = render_wizard(&mut wizard);
     assert!(
-        !has_cursor_glyph,
-        "API key field should rely on terminal cursor, not inline glyph"
+        screen.contains("•••▏••"),
+        "active API key field should place the caret at the edited character position"
+    );
+    assert!(
+        !screen.contains("abXcd"),
+        "API key text must never be rendered"
     );
 }
