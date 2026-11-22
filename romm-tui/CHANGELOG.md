@@ -16,6 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Show a visible typing caret by default across search, filters, settings, path pickers, and setup/authentication forms, including masked secret fields; keep the insertion point visible for long inputs.
+## [1.5.1](https://github.com/patricksmill/romm-cli/compare/romm-tui-v1.5.0...romm-tui-v1.5.1) (2026-11-22)
+
+
+### Bug Fixes
+
+* **tui:** show typing indicators across all text forms ([#108](https://github.com/patricksmill/romm-cli/issues/108)) ([e38d953](https://github.com/patricksmill/romm-cli/commit/e38d9534764b7bcac2e164ca6cc3036ad470d8cf))
+
 ## [1.5.0](https://github.com/patricksmill/romm-cli/compare/romm-tui-v1.4.2...romm-tui-v1.5.0) (2026-11-04)
 
 
