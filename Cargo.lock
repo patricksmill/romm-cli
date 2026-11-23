@@ -4963,7 +4963,7 @@ dependencies = [
 
 [[package]]
 name = "romm-tui"
-version = "1.5.0"
+version = "1.5.1"
 dependencies = [
  "anyhow",
  "crossterm 0.29.0",
