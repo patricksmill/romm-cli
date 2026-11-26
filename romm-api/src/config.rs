@@ -549,11 +549,10 @@ pub fn read_user_config_json_from_disk() -> Option<Config> {
 
 /// Auth to pass to [`persist_user_config`] when saving non-auth fields (e.g. TUI Settings).
 ///
-/// Prefer the in-memory [`Config::auth`]. If it is `None` (e.g. [`load_config`] could not read the
-/// token from the keyring), reuse `auth` from [`read_user_config_json_from_disk`] so we do not
-/// overwrite `config.json` with `"auth": null` while the file still held a bearer sentinel.
-pub fn auth_for_persist_merge(in_memory: Option<AuthConfig>) -> Option<AuthConfig> {
-    in_memory.or_else(|| read_user_config_json_from_disk().and_then(|c| c.auth))
+/// Non-auth saves must preserve the auth shape already present in `config.json` without
+/// materializing runtime-only credentials from env vars or token files into persistent storage.
+pub fn auth_for_persist_merge(_in_memory: Option<AuthConfig>) -> Option<AuthConfig> {
+    read_user_config_json_from_disk().and_then(|c| c.auth)
 }
 
 /// Where the OpenAPI spec is cached (`.../romm-cli/openapi.json`).
@@ -1728,7 +1727,7 @@ mod tests {
     }
 
     #[test]
-    fn auth_for_persist_merge_prefers_in_memory() {
+    fn auth_for_persist_merge_preserves_disk_auth_over_memory() {
         let env = TestEnv::new();
         let on_disk = r#"{
             "base_url": "http://disk.test",
@@ -1741,8 +1740,11 @@ mod tests {
         let mem = Some(AuthConfig::Bearer {
             token: "from-memory".into(),
         });
-        let merged = auth_for_persist_merge(mem.clone());
-        assert_eq!(format!("{:?}", merged), format!("{:?}", mem));
+        let merged = auth_for_persist_merge(mem);
+        match merged {
+            Some(AuthConfig::Bearer { token }) => assert_eq!(token, "from-disk"),
+            _ => panic!("expected bearer auth from disk"),
+        }
     }
 
     #[test]
@@ -1763,6 +1765,21 @@ mod tests {
             }
             _ => panic!("expected bearer auth from disk"),
         }
+    }
+
+    #[test]
+    fn auth_for_persist_merge_does_not_persist_env_only_auth() {
+        let _env = TestEnv::new();
+        std::env::set_var("API_BASE_URL", "http://example.test");
+        std::env::set_var("API_TOKEN", "env-only-token");
+
+        let cfg = load_config().expect("env config should load");
+        assert!(matches!(cfg.auth, Some(AuthConfig::Bearer { .. })));
+
+        assert!(
+            auth_for_persist_merge(cfg.auth).is_none(),
+            "non-auth saves must not materialize runtime-only env credentials into config.json"
+        );
     }
 
     #[test]
