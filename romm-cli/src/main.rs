@@ -1,6 +1,7 @@
 //! Binary entrypoint for `romm-cli`.
 
 use clap::Parser;
+use romm_cli::cli_presentation::format_command_details;
 use romm_cli::commands::completions;
 use romm_cli::commands::init;
 use romm_cli::commands::{run, Cli, Commands};
@@ -21,7 +22,7 @@ async fn main() {
     if let Err(e) = run_app(cli).await {
         eprintln!("Error: {}", user_message(&e));
         if verbose {
-            eprintln!("Details: {e:#}");
+            eprintln!("Details: {}", format_command_details(&e));
         }
         std::process::exit(exit_code(&e));
     }

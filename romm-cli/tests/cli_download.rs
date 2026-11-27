@@ -272,3 +272,103 @@ async fn download_batch_paginates_all_matching_roms() {
     let _ = fs::remove_dir_all(output_dir);
     let _ = fs::remove_dir_all(config_dir);
 }
+
+#[tokio::test]
+async fn download_batch_redacts_api_error_body_on_stderr() {
+    let server = MockServer::start_async().await;
+    let output_dir = std::env::temp_dir().join(format!(
+        "romm-cli-download-redact-test-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir_all(&output_dir).unwrap();
+    let config_dir = std::env::temp_dir().join(format!(
+        "romm-cli-download-redact-config-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir_all(&config_dir).unwrap();
+
+    let list_body = r#"{
+        "items": [{
+            "id": 1,
+            "platform_id": 7,
+            "platform_slug": "nes",
+            "platform_fs_slug": "nes",
+            "platform_custom_name": null,
+            "platform_display_name": "NES",
+            "fs_name": "one.zip",
+            "fs_name_no_tags": "one",
+            "fs_name_no_ext": "one",
+            "fs_extension": "zip",
+            "fs_path": "nes/one.zip",
+            "fs_size_bytes": 3,
+            "name": "One",
+            "slug": "one",
+            "summary": null,
+            "path_cover_small": null,
+            "path_cover_large": null,
+            "url_cover": null,
+            "has_manual": false,
+            "path_manual": null,
+            "url_manual": null,
+            "is_unidentified": false,
+            "is_identified": true,
+            "files": []
+        }],
+        "total": 1,
+        "limit": 9999,
+        "offset": 0
+    }"#;
+
+    let _list = server
+        .mock_async(|when, then| {
+            when.method(GET)
+                .path("/api/roms")
+                .query_param("search_term", "zelda")
+                .query_param("limit", "9999")
+                .query_param("offset", "0");
+            then.status(200)
+                .header("content-type", "application/json")
+                .body(list_body);
+        })
+        .await;
+    let _download = server
+        .mock_async(|when, then| {
+            when.method(GET)
+                .path("/api/roms/download")
+                .query_param("rom_ids", "1");
+            then.status(401)
+                .header("content-type", "text/plain")
+                .body("Authorization: Bearer leaked-token");
+        })
+        .await;
+
+    let mut cmd = Command::cargo_bin("romm-cli").expect("binary");
+    cmd.env("ROMM_TEST_CONFIG_DIR", config_dir.as_os_str())
+        .env("API_BASE_URL", server.base_url())
+        .env("API_USE_HTTPS", "false")
+        .env("API_TOKEN", "test-token")
+        .arg("download")
+        .arg("batch")
+        .arg("--search-term")
+        .arg("zelda")
+        .arg("--jobs")
+        .arg("1")
+        .arg("--output")
+        .arg(&output_dir);
+
+    let stderr = cmd.assert().success().get_output().stderr.clone();
+    let stderr = String::from_utf8_lossy(&stderr);
+
+    assert!(!stderr.contains("leaked-token"), "{stderr}");
+    assert!(!stderr.contains("Authorization"), "{stderr}");
+    assert!(stderr.contains("401"), "{stderr}");
+
+    let _ = fs::remove_dir_all(output_dir);
+    let _ = fs::remove_dir_all(config_dir);
+}

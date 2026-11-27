@@ -273,6 +273,14 @@ impl DownloadError {
     pub fn is_not_found(&self) -> bool {
         matches!(self, DownloadError::Api(api) if api.is_not_found())
     }
+
+    /// Log/UI-safe summary: API response bodies are omitted because servers can echo secrets.
+    pub fn redacted_for_log(&self) -> String {
+        match self {
+            Self::Api(api) => api.redacted_for_log(),
+            other => other.to_string(),
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -381,6 +389,13 @@ pub fn user_message(err: &RommError) -> String {
         }
         RommError::Download(DownloadError::PathNotConfigured) => {
             "ROMs directory is not configured. Run `romm-cli init`.".to_string()
+        }
+        RommError::Download(DownloadError::Api(api)) if api.is_auth_failure() => {
+            "Authentication failed during download. Check credentials or run `romm-cli auth`."
+                .to_string()
+        }
+        RommError::Download(DownloadError::Api(api)) => {
+            format!("Download failed: {}", api.redacted_for_log())
         }
         RommError::Download(DownloadError::IoContext { .. }) => {
             format!("Download I/O error: {err}. Check disk permissions and output path.")
@@ -537,6 +552,19 @@ mod tests {
             body: "slow down".into(),
         });
         assert!(user_message(&rate).contains("Rate limited"));
+    }
+
+    #[test]
+    fn user_message_redacts_download_api_body() {
+        let err = RommError::Download(DownloadError::Api(ApiError::Unauthorized {
+            body: "Authorization: Bearer leaked-token".into(),
+        }));
+
+        let msg = user_message(&err);
+
+        assert!(!msg.contains("leaked-token"));
+        assert!(!msg.contains("Authorization"));
+        assert!(msg.contains("Authentication failed"));
     }
 
     #[test]

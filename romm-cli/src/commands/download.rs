@@ -397,7 +397,10 @@ pub async fn handle(
                 drop(permit);
                 if let Err(e) = &result {
                     if !is_cancelled_download(e) {
-                        eprintln!("error downloading {name} (id={rom_id}): {e}");
+                        eprintln!(
+                            "error downloading {name} (id={rom_id}): {}",
+                            e.redacted_for_log()
+                        );
                     }
                 }
                 result.map(|_| save_path)
