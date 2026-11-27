@@ -7,6 +7,7 @@ use serde::Serialize;
 
 use crate::commands::OutputFormat;
 use romm_api::error::{user_message, RommError};
+use romm_api::log_redact::redact_romm_error_for_log;
 
 /// Resolved CLI output mode for a single command invocation.
 #[derive(Clone, Copy, Debug)]
@@ -96,7 +97,7 @@ impl CliPresentation {
     pub fn emit_command_error(&self, err: &RommError) {
         eprintln!("Error: {}", user_message(err));
         if self.verbose {
-            eprintln!("Details: {err:#}");
+            eprintln!("Details: {}", format_command_details(err));
         }
     }
 }
@@ -104,6 +105,11 @@ impl CliPresentation {
 /// Format a command-local failure for stderr.
 pub fn format_command_error(err: &RommError) -> String {
     user_message(err)
+}
+
+/// Format verbose details for stderr without exposing API response bodies.
+pub fn format_command_details(err: &RommError) -> String {
+    redact_romm_error_for_log(err)
 }
 
 #[cfg(test)]
@@ -159,5 +165,20 @@ mod tests {
         // May still be false when stdout is not a TTY in test harness.
         let _ = p.supports_ansi_color();
         clear_color_env();
+    }
+
+    #[test]
+    fn command_details_redacts_download_api_body() {
+        let err = RommError::Download(romm_api::error::DownloadError::Api(
+            romm_api::error::ApiError::Unauthorized {
+                body: "Authorization: Bearer leaked-token".into(),
+            },
+        ));
+
+        let msg = format_command_details(&err);
+
+        assert!(!msg.contains("leaked-token"));
+        assert!(!msg.contains("Authorization"));
+        assert!(msg.contains("401"));
     }
 }

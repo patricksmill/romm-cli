@@ -34,6 +34,7 @@ pub fn redact_url_for_log(url: &str) -> String {
 pub fn redact_romm_error_for_log(err: &crate::error::RommError) -> String {
     match err {
         crate::error::RommError::Api(api) => api.redacted_for_log(),
+        crate::error::RommError::Download(download) => download.redacted_for_log(),
         other => other.to_string(),
     }
 }
@@ -60,7 +61,7 @@ pub fn redact_anyhow_for_log(err: &anyhow::Error) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::error::ApiError;
+    use crate::error::{ApiError, DownloadError, RommError};
     use std::io::Write;
     use std::sync::{Arc, Mutex};
     struct CaptureWriter(Arc<Mutex<Vec<u8>>>);
@@ -156,5 +157,18 @@ mod tests {
         let out = redact_anyhow_for_log(&err);
         assert!(!out.contains("secret-body"));
         assert!(out.contains("400"));
+    }
+
+    #[test]
+    fn redact_romm_error_handles_download_api_error() {
+        let err = RommError::Download(DownloadError::Api(ApiError::Unauthorized {
+            body: "Authorization: Bearer leaked-token".to_string(),
+        }));
+
+        let out = redact_romm_error_for_log(&err);
+
+        assert!(!out.contains("leaked-token"));
+        assert!(!out.contains("Authorization"));
+        assert!(out.contains("401"));
     }
 }

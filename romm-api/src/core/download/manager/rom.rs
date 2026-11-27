@@ -126,7 +126,10 @@ async fn fetch_base_targets_from_detail(
             set_job_status(
                 jobs,
                 job_id,
-                DownloadStatus::Error(format!("Failed to fetch ROM detail: {e}")),
+                DownloadStatus::Error(format!(
+                    "Failed to fetch ROM detail: {}",
+                    e.redacted_for_log()
+                )),
             );
             return None;
         }
@@ -189,7 +192,7 @@ async fn download_base_targets(
                 all_skipped = false;
             }
             Err(err) => {
-                set_job_status(jobs, job_id, DownloadStatus::Error(err.to_string()));
+                set_job_status(jobs, job_id, DownloadStatus::Error(err.redacted_for_log()));
                 return;
             }
         }
@@ -197,7 +200,11 @@ async fn download_base_targets(
         if let Err(final_err) =
             download_target_with_fallback(client, target, |_, _| false, &mut progress).await
         {
-            set_job_status(jobs, job_id, DownloadStatus::Error(final_err.to_string()));
+            set_job_status(
+                jobs,
+                job_id,
+                DownloadStatus::Error(final_err.redacted_for_log()),
+            );
             return;
         }
     }

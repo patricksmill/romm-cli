@@ -75,7 +75,7 @@ impl DownloadManager {
 
                     let (ok, err) = match download_result {
                         Ok(()) => (true, None),
-                        Err(e) => (false, Some(e.to_string())),
+                        Err(e) => (false, Some(e.redacted_for_log())),
                     };
 
                     let item = ExtrasItemResult {
